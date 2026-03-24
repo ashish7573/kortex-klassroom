@@ -137,7 +137,7 @@ const Button = ({ children, onClick, variant = "primary", className = "", icon: 
     outline: "border-2 border-sky-500 text-sky-500 hover:bg-sky-50"
   };
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={`px-6 py-3 rounded-full flex items-center justify-center gap-2 font-bold transition-all ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed active:border-b-4 active:translate-y-0' : ''}`}>
+    <button type={type} onClick={onClick} disabled={disabled} className={`px-6 py-3 rounded-full flex items-center justify-center gap-2 font-bold transition-all ${(variants as any)[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed active:border-b-4 active:translate-y-0' : ''}`}>
       {Icon && <Icon size={20} />}
       {children}
     </button>
