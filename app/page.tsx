@@ -198,7 +198,7 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
         await signInWithEmailAndPassword(auth, email, password);
         onClose();
       }
-    } catch (error) { 
+    } catch (error: any) { 
       console.error("🚨 FIREBASE AUTH ERROR:", error);
       setErrorMsg(error.message.replace('Firebase: ', '')); 
     } finally { 
@@ -226,7 +226,7 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
         });
       }
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("🚨 GOOGLE AUTH ERROR:", error);
       setErrorMsg(error.message.replace('Firebase: ', ''));
     } finally {
@@ -253,7 +253,7 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
       } else {
         setErrorMsg("Incorrect Username or PIN.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("🚨 STUDENT LOGIN ERROR:", error);
       setErrorMsg("Error connecting to database. Please try again.");
     } finally {
@@ -585,7 +585,7 @@ const GamesView = ({ isLoggedIn, requireAuth, onStartGame }) => {
           }
         });
         setAllGames(extractedGames);
-      } catch (error) { console.error(error); } finally { setIsLoading(false); }
+      } catch (error: any) { console.error(error); } finally { setIsLoading(false); }
     }
     fetchGames();
   }, []);
@@ -711,7 +711,7 @@ const ToolsView = ({ isLoggedIn, requireAuth, onOpenTool }) => {
           }
         });
         setAllTools(extractedTools);
-      } catch (error) { console.error(error); } finally { setIsLoading(false); }
+      } catch (error: any) { console.error(error); } finally { setIsLoading(false); }
     }
     fetchTools();
   }, []);
@@ -922,7 +922,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
         processedModules.sort((a, b) => a.chapter_number - b.chapter_number);
 
         setAllLessons(processedModules);
-      } catch (error) { 
+      } catch (error: any) { 
         console.error("Error fetching lessons:", error); 
       } finally { 
         setIsLoading(false); 
@@ -1181,7 +1181,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
         setDbFeaturedGames(games.slice(0, 4));
         setDbFeaturedTools(tools.slice(0, 4));
 
-      } catch (error) { 
+      } catch (error: any) { 
           console.error("Error fetching featured content:", error); 
       } finally {
           setIsLoadingLanding(false);
@@ -1454,7 +1454,7 @@ const StudentView = ({ t, onStartLesson, currentStudent, isLoggedIn, requireAuth
                setMyWorlds(formattedWorlds);
             } else setMyWorlds([]); 
          }
-       } catch (error) { console.error(error); setMyWorlds([]); } finally { setIsLoadingDb(false); }
+       } catch (error: any) { console.error(error); setMyWorlds([]); } finally { setIsLoadingDb(false); }
     }
     loadStudentData();
   }, [isLoggedIn, currentStudent]);
@@ -1644,7 +1644,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
       setShowAddChildModal(false); setStep(1);
       setChildForm({ apaarId: '', fullName: '', grade: '', dob: '', fathersName: '', mothersName: '', contact1: '', isWhatsapp1: true, contact2: '', creatorRelation: 'Father', creatorName: '', username: '', pin: '' });
       alert("Child Profile Created! They can now log in directly using their Username and PIN.");
-    } catch (error) { console.error(error); alert("An error occurred. Please try again."); } finally { setIsSaving(false); }
+    } catch (error: any) { console.error(error); alert("An error occurred. Please try again."); } finally { setIsSaving(false); }
   };
 
   // --- FLOW 2: IMPORT & CLAIM ---
@@ -1666,7 +1666,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
         
         setFoundStudent({ id: studentDoc.id, ...studentData });
         setStep(2);
-     } catch (error) { console.error(error); alert("Error verifying student."); } finally { setIsSaving(false); }
+     } catch (error: any) { console.error(error); alert("Error verifying student."); } finally { setIsSaving(false); }
   };
 
   const handleClaimChild = async () => {
@@ -1690,7 +1690,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
         setShowAddChildModal(false); setStep(1); setFoundStudent(null);
         setImportForm({ apaarId: '', dob: '', username: '', pin: '' });
         alert(`Successfully claimed ${foundStudent.name}'s profile! They can now log in.`);
-     } catch (error) { console.error(error); alert("Error claiming student."); } finally { setIsSaving(false); }
+     } catch (error: any) { console.error(error); alert("Error claiming student."); } finally { setIsSaving(false); }
   };
 
   const activeChild = myChildren.find(c => c.id === selectedChildId);
@@ -2165,7 +2165,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
       setMyClasses([...myClasses, { id: docRef.id, grade: newGrade, subject: newSubject }]); 
       setSelectedAnalyticsFilter(`${newGrade} • ${newSubject}`);
       setNewGrade(''); setNewSubject(''); setShowClassModal(false); 
-    } catch (error) { console.error(error); alert("Failed to add class."); } finally { setIsSavingClass(false); }
+    } catch (error: any) { console.error(error); alert("Failed to add class."); } finally { setIsSavingClass(false); }
   };
 
   const handleRemoveClass = async (classId) => {
@@ -2176,7 +2176,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
       setMyClasses(updatedClasses); 
       if (updatedClasses.length > 0) setSelectedAnalyticsFilter(`${updatedClasses[0].grade} • ${updatedClasses[0].subject}`);
       else setSelectedAnalyticsFilter('');
-    } catch (error) { console.error(error); }
+    } catch (error: any) { console.error(error); }
   };
 
  // Helper: Precise Age Calculator
@@ -2225,7 +2225,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         alert("Student Profile Created! It is now securely awaiting Parent claim & login setup.");
         setShowManageStudentModal(false);
         setNewStudentForm({apaarId: '', fullName: '', fathersName: '', mothersName: '', contact1: '', isWhatsapp1: true, contact2: '', dob: '', selectedClasses: []});
-     } catch (error) { console.error(error); alert("Error creating student."); } finally { setIsSavingStudent(false); }
+     } catch (error: any) { console.error(error); alert("Error creating student."); } finally { setIsSavingStudent(false); }
   };
 
   const handleImportStudent = async () => {
@@ -2251,7 +2251,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         alert(`Successfully imported ${studentData.name} into your roster!`);
         setShowManageStudentModal(false);
         setImportForm({ apaarId: '', dob: '', selectedClasses: [] });
-     } catch (error) { console.error(error); alert("Error importing student."); } finally { setIsSavingStudent(false); }
+     } catch (error: any) { console.error(error); alert("Error importing student."); } finally { setIsSavingStudent(false); }
   };
 
   const handleSubmitWizard = async () => {
@@ -2275,7 +2275,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
        });
        alert(`Success! ${krewWizard.isEdit ? 'Edit' : 'Add'} Request sent to Admin for approval.`);
        setKrewWizard(initialWizardState);
-     } catch (error) { console.error(error); alert("Error sending request."); } finally { setIsSendingRequest(false); }
+     } catch (error: any) { console.error(error); alert("Error sending request."); } finally { setIsSendingRequest(false); }
   };
 
   const handleKrewDelete = async (targetType, targetId, title) => {
@@ -2303,7 +2303,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
          created_at: new Date().toISOString()
        });
        alert("Delete request sent to Admin!");
-     } catch (error) { 
+     } catch (error: any) { 
        console.error(error); 
        alert("Error sending delete request.");
      }
@@ -2326,7 +2326,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
        });
        alert("Quick Edit request sent to Admin for approval.");
        setKrewEdit({ show: false, type: '', chapterId: '', oldTitle: '', newTitle: '', parentSubtopic: '' });
-    } catch (error) { console.error(error); } finally { setIsSendingRequest(false); }
+    } catch (error: any) { console.error(error); } finally { setIsSendingRequest(false); }
   };
 
   const handleFullEditClick = (tool, subtopicTitle, lesson) => {
@@ -2921,7 +2921,7 @@ const AdminView = () => {
         const allReqs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPendingRequests(allReqs.filter(req => req.status === 'pending'));
         setRequestHistory(allReqs.filter(req => req.status !== 'pending'));
-      } catch (error) { console.error("🚨 FIREBASE ADMIN FETCH ERROR:", error); } 
+      } catch (error: any) { console.error("🚨 FIREBASE ADMIN FETCH ERROR:", error); } 
       finally { setIsLoading(false); }
     }
     if (activeTab === 'approvals') fetchRequests();
@@ -3051,7 +3051,7 @@ const AdminView = () => {
       setPendingRequests(prev => prev.filter(req => req.id !== request.id));
       setRequestHistory(prev => [updatedRequest, ...prev]);
       alert(isApproved ? `APPROVED! Database updated automatically.` : "REJECTED. Archived in History.");
-    } catch (error) { console.error("🚨 ERROR UPDATING REQUEST:", error); }
+    } catch (error: any) { console.error("🚨 ERROR UPDATING REQUEST:", error); }
   };
 
   const handleBulkCurriculumUpload = (e: any) => {
@@ -3130,7 +3130,7 @@ const AdminView = () => {
         }
         
         alert(`SUCCESS! Flawlessly uploaded ${count} structured lessons to the Database.`);
-      } catch (err) { 
+      } catch (err: any) { 
         console.error(err); 
         alert("Error parsing CSV. Please make sure it matches the exact 14-column format."); 
       } finally { 
@@ -3298,7 +3298,7 @@ export default function App() {
           } else {
             setUserName(user.displayName || '');
           }
-        } catch (error) { console.error("🚨 ERROR FETCHING FIRESTORE PROFILE:", error); }
+        } catch (error: any) { console.error("🚨 ERROR FETCHING FIRESTORE PROFILE:", error); }
       } else {
         // Just set the auth state to false. DO NOT wipe the role here, 
         // otherwise guests can't click into portals!
@@ -3333,7 +3333,7 @@ export default function App() {
        setCurrentStudent(null); 
        setStage(null); 
        setCurrentView('home'); 
-    } catch (error) { console.error(error); }
+    } catch (error: any) { console.error(error); }
   };
 
   const requireAuth = (actionCallback, message = "Please sign in to access this feature.") => {
