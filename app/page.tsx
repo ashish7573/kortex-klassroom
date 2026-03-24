@@ -127,7 +127,7 @@ const Card = ({ children, className = "", onClick }: any) => (
   </div>
 );
 
-const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled, type = "button" }) => {
+const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon, disabled, type = "button" }: any) => {
   const variants = {
     primary: "bg-sky-500 text-white hover:bg-sky-600 shadow-md hover:shadow-lg border-b-4 border-sky-700 active:border-b-0 active:translate-y-1",
     secondary: "bg-white text-slate-700 border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300",
@@ -143,7 +143,7 @@ const Button = ({ children, onClick, variant = "primary", className = "", icon: 
   );
 };
 
-const ProgressBar = ({ label, percentage, colorClass }) => (
+const ProgressBar = ({ label, percentage, colorClass }: any) => (
   <div className="mb-4">
     <div className="flex justify-between mb-1">
       <span className="text-sm font-bold text-slate-700">{label}</span>
@@ -155,7 +155,7 @@ const ProgressBar = ({ label, percentage, colorClass }) => (
   </div>
 );
 
-const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }) => {
+const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) => {
   const [loginMode, setLoginMode] = useState('adult'); // 'adult' or 'student'
   
   // Adult State
