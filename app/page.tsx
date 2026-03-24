@@ -93,6 +93,7 @@ const TESTIMONIALS = [
 console.log("🚨 CHECKING KEYS:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "KEY FOUND!" : "STILL UNDEFINED :(");
 
 
+// Initialize Firebase
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -3490,4 +3491,3 @@ export default function App() {
   );
 }
 
-// Forcing Vercel to rebuild
