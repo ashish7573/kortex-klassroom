@@ -75,7 +75,8 @@ const SUBJECT_IMAGES = {
 
 const getSubjectFallbackImage = (subjectStr: any) => {
   const cleanSubj = subjectStr?.toLowerCase().trim() === 'mathematics' ? 'Maths' : subjectStr?.trim();
-  return SUBJECT_IMAGES[cleanSubj] || SUBJECT_IMAGES['DEFAULT'];
+  // We added "(SUBJECT_IMAGES as any)" here to force TypeScript to stand down
+  return (SUBJECT_IMAGES as any)[cleanSubj] || SUBJECT_IMAGES['DEFAULT'];
 };
 
 const TRANSLATIONS = {
