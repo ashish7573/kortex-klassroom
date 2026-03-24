@@ -574,7 +574,7 @@ const GamesView = ({ isLoggedIn, requireAuth, onStartGame }) => {
         const snapshot = await getDocs(collection(db, 'learning_tools'));
         let extractedGames = [];
         snapshot.docs.forEach(doc => {
-          const item = { id: doc.id, ...doc.data() };
+          const item: any = { id: doc.id, ...doc.data() };
           if (item.content_type?.toLowerCase() === 'game') {
              extractedGames.push({
                ...item, 
@@ -699,7 +699,7 @@ const ToolsView = ({ isLoggedIn, requireAuth, onOpenTool }) => {
         const snapshot = await getDocs(collection(db, 'learning_tools'));
         let extractedTools = [];
         snapshot.docs.forEach(doc => {
-          const item = { id: doc.id, ...doc.data() };
+          const item: any = { id: doc.id, ...doc.data() };
           if (item.content_type && item.content_type?.toLowerCase() !== 'game' && item.content_type?.toLowerCase() !== 'placeholder') {
              extractedTools.push({
                ...item, 
