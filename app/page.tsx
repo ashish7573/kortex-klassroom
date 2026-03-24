@@ -73,7 +73,7 @@ const SUBJECT_IMAGES = {
   'DEFAULT': 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&q=80&w=500'
 };
 
-const getSubjectFallbackImage = (subjectStr) => {
+const getSubjectFallbackImage = (subjectStr: any) => {
   const cleanSubj = subjectStr?.toLowerCase().trim() === 'mathematics' ? 'Maths' : subjectStr?.trim();
   return SUBJECT_IMAGES[cleanSubj] || SUBJECT_IMAGES['DEFAULT'];
 };
