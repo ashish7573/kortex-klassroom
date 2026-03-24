@@ -121,7 +121,7 @@ export const googleProvider = new GoogleAuthProvider();
 // SECTION 3: SHARED UI COMPONENTS (CARDS, BUTTONS, MODALS)
 // ============================================================================
 
-const Card = ({ children, className = "", onClick }) => (
+const Card = ({ children, className = "", onClick }: any) => (
   <div onClick={onClick} className={`bg-white rounded-3xl shadow-sm border-2 border-slate-100 overflow-hidden transition-all duration-300 ${onClick ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:border-sky-200' : ''} ${className}`}>
     {children}
   </div>
