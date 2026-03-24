@@ -19,6 +19,7 @@ import { QUIZ_REGISTRY } from '../components/quizzes/QuizRegistry';
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, orderBy, deleteDoc, addDoc, limit } from "firebase/firestore";
+import { AnyOfSchema } from 'firebase/ai';
 
 
 
@@ -173,7 +174,7 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleAdultAuth = async (e) => {
+  const handleAdultAuth = async (e: any) => {
     e.preventDefault();
     setIsLoading(true); 
     setErrorMsg('');
@@ -233,7 +234,7 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
     }
   };
 
-  const handleStudentAuth = async (e) => {
+  const handleStudentAuth = async (e: any) => {
     e.preventDefault();
     setIsLoading(true); 
     setErrorMsg('');
@@ -291,11 +292,11 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
                     <p className="text-slate-500 font-medium text-sm mt-1">Enter your secret details to play.</p>
                  </div>
                  <input 
-                   type="text" placeholder="Your Username" required value={studentUsername} onChange={(e) => setStudentUsername(e.target.value)}
+                   type="text" placeholder="Your Username" required value={studentUsername} onChange={(e: any) => setStudentUsername(e.target.value)}
                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-purple-600 focus:border-purple-500 outline-none lowercase"
                  />
                  <input 
-                   type="password" placeholder="6-Digit Secret PIN" required maxLength={6} value={studentPin} onChange={(e) => setStudentPin(e.target.value.replace(/\D/g, ''))}
+                   type="password" placeholder="6-Digit Secret PIN" required maxLength={6} value={studentPin} onChange={(e: any) => setStudentPin(e.target.value.replace(/\D/g, ''))}
                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-2xl tracking-widest text-center font-black text-slate-800 focus:border-purple-500 outline-none"
                  />
                  <Button type="submit" disabled={isLoading || studentPin.length !== 6 || !studentUsername} className="w-full py-4 text-lg bg-purple-500 hover:bg-purple-600 border-b-4 border-purple-700 active:border-b-0 text-white mt-2">
@@ -315,16 +316,16 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
                  <form onSubmit={handleAdultAuth} className="space-y-4">
                     {isSignUp && (
                       <>
-                        <input type="text" placeholder="Full Name" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
-                        <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none">
+                        <input type="text" placeholder="Full Name" required value={fullName} onChange={(e: any) => setFullName(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
+                        <select value={selectedRole} onChange={(e: any) => setSelectedRole(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none">
                           <option value="parent">I am a Parent</option>
                           <option value="teacher">I am a Teacher</option>
                           <option value="student">I am an Independent Student</option>
                         </select>
                       </>
                     )}
-                    <input type="email" placeholder="Email Address" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
-                    <input type="password" placeholder="Password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
+                    <input type="email" placeholder="Email Address" required value={email} onChange={(e: any) => setEmail(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
+                    <input type="password" placeholder="Password" required value={password} onChange={(e: any) => setPassword(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
                     <button type="submit" disabled={isLoading} className="w-full bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-sky-600 active:translate-y-1 transition-all flex items-center justify-center gap-2">
                       {isLoading ? 'Please wait...' : (isSignUp ? 'Sign Up' : 'Log In')}
                     </button>
@@ -616,16 +617,16 @@ const GamesView = ({ isLoggedIn, requireAuth, onStartGame }) => {
       <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-            <select className="flex-1 md:w-40 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-pink-500 outline-none" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}>
+            <select className="flex-1 md:w-40 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-pink-500 outline-none" value={selectedClass} onChange={(e: any) => setSelectedClass(e.target.value)}>
               <option value="">All Grades</option>{GRADES.map(grade => <option key={grade} value={grade}>{grade}</option>)}
             </select>
-            <select className="flex-1 md:w-48 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-pink-500 outline-none" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}>
+            <select className="flex-1 md:w-48 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-pink-500 outline-none" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
               <option value="">All Subjects</option>{SUBJECTS.map(subject => <option key={subject} value={subject}>{subject}</option>)}
             </select>
          </div>
          <div className="relative w-full md:flex-1 flex gap-2">
             <div className="relative flex-1">
-              <input type="text" placeholder="Search all games..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-3 pl-4 pr-10 font-bold text-slate-700 focus:border-pink-500 outline-none" />
+              <input type="text" placeholder="Search all games..." value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-3 pl-4 pr-10 font-bold text-slate-700 focus:border-pink-500 outline-none" />
               <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
             </div>
             {hasActiveFilters && (<button onClick={clearFilters} className="px-4 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold rounded-xl transition-colors shrink-0 flex items-center gap-2"><X size={16} /> Clear</button>)}
@@ -769,16 +770,16 @@ const ToolsView = ({ isLoggedIn, requireAuth, onOpenTool }) => {
       <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-            <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}>
+            <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" value={selectedClass} onChange={(e: any) => setSelectedClass(e.target.value)}>
               <option value="">All Grades</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
-            <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}>
+            <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
               <option value="">All Subjects</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
          </div>
          <div className="relative w-full md:flex-1 flex gap-2">
             <div className="relative flex-1">
-              <input type="text" placeholder="Search videos, docs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 rounded-xl py-3 pl-4 pr-10 font-bold outline-none focus:border-emerald-500" />
+              <input type="text" placeholder="Search videos, docs..." value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 rounded-xl py-3 pl-4 pr-10 font-bold outline-none focus:border-emerald-500" />
               <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
             </div>
             {(selectedClass || selectedSubject || searchQuery) && <button onClick={() => {setSelectedClass(""); setSelectedSubject(""); setSearchQuery("");}} className="px-4 bg-slate-100 font-bold rounded-xl flex items-center gap-2"><X size={16} /> Clear</button>}
@@ -987,16 +988,16 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
           <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                 <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-                <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}>
+                <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedClass} onChange={(e: any) => setSelectedClass(e.target.value)}>
                   <option value="">All Grades</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
-                <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}>
+                <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
                   <option value="">All Subjects</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
              </div>
              <div className="relative w-full md:flex-1 flex gap-2">
                 <div className="relative flex-1">
-                  <input type="text" placeholder="Search chapters or books..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 rounded-xl py-3 pl-4 pr-10 font-bold outline-none focus:border-sky-500" />
+                  <input type="text" placeholder="Search chapters or books..." value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 rounded-xl py-3 pl-4 pr-10 font-bold outline-none focus:border-sky-500" />
                   <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
                 </div>
                 {(selectedClass || selectedSubject || searchQuery) && <button onClick={() => {setSelectedClass(""); setSelectedSubject(""); setSearchQuery("");}} className="px-4 bg-slate-100 font-bold rounded-xl flex items-center gap-2 hover:bg-slate-200"><X size={16} /> Clear</button>}
@@ -1590,7 +1591,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
              setSelectedChildId(childrenData[0].id);
           }
         }
-      } catch (e) { console.error("🚨 FIREBASE PARENT FETCH ERROR:", e); }
+      } catch (e: any) { console.error("🚨 FIREBASE PARENT FETCH ERROR:", e); }
     }
     fetchChildren();
   }, [isLoggedIn, selectedChildId]);
@@ -1991,7 +1992,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         if (classes.length > 0 && !targetContext) {
            setSelectedAnalyticsFilter(`${classes[0].grade} • ${classes[0].subject}`);
         }
-      } catch (e) { console.error("Database Error:", e); } finally { setIsLoading(false); }
+      } catch (e: any) { console.error("Database Error:", e); } finally { setIsLoading(false); }
     }
     loadTeacherClasses();
   }, [isLoggedIn, targetContext]);
@@ -2027,7 +2028,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
             setClassStats({ avg: 0, struggling: [], top: [], total: 0 });
           }
         }
-      } catch (e) { console.error(e); }
+      } catch (e: any) { console.error(e); }
     }
     fetchClassData();
   }, [selectedAnalyticsFilter, isLoggedIn, showManageStudentModal]);
@@ -2123,7 +2124,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
 
         // 5. Hand it to the Teacher UI!
         setDbCurriculum(processedModules); 
-      } catch (e) { 
+      } catch (e: any) { 
         console.error("Error fetching Teacher Curriculum:", e); 
       }
     }
@@ -2146,7 +2147,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
              return m.grade?.toLowerCase().trim() === filterGrade && dbSubj === filterSubject;
           });
           setWizardData(filtered);
-        } catch (e) { console.error(e); }
+        } catch (e: any) { console.error(e); }
       } else { setWizardData([]); }
     }
     fetchWizardData();
@@ -2639,10 +2640,10 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
                ) : (
                   <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                      <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-                     <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={guestSelectedGrade} onChange={(e) => setGuestSelectedGrade(e.target.value)}>
+                     <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={guestSelectedGrade} onChange={(e: any) => setGuestSelectedGrade(e.target.value)}>
                        <option value="">All Grades</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                      </select>
-                     <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={guestSelectedSubject} onChange={(e) => setGuestSelectedSubject(e.target.value)}>
+                     <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={guestSelectedSubject} onChange={(e: any) => setGuestSelectedSubject(e.target.value)}>
                        <option value="">All Subjects</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                      </select>
                      {(guestSelectedGrade || guestSelectedSubject) && <button onClick={() => {setGuestSelectedGrade(""); setGuestSelectedSubject("");}} className="px-4 py-2 bg-slate-100 font-bold rounded-xl flex items-center gap-2 hover:bg-slate-200 text-slate-600"><X size={16} /> Clear</button>}
@@ -2662,8 +2663,8 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
                         <Card key={lesson.id} className={`p-6 cursor-pointer relative group transition-colors ${isEditMode ? 'hover:border-emerald-400' : 'hover:border-sky-400'}`} onClick={() => !isEditMode && setActiveLesson(lesson)}>
                            {isEditMode && (
                              <div className="absolute top-4 right-4 flex gap-2 z-10">
-                               <button onClick={(e) => { e.stopPropagation(); handleEditClick('CHAPTER', lesson.id, lesson.chapter); }} className="bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"><Edit3 size={16} /></button>
-                               <button onClick={(e) => { e.stopPropagation(); handleKrewDelete('CHAPTER', lesson.id, lesson.chapter); }} className="bg-red-50 text-red-400 hover:bg-red-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"><Trash2 size={16} /></button>
+                               <button onClick={(e: any) => { e.stopPropagation(); handleEditClick('CHAPTER', lesson.id, lesson.chapter); }} className="bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"><Edit3 size={16} /></button>
+                               <button onClick={(e: any) => { e.stopPropagation(); handleKrewDelete('CHAPTER', lesson.id, lesson.chapter); }} className="bg-red-50 text-red-400 hover:bg-red-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"><Trash2 size={16} /></button>
                              </div>
                            )}
                            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded mb-3 inline-block ${isEditMode ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>{lesson.book}</span>
@@ -2877,7 +2878,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
                      <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 4: Subtopic *</label><select value={krewWizard.subtopicSelect} onChange={e => setKrewWizard({...krewWizard, subtopicSelect: e.target.value})} disabled={!krewWizard.chapterSelect || krewWizard.chapterSelect === 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-50"><option value="" disabled>Select Existing Subtopic...</option>{availableSubtopics.map((s, idx) => <option key={idx} value={s.title}>{s.title}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New Subtopic</option></select>{krewWizard.subtopicSelect === 'NEW' && (<input type="text" value={krewWizard.newSubtopic} onChange={e => setKrewWizard({...krewWizard, newSubtopic: e.target.value})} className="mt-2 w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Type new subtopic name..." />)}</div>
                   </div>
                   <div className={`${krewWizard.isEdit ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'} p-5 rounded-2xl border-2 space-y-4`}>
-                     <div className="flex justify-between items-center mb-2"><label className={`block text-xs font-black ${krewWizard.isEdit ? 'text-amber-600' : 'text-emerald-600'} uppercase tracking-wider`}>Tier 5: Learning Tool Output</label><div className="flex items-center gap-2"><input type="checkbox" id="prem" checked={krewWizard.isPremium} onChange={(e) => setKrewWizard({...krewWizard, isPremium: e.target.checked})} className="w-4 h-4 accent-amber-500 cursor-pointer" /><label htmlFor="prem" className="text-xs font-bold text-slate-600 cursor-pointer flex items-center gap-1"><Star size={12} className="text-amber-500 fill-amber-500"/> Pro Only</label></div></div>
+                     <div className="flex justify-between items-center mb-2"><label className={`block text-xs font-black ${krewWizard.isEdit ? 'text-amber-600' : 'text-emerald-600'} uppercase tracking-wider`}>Tier 5: Learning Tool Output</label><div className="flex items-center gap-2"><input type="checkbox" id="prem" checked={krewWizard.isPremium} onChange={(e: any) => setKrewWizard({...krewWizard, isPremium: e.target.checked})} className="w-4 h-4 accent-amber-500 cursor-pointer" /><label htmlFor="prem" className="text-xs font-bold text-slate-600 cursor-pointer flex items-center gap-1"><Star size={12} className="text-amber-500 fill-amber-500"/> Pro Only</label></div></div>
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="md:col-span-1"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Order Index</label><input type="number" min="1" value={krewWizard.orderIndex} onChange={e => setKrewWizard({...krewWizard, orderIndex: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-3 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500" /></div>
                         <div className="md:col-span-1"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Type</label><select value={krewWizard.toolType} onChange={e => setKrewWizard({...krewWizard, toolType: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="Video">Video</option><option value="Game">Game</option><option value="PDF">PDF</option><option value="Presentation">PPT</option><option value="Quiz">Quiz</option></select></div>
@@ -3053,7 +3054,7 @@ const AdminView = () => {
     } catch (error) { console.error("🚨 ERROR UPDATING REQUEST:", error); }
   };
 
-  const handleBulkCurriculumUpload = (e) => {
+  const handleBulkCurriculumUpload = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
