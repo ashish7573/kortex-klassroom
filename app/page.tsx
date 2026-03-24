@@ -856,7 +856,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
         const chaptersMap = {};
 
         // 1. Group the flat tools into Chapters and Subtopics
-        flatTools.forEach(tool => {
+        flatTools.forEach(tool: any) => {
            // Create a unique key for the chapter
            const key = `${tool.grade}_${tool.subject}_${tool.chapter_number}`;
            
