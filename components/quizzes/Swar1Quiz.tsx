@@ -108,7 +108,7 @@ const QUIZ_DATA = [
   }
 ];
 
-export default function QuizComponent({ onComplete = () => {} }) {
+export default function QuizComponent({ onComplete = (result: { score: number; stars: number }) => {} }) {
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
