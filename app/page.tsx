@@ -3249,7 +3249,7 @@ const AdminView = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                            {requestHistory.length === 0 ? (
-                              <tr><td colSpan="5" className="p-8 text-center text-slate-400 font-medium">No history recorded yet.</td></tr>
+                              <tr><td colSpan={5} className="p-8 text-center text-slate-400 font-medium">No history recorded yet.</td></tr>
                            ) : (
                               requestHistory.map(req => (
                                  <tr key={req.id} className="hover:bg-slate-50 transition-colors">
