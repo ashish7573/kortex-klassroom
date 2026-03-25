@@ -1107,7 +1107,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
 // ============================================================================
 
 
-const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, onOpenFeatured, onShowAlert, onNavigateToGames, onNavigateToLessons, onNavigateToTools }) => {
+const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, onOpenFeatured, onShowAlert, onNavigateToGames, onNavigateToLessons, onNavigateToTools }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
   const [dbFeaturedLessons, setDbFeaturedLessons] = useState([]);
   const [dbFeaturedGames, setDbFeaturedGames] = useState([]);
@@ -1122,7 +1122,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
     { icon: BarChart, title: "AI Powered Analytics", desc: "Actionable AI analytics and personalized suggested feedbacks.", color: "text-purple-500", bg: "bg-purple-100", shadow: "shadow-purple-200/50" }
   ];
 
-  const getIcon = (typeStr) => {
+  const getIcon = (typeStr: any) => {
     if (typeStr === 'Video') return Video;
     if (typeStr === 'Game' || typeStr === 'Gamepad2') return Gamepad2;
     if (typeStr === 'PDF' || typeStr === 'FileText') return FileText;
@@ -1141,13 +1141,13 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
         // Fetch ONLY the items you explicitly marked as 'TRUE' in the is_featured column
         const q = query(collection(db, 'learning_tools'), where('is_featured', '==', true), limit(30)); 
         const snapshot = await getDocs(q);
-        const featuredItems = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+        const featuredItems = snapshot.docs.map((d: any) => ({id: d.id, ...d.data()}));
 
         let games = [];
         let tools = [];
         let uniqueChaptersMap = {};
 
-        featuredItems.forEach(item => {
+        featuredItems.forEach((item: any) => {
           // 1. Route the content into Games vs General Tools
           if (item.content_type?.toLowerCase() === 'game') {
              games.push(item);
@@ -1208,7 +1208,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
           </div>
         </div>
         <div className="hidden md:flex justify-center items-center relative h-[450px] w-full z-10">
-           {USPS.map((usp, idx) => {
+           {USPS.map((usp: any, idx: any) => {
               let diff = idx - activeUsp;
               if (diff < -2) diff += 5; if (diff > 2) diff -= 5;
               const isCenter = diff === 0; const isNext = diff === 1; const isPrev = diff === -1;
@@ -1232,7 +1232,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
       <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
       <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
       <div className="flex animate-marquee w-max hover:[animation-play-state:paused]">
-        {[...SUBJECTS, ...SUBJECTS, ...SUBJECTS].map((subject, idx) => {
+        {[...SUBJECTS, ...SUBJECTS, ...SUBJECTS].map((subject: any, idx: any) => {
           const subjectData = SUBJECT_ICONS[subject] || { icon: Star, color: 'text-slate-400' };
           const Icon = subjectData.icon;
           return (<div key={idx} className="mx-3 px-5 py-2 bg-slate-50 border-2 border-slate-200 rounded-full font-black text-slate-500 text-xs uppercase tracking-wider flex-shrink-0 flex items-center gap-2 hover:border-sky-400 hover:text-sky-500 hover:bg-sky-50 transition-colors cursor-default shadow-sm group"><Icon size={16} className={`${subjectData.color} transition-transform group-hover:scale-125`} />{subject}</div>);
@@ -1275,7 +1275,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
         {isLoadingLanding ? (
             <div className="p-8 text-slate-400 font-bold w-full text-center">Loading tools from database...</div>
         ) : dbFeaturedTools.length > 0 ? (
-            dbFeaturedTools.map((tool, idx) => {
+            dbFeaturedTools.map((tool: any, idx: any) => {
               const Icon = getIcon(tool.content_type);
               return (
                 <Card key={idx} className="min-w-[280px] sm:min-w-[320px] snap-start hover:border-sky-300 flex-shrink-0 cursor-pointer group relative p-0 flex flex-col" onClick={() => onOpenFeatured(tool)}>
@@ -1316,7 +1316,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
         {isLoadingLanding ? (
             <div className="p-8 text-slate-400 font-bold w-full text-center">Loading games from database...</div>
         ) : dbFeaturedGames.length > 0 ? (
-            dbFeaturedGames.map((game, idx) => {
+            dbFeaturedGames.map((game: any, idx: any) => {
               const Icon = getIcon(game.content_type);
               return (
                 <Card key={idx} className="min-w-[280px] sm:min-w-[320px] snap-start hover:border-pink-400 flex-shrink-0 cursor-pointer group relative p-0 flex flex-col border-b-4 border-b-pink-500" onClick={() => onOpenFeatured(game)}>
@@ -1357,7 +1357,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
         {isLoadingLanding ? (
              <div className="p-8 text-slate-400 font-bold w-full text-center">Loading lessons from database...</div>
         ) : dbFeaturedLessons.length > 0 ? (
-            dbFeaturedLessons.map((lesson, idx) => (
+            dbFeaturedLessons.map((lesson: any, idx: any) => (
               <Card key={idx} className={`min-w-[300px] sm:min-w-[360px] snap-start border-b-8 ${lesson.color || 'border-sky-500'} flex-shrink-0 cursor-pointer group transition-all duration-300 hover:shadow-lg p-0 flex flex-col`} onClick={() => onOpenFeatured(lesson)}>
                 <div className="relative h-48 w-full bg-slate-200 overflow-hidden">
                    <img src={lesson.image || '/kortex_default_cover.png'} alt={lesson.chapter || 'Kortex Klassroom'} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -1390,9 +1390,9 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
       <div className="max-w-6xl mx-auto px-4 relative z-10">
         <div className="text-center mb-16"><h2 className="text-4xl font-extrabold text-slate-800">Loved by our Community</h2></div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {TESTIMONIALS.map((testimonial, idx) => (
+          {TESTIMONIALS.map((testimonial: any, idx: any) => (
             <Card key={idx} className="p-8 relative border-none shadow-xl hover:-translate-y-2 transition-transform duration-300 flex flex-col h-full">
-              <div className="flex gap-1 mb-6 relative z-10">{[...Array(5)].map((_, i) => (<Star key={i} size={20} className="fill-amber-400 text-amber-400" />))}</div>
+              <div className="flex gap-1 mb-6 relative z-10">{[...Array(5)].map((_: any, i: any) => (<Star key={i} size={20} className="fill-amber-400 text-amber-400" />))}</div>
               <p className="text-slate-700 font-bold text-lg leading-relaxed mb-8 relative z-10 italic flex-1">"{testimonial.text}"</p>
               <div className="flex items-center gap-4 mt-auto relative z-10">
                 <div className="w-14 h-14 rounded-full border-4 border-sky-50 overflow-hidden shadow-sm shrink-0"><img src={testimonial.avatar} alt={testimonial.name} className="w-full h-full object-cover" /></div>
@@ -1420,7 +1420,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
 // SECTION 9: STUDENT VIEW (DATA DRIVEN SPACE DASHBOARD)
 // ============================================================================
 
-const StudentView = ({ t, onStartLesson, currentStudent, isLoggedIn, requireAuth }) => {
+const StudentView = ({ t, onStartLesson, currentStudent, isLoggedIn, requireAuth }: any) => {
   const [myWorlds, setMyWorlds] = useState([]);
   const [stars, setStars] = useState(0);
   const [isLoadingDb, setIsLoadingDb] = useState(true);
@@ -1443,11 +1443,11 @@ const StudentView = ({ t, onStartLesson, currentStudent, isLoggedIn, requireAuth
          if (studentGrade) {
             const q = query(collection(db, 'learning_tools'), where('grade', '==', studentGrade));
             const snap = await getDocs(q);
-            const modules = snap.docs.map(d => d.data());
+            const modules = snap.docs.map((d: any) => d.data());
             if (modules.length > 0) {
                setFirstAvailableModule(modules[0]);
-               const uniqueSubjects = [...new Set(modules.map(m => m.subject))];
-               const formattedWorlds = uniqueSubjects.map((sub, idx) => {
+               const uniqueSubjects = [...new Set(modules.map((m: any) => m.subject))];
+               const formattedWorlds = uniqueSubjects.map((sub: any, idx: any) => {
                   const isMath = sub.toLowerCase().includes('math');
                   return { id: idx, grade: studentGrade, subject: sub, progress: 0, color: isMath ? 'bg-sky-500' : 'bg-rose-500', lightColor: isMath ? 'bg-sky-100' : 'bg-rose-100', icon: isMath ? Brain : Book };
                });
@@ -1514,7 +1514,7 @@ const StudentView = ({ t, onStartLesson, currentStudent, isLoggedIn, requireAuth
             <div className="py-12 text-center text-sky-500 animate-pulse font-bold">Loading your worlds...</div>
          ) : (
             <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 ${!isLoggedIn ? 'opacity-40 select-none pointer-events-none' : ''}`}>
-               {myWorlds.length > 0 ? myWorlds.map(world => {
+               {myWorlds.length > 0 ? myWorlds.map((world: any) => {
                   const Icon = world.icon || Rocket;
                   return (
                     <div key={world.id} className="bg-white rounded-3xl p-6 border-4 border-slate-100 shadow-sm hover:border-sky-300 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden mt-4">
@@ -1557,7 +1557,7 @@ const StudentView = ({ t, onStartLesson, currentStudent, isLoggedIn, requireAuth
 // SECTION 10: PARENT VIEW (FAMILY HUB & ANALYTICS)
 // ============================================================================
 
-const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
+const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }: any) => {
   const [myChildren, setMyChildren] = useState([]);
   const [selectedChildId, setSelectedChildId] = useState('DEMO');
   const [activeTab, setActiveTab] = useState('progress');
@@ -1585,7 +1585,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
           setParentId(user.uid);
           const q = query(collection(db, 'managed_students'), where('parent_id', '==', user.uid));
           const querySnapshot = await getDocs(q);
-          const childrenData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const childrenData = querySnapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
           setMyChildren(childrenData);
           if (childrenData.length > 0 && selectedChildId === 'DEMO') {
              setSelectedChildId(childrenData[0].id);
@@ -1596,7 +1596,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
     fetchChildren();
   }, [isLoggedIn, selectedChildId]);
 
-  const calculateAge = (dobString) => {
+  const calculateAge = (dobString: any) => {
      if (!dobString) return '--';
      const birthDate = new Date(dobString);
      const today = new Date();
@@ -1693,7 +1693,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
      } catch (error: any) { console.error(error); alert("Error claiming student."); } finally { setIsSaving(false); }
   };
 
-  const activeChild = myChildren.find(c => c.id === selectedChildId);
+  const activeChild = myChildren.find((c: any) => c.id === selectedChildId)
 
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto relative">
@@ -1717,7 +1717,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
               {myChildren.length === 0 ? (
                  <button className="px-5 py-2 rounded-xl font-bold text-sm bg-purple-500 text-white border-2 border-purple-500 shadow-md flex items-center gap-2"><Star size={16} className="fill-white"/> Demo Profile</button>
               ) : (
-                 myChildren.map(child => (<button key={child.id} onClick={() => setSelectedChildId(child.id)} className={`px-5 py-2 rounded-xl font-bold text-sm transition-all border-2 ${selectedChildId === child.id ? 'bg-purple-500 text-white border-purple-500 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-purple-300'}`}>{child.name}</button>))
+                 myChildren.map((child: any) => (<button key={child.id} onClick={() => setSelectedChildId(child.id)} className={`px-5 py-2 rounded-xl font-bold text-sm transition-all border-2 ${selectedChildId === child.id ? 'bg-purple-500 text-white border-purple-500 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-purple-300'}`}>{child.name}</button>))
               )}
            </div>
 
@@ -1808,7 +1808,7 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
                  <div className="text-center py-8 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl"><p className="text-slate-500 font-medium mb-3">No children registered yet.</p></div>
               ) : (
                  <div className="space-y-3">
-                    {myChildren.map(child => (
+                    {myChildren.map((child: any) => (
                        <div key={child.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl gap-4">
                           <div><span className="font-black text-slate-800 text-lg block">{child.name}</span><span className="text-xs font-bold text-slate-500">{child.grade} • APAAR: {child.apaar_id || child.aadhar_number}</span></div>
                           <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
@@ -1846,19 +1846,19 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
             {parentModalTab === 'create' && step === 1 && (
                <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div className="md:col-span-2"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={childForm.apaarId} onChange={e => setChildForm({...childForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-purple-500 tracking-[0.2em]" /></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Child's Full Name *</label><input type="text" value={childForm.fullName} onChange={e => setChildForm({...childForm, fullName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Grade *</label><select value={childForm.grade} onChange={e => setChildForm({...childForm, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500"><option value="" disabled>Select Grade...</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Date of Birth *</label><input type="date" value={childForm.dob} onChange={e => setChildForm({...childForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /><div className="text-[10px] font-black text-purple-600 text-right mt-1">Calculated Age: {calculateAge(childForm.dob)}</div></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Father's Name *</label><input type="text" value={childForm.fathersName} onChange={e => setChildForm({...childForm, fathersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mother's Name *</label><input type="text" value={childForm.mothersName} onChange={e => setChildForm({...childForm, mothersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 1 (Compulsory) *</label><input type="text" maxLength={10} value={childForm.contact1} onChange={e => setChildForm({...childForm, contact1: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /><div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={childForm.isWhatsapp1} onChange={e => setChildForm({...childForm, isWhatsapp1: e.target.checked})} className="accent-green-500 cursor-pointer" /><label className="text-[10px] font-bold text-slate-500 cursor-pointer">✅ WhatsApp Number</label></div></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 2 (Optional)</label><input type="text" maxLength={10} value={childForm.contact2} onChange={e => setChildForm({...childForm, contact2: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
+                     <div className="md:col-span-2"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={childForm.apaarId} onChange={(e: any) => setChildForm({...childForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-purple-500 tracking-[0.2em]" /></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Child's Full Name *</label><input type="text" value={childForm.fullName} onChange={(e: any) => setChildForm({...childForm, fullName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Grade *</label><select value={childForm.grade} onChange={(e: any) => setChildForm({...childForm, grade: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500"><option value="" disabled>Select Grade...</option>{GRADES.map((g: any) => <option key={g} value={g}>{g}</option>)}</select></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Date of Birth *</label><input type="date" value={childForm.dob} onChange={(e: any) => setChildForm({...childForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /><div className="text-[10px] font-black text-purple-600 text-right mt-1">Calculated Age: {calculateAge(childForm.dob)}</div></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Father's Name *</label><input type="text" value={childForm.fathersName} onChange={(e: any) => setChildForm({...childForm, fathersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mother's Name *</label><input type="text" value={childForm.mothersName} onChange={(e: any) => setChildForm({...childForm, mothersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 1 (Compulsory) *</label><input type="text" maxLength={10} value={childForm.contact1} onChange={(e: any) => setChildForm({...childForm, contact1: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /><div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={childForm.isWhatsapp1} onChange={(e: any) => setChildForm({...childForm, isWhatsapp1: e.target.checked})} className="accent-green-500 cursor-pointer" /><label className="text-[10px] font-bold text-slate-500 cursor-pointer">✅ WhatsApp Number</label></div></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 2 (Optional)</label><input type="text" maxLength={10} value={childForm.contact2} onChange={(e: any) => setChildForm({...childForm, contact2: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
                   </div>
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mt-2">
                      <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">My Relationship to Child</label>
-                     <select value={childForm.creatorRelation} onChange={e => setChildForm({...childForm, creatorRelation: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500 mb-3"><option value="Father">I am the Father</option><option value="Mother">I am the Mother</option><option value="Guardian">I am a Guardian/Other</option></select>
-                     {childForm.creatorRelation === 'Guardian' && (<input type="text" placeholder="Your Full Name" value={childForm.creatorName} onChange={e => setChildForm({...childForm, creatorName: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" />)}
+                     <select value={childForm.creatorRelation} onChange={(e: any) => setChildForm({...childForm, creatorRelation: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500 mb-3"><option value="Father">I am the Father</option><option value="Mother">I am the Mother</option><option value="Guardian">I am a Guardian/Other</option></select>
+                     {childForm.creatorRelation === 'Guardian' && (<input type="text" placeholder="Your Full Name" value={childForm.creatorName} onChange={(e: any) => setChildForm({...childForm, creatorName: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" />)}
                   </div>
                   <Button onClick={() => setStep(2)} disabled={!childForm.fullName || !childForm.grade || !childForm.apaarId || !childForm.contact1 || childForm.apaarId.length !== 12} className="w-full py-4 mt-4 bg-purple-600 hover:bg-purple-700 border-purple-800 border-b-4 text-lg">Next Step: Setup Login <ArrowRight size={18} className="ml-2 inline"/></Button>
                </div>
@@ -1868,8 +1868,8 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
             {parentModalTab === 'create' && step === 2 && (
                <div className="space-y-6">
                   <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-100 flex gap-3"><Shield className="text-amber-500 shrink-0" size={24}/><p className="text-sm font-medium text-amber-800">Create a fun Username and a simple 6-digit PIN. Your child will use these to log into Kortex Klassroom directly on their own device!</p></div>
-                  <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Create Unique Username *</label><input type="text" placeholder="e.g. aaravninja24" value={childForm.username} onChange={e => setChildForm({...childForm, username: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-purple-600 outline-none focus:border-purple-500 lowercase" /></div>
-                  <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Create 6-Digit Secret PIN *</label><input type="text" placeholder="1 2 3 4 5 6" maxLength={6} value={childForm.pin} onChange={e => setChildForm({...childForm, pin: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-2xl tracking-[1em] text-center font-black text-slate-800 outline-none focus:border-purple-500" /></div>
+                  <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Create Unique Username *</label><input type="text" placeholder="e.g. aaravninja24" value={childForm.username} onChange={(e: any) => setChildForm({...childForm, username: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-purple-600 outline-none focus:border-purple-500 lowercase" /></div>
+                  <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Create 6-Digit Secret PIN *</label><input type="text" placeholder="1 2 3 4 5 6" maxLength={6} value={childForm.pin} onChange={(e: any) => setChildForm({...childForm, pin: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-2xl tracking-[1em] text-center font-black text-slate-800 outline-none focus:border-purple-500" /></div>
                   <div className="flex gap-3 pt-4 border-t-2 border-slate-100"><Button variant="secondary" onClick={() => setStep(1)} className="flex-1 py-4 border-2 shadow-none text-lg">Back</Button><Button onClick={handleCreateChild} disabled={isSaving || childForm.pin.length !== 6 || !childForm.username} className="flex-[2] py-4 bg-lime-500 hover:bg-lime-600 border-lime-700 text-white border-b-4 text-lg">{isSaving ? 'Saving...' : 'Complete Registration'}</Button></div>
                </div>
             )}
@@ -1878,8 +1878,8 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
             {parentModalTab === 'import' && step === 1 && (
                <div className="space-y-6">
                   <div className="bg-sky-50 p-4 rounded-xl border border-sky-100 text-sm font-medium text-sky-800">If your child's teacher already created their profile, you can securely claim it here using their APAAR ID and Date of Birth.</div>
-                  <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={importForm.apaarId} onChange={e => setImportForm({...importForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-4 font-mono font-bold text-slate-700 outline-none focus:border-purple-500 tracking-[0.2em] text-center text-xl" /></div>
-                  <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Verify Date of Birth *</label><input type="date" value={importForm.dob} onChange={e => setImportForm({...importForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
+                  <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={importForm.apaarId} onChange={(e: any) => setImportForm({...importForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-4 font-mono font-bold text-slate-700 outline-none focus:border-purple-500 tracking-[0.2em] text-center text-xl" /></div>
+                  <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Verify Date of Birth *</label><input type="date" value={importForm.dob} onChange={(e: any) => setImportForm({...importForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-purple-500" /></div>
                   <Button onClick={handleVerifyImport} disabled={isSaving || !importForm.apaarId || !importForm.dob || importForm.apaarId.length !== 12} className="w-full py-4 text-lg bg-purple-600 hover:bg-purple-700 border-b-4 border-purple-800">{isSaving ? 'Searching...' : 'Find Child Profile'}</Button>
                </div>
             )}
@@ -1891,8 +1891,8 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }) => {
                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border-2 border-lime-300"><CheckCircle className="text-lime-500" size={24}/></div>
                      <div><p className="text-xs font-black uppercase text-lime-700 tracking-wider">Profile Found</p><h3 className="text-xl font-extrabold text-slate-800">{foundStudent.name}</h3><p className="text-sm font-bold text-slate-500">Grade: {foundStudent.grade || 'Assigned to Classes'}</p></div>
                   </div>
-                  <div className="pt-2"><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Create Unique Username *</label><input type="text" placeholder="e.g. aaravninja24" value={importForm.username} onChange={e => setImportForm({...importForm, username: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-purple-600 outline-none focus:border-purple-500 lowercase" /></div>
-                  <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Create 6-Digit Secret PIN *</label><input type="text" placeholder="1 2 3 4 5 6" maxLength={6} value={importForm.pin} onChange={e => setImportForm({...importForm, pin: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-2xl tracking-[1em] text-center font-black text-slate-800 outline-none focus:border-purple-500" /></div>
+                  <div className="pt-2"><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Create Unique Username *</label><input type="text" placeholder="e.g. aaravninja24" value={importForm.username} onChange={(e: any) => setImportForm({...importForm, username: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-purple-600 outline-none focus:border-purple-500 lowercase" /></div>
+                  <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Create 6-Digit Secret PIN *</label><input type="text" placeholder="1 2 3 4 5 6" maxLength={6} value={importForm.pin} onChange={(e: any) => setImportForm({...importForm, pin: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-2xl tracking-[1em] text-center font-black text-slate-800 outline-none focus:border-purple-500" /></div>
                   <div className="flex gap-3 pt-4 border-t-2 border-slate-100"><Button variant="secondary" onClick={() => {setStep(1); setFoundStudent(null);}} className="flex-1 py-4 border-2 shadow-none text-lg">Cancel</Button><Button onClick={handleClaimChild} disabled={isSaving || importForm.pin.length !== 6 || !importForm.username} className="flex-[2] py-4 bg-purple-600 hover:bg-purple-700 border-purple-800 text-white border-b-4 text-lg">{isSaving ? 'Saving...' : 'Claim Profile & Generate Login'}</Button></div>
                </div>
             )}
@@ -2549,7 +2549,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
                     </div>
                     <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                        {/* THE NEW CLASS FILTER */}
-                       <select value={studentFilter} onChange={e => setStudentFilter(e.target.value)} className="bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm flex-1 md:flex-none">
+                       <select value={studentFilter} onChange={(e: any) => setStudentFilter(e.target.value)} className="bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm flex-1 md:flex-none">
                           <option value="ALL">View All Students</option>
                           {myClasses.map(cls => <option key={cls.id} value={`${cls.grade} • ${cls.subject}`}>{cls.grade} • {cls.subject}</option>)}
                        </select>
@@ -2750,8 +2750,8 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
             <div className="space-y-4 mb-8">
                <h3 className="font-bold text-slate-500 text-sm uppercase tracking-wider">Add a New Class</h3>
                <div className="flex gap-2">
-                 <select value={newGrade} onChange={e => setNewGrade(e.target.value)} className="flex-1 bg-slate-50 border-2 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-sky-500"><option value="">Grade</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select>
-                 <select value={newSubject} onChange={e => setNewSubject(e.target.value)} className="flex-1 bg-slate-50 border-2 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-sky-500"><option value="">Subject</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                 <select value={newGrade} onChange={(e: any) => setNewGrade(e.target.value)} className="flex-1 bg-slate-50 border-2 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-sky-500"><option value="">Grade</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select>
+                 <select value={newSubject} onChange={(e: any) => setNewSubject(e.target.value)} className="flex-1 bg-slate-50 border-2 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-sky-500"><option value="">Subject</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
                </div>
                <Button onClick={handleAddClass} disabled={!newGrade || !newSubject || isSavingClass} className="w-full py-2">{isSavingClass ? 'Adding...' : 'Add Class to Dashboard'}</Button>
             </div>
@@ -2793,13 +2793,13 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
                   <div className="space-y-4">
                      <div className="bg-sky-50 p-4 rounded-xl border border-sky-100 text-xs font-bold text-sky-700 mb-2">Create the academic record. Parents will claim it later to generate secure logins.</div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={newStudentForm.apaarId} onChange={e => setNewStudentForm({...newStudentForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-sky-500 tracking-[0.2em]" /></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Student Full Name *</label><input type="text" value={newStudentForm.fullName} onChange={e => setNewStudentForm({...newStudentForm, fullName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Date of Birth *</label><input type="date" value={newStudentForm.dob} onChange={e => setNewStudentForm({...newStudentForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /><div className="text-[10px] font-black text-sky-600 text-right mt-1">Calculated Age: {calculateAge(newStudentForm.dob)}</div></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Father's Name *</label><input type="text" value={newStudentForm.fathersName} onChange={e => setNewStudentForm({...newStudentForm, fathersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mother's Name *</label><input type="text" value={newStudentForm.mothersName} onChange={e => setNewStudentForm({...newStudentForm, mothersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 1 (Compulsory) *</label><input type="text" maxLength={10} value={newStudentForm.contact1} onChange={e => setNewStudentForm({...newStudentForm, contact1: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /><div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={newStudentForm.isWhatsapp1} onChange={e => setNewStudentForm({...newStudentForm, isWhatsapp1: e.target.checked})} className="accent-green-500 cursor-pointer" /><label className="text-[10px] font-bold text-slate-500 cursor-pointer"> This is a WhatsApp Number</label></div></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 2 (Optional)</label><input type="text" maxLength={10} value={newStudentForm.contact2} onChange={e => setNewStudentForm({...newStudentForm, contact2: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
+                        <div className="md:col-span-2"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={newStudentForm.apaarId} onChange={(e: any) => setNewStudentForm({...newStudentForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-sky-500 tracking-[0.2em]" /></div>
+                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Student Full Name *</label><input type="text" value={newStudentForm.fullName} onChange={(e: any) => setNewStudentForm({...newStudentForm, fullName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
+                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Date of Birth *</label><input type="date" value={newStudentForm.dob} onChange={(e: any) => setNewStudentForm({...newStudentForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /><div className="text-[10px] font-black text-sky-600 text-right mt-1">Calculated Age: {calculateAge(newStudentForm.dob)}</div></div>
+                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Father's Name *</label><input type="text" value={newStudentForm.fathersName} onChange={(e: any) => setNewStudentForm({...newStudentForm, fathersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
+                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mother's Name *</label><input type="text" value={newStudentForm.mothersName} onChange={(e: any) => setNewStudentForm({...newStudentForm, mothersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
+                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 1 (Compulsory) *</label><input type="text" maxLength={10} value={newStudentForm.contact1} onChange={(e: any) => setNewStudentForm({...newStudentForm, contact1: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /><div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={newStudentForm.isWhatsapp1} onChange={(e: any) => setNewStudentForm({...newStudentForm, isWhatsapp1: e.target.checked})} className="accent-green-500 cursor-pointer" /><label className="text-[10px] font-bold text-slate-500 cursor-pointer"> This is a WhatsApp Number</label></div></div>
+                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 2 (Optional)</label><input type="text" maxLength={10} value={newStudentForm.contact2} onChange={(e: any) => setNewStudentForm({...newStudentForm, contact2: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
                      </div>
                      
                      <div className="pt-4 border-t-2 border-slate-100">
@@ -2820,8 +2820,8 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
                ) : (
                   <div className="space-y-6">
                      <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-xs font-bold text-amber-700 mb-2">Security Check: To import a student, you must verify both their APAAR ID and their exact Date of Birth.</div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={importForm.apaarId} onChange={e => setImportForm({...importForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-4 font-mono font-bold text-slate-700 outline-none focus:border-sky-500 tracking-[0.2em] text-center text-xl" /></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Verify Date of Birth *</label><input type="date" value={importForm.dob} onChange={e => setImportForm({...importForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={importForm.apaarId} onChange={(e: any) => setImportForm({...importForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-4 font-mono font-bold text-slate-700 outline-none focus:border-sky-500 tracking-[0.2em] text-center text-xl" /></div>
+                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Verify Date of Birth *</label><input type="date" value={importForm.dob} onChange={(e: any) => setImportForm({...importForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
                      <div className="pt-4 border-t-2 border-slate-100">
                         <label className="block text-xs font-black text-slate-700 mb-3 uppercase tracking-wider">Assign to Your Classes *</label>
                         <div className="flex flex-wrap gap-2">
@@ -2849,7 +2849,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
                <h2 className="text-2xl font-black text-slate-800 mb-2">Edit {krewEdit.type}</h2>
                <p className="text-slate-500 text-sm font-bold mb-6">Rename '{krewEdit.oldTitle}'</p>
                <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">New Title *</label>
-               <input type="text" autoFocus value={krewEdit.newTitle} onChange={e => setKrewEdit({...krewEdit, newTitle: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 mb-6" />
+               <input type="text" autoFocus value={krewEdit.newTitle} onChange={(e: any) => setKrewEdit({...krewEdit, newTitle: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 mb-6" />
                <Button onClick={handleSendQuickEdit} disabled={!krewEdit.newTitle || isSendingRequest || krewEdit.newTitle === krewEdit.oldTitle} className="w-full bg-emerald-500 hover:bg-emerald-600 border-b-4 border-emerald-700 py-3 text-lg">{isSendingRequest ? 'Sending...' : 'Submit Edit Request'}</Button>
             </div>
          </div>
@@ -2870,21 +2870,21 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
                </div>
                <div className="space-y-6">
                   <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 grid grid-cols-2 gap-4">
-                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 1: Grade *</label><select value={krewWizard.grade} onChange={e => setKrewWizard({...krewWizard, grade: e.target.value, chapterSelect: '', subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select...</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 2: Subject *</label><select value={krewWizard.subject} onChange={e => setKrewWizard({...krewWizard, subject: e.target.value, chapterSelect: '', subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select...</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 1: Grade *</label><select value={krewWizard.grade} onChange={(e: any) => setKrewWizard({...krewWizard, grade: e.target.value, chapterSelect: '', subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select...</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 2: Subject *</label><select value={krewWizard.subject} onChange={(e: any) => setKrewWizard({...krewWizard, subject: e.target.value, chapterSelect: '', subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select...</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                   </div>
                   <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 space-y-4">
-                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 3: Chapter *</label><select value={krewWizard.chapterSelect} onChange={e => setKrewWizard({...krewWizard, chapterSelect: e.target.value, subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="" disabled>Select Existing Chapter...</option>{wizardData.map(c => <option key={c.id} value={c.chapter}>{c.chapter}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New Chapter</option></select>{krewWizard.chapterSelect === 'NEW' && (<input type="text" value={krewWizard.newChapter} onChange={e => setKrewWizard({...krewWizard, newChapter: e.target.value})} className="mt-2 w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Type new chapter name..." />)}</div>
-                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 4: Subtopic *</label><select value={krewWizard.subtopicSelect} onChange={e => setKrewWizard({...krewWizard, subtopicSelect: e.target.value})} disabled={!krewWizard.chapterSelect || krewWizard.chapterSelect === 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-50"><option value="" disabled>Select Existing Subtopic...</option>{availableSubtopics.map((s, idx) => <option key={idx} value={s.title}>{s.title}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New Subtopic</option></select>{krewWizard.subtopicSelect === 'NEW' && (<input type="text" value={krewWizard.newSubtopic} onChange={e => setKrewWizard({...krewWizard, newSubtopic: e.target.value})} className="mt-2 w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Type new subtopic name..." />)}</div>
+                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 3: Chapter *</label><select value={krewWizard.chapterSelect} onChange={(e: any) => setKrewWizard({...krewWizard, chapterSelect: e.target.value, subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="" disabled>Select Existing Chapter...</option>{wizardData.map(c => <option key={c.id} value={c.chapter}>{c.chapter}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New Chapter</option></select>{krewWizard.chapterSelect === 'NEW' && (<input type="text" value={krewWizard.newChapter} onChange={(e: any) => setKrewWizard({...krewWizard, newChapter: e.target.value})} className="mt-2 w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Type new chapter name..." />)}</div>
+                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 4: Subtopic *</label><select value={krewWizard.subtopicSelect} onChange={(e: any) => setKrewWizard({...krewWizard, subtopicSelect: e.target.value})} disabled={!krewWizard.chapterSelect || krewWizard.chapterSelect === 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-50"><option value="" disabled>Select Existing Subtopic...</option>{availableSubtopics.map((s, idx) => <option key={idx} value={s.title}>{s.title}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New Subtopic</option></select>{krewWizard.subtopicSelect === 'NEW' && (<input type="text" value={krewWizard.newSubtopic} onChange={(e: any) => setKrewWizard({...krewWizard, newSubtopic: e.target.value})} className="mt-2 w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Type new subtopic name..." />)}</div>
                   </div>
                   <div className={`${krewWizard.isEdit ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'} p-5 rounded-2xl border-2 space-y-4`}>
                      <div className="flex justify-between items-center mb-2"><label className={`block text-xs font-black ${krewWizard.isEdit ? 'text-amber-600' : 'text-emerald-600'} uppercase tracking-wider`}>Tier 5: Learning Tool Output</label><div className="flex items-center gap-2"><input type="checkbox" id="prem" checked={krewWizard.isPremium} onChange={(e: any) => setKrewWizard({...krewWizard, isPremium: e.target.checked})} className="w-4 h-4 accent-amber-500 cursor-pointer" /><label htmlFor="prem" className="text-xs font-bold text-slate-600 cursor-pointer flex items-center gap-1"><Star size={12} className="text-amber-500 fill-amber-500"/> Pro Only</label></div></div>
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-1"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Order Index</label><input type="number" min="1" value={krewWizard.orderIndex} onChange={e => setKrewWizard({...krewWizard, orderIndex: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-3 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500" /></div>
-                        <div className="md:col-span-1"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Type</label><select value={krewWizard.toolType} onChange={e => setKrewWizard({...krewWizard, toolType: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="Video">Video</option><option value="Game">Game</option><option value="PDF">PDF</option><option value="Presentation">PPT</option><option value="Quiz">Quiz</option></select></div>
-                        <div className="md:col-span-2"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Tool Title</label><input type="text" value={krewWizard.toolTitle} onChange={e => setKrewWizard({...krewWizard, toolTitle: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" placeholder="e.g. Photosynthesis 3D" /></div>
+                        <div className="md:col-span-1"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Order Index</label><input type="number" min="1" value={krewWizard.orderIndex} onChange={(e: any) => setKrewWizard({...krewWizard, orderIndex: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-3 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500" /></div>
+                        <div className="md:col-span-1"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Type</label><select value={krewWizard.toolType} onChange={(e: any) => setKrewWizard({...krewWizard, toolType: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="Video">Video</option><option value="Game">Game</option><option value="PDF">PDF</option><option value="Presentation">PPT</option><option value="Quiz">Quiz</option></select></div>
+                        <div className="md:col-span-2"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Tool Title</label><input type="text" value={krewWizard.toolTitle} onChange={(e: any) => setKrewWizard({...krewWizard, toolTitle: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" placeholder="e.g. Photosynthesis 3D" /></div>
                      </div>
-                     <div>{['Game', 'Quiz'].includes(krewWizard.toolType) ? (<><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Raw Code Snippet</label><textarea value={krewWizard.gameCode} onChange={e => setKrewWizard({...krewWizard, gameCode: e.target.value})} className="w-full h-32 bg-slate-900 text-emerald-400 font-mono text-xs border-2 border-slate-700 rounded-xl p-4 outline-none focus:border-emerald-500" placeholder="// Code" /></>) : (<><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Secure Embed URL Link</label><input type="text" value={krewWizard.url} onChange={e => setKrewWizard({...krewWizard, url: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-emerald-500 text-sm" placeholder="https://..." /></>)}</div>
+                     <div>{['Game', 'Quiz'].includes(krewWizard.toolType) ? (<><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Raw Code Snippet</label><textarea value={krewWizard.gameCode} onChange={(e: any) => setKrewWizard({...krewWizard, gameCode: e.target.value})} className="w-full h-32 bg-slate-900 text-emerald-400 font-mono text-xs border-2 border-slate-700 rounded-xl p-4 outline-none focus:border-emerald-500" placeholder="// Code" /></>) : (<><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Secure Embed URL Link</label><input type="text" value={krewWizard.url} onChange={(e: any) => setKrewWizard({...krewWizard, url: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-emerald-500 text-sm" placeholder="https://..." /></>)}</div>
                   </div>
                </div>
                <Button onClick={handleSubmitWizard} disabled={isSendingRequest || !krewWizard.toolTitle} className={`w-full mt-8 ${krewWizard.isEdit ? 'bg-amber-500 hover:bg-amber-600 border-amber-700' : 'bg-emerald-500 hover:bg-emerald-600 border-emerald-700'} border-b-4 active:border-b-0 py-4 text-lg`}>{isSendingRequest ? 'Packaging...' : 'Send Payload to Admin Queue'}</Button>
