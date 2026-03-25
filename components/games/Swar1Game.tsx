@@ -59,7 +59,7 @@ const playSound = (type, isMuted) => {
 };
 
 // --- MAIN COMPONENT ---
-export default function SwarPopGame({ onComplete = () => {} }) {
+export default function SwarPopGame({ onComplete = (result: { score: number; stars: number }) => {} }) {
   // Game State
   const [gameState, setGameState] = useState('start'); // start, playing, gameover
   const [targetData, setTargetData] = useState(null);
