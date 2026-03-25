@@ -834,7 +834,7 @@ const ToolsView = ({ isLoggedIn, requireAuth, onOpenTool }) => {
 // SECTION 7: LESSONS VIEW (PUBLIC CURRICULUM)
 // ============================================================================
 
-const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
+const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -844,7 +844,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
   const [activeLesson, setActiveLesson] = useState(null);
   const [expandedSubTopics, setExpandedSubTopics] = useState({});
 
-  const toggleSubTopic = (id) => setExpandedSubTopics(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleSubTopic = (id: any) => setExpandedSubTopics(prev => ({ ...prev, [id]: !prev[id] }));
 
   useEffect(() => {
     async function fetchLessons() {
@@ -903,11 +903,11 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
 
            // A. Sort the tools inside each subtopic by content_order (1, 2, 3...)
            subTopicsArray.forEach((sub: any) => {
-              sub.tools.sort((a, b) => (a.content_order || 1) - (b.content_order || 1));
+              sub.tools.sort((a: any, b: any) => (a.content_order || 1) - (b.content_order || 1));
            });
 
            // B. Sort the subtopics themselves by subtopic_order (1, 2, 3...)
-           subTopicsArray.sort((a, b) => (a.subtopic_order || 1) - (b.subtopic_order || 1));
+           subTopicsArray.sort((a: any, b: any) => (a.subtopic_order || 1) - (b.subtopic_order || 1));
 
            chapter.subTopics = subTopicsArray;
            delete chapter.subTopicsMap; // Cleanup
@@ -919,7 +919,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
         });
 
         // C. Sort the final Chapters array by chapter_number
-        processedModules.sort((a, b) => a.chapter_number - b.chapter_number);
+        processedModules.sort((a: any, b: any) => a.chapter_number - b.chapter_number);
 
         setAllLessons(processedModules);
       } catch (error: any) { 
@@ -932,7 +932,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
     fetchLessons();
   }, []);
 
-  const filteredLessons = allLessons.filter(lesson => {
+  const filteredLessons = allLessons.filter((lesson: any) => {
     const matchClass = selectedClass ? lesson.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() : true;
     const dbSubj = lesson.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : lesson.subject?.toLowerCase().trim();
     const matchSubject = selectedSubject ? dbSubj === selectedSubject.toLowerCase().trim() : true;
@@ -989,10 +989,10 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                 <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
                 <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedClass} onChange={(e: any) => setSelectedClass(e.target.value)}>
-                  <option value="">All Grades</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                  <option value="">All Grades</option>{GRADES.map((g: any) => <option key={g} value={g}>{g}</option>)}
                 </select>
                 <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
-                  <option value="">All Subjects</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  <option value="">All Subjects</option>{SUBJECTS.map((s: any) => <option key={s} value={s}>{s}</option>)}
                 </select>
              </div>
              <div className="relative w-full md:flex-1 flex gap-2">
@@ -1008,7 +1008,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
             <h2 className="text-2xl font-extrabold text-slate-800 mb-6">All Lessons</h2>
             {isLoading ? (<div className="py-20 text-center font-bold text-sky-500 animate-pulse">Loading Lessons...</div>) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredLessons.length > 0 ? filteredLessons.map((lesson, idx) => (
+                {filteredLessons.length > 0 ? filteredLessons.map((lesson: any, idx: any) => (
                   <Card key={idx} className={`border-b-8 ${lesson.color} cursor-pointer group transition-all p-0 flex flex-col hover:border-sky-300`} onClick={() => setActiveLesson(lesson)}>
                     <div className="relative h-48 w-full bg-slate-200 overflow-hidden">
                        <img src={lesson.image} alt={lesson.chapter} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -1042,7 +1042,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
 
             <div className="px-0 md:px-8 py-4 space-y-4">
                {activeLesson.subTopics ? (
-                  activeLesson.subTopics.map((subTopic, sIdx) => {
+                  activeLesson.subTopics.map((subTopic: any, sIdx: any) => {
                      const isExpanded = expandedSubTopics[subTopic.id || sIdx];
                      return (
                         <div key={subTopic.id || sIdx} className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all">
@@ -1059,7 +1059,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
 
                            {isExpanded && (
                               <div className="p-4 border-t-2 border-slate-100 bg-white space-y-3">
-                                 {subTopic.tools && subTopic.tools.length > 0 ? [...subTopic.tools].sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((item, index) => (
+                                 {subTopic.tools && subTopic.tools.length > 0 ? subTopic.tools].sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((item, index) => (
                                     <div key={index} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 rounded-xl border-2 border-slate-100 transition-colors group relative hover:border-sky-300">
                                        <div className="flex items-center gap-4">
                                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>{item.type === 'Video' ? <Video size={24}/> : item.type === 'PDF' || item.type === 'Presentation' ? <FileText size={24}/> : <Gamepad2 size={24}/>}</div>
@@ -1070,7 +1070,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
                                        </div>
                                        <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
                                           <Button variant="secondary" className="flex-1 md:flex-none py-2 px-6 text-sm font-bold border-2 shadow-none hover:border-sky-500 hover:text-sky-600" onClick={() => {
-                                             const isolatedPlaylist = [...subTopic.tools].sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+                                             const isolatedPlaylist = [...subTopic.tools].sort((a: any, b: any) => (a.orderIndex || 0) - (b.orderIndex || 0));
                                              onStartLesson({ chapter: activeLesson.chapter, book: activeLesson.book, subtopic: subTopic.title, flow: isolatedPlaylist }, index);
                                           }}>{item.isPremium && !isLoggedIn ? <Lock size={14}/> : 'Start Tool'}</Button>
                                        </div>
@@ -1083,7 +1083,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
                   })
                ) : (
                   <div className="relative border-l-4 border-slate-200 space-y-8 pb-8 pl-8">
-                     {activeLesson.flow && activeLesson.flow.map((item, index) => (
+                     {activeLesson.flow && activeLesson.flow.map((item: any, index: any) => (
                         <div key={index} className="relative group">
                            <div className={`absolute -left-[54px] top-2 w-10 h-10 rounded-full border-4 border-white ${item.color || 'bg-slate-800'} flex items-center justify-center text-white shadow-md z-10`}>{item.type === 'Video' ? <Video size={16}/> : <Gamepad2 size={16}/>}</div>
                            <Card className="p-5 md:p-6 border-2 hover:border-sky-300">
