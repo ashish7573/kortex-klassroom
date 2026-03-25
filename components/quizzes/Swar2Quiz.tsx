@@ -84,7 +84,7 @@ const QUIZ_DATA = [
   }
 ];
 
-export default function AudioQuizComponent({ onComplete = () => {} }) {
+export default function AudioQuizComponent({ onComplete = (result: { score: number; stars: number }) => {} }) {
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
