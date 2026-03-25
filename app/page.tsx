@@ -2951,7 +2951,12 @@ const AdminView = () => {
       try {
         const q = query(collection(db, 'content_requests'), orderBy('created_at', 'desc'));
         const querySnapshot = await getDocs(q);
-        const allReqs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const allReqs = querySnapshot.docs.map(doc => ({ 
+                id: doc.id, 
+                ...doc.data() 
+              } as { 
+                id: string; status: string; [key: string]: any; 
+              }));
         setPendingRequests(allReqs.filter(req => req.status === 'pending'));
         setRequestHistory(allReqs.filter(req => req.status !== 'pending'));
       } catch (error: any) { console.error("🚨 FIREBASE ADMIN FETCH ERROR:", error); } 
