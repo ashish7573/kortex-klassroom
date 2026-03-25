@@ -2008,7 +2008,13 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         // Fetch ALL students assigned to this teacher using the new APAAR teacher_ids array
         const sQuery = query(collection(db, 'managed_students'), where('teacher_ids', 'array-contains', user.uid));
         const sSnapshot = await getDocs(sQuery);
-        const allStudents = sSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const allStudents = sSnapshot.docs.map(doc => ({ 
+  id: doc.id, 
+  ...doc.data() 
+} as { 
+  id: string; name: string; enrolled_classes?: string[]; status?: string; 
+  stars_earned?: number; contact1?: string; is_whatsapp1?: boolean; username?: string | null; 
+}));
         setMyStudents(allStudents);
 
         // Calculate Analytics stats ONLY for the currently selected analytics filter
@@ -2018,7 +2024,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
             const studentIds = classStudents.map(s => s.id);
             const pQuery = query(collection(db, 'progress_logs'), where('student_id', 'in', studentIds.slice(0, 30)));
             const pSnapshot = await getDocs(pQuery);
-            const logs = pSnapshot.docs.map(doc => doc.data());
+            const logs = pSnapshot.docs.map(doc => doc.data() as { score_percentage?: number });
             const totalScore = logs.reduce((acc, curr) => acc + curr.score_percentage, 0);
             const avg = logs.length > 0 ? Math.round(totalScore / logs.length) : 0;
             setClassStats({ 
@@ -2042,7 +2048,14 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
       try {
         // 1. Fetch the flat tools from the NEW database
         const snapshot = await getDocs(collection(db, 'learning_tools'));
-        let allFlatTools = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        let allFlatTools = snapshot.docs.map(doc => ({ 
+  id: doc.id, 
+  ...doc.data() 
+} as { 
+  id: string; grade?: string; subject?: string; chapter_number?: number; 
+  chapter_name?: string; book?: string; image?: string; content_type?: string; 
+  subtopic?: string; title?: string; subtopic_order?: number; content_order?: number; 
+}));
 
         let filteredFlatTools = allFlatTools;
 
@@ -2106,7 +2119,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         });
 
         // 4. SORTING LOGIC: Make sure Chapters and Videos are in exact order
-        const processedModules = Object.values(chaptersMap).map(chapter => {
+        const processedModules = Object.values(chaptersMap).map((chapter: any) => {
            let subTopicsArray = Object.values(chapter.subTopicsMap);
 
            subTopicsArray.forEach(sub => {
@@ -2144,7 +2157,12 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         const filterSubject = krewWizard.subject.toLowerCase().trim();
         try {
           const snapshot = await getDocs(collection(db, 'learning_tools'));
-          const allMods = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+          const allMods = snapshot.docs.map(d => ({
+  id: d.id, 
+  ...d.data()
+} as { 
+  id: string; subject?: string; grade?: string; chapter?: string; subTopics?: any[]; 
+}));
           const filtered = allMods.filter(m => {
              const dbSubj = m.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : m.subject?.toLowerCase().trim();
              return m.grade?.toLowerCase().trim() === filterGrade && dbSubj === filterSubject;
@@ -2244,7 +2262,9 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         if (snap.empty) { setIsSavingStudent(false); return alert("No matching student found. Please check the APAAR ID and DOB, or create a new profile."); }
         
         const studentDoc = snap.docs[0];
-        const studentData = studentDoc.data();
+const studentData = studentDoc.data() as { 
+  name: string; enrolled_classes?: string[]; teacher_ids?: string[]; 
+};
         
         // Merge the new classes and teacher access without overwriting existing data
         const updatedClasses = [...new Set([...(studentData.enrolled_classes || []), ...f.selectedClasses])];
