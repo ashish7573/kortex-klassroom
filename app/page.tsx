@@ -1987,7 +1987,10 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
       try {
         const q = query(collection(db, 'teacher_classes'), where('teacher_id', '==', user.uid));
         const querySnapshot = await getDocs(q);
-        const classes = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const classes = querySnapshot.docs.map(doc => ({ 
+  id: doc.id, 
+  ...doc.data() 
+} as { id: string, grade: string, subject: string }));
         setMyClasses(classes);
         if (classes.length > 0 && !targetContext) {
            setSelectedAnalyticsFilter(`${classes[0].grade} • ${classes[0].subject}`);
