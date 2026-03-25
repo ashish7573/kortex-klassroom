@@ -1059,7 +1059,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
 
                            {isExpanded && (
                               <div className="p-4 border-t-2 border-slate-100 bg-white space-y-3">
-                                 {subTopic.tools && subTopic.tools.length > 0 ? subTopic.tools].sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((item, index) => (
+                                 {subTopic.tools && subTopic.tools.length > 0 ? [...subTopic.tools].sort((a: any, b: any) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((item: any, index: any) => (
                                     <div key={index} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 rounded-xl border-2 border-slate-100 transition-colors group relative hover:border-sky-300">
                                        <div className="flex items-center gap-4">
                                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>{item.type === 'Video' ? <Video size={24}/> : item.type === 'PDF' || item.type === 'Presentation' ? <FileText size={24}/> : <Gamepad2 size={24}/>}</div>
