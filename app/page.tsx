@@ -898,11 +898,11 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }) => {
         });
 
         // 2. Sort Everything (Tools -> Subtopics -> Chapters)
-        const processedModules = Object.values(chaptersMap).map(chapter => {
+        const processedModules = Object.values(chaptersMap).map((chapter: any) => {
            let subTopicsArray = Object.values(chapter.subTopicsMap);
 
            // A. Sort the tools inside each subtopic by content_order (1, 2, 3...)
-           subTopicsArray.forEach(sub => {
+           subTopicsArray.forEach((sub: any) => {
               sub.tools.sort((a, b) => (a.content_order || 1) - (b.content_order || 1));
            });
 
