@@ -2122,11 +2122,11 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         const processedModules = Object.values(chaptersMap).map((chapter: any) => {
            let subTopicsArray = Object.values(chapter.subTopicsMap) as any[];
 
-subTopicsArray.forEach((sub: any) => {
-   sub.tools.sort((a: any, b: any) => (a.content_order || 1) - (b.content_order || 1));
-});
+                subTopicsArray.forEach((sub: any) => {
+                  sub.tools.sort((a: any, b: any) => (a.content_order || 1) - (b.content_order || 1));
+                });
 
-subTopicsArray.sort((a: any, b: any) => (a.subtopic_order || 1) - (b.subtopic_order || 1));
+                subTopicsArray.sort((a: any, b: any) => (a.subtopic_order || 1) - (b.subtopic_order || 1));
 
            chapter.subTopics = subTopicsArray;
            delete chapter.subTopicsMap;
@@ -2215,12 +2215,22 @@ subTopicsArray.sort((a: any, b: any) => (a.subtopic_order || 1) - (b.subtopic_or
 
   // Helper: Toggle Class Selection in Forms
   const toggleClassSelection = (formType, classStr) => {
-     const form = formType === 'create' ? newStudentForm : importForm;
-     const setForm = formType === 'create' ? setNewStudentForm : setImportForm;
-     const current = form.selectedClasses;
-     if (current.includes(classStr)) setForm({ ...form, selectedClasses: current.filter(c => c !== classStr) });
-     else setForm({ ...form, selectedClasses: [...current, classStr] });
-  };
+   if (formType === 'create') {
+      const current = newStudentForm.selectedClasses;
+      if (current.includes(classStr)) {
+         setNewStudentForm({ ...newStudentForm, selectedClasses: current.filter(c => c !== classStr) });
+      } else {
+         setNewStudentForm({ ...newStudentForm, selectedClasses: [...current, classStr] });
+      }
+   } else {
+      const current = importForm.selectedClasses;
+      if (current.includes(classStr)) {
+         setImportForm({ ...importForm, selectedClasses: current.filter(c => c !== classStr) });
+      } else {
+         setImportForm({ ...importForm, selectedClasses: [...current, classStr] });
+      }
+   }
+};
 
   const handleCreateStudent = async () => {
      const f = newStudentForm;
