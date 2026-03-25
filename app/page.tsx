@@ -2120,13 +2120,13 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
 
         // 4. SORTING LOGIC: Make sure Chapters and Videos are in exact order
         const processedModules = Object.values(chaptersMap).map((chapter: any) => {
-           let subTopicsArray = Object.values(chapter.subTopicsMap);
+           let subTopicsArray = Object.values(chapter.subTopicsMap) as any[];
 
-           subTopicsArray.forEach(sub => {
-              sub.tools.sort((a, b) => (a.content_order || 1) - (b.content_order || 1));
-           });
+subTopicsArray.forEach((sub: any) => {
+   sub.tools.sort((a: any, b: any) => (a.content_order || 1) - (b.content_order || 1));
+});
 
-           subTopicsArray.sort((a, b) => (a.subtopic_order || 1) - (b.subtopic_order || 1));
+subTopicsArray.sort((a: any, b: any) => (a.subtopic_order || 1) - (b.subtopic_order || 1));
 
            chapter.subTopics = subTopicsArray;
            delete chapter.subTopicsMap;
