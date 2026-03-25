@@ -389,7 +389,7 @@ export default function SwarPopGame({ onComplete = (result: { score: number; sta
         {gameState === 'playing' && bubbles.map((bubble) => (
           <div
             key={bubble.id}
-            ref={el => bubbleDOMRefs.current[bubble.id] = el}
+            ref={(el) => { bubbleDOMRefs.current[bubble.id] = el; }}
             onPointerDown={() => handleBubbleClick(bubble.id)}
             className={`absolute top-0 left-0 w-[70px] h-[70px] ${bubble.color} rounded-full shadow-md flex items-center justify-center cursor-pointer select-none border-4 border-white/40 active:brightness-90 hover:scale-105 transition-transform origin-center`}
             style={{ 
