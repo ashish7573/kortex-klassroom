@@ -3099,7 +3099,7 @@ const AdminView = () => {
     reader.onload = async (event) => {
       setIsUploadingCSV(true);
       try {
-        const text = event.target.result;
+        const text = event.target.result as string;
         
         // Split rows, handling potential empty lines at the end of the file
         const rows = text.split('\n');
