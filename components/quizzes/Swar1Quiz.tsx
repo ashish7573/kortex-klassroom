@@ -222,7 +222,7 @@ export default function QuizComponent({ onComplete = (result: { score: number; s
 
   // --- ACTIVE QUIZ SCREEN ---
   return (
-    <div className="w-full max-w-4xl mx-auto min-h-[500px] bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
+    <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
       
       {/* Header & Progress */}
       <div className="px-8 pt-8 pb-4">
@@ -250,7 +250,7 @@ export default function QuizComponent({ onComplete = (result: { score: number; s
       <div className="flex-1 px-8 py-6 flex flex-col md:flex-row gap-8 items-center justify-center">
         
         {/* Left: Image/Emoji Display */}
-        <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100 py-12 px-6">
+        <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100 py-6 md:py-12 px-4 md:px-6">
           <h2 className="text-xl font-bold text-slate-500 mb-6 text-center">{question.text}</h2>
           <div className="flex justify-center items-center transform transition-transform hover:scale-105">
             {question.renderVisual()}
@@ -266,7 +266,7 @@ export default function QuizComponent({ onComplete = (result: { score: number; s
                 onClick={() => handleOptionClick(option)}
                 disabled={isAnswerSubmitted}
                 className={`
-                  relative py-8 rounded-2xl border-4 text-5xl font-black transition-all duration-200 
+                  relative py-4 md:py-8 rounded-2xl border-4 text-3xl md:text-5xl font-black transition-all duration-200 
                   flex items-center justify-center
                   ${getOptionStyles(option)}
                 `}
@@ -285,7 +285,7 @@ export default function QuizComponent({ onComplete = (result: { score: number; s
           </div>
 
           {/* Feedback & Next Button Area */}
-          <div className={`mt-6 min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mt-4 md:mt-6 min-h-[80px] md:min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
             {isAnswerSubmitted && (
               <div className={`p-4 rounded-2xl border-2 mb-4 font-bold flex items-start space-x-3 ${
                 selectedAnswer === question.correctAnswer 
