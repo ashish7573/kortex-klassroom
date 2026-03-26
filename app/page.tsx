@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 import { 
   BookOpen, Brain, Activity, User, Users, FileText, BarChart, 
@@ -3454,8 +3455,15 @@ export default function App() {
       <nav className="bg-white border-b-4 border-sky-500 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4 md:gap-8">
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentView('home'); setStage(null); if (!isLoggedIn) setRole(null); }}>
-            <div className="w-10 h-10 bg-sky-500 rounded-xl flex items-center justify-center transform -rotate-3"><Brain size={24} className="text-white" /></div>
-            <span className="font-black text-2xl tracking-tight text-slate-800 hidden sm:block">kortex<span className="text-sky-500">.klassroom</span></span>
+            <Image 
+              src="/logo.svg" 
+              alt="Kortex Klassroom Logo" 
+              width={200} 
+              height={50} 
+              priority 
+              className="h-10 w-auto rounded-xl -rotate-3" 
+            />
+            <span className="font-black text-2xl tracking-tight text-slate-800 hidden sm:block">Kortex<span className="text-sky-500"> Klassroom</span></span>
           </div>
 
           <div className="flex-1 max-w-xl mx-4 hidden lg:block relative">
