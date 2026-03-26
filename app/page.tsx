@@ -264,7 +264,7 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
-      <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full shadow-2xl relative border-4 border-slate-100 flex flex-col">
+      <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full max-h-[95vh] shadow-2xl relative border-4 border-slate-100 flex flex-col">
         <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2 z-10"><X size={20} /></button>
         
         <div className="flex bg-slate-50 border-b-2 border-slate-100">
@@ -282,7 +282,7 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
            </button>
         </div>
 
-        <div className="p-8">
+        <div className="p-8 overflow-y-auto">
            {errorMsg && <div className="mb-4 p-3 bg-red-100 text-red-600 text-sm font-bold rounded-xl text-center animate-shake">{errorMsg}</div>}
 
            {loginMode === 'student' && (
@@ -480,7 +480,7 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
         const CustomGameComponent = GAME_REGISTRY[currentItem.content_url];
         
         if (CustomGameComponent) {
-           return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded-3xl overflow-hidden border-4 border-slate-800 shadow-2xl animate-fade-in"><CustomGameComponent onComplete={handleNext} /></div>;
+           return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded-3xl overflow-y-auto border-4 border-slate-800 shadow-2xl animate-fade-in"><CustomGameComponent onComplete={handleNext} /></div>;
         }
         return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 border-4 border-dashed border-slate-800 rounded-3xl p-8 text-center max-w-3xl mx-auto"><h2 className="text-4xl font-black text-white mb-4">{currentItem.title}</h2><p className="text-slate-500">Game module under construction.</p></div>;
 
@@ -489,7 +489,7 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
         const CustomQuizComponent = QUIZ_REGISTRY[currentItem.content_url];
         
         if (CustomQuizComponent) {
-           return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl overflow-hidden border-4 border-slate-200 shadow-2xl animate-fade-in"><CustomQuizComponent onComplete={handleNext} /></div>;
+           return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl overflow-y-auto border-4 border-slate-200 shadow-2xl animate-fade-in"><CustomQuizComponent onComplete={handleNext} /></div>;
         }
         return <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl p-8 border-4 border-dashed border-purple-200 text-center"><h2 className="text-4xl font-black text-slate-800 mb-4">{currentItem.title}</h2><p className="text-slate-500">Quiz module under construction.</p></div>;
 
@@ -536,7 +536,7 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
         </div>
         <div className="bg-slate-800 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 border border-slate-700">{currentItem.type?.toUpperCase()} {currentItem.isPremium && <Star size={14} className="text-amber-400 fill-amber-400" />}</div>
       </div>
-      <div className="flex-1 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-4 md:p-8 flex items-center justify-center">
+      <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-4 md:p-8 flex items-center justify-center">
          {renderContent()}
       </div>
       <div className="bg-slate-900 border-t border-slate-800 px-6 py-4 flex items-center justify-between shrink-0 relative z-10">
