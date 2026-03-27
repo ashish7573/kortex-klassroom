@@ -144,7 +144,7 @@ export default function App({ onComplete }) {
               {questions.map((q, idx) => (
                 <div 
                   key={idx}
-                  className={`relative h-28 md:h-48 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all flex flex-col items-center justify-center gap-2 md:gap-4
+                  className={`relative h-20 md:h-48 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all flex flex-col items-center justify-center gap-1 md:gap-4
                     ${playingIndex === idx ? 'border-sky-400 bg-sky-50 shadow-md scale-105' : 'border-slate-200 bg-white hover:border-sky-200'}
                     ${completedAudio.includes(idx) ? 'border-lime-400 bg-lime-50' : ''}
                   `}

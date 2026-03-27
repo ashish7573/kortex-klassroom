@@ -297,9 +297,9 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
           </div>
 
           {/* Feedback & Next Button Area */}
-          <div className={`mt-2 md:mt-6 min-h-[60px] md:min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mt-1 md:mt-6 min-h-[40px] md:min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
             {isAnswerSubmitted && (
-              <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 mb-2 md:mb-4 font-bold flex items-start space-x-2 md:space-x-3 ${
+              <div className={`p-2 md:p-4 rounded-lg md:rounded-2xl border-2 mb-1 md:mb-4 font-bold flex items-start space-x-2 md:space-x-3 ${
                 selectedAnswer === question.correctAnswer 
                   ? 'bg-lime-50 border-lime-200 text-lime-800' 
                   : 'bg-rose-50 border-rose-200 text-rose-800'
@@ -321,7 +321,7 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
             {isAnswerSubmitted && (
               <button
                 onClick={handleNextQuestion}
-                className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold text-lg py-4 px-6 rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2"
+                className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold text-base md:text-lg py-2 md:py-4 px-4 md:px-6 rounded-xl md:rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2"
               >
                 <span>{currentQuestion < questions.length - 1 ? 'Next Question' : 'See Results'}</span>
                 <ArrowRight className="w-6 h-6" />

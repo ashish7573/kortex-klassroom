@@ -197,7 +197,7 @@ export default function SwarPopGame({ onComplete = (result: { score: number; sta
       // Update DOM directly for 60fps performance without React re-renders
       const domNode = bubbleDOMRefs.current[b.id];
       if (domNode) {
-        domNode.style.transform = `translate(${b.x - b.radius}px, ${b.y - b.radius}px) scale(${Math.min(b.scale, 1)})`;
+        domNode.style.transform = `translate(${Math.round(b.x - b.radius)}px, ${Math.round(b.y - b.radius)}px) scale(${Math.min(b.scale, 1)})`;
       }
     });
 
@@ -391,7 +391,7 @@ export default function SwarPopGame({ onComplete = (result: { score: number; sta
             key={bubble.id}
             ref={(el) => { bubbleDOMRefs.current[bubble.id] = el; }}
             onPointerDown={() => handleBubbleClick(bubble.id)}
-            className={`absolute top-0 left-0 w-[70px] h-[70px] ${bubble.color} rounded-full shadow-md flex items-center justify-center cursor-pointer select-none border-4 border-white/40 active:brightness-90 hover:scale-105 transition-transform origin-center`}
+            className={`absolute top-0 left-0 w-[70px] h-[70px] ${bubble.color} rounded-full shadow-md flex items-center justify-center cursor-pointer select-none border-4 border-white/40 active:brightness-90 origin-center`}
             style={{ 
               transform: `translate(-1000px, -1000px)`, // Initial offscreen, moved immediately by physics
               willChange: 'transform'
