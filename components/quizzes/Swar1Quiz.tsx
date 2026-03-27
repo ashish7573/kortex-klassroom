@@ -247,26 +247,26 @@ export default function QuizComponent({ onComplete = (result: { score: number; s
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 px-8 py-6 flex flex-col md:flex-row gap-8 items-center justify-center">
+      <div className="flex-1 min-h-0 px-4 md:px-8 py-2 md:py-6 flex flex-col md:flex-row gap-3 md:gap-8 items-center justify-center">
         
         {/* Left: Image/Emoji Display */}
-        <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100 py-6 md:py-12 px-4 md:px-6">
-          <h2 className="text-xl font-bold text-slate-500 mb-6 text-center">{question.text}</h2>
-          <div className="flex justify-center items-center transform transition-transform hover:scale-105">
+        <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-[2rem] border-2 border-slate-100 py-3 md:py-12 px-4 md:px-6 flex-shrink-0 md:flex-shrink">
+          <h2 className="text-base md:text-xl font-bold text-slate-500 mb-2 md:mb-6 text-center">{question.text}</h2>
+          <div className="flex justify-center items-center transform transition-transform hover:scale-105 scale-[0.6] md:scale-100 -my-6 md:my-0 origin-center">
             {question.renderVisual()}
           </div>
         </div>
 
         {/* Right: Options */}
         <div className="w-full md:w-1/2 flex flex-col space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2 md:gap-4">
             {question.options.map((option, index) => (
               <button
                 key={index}
                 onClick={() => handleOptionClick(option)}
                 disabled={isAnswerSubmitted}
                 className={`
-                  relative py-4 md:py-8 rounded-2xl border-4 text-3xl md:text-5xl font-black transition-all duration-200 
+                  relative py-3 md:py-8 rounded-xl md:rounded-2xl border-2 md:border-4 text-2xl md:text-5xl font-black transition-all duration-200 
                   flex items-center justify-center
                   ${getOptionStyles(option)}
                 `}
@@ -285,9 +285,9 @@ export default function QuizComponent({ onComplete = (result: { score: number; s
           </div>
 
           {/* Feedback & Next Button Area */}
-          <div className={`mt-4 md:mt-6 min-h-[80px] md:min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mt-2 md:mt-6 min-h-[60px] md:min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
             {isAnswerSubmitted && (
-              <div className={`p-4 rounded-2xl border-2 mb-4 font-bold flex items-start space-x-3 ${
+              <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 mb-2 md:mb-4 font-bold flex items-start space-x-2 md:space-x-3 ${
                 selectedAnswer === question.correctAnswer 
                   ? 'bg-lime-50 border-lime-200 text-lime-800' 
                   : 'bg-rose-50 border-rose-200 text-rose-800'
