@@ -231,7 +231,7 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
 
   // --- ACTIVE QUIZ SCREEN ---
   return (
-    <div className="w-full max-w-4xl mx-auto min-h-[500px] bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
+    <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
       
       {/* Header & Progress */}
       <div className="px-8 pt-8 pb-4">
@@ -256,32 +256,32 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 px-8 py-6 flex flex-col md:flex-row gap-8 items-center justify-center">
+      <div className="flex-1 min-h-0 px-4 md:px-8 py-2 md:py-6 flex flex-col md:flex-row gap-3 md:gap-8 items-center justify-center">
         
         {/* Left: Alphabet Display */}
-        <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100 py-12 px-6">
-          <h2 className="text-xl font-bold text-slate-500 mb-6 text-center">{question.text}</h2>
-          <div className="text-[120px] leading-none font-black text-slate-800 drop-shadow-md select-none transform transition-transform hover:scale-105">
+        <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-[2rem] border-2 border-slate-100 py-4 md:py-12 px-4 md:px-6 flex-shrink-0 md:flex-shrink">
+          <h2 className="text-base md:text-xl font-bold text-slate-500 mb-2 md:mb-6 text-center">{question.text}</h2>
+          <div className="text-[80px] md:text-[120px] leading-none font-black text-slate-800 drop-shadow-md select-none transform transition-transform hover:scale-105">
             {question.letter}
           </div>
         </div>
 
         {/* Right: Image Options */}
         <div className="w-full md:w-1/2 flex flex-col space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2 md:gap-4">
             {question.options.map((option, index) => (
               <button
                 key={index}
                 onClick={() => handleOptionClick(option)}
                 disabled={isAnswerSubmitted}
                 className={`
-                  relative py-8 rounded-2xl border-4 transition-all duration-200 
-                  flex items-center justify-center min-h-[140px]
+                  relative py-3 md:py-8 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all duration-200 
+                  flex items-center justify-center min-h-[80px] md:min-h-[140px]
                   ${getOptionStyles(option)}
                 `}
               >
                 {/* Render the Visual inside the button */}
-                <div className="transform transition-transform group-hover:scale-110">
+                <div className="transform transition-transform group-hover:scale-110 scale-[0.6] md:scale-100">
                   {VISUAL_MAP[option]()}
                 </div>
                 
@@ -297,9 +297,9 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
           </div>
 
           {/* Feedback & Next Button Area */}
-          <div className={`mt-6 min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mt-2 md:mt-6 min-h-[60px] md:min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
             {isAnswerSubmitted && (
-              <div className={`p-4 rounded-2xl border-2 mb-4 font-bold flex items-start space-x-3 ${
+              <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 mb-2 md:mb-4 font-bold flex items-start space-x-2 md:space-x-3 ${
                 selectedAnswer === question.correctAnswer 
                   ? 'bg-lime-50 border-lime-200 text-lime-800' 
                   : 'bg-rose-50 border-rose-200 text-rose-800'

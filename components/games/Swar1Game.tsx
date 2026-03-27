@@ -280,40 +280,40 @@ export default function SwarPopGame({ onComplete = (result: { score: number; sta
 
   // --- RENDERERS ---
   return (
-    <div className={`w-full max-w-4xl mx-auto min-h-[600px] h-[600px] bg-white rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden flex flex-col font-sans transition-transform duration-75 ${screenShake ? 'translate-x-2 -translate-y-1' : ''}`}>
+    <div className={`w-full h-full max-w-4xl mx-auto bg-white rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden flex flex-col font-sans transition-transform duration-75 ${screenShake ? 'translate-x-2 -translate-y-1' : ''}`}>
       
-      {/* HEADER / HUD */}
-      <div className="flex justify-between items-center p-4 bg-white/80 backdrop-blur-md border-b-2 border-slate-50 z-20">
-        <div className="flex items-center gap-2">
-          <div className="bg-sky-100 text-sky-700 px-4 py-2 rounded-2xl font-black text-xl flex items-center gap-2 shadow-sm border border-sky-200">
-            <Star className="w-6 h-6 fill-sky-500 text-sky-500" />
+     {/* HEADER / HUD */}
+      <div className="flex justify-between items-center p-2 md:p-4 bg-white/80 backdrop-blur-md border-b-2 border-slate-50 z-20">
+        <div className="flex items-center gap-1 md:gap-2">
+          <div className="bg-sky-100 text-sky-700 px-2 py-1 md:px-4 md:py-2 rounded-xl md:rounded-2xl font-black text-sm md:text-xl flex items-center gap-1 md:gap-2 shadow-sm border border-sky-200">
+            <Star className="w-4 h-4 md:w-6 md:h-6 fill-sky-500 text-sky-500" />
             {score}
           </div>
           {gameState === 'playing' && (
-            <div className="bg-amber-100 text-amber-700 px-4 py-2 rounded-2xl font-black text-xl flex items-center gap-2 shadow-sm border border-amber-200">
+            <div className="bg-amber-100 text-amber-700 px-2 py-1 md:px-4 md:py-2 rounded-xl md:rounded-2xl font-black text-sm md:text-xl flex items-center gap-1 md:gap-2 shadow-sm border border-amber-200">
               00:{timeLeft.toString().padStart(2, '0')}
             </div>
           )}
         </div>
 
         {gameState === 'playing' && targetData && (
-          <div className="absolute left-1/2 -translate-x-1/2 top-4 bg-indigo-600 text-white px-6 py-2 rounded-full font-black text-2xl shadow-md border-4 border-indigo-200 animate-pulse">
+          <div className="absolute left-1/2 -translate-x-1/2 top-[60px] md:top-4 bg-indigo-600 text-white px-4 py-1.5 md:px-6 md:py-2 rounded-full font-black text-lg md:text-2xl shadow-md border-2 md:border-4 border-indigo-200 animate-pulse z-10 pointer-events-none">
             Find: {targetData.swar}
           </div>
         )}
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1 md:gap-4">
           <button 
             onClick={() => setIsMuted(!isMuted)}
-            className="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors"
+            className="p-1 md:p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors"
           >
-            {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+            {isMuted ? <VolumeX className="w-5 h-5 md:w-6 md:h-6" /> : <Volume2 className="w-5 h-5 md:w-6 md:h-6" />}
           </button>
-          <div className="flex gap-1">
+          <div className="flex gap-0.5 md:gap-1">
             {[...Array(3)].map((_, i) => (
               <Heart 
                 key={i} 
-                className={`w-8 h-8 transition-all duration-300 ${i < lives ? 'text-rose-500 fill-rose-500 scale-100' : 'text-slate-200 fill-slate-200 scale-75 opacity-50'}`} 
+                className={`w-5 h-5 md:w-8 md:h-8 transition-all duration-300 ${i < lives ? 'text-rose-500 fill-rose-500 scale-100' : 'text-slate-200 fill-slate-200 scale-75 opacity-50'}`} 
               />
             ))}
           </div>
@@ -327,18 +327,18 @@ export default function SwarPopGame({ onComplete = (result: { score: number; sta
       >
         {/* START SCREEN */}
         {gameState === 'start' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 backdrop-blur-sm z-30">
-            <div className="bg-white p-8 rounded-3xl shadow-xl border-4 border-sky-100 text-center max-w-md w-full animate-in fade-in zoom-in duration-300">
-              <div className="bg-sky-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-                <span className="text-5xl font-black text-sky-600">अ</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 backdrop-blur-sm z-30 p-4">
+            <div className="bg-white p-6 md:p-8 rounded-2xl md:rounded-3xl shadow-xl border-2 md:border-4 border-sky-100 text-center max-w-md w-full animate-in fade-in zoom-in duration-300">
+              <div className="bg-sky-100 w-16 h-16 md:w-24 md:h-24 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6">
+                <span className="text-3xl md:text-5xl font-black text-sky-600">अ</span>
               </div>
-              <h1 className="text-4xl font-black text-slate-800 mb-2">Swar Pop!</h1>
-              <p className="text-slate-500 font-medium mb-8">Pop the bubbles that match the Swar shown at the top of the screen. Watch out for the wrong ones!</p>
+              <h1 className="text-2xl md:text-4xl font-black text-slate-800 mb-2">Swar Pop!</h1>
+              <p className="text-sm md:text-base text-slate-500 font-medium mb-6 md:mb-8">Pop the bubbles that match the Swar shown at the top of the screen. Watch out for the wrong ones!</p>
               <button 
                 onClick={startGame}
-                className="w-full bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white font-bold text-2xl py-4 px-8 rounded-2xl shadow-lg shadow-sky-200 active:scale-95 transition-all flex items-center justify-center gap-3"
+                className="w-full bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white font-bold text-lg md:text-2xl py-3 md:py-4 px-6 md:px-8 rounded-xl md:rounded-2xl shadow-md md:shadow-lg shadow-sky-200 active:scale-95 transition-all flex items-center justify-center gap-2 md:gap-3"
               >
-                <Play className="fill-white w-6 h-6" /> Play Now
+                <Play className="fill-white w-5 h-5 md:w-6 md:h-6" /> Play Now
               </button>
             </div>
           </div>
@@ -346,37 +346,37 @@ export default function SwarPopGame({ onComplete = (result: { score: number; sta
 
         {/* GAME OVER SCREEN */}
         {gameState === 'gameover' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-md z-30">
-            <div className="bg-white p-8 rounded-3xl shadow-xl border-4 border-indigo-100 text-center max-w-md w-full animate-in slide-in-from-bottom-8 duration-500">
-              <Trophy className="w-24 h-24 text-amber-400 mx-auto mb-4 drop-shadow-md" />
-              <h2 className="text-4xl font-black text-slate-800 mb-2">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-md z-30 p-4">
+            <div className="bg-white p-6 md:p-8 rounded-2xl md:rounded-3xl shadow-xl border-2 md:border-4 border-indigo-100 text-center max-w-md w-full animate-in slide-in-from-bottom-8 duration-500">
+              <Trophy className="w-16 h-16 md:w-24 md:h-24 text-amber-400 mx-auto mb-2 md:mb-4 drop-shadow-md" />
+              <h2 className="text-2xl md:text-4xl font-black text-slate-800 mb-2">
                 {lives === 0 ? 'Out of Lives!' : 'Time\'s Up!'}
               </h2>
               
-              <div className="flex justify-center gap-2 mb-6">
+              <div className="flex justify-center gap-1 md:gap-2 mb-4 md:mb-6">
                 {[...Array(3)].map((_, i) => (
                   <Star 
                     key={i} 
-                    className={`w-12 h-12 transition-all delay-${i * 100} duration-500 ${i < calculateStars() ? 'text-amber-400 fill-amber-400 scale-110' : 'text-slate-200 fill-slate-200 scale-90'}`} 
+                    className={`w-8 h-8 md:w-12 md:h-12 transition-all delay-${i * 100} duration-500 ${i < calculateStars() ? 'text-amber-400 fill-amber-400 scale-110' : 'text-slate-200 fill-slate-200 scale-90'}`} 
                   />
                 ))}
               </div>
 
-              <div className="bg-slate-50 rounded-2xl p-4 mb-8 border border-slate-100">
-                <p className="text-slate-500 font-bold uppercase tracking-wider text-sm mb-1">Final Score</p>
-                <p className="text-5xl font-black text-indigo-600">{score}</p>
+              <div className="bg-slate-50 rounded-xl md:rounded-2xl p-3 md:p-4 mb-6 md:mb-8 border border-slate-100">
+                <p className="text-slate-500 font-bold uppercase tracking-wider text-xs md:text-sm mb-1">Final Score</p>
+                <p className="text-4xl md:text-5xl font-black text-indigo-600">{score}</p>
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-2 md:gap-4">
                 <button 
                   onClick={startGame}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-lg py-4 px-4 rounded-2xl transition-all flex items-center justify-center gap-2"
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm md:text-lg py-3 md:py-4 px-2 md:px-4 rounded-xl md:rounded-2xl transition-all flex items-center justify-center gap-1 md:gap-2"
                 >
-                  <RotateCcw className="w-5 h-5" /> Play Again
+                  <RotateCcw className="w-4 h-4 md:w-5 md:h-5" /> Play Again
                 </button>
                 <button 
                   onClick={handleFinish}
-                  className="flex-1 bg-gradient-to-b from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold text-lg py-4 px-4 rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all"
+                  className="flex-1 bg-gradient-to-b from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold text-sm md:text-lg py-3 md:py-4 px-2 md:px-4 rounded-xl md:rounded-2xl shadow-md md:shadow-lg shadow-indigo-200 active:scale-95 transition-all"
                 >
                   Finish & Save
                 </button>

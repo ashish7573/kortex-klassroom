@@ -86,7 +86,7 @@ export default function App({ onComplete }) {
 
   if (isFinished) {
     return (
-      <div className="w-full max-w-4xl mx-auto min-h-[500px] bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-8 flex flex-col items-center justify-center text-center">
+      <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-4 md:p-8 flex flex-col items-center justify-center text-center overflow-y-auto">
         <div className="space-y-6 flex flex-col items-center">
           <div className="flex justify-center gap-2">
             {[1, 2, 3].map((s) => (
@@ -115,9 +115,9 @@ export default function App({ onComplete }) {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto min-h-[500px] bg-slate-50 rounded-3xl border-2 border-slate-100 shadow-sm overflow-hidden flex flex-col">
+    <div className="w-full h-full max-w-4xl mx-auto bg-slate-50 rounded-3xl border-2 border-slate-100 shadow-sm overflow-hidden flex flex-col">
       {/* Progress Header */}
-      <div className="bg-white p-6 border-b-2 border-slate-100 flex-shrink-0">
+      <div className="bg-white p-3 md:p-6 border-b-2 border-slate-100 flex-shrink-0">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-black text-slate-800">हिन्दी श्रुतलेख (अ - ऊ)</h1>
           <span className="text-slate-500 font-bold bg-slate-100 px-4 py-1 rounded-full text-sm">
@@ -132,19 +132,19 @@ export default function App({ onComplete }) {
         </div>
       </div>
 
-      <div className="p-8 flex-grow flex flex-col justify-center">
+      <div className="p-3 md:p-8 flex-grow flex flex-col justify-center min-h-0">
         {currentStep === 0 ? (
-          <div className="space-y-6">
-            <div className="text-center mb-10">
-              <h3 className="text-2xl font-black text-slate-700">Listen carefully & write</h3>
-              <p className="text-slate-500 font-bold mt-2">Click play. Each letter repeats 3 times.</p>
+          <div className="space-y-3 md:space-y-6 flex flex-col h-full">
+            <div className="text-center mb-2 md:mb-10 flex-shrink-0">
+              <h3 className="text-lg md:text-2xl font-black text-slate-700">Listen carefully & write</h3>
+              <p className="text-xs md:text-sm text-slate-500 font-bold mt-1">Click play. Each letter repeats 3 times.</p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-6 overflow-y-auto hide-scrollbar">
               {questions.map((q, idx) => (
                 <div 
                   key={idx}
-                  className={`relative h-48 rounded-2xl border-4 transition-all flex flex-col items-center justify-center gap-4
+                  className={`relative h-28 md:h-48 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all flex flex-col items-center justify-center gap-2 md:gap-4
                     ${playingIndex === idx ? 'border-sky-400 bg-sky-50 shadow-md scale-105' : 'border-slate-200 bg-white hover:border-sky-200'}
                     ${completedAudio.includes(idx) ? 'border-lime-400 bg-lime-50' : ''}
                   `}
@@ -161,12 +161,12 @@ export default function App({ onComplete }) {
                     <button
                       onClick={() => speakLetter(q.char, idx)}
                       disabled={playingIndex !== null}
-                      className={`p-5 rounded-full transition-all transform hover:scale-110 shadow-lg
+                      className={`p-3 md:p-5 rounded-full transition-all transform hover:scale-110 shadow-md md:shadow-lg
                         ${completedAudio.includes(idx) ? 'bg-lime-500 text-white' : 'bg-sky-500 text-white hover:bg-sky-400'}
                         ${playingIndex !== null && playingIndex !== idx ? 'opacity-50 cursor-not-allowed' : ''}
                       `}
                     >
-                      {completedAudio.includes(idx) ? <CheckCircle size={40} strokeWidth={3} /> : <Play size={40} fill="currentColor" />}
+                      {completedAudio.includes(idx) ? <CheckCircle className="w-6 h-6 md:w-10 md:h-10" strokeWidth={3} /> : <Play className="w-6 h-6 md:w-10 md:h-10" fill="currentColor" />}
                     </button>
                   )}
                   
@@ -177,12 +177,12 @@ export default function App({ onComplete }) {
               ))}
             </div>
 
-            <div className="mt-12 flex justify-center">
+            <div className="mt-auto md:mt-12 pt-2 flex justify-center flex-shrink-0">
               <button
                 disabled={completedAudio.length < 5}
                 onClick={() => setCurrentStep(1)}
-                className={`flex items-center gap-3 px-10 py-5 rounded-2xl font-black text-xl transition-all shadow-xl
-                  ${completedAudio.length < 5 
+                className={`flex items-center justify-center gap-2 md:gap-3 w-full md:w-auto px-6 py-3 md:px-10 md:py-5 rounded-xl md:rounded-2xl font-black text-base md:text-xl transition-all shadow-md md:shadow-xl
+                  ${completedAudio.length < 5
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
                     : 'bg-purple-600 text-white hover:bg-purple-500 hover:-translate-y-1 hover:shadow-2xl'}
                 `}
@@ -192,31 +192,33 @@ export default function App({ onComplete }) {
             </div>
           </div>
         ) : (
-          <div className="space-y-10 animate-in fade-in zoom-in duration-500">
-            <div className="text-center">
-              <h3 className="text-3xl font-black text-slate-800">Match your answers!</h3>
-              <p className="text-slate-500 font-bold text-lg mt-2">Did you write these correctly?</p>
+          <div className="space-y-4 md:space-y-10 animate-in fade-in zoom-in duration-500 flex flex-col h-full">
+            <div className="text-center flex-shrink-0">
+              <h3 className="text-xl md:text-3xl font-black text-slate-800">Match your answers!</h3>
+              <p className="text-slate-500 font-bold text-sm md:text-lg mt-1">Did you write these correctly?</p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-6 overflow-y-auto hide-scrollbar">
               {questions.map((q, idx) => (
                 <div 
                   key={idx}
-                  className="h-48 rounded-3xl border-4 border-lime-300 bg-lime-50 flex flex-col items-center justify-center p-4 text-center transform hover:rotate-3 transition-transform shadow-sm cursor-default"
+                  className="h-28 md:h-48 rounded-xl md:rounded-3xl border-2 md:border-4 border-lime-300 bg-lime-50 flex flex-col items-center justify-center p-2 md:p-4 text-center transform md:hover:rotate-3 transition-transform shadow-sm cursor-default"
                 >
-                  <span className="text-slate-400 font-black text-sm mb-2">CARD {idx + 1}</span>
-                  <span className="text-7xl font-black text-lime-700 mb-2">{q.char}</span>
-                  <span className="text-sm font-bold text-lime-600/70">{q.name}</span>
+                  <span className="text-slate-400 font-black text-[10px] md:text-sm mb-1 md:mb-2">CARD {idx + 1}</span>
+                  <span className="text-4xl md:text-7xl font-black text-lime-700 mb-1 md:mb-2">{q.char}</span>
+                  <span className="text-xs md:text-sm font-bold text-lime-600/70">{q.name}</span>
                 </div>
               ))}
             </div>
 
-            <button
-              onClick={handleFinish}
-              className="w-full mt-8 bg-sky-500 hover:bg-sky-400 text-white py-6 rounded-2xl font-black text-2xl shadow-xl transition-all transform hover:scale-[1.02]"
-            >
-              FINISH QUIZ
-            </button>
+            <div className="mt-auto pt-2 flex-shrink-0">
+              <button
+                onClick={handleFinish}
+                className="w-full bg-sky-500 hover:bg-sky-400 text-white py-3 md:py-6 rounded-xl md:rounded-2xl font-black text-lg md:text-2xl shadow-md md:shadow-xl transition-all transform hover:scale-[1.02]"
+              >
+                FINISH QUIZ
+              </button>
+            </div>
           </div>
         )}
       </div>
