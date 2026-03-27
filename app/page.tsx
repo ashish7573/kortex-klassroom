@@ -411,6 +411,16 @@ const WorkInProgressView = ({ title, onReturn }) => (
 // SECTION 4: THE IMMERSIVE LESSON PLAYER (REGISTRIES & CANVA EMBEDS)
 // ============================================================================
 
+
+const getYouTubeEmbedUrl = (url) => {
+  if (!url) return '';
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  const videoId = (match && match[2].length === 11) ? match[2] : null;
+  return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0` : url;
+};
+
+
 const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinish, onTimeUp }) => {
   // If a subtopic flow was specifically passed (from our isolation logic), use it. Otherwise, fallback.
   const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap(sub => sub.tools || []) : []);
@@ -468,7 +478,12 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
         return (
           <div className="w-full h-full flex flex-col items-center justify-center bg-black">
             {currentItem.content_url ? (
-              <iframe className="w-full h-full max-w-5xl max-h-[70vh] rounded-2xl shadow-2xl border-4 border-slate-800" src={currentItem.content_url.replace("youtube.com/watch?v=", "youtube-nocookie.com/embed/").split('&')[0] + "?rel=0"} allowFullScreen></iframe>
+              <iframe 
+                className="w-full h-full max-w-5xl max-h-[70vh] rounded-2xl shadow-2xl border-4 border-slate-800" 
+                src={getYouTubeEmbedUrl(currentItem.content_url)} 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              ></iframe>
             ) : (
               <div className="text-center"><div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl border-2 border-slate-700 animate-pulse"><Play size={32} className="text-pink-500 ml-1" /></div><h3 className="text-2xl font-bold text-slate-300">Video Ready</h3></div>
             )}
