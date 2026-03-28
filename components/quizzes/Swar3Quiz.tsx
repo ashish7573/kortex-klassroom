@@ -272,8 +272,8 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
       <div className="flex-1 min-h-0 px-4 md:px-8 py-2 md:py-6 flex flex-col md:flex-row gap-3 md:gap-8 items-center justify-center">
         
         {/* Left: Alphabet Display */}
-        <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-[1.5rem] md:rounded-[2rem] border-2 border-slate-100 py-6 md:py-12 px-4 md:px-6 flex-shrink-0 md:flex-shrink">
-          <div className="text-[80px] md:text-[140px] leading-none font-black text-slate-800 drop-shadow-md select-none transform transition-transform hover:scale-105">
+        <div className="w-full md:w-1/2 md:h-full flex flex-col items-center justify-center bg-slate-50 rounded-[1.5rem] md:rounded-[2rem] border-2 border-slate-100 py-6 md:py-4 lg:py-8 px-4 md:px-6 flex-shrink-0 md:flex-shrink">
+          <div className="text-[80px] md:text-[100px] lg:text-[120px] leading-none font-black text-slate-800 drop-shadow-md select-none transform transition-transform hover:scale-105">
             {question.letter}
           </div>
         </div>
@@ -287,13 +287,13 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
                 onClick={() => handleOptionClick(option)}
                 disabled={isAnswerSubmitted}
                 className={`
-                  relative py-3 md:py-8 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all duration-200 
-                  flex items-center justify-center min-h-[80px] md:min-h-[140px]
+                  relative py-3 md:py-4 lg:py-6 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all duration-200 
+                  flex items-center justify-center min-h-[80px] md:min-h-[100px] lg:min-h-[130px]
                   ${getOptionStyles(option)}
                 `}
               >
-                {/* SVG/Emoji scales down automatically on mobile */}
-                <div className="transform transition-transform group-hover:scale-110 scale-[0.6] md:scale-100">
+                {/* SVG/Emoji scales intelligently across mobile, laptop, and smartboard */}
+                <div className="transform transition-transform group-hover:scale-110 scale-[0.6] md:scale-[0.8] lg:scale-100">
                   {VISUAL_MAP[option]()}
                 </div>
                 
@@ -304,20 +304,20 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
           </div>
 
           {/* Feedback & Next Button */}
-          <div className={`mt-1 md:mt-4 min-h-[50px] md:min-h-[100px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mt-1 md:mt-2 lg:mt-4 min-h-[50px] md:min-h-[70px] lg:min-h-[90px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
             {isAnswerSubmitted && (
-              <div className={`p-2 md:p-4 rounded-xl md:rounded-2xl border-2 mb-2 md:mb-4 font-bold flex items-center md:items-start space-x-2 md:space-x-3 ${selectedAnswer === question.correctAnswer ? 'bg-lime-50 border-lime-200 text-lime-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+              <div className={`p-2 md:p-3 lg:p-4 rounded-xl md:rounded-2xl border-2 mb-2 lg:mb-4 font-bold flex items-center md:items-start space-x-2 md:space-x-3 ${selectedAnswer === question.correctAnswer ? 'bg-lime-50 border-lime-200 text-lime-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
                 <div className="shrink-0">{selectedAnswer === question.correctAnswer ? <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-lime-600" /> : <XCircle className="w-5 h-5 md:w-6 md:h-6 text-rose-600" />}</div>
                 <div>
-                  <span className="block text-sm md:text-lg mb-0 md:mb-1">{selectedAnswer === question.correctAnswer ? 'बिल्कुल सही! (Correct!)' : 'गलत उत्तर (Wrong!)'}</span>
+                  <span className="block text-sm md:text-base lg:text-lg mb-0">{selectedAnswer === question.correctAnswer ? 'बिल्कुल सही! (Correct!)' : 'गलत उत्तर (Wrong!)'}</span>
                   {/* Note: Explanation hidden on mobile to save space */}
-                  <span className="hidden md:block text-slate-600 text-sm">{question.explanation}</span>
+                  <span className="hidden md:block text-slate-600 text-xs lg:text-sm">{question.explanation}</span>
                 </div>
               </div>
             )}
 
             {isAnswerSubmitted && (
-              <button onClick={handleNextQuestion} className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm md:text-lg py-3 md:py-4 px-4 md:px-6 rounded-xl md:rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2">
+              <button onClick={handleNextQuestion} className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm md:text-base lg:text-lg py-3 md:py-3 lg:py-4 px-4 md:px-6 rounded-xl md:rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2">
                 <span>{currentQuestion < questions.length - 1 ? 'Next Question' : 'See Results'}</span><ArrowRight className="w-5 h-5 md:w-6 md:h-6" />
               </button>
             )}
