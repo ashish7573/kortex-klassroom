@@ -15,7 +15,7 @@ const VOWELS = [
   { char: 'ऊ', name: 'Oon' }
 ];
 
-export default function App({ onComplete }) {
+export default function DictationQuiz({ onComplete }: { onComplete?: (data: any) => void }) {
   // NEW: 3-State Architecture
   const [gameState, setGameState] = useState('start'); // 'start', 'playing', 'completed'
   
@@ -31,7 +31,7 @@ export default function App({ onComplete }) {
   }, []);
 
   // Speech Synthesis Function
-  const speakLetter = (letter, index) => {
+  const speakLetter = (letter: string, index: number) => {
     if (playingIndex !== null) return;
 
     setPlayingIndex(index);

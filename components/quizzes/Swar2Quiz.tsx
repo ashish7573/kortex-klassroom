@@ -42,7 +42,7 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
     }
   }, [gameState, score, questions.length]);
 
-  const playSound = useCallback((textToSpeak) => {
+  const playSound = useCallback((textToSpeak: string) => {
     if ('speechSynthesis' in window) {
       // Cancel any ongoing speech
       window.speechSynthesis.cancel();
@@ -67,7 +67,7 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
   const question = questions[currentQuestion];
   const progressPercentage = ((currentQuestion) / questions.length) * 100;
 
-  const handleOptionClick = (option) => {
+  const handleOptionClick = (option: string) => {
     if (isAnswerSubmitted) return;
 
     setSelectedAnswer(option);
@@ -94,7 +94,7 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
     onComplete({ score, stars });
   };
 
-  const getOptionStyles = (option) => {
+  const getOptionStyles = (option: string) => {
     if (!isAnswerSubmitted) return "border-slate-100 bg-white hover:border-sky-500 hover:bg-sky-50 hover:shadow-sm";
     if (option === question.correctAnswer) return "border-lime-500 bg-lime-100 text-lime-800 z-10 shadow-sm";
     if (option === selectedAnswer && option !== question.correctAnswer) return "border-rose-500 bg-rose-100 text-rose-800 z-10 shadow-sm";

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Star, CheckCircle, XCircle, Trophy, ArrowRight, Check, Play } from 'lucide-react';
 
-const PomegranateSVG = () => (
-  <svg viewBox="0 0 100 100" className="w-[120px] h-[120px] drop-shadow-md">
+const PomegranateSVG = ({ className = "w-[120px] h-[120px]" }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={`${className} drop-shadow-md`}>
     <circle cx="50" cy="55" r="40" fill="#ef4444" />
     <path d="M35 25 L45 5 L50 15 L55 5 L65 25 Z" fill="#ef4444" />
     <circle cx="40" cy="45" r="4" fill="#fca5a5" />
@@ -11,8 +11,8 @@ const PomegranateSVG = () => (
   </svg>
 );
 
-const TamarindSVG = () => (
-  <svg viewBox="0 0 100 100" className="w-[120px] h-[120px] drop-shadow-md transform -rotate-12">
+const TamarindSVG = ({ className = "w-[120px] h-[120px]" }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={`${className} drop-shadow-md transform -rotate-12`}>
     <circle cx="25" cy="50" r="18" fill="#78350f" />
     <circle cx="50" cy="50" r="16" fill="#78350f" />
     <circle cx="75" cy="50" r="18" fill="#78350f" />
@@ -20,8 +20,8 @@ const TamarindSVG = () => (
   </svg>
 );
 
-const Emoji = ({ symbol }) => (
-  <span className="text-[120px] leading-none drop-shadow-md select-none">{symbol}</span>
+const Emoji = ({ symbol, className = "text-[120px]" }: { symbol: string, className?: string }) => (
+  <span className={`${className} leading-none drop-shadow-md select-none`}>{symbol}</span>
 );
 
 const QUIZ_DATA = [
