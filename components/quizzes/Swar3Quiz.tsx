@@ -279,21 +279,21 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
         </div>
 
         {/* Right: Image Options */}
-        <div className="w-full md:w-1/2 flex flex-col space-y-4">
-          <div className="grid grid-cols-2 gap-2 md:gap-4">
+        <div className="w-full md:w-1/2 flex flex-col space-y-4 md:space-y-2 lg:space-y-3">
+          <div className="grid grid-cols-2 gap-2 md:gap-3 lg:gap-4">
             {question.options.map((option, index) => (
               <button
                 key={index}
                 onClick={() => handleOptionClick(option)}
                 disabled={isAnswerSubmitted}
                 className={`
-                  relative py-3 md:py-4 lg:py-6 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all duration-200 
-                  flex items-center justify-center min-h-[80px] md:min-h-[100px] lg:min-h-[130px]
+                  relative py-3 md:py-3 lg:py-4 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all duration-200 
+                  flex items-center justify-center min-h-[80px] md:min-h-[90px] lg:min-h-[110px]
                   ${getOptionStyles(option)}
                 `}
               >
                 {/* SVG/Emoji scales intelligently across mobile, laptop, and smartboard */}
-                <div className="transform transition-transform group-hover:scale-110 scale-[0.6] md:scale-[0.8] lg:scale-100">
+                <div className="transform transition-transform group-hover:scale-110 scale-[0.6] md:scale-[0.75] lg:scale-[0.9]">
                   {VISUAL_MAP[option]()}
                 </div>
                 
@@ -304,12 +304,12 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
           </div>
 
           {/* Feedback & Next Button */}
-          <div className={`mt-1 md:mt-2 lg:mt-4 min-h-[50px] md:min-h-[70px] lg:min-h-[90px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mt-1 md:mt-1 lg:mt-2 min-h-[50px] md:min-h-[60px] lg:min-h-[75px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
             {isAnswerSubmitted && (
-              <div className={`p-2 md:p-3 lg:p-4 rounded-xl md:rounded-2xl border-2 mb-2 lg:mb-4 font-bold flex items-center md:items-start space-x-2 md:space-x-3 ${selectedAnswer === question.correctAnswer ? 'bg-lime-50 border-lime-200 text-lime-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
-                <div className="shrink-0">{selectedAnswer === question.correctAnswer ? <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-lime-600" /> : <XCircle className="w-5 h-5 md:w-6 md:h-6 text-rose-600" />}</div>
+              <div className={`p-2 md:p-2 lg:p-3 rounded-xl md:rounded-2xl border-2 mb-2 lg:mb-2 font-bold flex items-center md:items-start space-x-2 md:space-x-3 ${selectedAnswer === question.correctAnswer ? 'bg-lime-50 border-lime-200 text-lime-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                <div className="shrink-0">{selectedAnswer === question.correctAnswer ? <CheckCircle className="w-5 h-5 md:w-5 md:h-6 text-lime-600" /> : <XCircle className="w-5 h-5 md:w-5 md:h-6 text-rose-600" />}</div>
                 <div>
-                  <span className="block text-sm md:text-base lg:text-lg mb-0">{selectedAnswer === question.correctAnswer ? 'बिल्कुल सही! (Correct!)' : 'गलत उत्तर (Wrong!)'}</span>
+                  <span className="block text-sm md:text-sm lg:text-base mb-0">{selectedAnswer === question.correctAnswer ? 'बिल्कुल सही! (Correct!)' : 'गलत उत्तर (Wrong!)'}</span>
                   {/* Note: Explanation hidden on mobile to save space */}
                   <span className="hidden md:block text-slate-600 text-xs lg:text-sm">{question.explanation}</span>
                 </div>
@@ -317,8 +317,8 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
             )}
 
             {isAnswerSubmitted && (
-              <button onClick={handleNextQuestion} className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm md:text-base lg:text-lg py-3 md:py-3 lg:py-4 px-4 md:px-6 rounded-xl md:rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2">
-                <span>{currentQuestion < questions.length - 1 ? 'Next Question' : 'See Results'}</span><ArrowRight className="w-5 h-5 md:w-6 md:h-6" />
+              <button onClick={handleNextQuestion} className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm md:text-base lg:text-lg py-3 md:py-2 lg:py-3 px-4 md:px-6 rounded-xl md:rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2">
+                <span>{currentQuestion < questions.length - 1 ? 'Next Question' : 'See Results'}</span><ArrowRight className="w-5 h-5 md:w-5 md:h-6" />
               </button>
             )}
           </div>
