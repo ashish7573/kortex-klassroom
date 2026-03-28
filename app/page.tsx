@@ -551,7 +551,7 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
         </div>
         <div className="bg-slate-800 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 border border-slate-700">{currentItem.type?.toUpperCase()} {currentItem.isPremium && <Star size={14} className="text-amber-400 fill-amber-400" />}</div>
       </div>
-      <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-4 md:p-8 flex items-center justify-center">
+      <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-2 md:p-8 flex items-center justify-center">
          {renderContent()}
       </div>
       <div className="bg-slate-900 border-t border-slate-800 px-6 py-4 flex items-center justify-between shrink-0 relative z-10">
@@ -3323,9 +3323,24 @@ const AdminView = () => {
 // ============================================================================
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('home'); 
-  const [role, setRole] = useState(null);
-  const [stage, setStage] = useState(null); 
+  // NEW: Deployment-Safe Back Button History API Wrappers
+  const [currentView, _setCurrentView] = useState<string>('home'); 
+  const setCurrentView = (view: string) => {
+     if (typeof window !== 'undefined') {
+         window.history.pushState({ type: 'view', view }, '', '');
+     }
+     _setCurrentView(view);
+  };
+
+  const [role, _setRole] = useState<string | null>(null);
+  const setRole = (newRole: string | null) => {
+     if (typeof window !== 'undefined') {
+         window.history.pushState({ type: 'role', role: newRole, view: currentView }, '', '');
+     }
+     _setRole(newRole);
+  };
+
+  const [stage, setStage] = useState<string | null>(null);
   const [lang, setLang] = useState('en');
   const [currentStudent, setCurrentStudent] = useState(null);
   
@@ -3369,9 +3384,47 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertConfig, setAlertConfig] = useState(null);
 
-  const [playingLesson, setPlayingLesson] = useState(null);
-  const [playingStep, setPlayingStep] = useState(0);
-  const [targetContext, setTargetContext] = useState(null);
+  const [playingLesson, _setPlayingLesson] = useState<any>(null);
+  const setPlayingLesson = (lesson: any) => {
+     if (typeof window !== 'undefined' && lesson) {
+         window.history.pushState({ type: 'lesson', view: currentView }, '', '');
+     }
+     _setPlayingLesson(lesson);
+  };
+  
+  const [playingStep, setPlayingStep] = useState<number>(0);
+  const [targetContext, setTargetContext] = useState<any>(null);
+
+  // NEW: Vercel-Safe Back Button Listener
+  useEffect(() => {
+    // SSR Failsafe
+    if (typeof window === 'undefined') return;
+
+    // 1. Log the starting page so we have a baseline to go back to
+    window.history.replaceState({ type: 'init', view: 'home' }, '', '');
+
+    // 2. Intercept the physical back button
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state;
+      
+      // Safety measure: Always close open modals/lessons when Back is pressed
+      _setPlayingLesson(null);
+      setShowAuthModal(false);
+
+      if (state) {
+        // Restore the previous view or role
+        if (state.view) _setCurrentView(state.view);
+        if (state.role !== undefined) _setRole(state.role);
+      } else {
+        // Failsafe: If no history exists, go Home
+        _setCurrentView('home');
+        _setRole(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
 
   // FIXED: Manual logout completely wipes the state, solving the student PIN issue safely.
