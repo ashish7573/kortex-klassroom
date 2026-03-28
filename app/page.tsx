@@ -1078,9 +1078,19 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                                  {subTopic.tools && subTopic.tools.length > 0 ? [...subTopic.tools].sort((a: any, b: any) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((item: any, index: any) => (
                                     <div key={index} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 rounded-xl border-2 border-slate-100 transition-colors group relative hover:border-sky-300">
                                        <div className="flex items-center gap-4">
-                                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>{item.type === 'Video' ? <Video size={24}/> : item.type === 'PDF' || item.type === 'Presentation' ? <FileText size={24}/> : <Gamepad2 size={24}/>}</div>
+                                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>
+                                             {(() => {
+                                                const toolType = (item.content_type || item.type || '').toLowerCase();
+                                                if (toolType === 'video') return <Video size={24}/>;
+                                                if (toolType === 'pdf' || toolType === 'presentation' || toolType === 'ppt') return <FileText size={24}/>;
+                                                return <Gamepad2 size={24}/>;
+                                             })()}
+                                          </div>
                                           <div>
-                                             <div className="flex items-center gap-2 mb-1"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">#{index + 1} • {item.type}</span>{item.isPremium && <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1"><Star size={8} className="fill-amber-700"/> Pro</span>}</div>
+                                             <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">#{index + 1} • {item.content_type || item.type || 'Tool'}</span>
+                                                {item.isPremium && <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1"><Star size={8} className="fill-amber-700"/> Pro</span>}
+                                             </div>
                                              <h4 className="text-lg font-extrabold text-slate-800">{item.title}</h4>
                                           </div>
                                        </div>
@@ -1099,14 +1109,22 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                   })
                ) : (
                   <div className="relative border-l-4 border-slate-200 space-y-8 pb-8 pl-8">
-                     {activeLesson.flow && activeLesson.flow.map((item: any, index: any) => (
-                        <div key={index} className="relative group">
-                           <div className={`absolute -left-[54px] top-2 w-10 h-10 rounded-full border-4 border-white ${item.color || 'bg-slate-800'} flex items-center justify-center text-white shadow-md z-10`}>{item.type === 'Video' ? <Video size={16}/> : <Gamepad2 size={16}/>}</div>
-                           <Card className="p-5 md:p-6 border-2 hover:border-sky-300">
-                              <div className="flex justify-between items-center"><h4 className="text-xl font-extrabold text-slate-800">{item.title}</h4><Button variant="secondary" className="py-2 px-4 text-xs shadow-none border-2 hover:border-sky-500 hover:text-sky-600" onClick={() => onStartLesson(activeLesson, index)}>Play</Button></div>
-                           </Card>
-                        </div>
-                     ))}
+                     {activeLesson.flow && activeLesson.flow.map((item: any, index: any) => {
+                        const toolType = (item.content_type || item.type || '').toLowerCase();
+                        return (
+                           <div key={index} className="relative group">
+                              <div className={`absolute -left-[54px] top-2 w-10 h-10 rounded-full border-4 border-white ${item.color || 'bg-slate-800'} flex items-center justify-center text-white shadow-md z-10`}>
+                                 {toolType === 'video' ? <Video size={16}/> : (toolType === 'pdf' || toolType === 'presentation' || toolType === 'ppt') ? <FileText size={16}/> : <Gamepad2 size={16}/>}
+                              </div>
+                              <Card className="p-5 md:p-6 border-2 hover:border-sky-300">
+                                 <div className="flex justify-between items-center">
+                                    <h4 className="text-xl font-extrabold text-slate-800">{item.title}</h4>
+                                    <Button variant="secondary" className="py-2 px-4 text-xs shadow-none border-2 hover:border-sky-500 hover:text-sky-600" onClick={() => onStartLesson(activeLesson, index)}>Play</Button>
+                                 </div>
+                              </Card>
+                           </div>
+                        );
+                     })}
                   </div>
                )}
             </div>
@@ -1115,6 +1133,10 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
     </div>
   );
 };
+
+
+
+
 
 
 
@@ -2760,12 +2782,23 @@ const studentData = studentDoc.data() as {
                                     {subTopic.tools && subTopic.tools.length > 0 ? [...subTopic.tools].sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((item, index) => (
                                        <div key={index} className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 rounded-xl border-2 border-slate-100 transition-colors group relative ${isEditMode ? 'hover:border-emerald-300' : 'hover:border-sky-300'}`}>
                                           <div className="flex items-center gap-4">
-                                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>{item.type === 'Video' ? <Video size={24}/> : item.type === 'PDF' || item.type === 'Presentation' ? <FileText size={24}/> : <Gamepad2 size={24}/>}</div>
-                                             <div>
-                                                <div className="flex items-center gap-2 mb-1"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">#{item.orderIndex || index + 1} • {item.type}</span>{item.isPremium && <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1"><Star size={8} className="fill-amber-700"/> Pro</span>}</div>
-                                                <h4 className="text-lg font-extrabold text-slate-800">{item.title}</h4>
-                                             </div>
+                                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>
+                                             {(() => {
+                                                const toolType = (item.content_type || item.type || '').toLowerCase();
+                                                if (toolType === 'video') return <Video size={24}/>;
+                                                if (toolType === 'pdf' || toolType === 'presentation' || toolType === 'ppt') return <FileText size={24}/>;
+                                                if (toolType === 'quiz') return <Brain size={24}/>; // Or whichever quiz icon you imported!
+                                                return <Gamepad2 size={24}/>;
+                                              })()}
                                           </div>
+                                          <div>
+                                             <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">#{item.orderIndex || index + 1} • {item.content_type || item.type || 'Tool'}</span>
+                                                {item.isPremium && <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1"><Star size={8} className="fill-amber-700"/> Pro</span>}
+                                             </div>
+                                             <h4 className="text-lg font-extrabold text-slate-800">{item.title}</h4>
+                                          </div>
+                                       </div>
                                           <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
                                              {isEditMode ? (<>
                                                 <button onClick={() => handleFullEditClick(item, subTopic.title, activeLesson)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors border-2 border-emerald-100 flex items-center gap-2"><Edit3 size={16}/> Edit</button>
