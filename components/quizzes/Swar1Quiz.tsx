@@ -229,7 +229,7 @@ export default function QuizComponent({ onComplete = (result: { score: number; s
         <div className="flex justify-between items-end mb-4">
           <div>
             <h1 className="text-2xl font-black text-slate-800">
-              Grade KG - चित्र से व्यंजन पहचानो <span className="text-slate-400 text-lg font-bold ml-2">(अ से ऊ)</span>
+              चित्र से व्यंजन पहचानो <span className="text-slate-400 text-lg font-bold ml-2">(अ से ऊ)</span>
             </h1>
           </div>
           <div className="text-lg font-bold text-sky-500 bg-sky-50 px-4 py-1.5 rounded-xl border border-sky-100">
