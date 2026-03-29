@@ -3409,9 +3409,7 @@ export default function App() {
   const [userEmail, setUserEmail] = useState(''); 
   const [userName, setUserName] = useState(''); 
 
-  // FIXED: Empty dependency array [] ensures this ONLY runs on mount and auth changes.
-  // It will never randomly overwrite a guest's manual role selection!
-  // FIXED: Real-time listener with STRICT token enforcement
+  // FIXED: Real-time listener with STRICT token enforcement & Crash Prevention
   useEffect(() => {
     let unsubscribeSnapshot = () => {}; // Failsafe for cleanup
 
@@ -3422,31 +3420,39 @@ export default function App() {
         
         try {
           const userDocRef = doc(db, "users", user.uid);
-          unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
-             if (docSnap.exists()) {
-                const data = docSnap.data();
-                const localToken = localStorage.getItem('kortex_session_token');
-                
-                // --- STRICT SECURITY CHECK ---
-                // If the DB has a token, and it DOES NOT perfectly match this device, boot them.
-                // This forces old, pre-existing sessions to re-authenticate!
-                if (data.session_token && data.session_token !== localToken) {
-                   logout();
-                   setAlertConfig({ 
-                      title: "Session Expired", 
-                      message: "You have been logged out because your account was accessed from another device, or your session needs to be refreshed.",
-                      type: "warning" 
-                   });
-                   return; 
-                }
+          
+          // ADDED ERROR HANDLER TO PREVENT CRASH
+          unsubscribeSnapshot = onSnapshot(
+             userDocRef, 
+             (docSnap) => {
+               if (docSnap.exists()) {
+                  const data = docSnap.data();
+                  const localToken = localStorage.getItem('kortex_session_token');
+                  
+                  // --- STRICT SECURITY CHECK ---
+                  if (data.session_token && data.session_token !== localToken) {
+                     unsubscribeSnapshot(); // 1. Kill the listener FIRST
+                     logout();              // 2. Then log out safely
+                     setAlertConfig({ 
+                        title: "Session Expired", 
+                        message: "You have been securely logged out because your account was accessed from another device.",
+                        type: "warning" 
+                     });
+                     return; 
+                  }
 
-                setRole(data.role);
-                setIsPro(data.is_pro || data.isPro || false); 
-                setUserName(data.full_name || ''); 
-             } else {
-                setUserName(user.displayName || '');
+                  setRole(data.role);
+                  setIsPro(data.is_pro || data.isPro || false); 
+                  setUserName(data.full_name || ''); 
+               } else {
+                  setUserName(user.displayName || '');
+               }
+             },
+             (error) => {
+               // 3. This catches the permission error and prevents the Next.js crash!
+               console.warn("Secure disconnect triggered. Listener closed.");
              }
-          });
+          );
         } catch (error: any) { console.error("🚨 ERROR FETCHING FIRESTORE PROFILE:", error); }
       } else {
         setIsLoggedIn(false); 
@@ -3464,27 +3470,34 @@ export default function App() {
   
   
 
-  // NEW: Real-time session listener for Custom Student Accounts
+  // NEW: Real-time session listener for Custom Student Accounts (Crash-Proof)
   useEffect(() => {
     let unsubscribeStudent = () => {};
     
     if (role === 'student' && currentStudent?.id) {
-       unsubscribeStudent = onSnapshot(doc(db, "managed_students", currentStudent.id), (docSnap) => {
-          if (docSnap.exists()) {
-             const data = docSnap.data();
-             const localToken = localStorage.getItem('kortex_student_session_token');
-             
-             // --- STRICT SECURITY CHECK FOR STUDENTS ---
-             if (data.session_token && data.session_token !== localToken) {
-                logout();
-                setAlertConfig({ 
-                   title: "Playtime Paused", 
-                   message: "You were logged out because someone else started playing on this account from another device!",
-                   type: "warning" 
-                });
+       unsubscribeStudent = onSnapshot(
+          doc(db, "managed_students", currentStudent.id), 
+          (docSnap) => {
+             if (docSnap.exists()) {
+                const data = docSnap.data();
+                const localToken = localStorage.getItem('kortex_student_session_token');
+                
+                // --- STRICT SECURITY CHECK FOR STUDENTS ---
+                if (data.session_token && data.session_token !== localToken) {
+                   unsubscribeStudent(); // Kill listener FIRST
+                   logout();
+                   setAlertConfig({ 
+                      title: "Playtime Paused", 
+                      message: "You were logged out because someone else started playing on this account from another device!",
+                      type: "warning" 
+                   });
+                }
              }
+          },
+          (error) => {
+             console.warn("Student secure disconnect triggered.");
           }
-       });
+       );
     }
     
     return () => unsubscribeStudent();
