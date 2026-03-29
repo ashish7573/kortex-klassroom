@@ -3411,7 +3411,7 @@ export default function App() {
 
   // FIXED: Empty dependency array [] ensures this ONLY runs on mount and auth changes.
   // It will never randomly overwrite a guest's manual role selection!
-  // FIXED: Real-time listener checks session tokens to prevent multi-device logins
+  // FIXED: Real-time listener with STRICT token enforcement
   useEffect(() => {
     let unsubscribeSnapshot = () => {}; // Failsafe for cleanup
 
@@ -3421,23 +3421,23 @@ export default function App() {
         setUserEmail(user.email); 
         
         try {
-          // Listen to the user's profile in real-time!
           const userDocRef = doc(db, "users", user.uid);
           unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
              if (docSnap.exists()) {
                 const data = docSnap.data();
-                
-                // --- SECURITY CHECK: VERIFY SESSION TOKEN ---
                 const localToken = localStorage.getItem('kortex_session_token');
-                if (data.session_token && localToken && data.session_token !== localToken) {
-                   // Mismatch! They logged in on another device.
+                
+                // --- STRICT SECURITY CHECK ---
+                // If the DB has a token, and it DOES NOT perfectly match this device, boot them.
+                // This forces old, pre-existing sessions to re-authenticate!
+                if (data.session_token && data.session_token !== localToken) {
                    logout();
                    setAlertConfig({ 
                       title: "Session Expired", 
-                      message: "You have been securely logged out because your account was accessed from another device.",
+                      message: "You have been logged out because your account was accessed from another device, or your session needs to be refreshed.",
                       type: "warning" 
                    });
-                   return; // Stop processing to prevent flashing UI
+                   return; 
                 }
 
                 setRole(data.role);
@@ -3452,7 +3452,7 @@ export default function App() {
         setIsLoggedIn(false); 
         setUserEmail(''); 
         setUserName(''); 
-        unsubscribeSnapshot(); // Stop listening if they log out
+        unsubscribeSnapshot(); 
       }
     });
     
@@ -3474,8 +3474,8 @@ export default function App() {
              const data = docSnap.data();
              const localToken = localStorage.getItem('kortex_student_session_token');
              
-             // --- SECURITY CHECK FOR STUDENTS ---
-             if (data.session_token && localToken && data.session_token !== localToken) {
+             // --- STRICT SECURITY CHECK FOR STUDENTS ---
+             if (data.session_token && data.session_token !== localToken) {
                 logout();
                 setAlertConfig({ 
                    title: "Playtime Paused", 
@@ -3489,7 +3489,6 @@ export default function App() {
     
     return () => unsubscribeStudent();
   }, [role, currentStudent]);
-
 
 
 
