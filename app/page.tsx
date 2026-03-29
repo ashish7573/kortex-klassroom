@@ -4,9 +4,9 @@ import Image from 'next/image';
 
 import { 
   BookOpen, Brain, Activity, User, Users, FileText, BarChart, 
-  Settings, Globe, Play, LogOut, CheckCircle, Clock, Search, 
+  Settings, Globe, Play, LogOut, CheckCircle, Clock, Search,
   Heart, Zap, BookMarked, Star, Video, Gamepad2, Menu, X, ArrowRight, 
-  ChevronLeft, ChevronRight, Layers, Lock, Unlock, Shield, Timer, 
+  ChevronLeft, ChevronRight, Layers, Lock, Unlock, Shield, Timer, Info, 
   Calendar, Pause, RotateCcw, Rocket, Trophy, Medal, Flame, Book,  
   Calculator, Leaf, Palette, Music, Monitor, Type, Check, Bell, Plus, 
   Database, Edit3, Trash2, UploadCloud, Save, ChevronDown, ChevronUp, 
@@ -180,8 +180,10 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
     setIsLoading(true); 
     setErrorMsg('');
 
+    // NEW: Tell the global listener to pause security checks while we log in
+    sessionStorage.setItem('kortex_is_authenticating', 'true');
+
     try {
-      // 1. Generate a random session token and save to this specific device
       const sessionToken = Math.random().toString(36).substring(2, 15);
       localStorage.setItem('kortex_session_token', sessionToken);
 
@@ -190,12 +192,8 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
         const user = userCredential.user;
         
         await setDoc(doc(db, "users", user.uid), {
-          email: user.email,
-          role: selectedRole,
-          full_name: fullName,
-          is_pro: false,
-          created_at: new Date().toISOString(),
-          session_token: sessionToken // 2a. Save token for new users
+          email: user.email, role: selectedRole, full_name: fullName,
+          is_pro: false, created_at: new Date().toISOString(), session_token: sessionToken
         });
         
         alert("Success! Account created.");
@@ -204,11 +202,8 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         
-        // 2b. Update token for existing users
-        await updateDoc(doc(db, "users", user.uid), {
-          session_token: sessionToken
-        });
-        
+        // Write the new token to the database safely
+        await updateDoc(doc(db, "users", user.uid), { session_token: sessionToken });
         onClose();
       }
     } catch (error: any) { 
@@ -216,12 +211,18 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
       setErrorMsg(error.message.replace('Firebase: ', '')); 
     } finally { 
       setIsLoading(false); 
+      // NEW: Tell the listener it is safe to resume security checks
+      sessionStorage.removeItem('kortex_is_authenticating');
     }
   };
 
   const handleGoogleAuth = async () => {
     setIsLoading(true);
     setErrorMsg('');
+    
+    // NEW: Pause security checks for Google Auth too
+    sessionStorage.setItem('kortex_is_authenticating', 'true');
+    
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
@@ -234,12 +235,9 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
       
       if (!userProfile.exists()) {
         await setDoc(userDocRef, {
-          email: user.email,
-          role: isSignUp ? selectedRole : 'parent', 
+          email: user.email, role: isSignUp ? selectedRole : 'parent', 
           full_name: user.displayName || 'Google User',
-          is_pro: false,
-          created_at: new Date().toISOString(),
-          session_token: sessionToken
+          is_pro: false, created_at: new Date().toISOString(), session_token: sessionToken
         });
       } else {
         await updateDoc(userDocRef, { session_token: sessionToken });
@@ -250,8 +248,11 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
       setErrorMsg(error.message.replace('Firebase: ', ''));
     } finally {
       setIsLoading(false);
+      // NEW: Resume security checks
+      sessionStorage.removeItem('kortex_is_authenticating');
     }
   };
+
 
   const handleStudentAuth = async (e: any) => {
     e.preventDefault();
@@ -400,17 +401,43 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
   );
 };
 
-const GeneralAlertModal = ({ title, message, icon: Icon, colorClass, bgClass, onClose }) => (
-  <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
-    <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative border-4 border-slate-100">
-      <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={20} /></button>
-      <div className={`w-16 h-16 ${bgClass} rounded-full flex items-center justify-center mx-auto mb-4`}><Icon size={32} className={colorClass} /></div>
-      <h3 className="text-2xl font-black text-slate-800 mb-2">{title}</h3>
-      <p className="text-slate-500 font-medium mb-6">{message}</p>
-      <Button className="w-full" onClick={onClose}>Got it</Button>
+const GeneralAlertModal = ({ title, message, type = 'info', onClose }: any) => {
+  // 1. Set default fallback styling (Info)
+  let Icon = Info; 
+  let colorClass = 'text-sky-500';
+  let bgClass = 'bg-sky-100';
+
+  // 2. Map the 'type' prop to the correct icon and colors
+  if (type === 'warning') {
+    Icon = AlertTriangle;
+    colorClass = 'text-amber-500';
+    bgClass = 'bg-amber-100';
+  } else if (type === 'error') {
+    Icon = AlertTriangle;
+    colorClass = 'text-rose-500';
+    bgClass = 'bg-rose-100';
+  } else if (type === 'success') {
+    Icon = CheckCircle;
+    colorClass = 'text-emerald-500';
+    bgClass = 'bg-emerald-100';
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
+      <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative border-4 border-slate-100">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2">
+          <X size={20} />
+        </button>
+        <div className={`w-16 h-16 ${bgClass} rounded-full flex items-center justify-center mx-auto mb-4`}>
+          <Icon size={32} className={colorClass} />
+        </div>
+        <h3 className="text-2xl font-black text-slate-800 mb-2">{title}</h3>
+        <p className="text-slate-500 font-medium mb-6">{message}</p>
+        <Button className="w-full" onClick={onClose}>Got it</Button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const WorkInProgressView = ({ title, onReturn }) => (
   <div className="flex flex-col items-center justify-center py-20 animate-fade-in text-center px-4">
@@ -3409,7 +3436,7 @@ export default function App() {
   const [userEmail, setUserEmail] = useState(''); 
   const [userName, setUserName] = useState(''); 
 
-  // FIXED: Real-time listener with STRICT token enforcement & Crash Prevention
+  // FIXED: Real-time listener with STRICT token enforcement & Race Condition Fix
   useEffect(() => {
     let unsubscribeSnapshot = () => {}; // Failsafe for cleanup
 
@@ -3421,7 +3448,6 @@ export default function App() {
         try {
           const userDocRef = doc(db, "users", user.uid);
           
-          // ADDED ERROR HANDLER TO PREVENT CRASH
           unsubscribeSnapshot = onSnapshot(
              userDocRef, 
              (docSnap) => {
@@ -3429,8 +3455,12 @@ export default function App() {
                   const data = docSnap.data();
                   const localToken = localStorage.getItem('kortex_session_token');
                   
+                  // NEW: Check if a login process is actively happening right now
+                  const isAuthenticating = sessionStorage.getItem('kortex_is_authenticating');
+                  
                   // --- STRICT SECURITY CHECK ---
-                  if (data.session_token && data.session_token !== localToken) {
+                  // Only kick the user out if they are NOT currently logging in!
+                  if (!isAuthenticating && data.session_token && data.session_token !== localToken) {
                      unsubscribeSnapshot(); // 1. Kill the listener FIRST
                      logout();              // 2. Then log out safely
                      setAlertConfig({ 
@@ -3449,7 +3479,6 @@ export default function App() {
                }
              },
              (error) => {
-               // 3. This catches the permission error and prevents the Next.js crash!
                console.warn("Secure disconnect triggered. Listener closed.");
              }
           );
