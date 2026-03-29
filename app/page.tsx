@@ -19,7 +19,7 @@ import { QUIZ_REGISTRY } from '../components/quizzes/QuizRegistry';
 
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, orderBy, deleteDoc, addDoc, limit } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, query, where, orderBy, deleteDoc, addDoc, limit } from "firebase/firestore";
 import { AnyOfSchema } from 'firebase/ai';
 
 
@@ -181,6 +181,10 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
     setErrorMsg('');
 
     try {
+      // 1. Generate a random session token and save to this specific device
+      const sessionToken = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('kortex_session_token', sessionToken);
+
       if (isSignUp) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
@@ -190,13 +194,21 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
           role: selectedRole,
           full_name: fullName,
           is_pro: false,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          session_token: sessionToken // 2a. Save token for new users
         });
         
         alert("Success! Account created.");
         onClose();
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        // 2b. Update token for existing users
+        await updateDoc(doc(db, "users", user.uid), {
+          session_token: sessionToken
+        });
+        
         onClose();
       }
     } catch (error: any) { 
@@ -214,6 +226,9 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
+      const sessionToken = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('kortex_session_token', sessionToken);
+      
       const userDocRef = doc(db, "users", user.uid);
       const userProfile = await getDoc(userDocRef);
       
@@ -223,8 +238,11 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
           role: isSignUp ? selectedRole : 'parent', 
           full_name: user.displayName || 'Google User',
           is_pro: false,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          session_token: sessionToken
         });
+      } else {
+        await updateDoc(userDocRef, { session_token: sessionToken });
       }
       onClose();
     } catch (error: any) {
@@ -248,7 +266,16 @@ const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) =
 
       if (!querySnapshot.empty) {
         const studentDoc = querySnapshot.docs[0];
-        const studentData = { id: studentDoc.id, ...studentDoc.data() };
+        
+        const sessionToken = Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('kortex_student_session_token', sessionToken);
+        
+        // Update the student's document with the new active token
+        await updateDoc(doc(db, "managed_students", studentDoc.id), {
+           session_token: sessionToken
+        });
+
+        const studentData = { id: studentDoc.id, session_token: sessionToken, ...studentDoc.data() };
         if (onStudentLogin) onStudentLogin(studentData); 
         onClose();
       } else {
@@ -3384,33 +3411,88 @@ export default function App() {
 
   // FIXED: Empty dependency array [] ensures this ONLY runs on mount and auth changes.
   // It will never randomly overwrite a guest's manual role selection!
+  // FIXED: Real-time listener checks session tokens to prevent multi-device logins
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeSnapshot = () => {}; // Failsafe for cleanup
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsLoggedIn(true);
         setUserEmail(user.email); 
+        
         try {
+          // Listen to the user's profile in real-time!
           const userDocRef = doc(db, "users", user.uid);
-          const userProfile = await getDoc(userDocRef);
-          if (userProfile.exists()) {
-            const data = userProfile.data();
-            setRole(data.role);
-            setIsPro(data.is_pro || data.isPro || false); 
-            setUserName(data.full_name || ''); 
-          } else {
-            setUserName(user.displayName || '');
-          }
+          unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+             if (docSnap.exists()) {
+                const data = docSnap.data();
+                
+                // --- SECURITY CHECK: VERIFY SESSION TOKEN ---
+                const localToken = localStorage.getItem('kortex_session_token');
+                if (data.session_token && localToken && data.session_token !== localToken) {
+                   // Mismatch! They logged in on another device.
+                   logout();
+                   setAlertConfig({ 
+                      title: "Session Expired", 
+                      message: "You have been securely logged out because your account was accessed from another device.",
+                      type: "warning" 
+                   });
+                   return; // Stop processing to prevent flashing UI
+                }
+
+                setRole(data.role);
+                setIsPro(data.is_pro || data.isPro || false); 
+                setUserName(data.full_name || ''); 
+             } else {
+                setUserName(user.displayName || '');
+             }
+          });
         } catch (error: any) { console.error("🚨 ERROR FETCHING FIRESTORE PROFILE:", error); }
       } else {
-        // Just set the auth state to false. DO NOT wipe the role here, 
-        // otherwise guests can't click into portals!
         setIsLoggedIn(false); 
         setUserEmail(''); 
         setUserName(''); 
+        unsubscribeSnapshot(); // Stop listening if they log out
       }
     });
-    return () => unsubscribe();
-  }, []); 
+    
+    return () => {
+       unsubscribeAuth();
+       unsubscribeSnapshot();
+    };
+  }, []);
+  
+  
+
+  // NEW: Real-time session listener for Custom Student Accounts
+  useEffect(() => {
+    let unsubscribeStudent = () => {};
+    
+    if (role === 'student' && currentStudent?.id) {
+       unsubscribeStudent = onSnapshot(doc(db, "managed_students", currentStudent.id), (docSnap) => {
+          if (docSnap.exists()) {
+             const data = docSnap.data();
+             const localToken = localStorage.getItem('kortex_student_session_token');
+             
+             // --- SECURITY CHECK FOR STUDENTS ---
+             if (data.session_token && localToken && data.session_token !== localToken) {
+                logout();
+                setAlertConfig({ 
+                   title: "Playtime Paused", 
+                   message: "You were logged out because someone else started playing on this account from another device!",
+                   type: "warning" 
+                });
+             }
+          }
+       });
+    }
+    
+    return () => unsubscribeStudent();
+  }, [role, currentStudent]);
+
+
+
+
   
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMessage, setAuthMessage] = useState("Join Kortex Klassroom to unlock all features.");
@@ -3466,6 +3548,11 @@ export default function App() {
        if (auth.currentUser) {
           await signOut(auth); 
        }
+       
+       // NEW: Clear the security tokens from this device!
+       localStorage.removeItem('kortex_session_token');
+       localStorage.removeItem('kortex_student_session_token');
+
        // Manually wipe all UI state upon logging out
        setRole(null); 
        setIsPro(false); 
