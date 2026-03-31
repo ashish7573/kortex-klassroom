@@ -12,6 +12,8 @@ const RegistryVisual = ({ letter, exampleIndex = 0 }) => {
 
   const example = data.examples[exampleIndex];
 
+    console.log("TRYING TO LOAD IMAGE:", example.image);
+
   const playSound = () => {
     if (data.letterAudio) {
       const audio = new Audio(data.letterAudio);
@@ -25,10 +27,10 @@ const RegistryVisual = ({ letter, exampleIndex = 0 }) => {
       className="relative flex flex-col items-center justify-center cursor-pointer group"
     >
       <img 
-        src={example.image} 
+        src={example.image}
         alt={example.english} 
         className="w-48 h-48 md:w-64 md:h-64 object-contain drop-shadow-xl transition-transform group-hover:scale-105"
-        onError={(e) => { (e.target as HTMLImageElement).src = '/assets/placeholder.png'; }}
+      
       />
       
       <button className="absolute -bottom-4 bg-white px-4 py-2 rounded-full shadow-md flex items-center gap-2 border-2 border-sky-100 text-sky-500 font-bold text-xs uppercase tracking-wider group-hover:bg-sky-50 transition-colors">
