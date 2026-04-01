@@ -144,7 +144,7 @@ export default function QuizComponent({ onComplete = (result) => {} }) {
   return (
     <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
       
-      <div className="px-4 md:px-8 pt-4 md:pt-6 pb-2 md:pb-4 flex-shrink-0">
+      <div className="px-4 md:px-8 pt-3 md:pt-6 pb-2 md:pb-4 flex-shrink-0">
         <div className="flex justify-between items-center mb-2 md:mb-3">
           <span className="text-slate-500 font-bold text-xs md:text-sm uppercase tracking-wider">{question.text}</span>
           <span className="text-xs md:text-sm font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-lg border border-sky-100 shrink-0">
@@ -156,10 +156,10 @@ export default function QuizComponent({ onComplete = (result) => {} }) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 px-4 md:px-8 py-2 md:py-6 flex flex-col md:flex-row gap-3 md:gap-8 items-center justify-center">
+      <div className="flex-1 min-h-0 px-4 md:px-8 py-2 md:py-6 flex flex-col md:flex-row gap-2 md:gap-8 items-center justify-center">
         
         {/* Left: Dynamic Registry Image */}
-        <div className="w-full md:w-1/2 md:h-full flex flex-col items-center justify-center bg-slate-50 rounded-[1.5rem] md:rounded-[2rem] border-2 border-slate-100 py-10 px-4 flex-shrink-0 md:flex-shrink">
+        <div className="w-full md:w-1/2 md:h-full flex flex-col items-center justify-center bg-slate-50 rounded-[1.5rem] md:rounded-[2rem] border-2 border-slate-100 py-4 px-4 flex-shrink-0 md:flex-shrink">
           {question.renderVisual()}
         </div>
 
