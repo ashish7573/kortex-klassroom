@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Star, CheckCircle, XCircle, Trophy, ArrowRight, Check, Play, Volume2 } from 'lucide-react';
+import { Star, CheckCircle, XCircle, Trophy, ArrowRight, Check, Play, } from 'lucide-react';
 import { HINDI_ASSETS } from '../../utils/hindiRegistry'; // Make sure this path points to your registry file!
 
-// --- NEW DYNAMIC IMAGE COMPONENT ---
+// --- NEW DYNAMIC IMAGE COMPONENT (VISUAL ONLY) ---
 const RegistryVisual = ({ letter, exampleIndex = 0 }) => {
   const data = HINDI_ASSETS.swar[letter];
   
@@ -12,30 +12,13 @@ const RegistryVisual = ({ letter, exampleIndex = 0 }) => {
 
   const example = data.examples[exampleIndex];
 
-    console.log("TRYING TO LOAD IMAGE:", example.image);
-
-  const playSound = () => {
-    if (data.letterAudio) {
-      const audio = new Audio(data.letterAudio);
-      audio.play().catch(e => console.error("Audio play failed:", e));
-    }
-  };
-
   return (
-    <div 
-      onClick={playSound}
-      className="relative flex flex-col items-center justify-center cursor-pointer group"
-    >
+    <div className="relative flex flex-col items-center justify-center">
       <img 
         src={example.image}
         alt={example.english} 
-        className="w-48 h-48 md:w-64 md:h-64 object-contain drop-shadow-xl transition-transform group-hover:scale-105"
-      
+        className="w-48 h-48 md:w-64 md:h-64 object-contain drop-shadow-xl"
       />
-      
-      <button className="absolute -bottom-4 bg-white px-4 py-2 rounded-full shadow-md flex items-center gap-2 border-2 border-sky-100 text-sky-500 font-bold text-xs uppercase tracking-wider group-hover:bg-sky-50 transition-colors">
-        <Volume2 size={16} /> Tap to Hear
-      </button>
     </div>
   );
 };
@@ -116,7 +99,7 @@ export default function QuizComponent({ onComplete = (result) => {} }) {
         </div>
         <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-4">चित्र से अक्षर पहचानो</h2>
         <p className="text-base md:text-xl font-bold text-slate-500 mb-8 max-w-lg">
-          Look at the picture, tap it to hear the sound, and choose the correct starting letter!
+          Look at the picture and choose the correct starting letter!
         </p>
         <button
           onClick={() => setGameState('playing')}

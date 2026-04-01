@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Star, CheckCircle, XCircle, Trophy, ArrowRight, Check, Volume2, Play } from 'lucide-react';
+import { HINDI_ASSETS } from '../../utils/hindiRegistry'; // Connecting your registry!
 
 const QUIZ_DATA = [
   { id: 1, text: "ध्वनि सुनें और सही अक्षर चुनें:", letterToSpeak: "अ", options: ["आ", "अ", "इ", "उ"], correctAnswer: "अ", explanation: "यह 'अ' की ध्वनि है (Sound of 'अ')।" },
@@ -14,10 +15,8 @@ const QUIZ_DATA = [
   { id: 10, text: "ध्वनि सुनें और सही अक्षर चुनें:", letterToSpeak: "ऊ", options: ["ऊ", "आ", "ई", "इ"], correctAnswer: "ऊ", explanation: "यह बड़े 'ऊ' की ध्वनि है।" }
 ];
 
-export default function AudioQuizComponent({ onComplete = (result: { score: number; stars: number }) => {} }) {
-  // NEW: 3-State Architecture
-  const [gameState, setGameState] = useState('start'); // 'start', 'playing', 'completed'
-  
+export default function AudioQuizComponent({ onComplete = (result) => {} }) {
+  const [gameState, setGameState] = useState('start'); 
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
@@ -25,14 +24,15 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [stars, setStars] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Ref to track the currently playing audio so we can stop it if needed
+  const audioRef = useRef(null);
 
   useEffect(() => {
-    // Shuffle the questions array on mount for randomization
     const shuffled = [...QUIZ_DATA].sort(() => Math.random() - 0.5);
     setQuestions(shuffled);
   }, []);
 
-  // Calculate stars when quiz completes
   useEffect(() => {
     if (gameState === 'completed' && questions.length > 0) {
       let earnedStars = 1;
@@ -42,23 +42,43 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
     }
   }, [gameState, score, questions.length]);
 
-  const playSound = useCallback((textToSpeak: string) => {
-    if ('speechSynthesis' in window) {
-      // Cancel any ongoing speech
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.lang = 'hi-IN'; // Set to Hindi
-      utterance.rate = 0.8;     // Slightly slower rate for kids
-      utterance.pitch = 1.2;    // Slightly higher pitch
-      
-      utterance.onstart = () => setIsPlaying(true);
-      utterance.onend = () => setIsPlaying(false);
-      utterance.onerror = () => setIsPlaying(false);
+  // Clean up audio if the component unmounts
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
 
-      window.speechSynthesis.speak(utterance);
+  // NEW: Custom Audio Player using your Registry
+  const playSound = useCallback((letterToSpeak) => {
+    // 1. Stop any currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    // 2. Find the letter in your registry (checking both Swar and Vyanjan to be safe)
+    const letterData = HINDI_ASSETS.swar[letterToSpeak] || HINDI_ASSETS.vyanjan?.[letterToSpeak];
+
+    if (letterData && letterData.letterAudio) {
+      const audio = new Audio(letterData.letterAudio);
+      audioRef.current = audio;
+
+      audio.onplay = () => setIsPlaying(true);
+      audio.onended = () => setIsPlaying(false);
+      audio.onerror = () => {
+        setIsPlaying(false);
+        console.error("Failed to load audio file for:", letterToSpeak);
+      };
+
+      audio.play().catch(e => {
+        console.error("Audio play blocked by browser:", e);
+        setIsPlaying(false);
+      });
     } else {
-      alert("क्षमा करें, आपका ब्राउज़र ऑडियो का समर्थन नहीं करता है। (Your browser does not support audio playback.)");
+      console.warn("No audio mapped in registry for:", letterToSpeak);
     }
   }, []);
 
@@ -67,7 +87,7 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
   const question = questions[currentQuestion];
   const progressPercentage = ((currentQuestion) / questions.length) * 100;
 
-  const handleOptionClick = (option: string) => {
+  const handleOptionClick = (option) => {
     if (isAnswerSubmitted) return;
 
     setSelectedAnswer(option);
@@ -79,29 +99,29 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
   };
 
   const handleNextQuestion = () => {
-    window.speechSynthesis.cancel(); // Stop playing if they skip early
+    // Stop playing audio when moving to the next question
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion((prev) => prev + 1);
       setSelectedAnswer(null);
       setIsAnswerSubmitted(false);
       setIsPlaying(false);
     } else {
-      setGameState('completed'); // Transition to results
+      setGameState('completed'); 
     }
   };
 
-  const handleFinish = () => {
-    onComplete({ score, stars });
-  };
-
-  const getOptionStyles = (option: string) => {
+  const getOptionStyles = (option) => {
     if (!isAnswerSubmitted) return "border-slate-100 bg-white hover:border-sky-500 hover:bg-sky-50 hover:shadow-sm";
     if (option === question.correctAnswer) return "border-lime-500 bg-lime-100 text-lime-800 z-10 shadow-sm";
     if (option === selectedAnswer && option !== question.correctAnswer) return "border-rose-500 bg-rose-100 text-rose-800 z-10 shadow-sm";
     return "border-slate-100 text-slate-400 bg-slate-50 opacity-50 cursor-not-allowed";
   };
 
-  // --- STATE 1: START SCREEN ---
   if (gameState === 'start') {
     return (
       <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-6 md:p-12 flex flex-col items-center justify-center text-center">
@@ -122,7 +142,6 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
     );
   }
 
-  // --- STATE 3: RESULTS SCREEN ---
   if (gameState === 'completed') {
     return (
       <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-6 md:p-12 flex flex-col items-center justify-center text-center overflow-y-auto">
@@ -149,7 +168,7 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
         </div>
 
         <button
-          onClick={handleFinish}
+          onClick={() => onComplete({ score, stars })}
           className="w-full md:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg md:text-xl py-4 px-12 rounded-xl md:rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2"
         >
           <span>Finish & Save</span>
@@ -159,11 +178,9 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
     );
   }
 
-  // --- STATE 2: ACTIVE QUIZ SCREEN ---
   return (
     <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
       
-      {/* MINIMALIST HEADER & PROGRESS */}
       <div className="px-4 md:px-8 pt-4 md:pt-6 pb-2 md:pb-4 flex-shrink-0">
         <div className="flex justify-between items-center mb-2 md:mb-3">
           <span className="text-slate-500 font-bold text-xs md:text-sm uppercase tracking-wider">{question.text}</span>
@@ -176,7 +193,6 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
         </div>
       </div>
 
-      {/* MAIN PLAY CANVAS */}
       <div className="flex-1 min-h-0 px-4 md:px-8 py-2 md:py-6 flex flex-col md:flex-row gap-3 md:gap-8 items-center justify-center">
         
         {/* Left: Audio Player Display */}
@@ -189,7 +205,6 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
               ${isPlaying ? 'bg-sky-400 scale-95 shadow-inner' : 'bg-sky-500 hover:bg-sky-400 hover:scale-105 hover:shadow-xl'}
             `}
           >
-            {/* Ripple effect rings when playing */}
             {isPlaying && (
               <>
                 <div className="absolute inset-0 rounded-full border-4 border-sky-300 animate-ping opacity-75"></div>
@@ -217,28 +232,25 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
                 onClick={() => handleOptionClick(option)}
                 disabled={isAnswerSubmitted}
                 className={`
-                  relative py-3 md:py-3 lg:py-4 rounded-xl md:rounded-2xl border-2 md:border-4 text-2xl md:text-4xl lg:text-5xl font-black transition-all duration-200 
+                  relative py-3 md:py-3 lg:py-4 rounded-xl md:rounded-2xl border-2 md:border-4 text-3xl md:text-4xl lg:text-5xl font-black transition-all duration-200 
                   flex items-center justify-center min-h-[80px] md:min-h-[90px] lg:min-h-[110px]
                   ${getOptionStyles(option)}
                 `}
               >
                 {option}
                 
-                {/* Result Icons */}
                 {isAnswerSubmitted && option === question.correctAnswer && <CheckCircle className="absolute top-2 right-2 md:top-3 md:right-3 w-6 h-6 md:w-8 md:h-8 text-lime-600 bg-white rounded-full z-20 shadow-sm" />}
                 {isAnswerSubmitted && selectedAnswer === option && option !== question.correctAnswer && <XCircle className="absolute top-2 right-2 md:top-3 md:right-3 w-6 h-6 md:w-8 md:h-8 text-rose-600 bg-white rounded-full z-20 shadow-sm" />}
               </button>
             ))}
           </div>
 
-          {/* Feedback & Next Button */}
           <div className={`mt-1 md:mt-1 lg:mt-2 min-h-[50px] md:min-h-[60px] lg:min-h-[75px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
             {isAnswerSubmitted && (
               <div className={`p-2 md:p-2 lg:p-3 rounded-xl md:rounded-2xl border-2 mb-2 lg:mb-2 font-bold flex items-center md:items-start space-x-2 md:space-x-3 ${selectedAnswer === question.correctAnswer ? 'bg-lime-50 border-lime-200 text-lime-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
                 <div className="shrink-0">{selectedAnswer === question.correctAnswer ? <CheckCircle className="w-5 h-5 md:w-5 md:h-6 text-lime-600" /> : <XCircle className="w-5 h-5 md:w-5 md:h-6 text-rose-600" />}</div>
                 <div>
                   <span className="block text-sm md:text-sm lg:text-base mb-0">{selectedAnswer === question.correctAnswer ? 'बिल्कुल सही! (Correct!)' : 'गलत उत्तर (Wrong!)'}</span>
-                  {/* Explanation hidden on mobile to save vertical space */}
                   <span className="hidden md:block text-slate-600 text-xs lg:text-sm">{question.explanation}</span>
                 </div>
               </div>
@@ -250,7 +262,6 @@ export default function AudioQuizComponent({ onComplete = (result: { score: numb
               </button>
             )}
           </div>
-
         </div>
       </div>
     </div>

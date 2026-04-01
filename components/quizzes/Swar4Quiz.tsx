@@ -1,66 +1,95 @@
-import React, { useState, useEffect } from 'react';
-import { Play, RotateCcw, CheckCircle, Star, Trophy, ArrowRight, Check, Volume2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, RotateCcw, CheckCircle, Trophy, ArrowRight, Check, Volume2, Star } from 'lucide-react';
+import { HINDI_ASSETS } from '../../utils/hindiRegistry'; // Connect to master registry!
 
-/**
- * KORTEX KLASSROOM: श्रुतलेख (अ से ऊ)
- * A highly interactive dictation quiz for KG students.
- */
-
-const VOWELS = [
-  { char: 'अ', name: 'Anar' },
-  { char: 'आ', name: 'Aam' },
-  { char: 'इ', name: 'Imli' },
-  { char: 'ई', name: 'Eekh' },
-  { char: 'उ', name: 'Ullu' },
-  { char: 'ऊ', name: 'Oon' }
-];
-
-export default function DictationQuiz({ onComplete }: { onComplete?: (data: any) => void }) {
-  // NEW: 3-State Architecture
-  const [gameState, setGameState] = useState('start'); // 'start', 'playing', 'completed'
-  
+export default function DictationQuiz({ onComplete = (result) => {} }) {
+  const [gameState, setGameState] = useState('start'); 
   const [questions, setQuestions] = useState([]);
-  const [currentStep, setCurrentStep] = useState(0); // 0: Listen, 1: Reveal
+  const [currentStep, setCurrentStep] = useState(0); 
   const [playingIndex, setPlayingIndex] = useState(null);
   const [completedAudio, setCompletedAudio] = useState([]);
 
-  // Initialize and randomize letters
+  // Refs to strictly control audio playback and loops
+  const audioRef = useRef(null);
+  const timeoutRef = useRef(null);
+
+  // Initialize and randomize 5 letters from the registry
+  const generateQuestions = () => {
+    // Grab all the keys from the Swar registry (अ, आ, इ, etc.)
+    const availableLetters = Object.keys(HINDI_ASSETS.swar).filter(key => HINDI_ASSETS.swar[key].examples.length > 0);
+    const shuffled = [...availableLetters].sort(() => 0.5 - Math.random()).slice(0, 5);
+    
+    // Map them into a rich object containing the registry data
+    const richQuestions = shuffled.map(char => ({
+      char: char,
+      data: HINDI_ASSETS.swar[char]
+    }));
+    
+    setQuestions(richQuestions);
+  };
+
   useEffect(() => {
-    const shuffled = [...VOWELS].sort(() => 0.5 - Math.random()).slice(0, 5);
-    setQuestions(shuffled);
+    generateQuestions();
+    
+    // Cleanup function: If they leave the page, kill the audio and timers
+    return () => {
+      if (audioRef.current) audioRef.current.pause();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
-  // Speech Synthesis Function
-  const speakLetter = (letter: string, index: number) => {
-    if (playingIndex !== null) return;
+  // Custom Audio Dictation Player
+  const speakLetter = (letter, index) => {
+    if (playingIndex !== null) return; // Prevent clicking another button while one is playing
 
     setPlayingIndex(index);
-    const utterance = new SpeechSynthesisUtterance(letter);
-    utterance.lang = 'hi-IN'; // Hindi
-    utterance.rate = 0.7; // Slower for KG students
+    const letterData = HINDI_ASSETS.swar[letter] || HINDI_ASSETS.vyanjan?.[letter];
 
+    if (!letterData || !letterData.letterAudio) {
+      console.warn("No audio mapped for:", letter);
+      setPlayingIndex(null);
+      if (!completedAudio.includes(index)) setCompletedAudio(prev => [...prev, index]);
+      return;
+    }
+
+    const audio = new Audio(letterData.letterAudio);
+    audioRef.current = audio;
     let count = 0;
+
     const playLoop = () => {
-      window.speechSynthesis.speak(utterance);
-      count++;
-      
-      utterance.onend = () => {
-        if (count < 3) {
-          setTimeout(playLoop, 2000); // 2 second gap between repeats
-        } else {
-          setPlayingIndex(null);
-          if (!completedAudio.includes(index)) {
-            setCompletedAudio((prev) => [...prev, index]);
-          }
-        }
-      };
+      audio.currentTime = 0;
+      audio.play().catch(e => {
+        console.error("Audio blocked:", e);
+        setPlayingIndex(null);
+      });
     };
 
-    playLoop();
+    // When the audio finishes, wait 2 seconds and play again (max 3 times)
+    audio.onended = () => {
+      count++;
+      if (count < 3) {
+        playLoop(); // Plays immediately without the 2-second timeout
+      } else {
+        setPlayingIndex(null);
+        if (!completedAudio.includes(index)) {
+          setCompletedAudio((prev) => [...prev, index]);
+        }
+      }
+    };
+
+    playLoop(); // Start the first play
+  };
+
+  const handleRevealAnswers = () => {
+    // Immediately stop any currently repeating dictation audio
+    if (audioRef.current) audioRef.current.pause();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setPlayingIndex(null);
+    setCurrentStep(1);
   };
 
   const handleFinishQuiz = () => {
-    setGameState('completed'); // Move to the final results screen
+    setGameState('completed'); 
   };
 
   const handleSaveAndComplete = () => {
@@ -69,23 +98,20 @@ export default function DictationQuiz({ onComplete }: { onComplete?: (data: any)
       stars: 3,
       letters: questions.map(q => q.char)
     };
-    if (onComplete) {
-      onComplete(finalData);
-    } else {
-      console.log("Quiz Complete! Data:", finalData);
-    }
+    onComplete(finalData);
   };
 
   const resetQuiz = () => {
-    const shuffled = [...VOWELS].sort(() => 0.5 - Math.random()).slice(0, 5);
-    setQuestions(shuffled);
+    if (audioRef.current) audioRef.current.pause();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    
+    generateQuestions();
     setCurrentStep(0);
     setCompletedAudio([]);
     setPlayingIndex(null);
     setGameState('playing');
   };
 
-  // --- STATE 1: START SCREEN ---
   if (gameState === 'start') {
     return (
       <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-6 md:p-12 flex flex-col items-center justify-center text-center">
@@ -106,7 +132,6 @@ export default function DictationQuiz({ onComplete }: { onComplete?: (data: any)
     );
   }
 
-  // --- STATE 3: RESULTS SCREEN ---
   if (gameState === 'completed') {
     return (
       <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-6 md:p-12 flex flex-col items-center justify-center text-center overflow-y-auto">
@@ -147,14 +172,12 @@ export default function DictationQuiz({ onComplete }: { onComplete?: (data: any)
     );
   }
 
-  // --- STATE 2: ACTIVE QUIZ SCREEN ---
   return (
     <div className="w-full h-full max-w-4xl mx-auto bg-slate-50 rounded-3xl border-2 border-slate-100 shadow-sm overflow-hidden flex flex-col">
       
-      {/* MINIMALIST HEADER & PROGRESS */}
       <div className="px-4 md:px-8 pt-4 md:pt-6 pb-2 md:pb-4 flex-shrink-0 bg-white border-b-2 border-slate-100">
         <div className="flex justify-between items-center mb-2 md:mb-3">
-          <span className="text-slate-500 font-bold text-xs md:text-sm uppercase tracking-wider">हिन्दी श्रुतलेख (अ - ऊ)</span>
+          <span className="text-slate-500 font-bold text-xs md:text-sm uppercase tracking-wider">हिन्दी श्रुतलेख</span>
           <span className="text-xs md:text-sm font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-lg border border-sky-100 shrink-0">
             Step {currentStep + 1} / 2
           </span>
@@ -215,7 +238,7 @@ export default function DictationQuiz({ onComplete }: { onComplete?: (data: any)
             <div className="mt-4 md:mt-8 pt-2 flex justify-center flex-shrink-0">
               <button
                 disabled={completedAudio.length < 5}
-                onClick={() => setCurrentStep(1)}
+                onClick={handleRevealAnswers}
                 className={`flex items-center justify-center gap-2 md:gap-3 w-full md:w-auto px-6 py-3 md:px-10 md:py-5 rounded-xl md:rounded-2xl font-black text-base md:text-xl transition-all shadow-md md:shadow-xl
                   ${completedAudio.length < 5
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
@@ -237,11 +260,22 @@ export default function DictationQuiz({ onComplete }: { onComplete?: (data: any)
               {questions.map((q, idx) => (
                 <div 
                   key={idx}
-                  className="h-28 md:h-40 lg:h-48 rounded-xl md:rounded-3xl border-2 md:border-4 border-lime-300 bg-lime-50 flex flex-col items-center justify-center p-2 md:p-4 text-center transform md:hover:rotate-3 transition-transform shadow-sm cursor-default"
+                  className="h-36 md:h-56 lg:h-64 rounded-xl md:rounded-3xl border-2 md:border-4 border-lime-300 bg-lime-50 flex flex-col items-center justify-center p-2 md:p-4 text-center transform md:hover:rotate-3 transition-transform shadow-sm cursor-default"
                 >
                   <span className="text-slate-400 font-black text-[10px] md:text-sm mb-1 md:mb-2">CARD {idx + 1}</span>
-                  <span className="text-4xl md:text-7xl font-black text-lime-700 mb-1 md:mb-2">{q.char}</span>
-                  <span className="text-xs md:text-sm font-bold text-lime-600/70">{q.name}</span>
+                  
+                  {/* Visually stunning reveal using Canva Images! */}
+                  {q.data && q.data.examples[0] && (
+                    <img src={q.data.examples[0].image} alt={q.char} className="w-12 h-12 md:w-16 md:h-16 object-contain drop-shadow-sm mb-1 md:mb-2" />
+                  )}
+                  
+                  <span className="text-3xl md:text-5xl lg:text-6xl font-black text-lime-700 leading-none mb-1 md:mb-2">{q.char}</span>
+                  
+                  {q.data && q.data.examples[0] && (
+                    <span className="text-xs md:text-sm font-bold text-lime-600/70">
+                      {q.data.examples[0].word} ({q.data.examples[0].english})
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -258,7 +292,6 @@ export default function DictationQuiz({ onComplete }: { onComplete?: (data: any)
         )}
       </div>
 
-      {/* Optional: Kept the footer branding as requested to preserve features */}
       <div className="p-2 md:p-4 text-center bg-white border-t-2 border-slate-100 flex-shrink-0">
         <p className="text-slate-400 font-black text-[10px] md:text-sm tracking-widest uppercase">Kortex Klassroom</p>
       </div>

@@ -1,128 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { Star, CheckCircle, XCircle, Trophy, ArrowRight, Check, Play } from 'lucide-react';
+import { HINDI_ASSETS } from '../../utils/hindiRegistry'; // Connecting to your master registry!
 
-// --- VISUAL ASSETS (Adjusted for button sizes) ---
-const PomegranateSVG = ({ className = "w-[80px] h-[80px]" }) => (
-  <svg viewBox="0 0 100 100" className={`${className} drop-shadow-md`}>
-    <circle cx="50" cy="55" r="40" fill="#ef4444" />
-    <path d="M35 25 L45 5 L50 15 L55 5 L65 25 Z" fill="#ef4444" />
-    <circle cx="40" cy="45" r="4" fill="#fca5a5" />
-    <circle cx="60" cy="50" r="5" fill="#fca5a5" />
-    <circle cx="50" cy="70" r="4" fill="#fca5a5" />
-  </svg>
-);
+// --- NEW DYNAMIC IMAGE COMPONENT ---
+// This takes a letter (like 'अ') and renders its primary Canva image
+const RegistryOptionImage = ({ letter }) => {
+  // Check Swar first, then Vyanjan
+  const data = HINDI_ASSETS.swar[letter] || HINDI_ASSETS.vyanjan?.[letter];
+  
+  if (!data || !data.examples[0]) {
+    return <div className="text-slate-400 font-bold">Missing</div>;
+  }
 
-const TamarindSVG = ({ className = "w-[80px] h-[80px]" }) => (
-  <svg viewBox="0 0 100 100" className={`${className} drop-shadow-md transform -rotate-12`}>
-    <circle cx="25" cy="50" r="18" fill="#78350f" />
-    <circle cx="50" cy="50" r="16" fill="#78350f" />
-    <circle cx="75" cy="50" r="18" fill="#78350f" />
-    <rect x="25" y="34" width="50" height="32" fill="#78350f" />
-  </svg>
-);
-
-const Emoji = ({ symbol, className = "text-[80px]" }) => (
-  <span className={`${className} leading-none drop-shadow-md select-none`}>{symbol}</span>
-);
-
-// Map the correct letter to its visual component
-const VISUAL_MAP = {
-  "अ": () => <PomegranateSVG />,
-  "आ": () => <Emoji symbol="🥭" />,
-  "इ": () => <TamarindSVG />,
-  "ई": () => <Emoji symbol="🎋" />,
-  "उ": () => <Emoji symbol="🦉" />,
-  "ऊ": () => <Emoji symbol="🧶" />
+  return (
+    <img 
+      src={data.examples[0].image} 
+      alt={data.examples[0].english} 
+      className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 object-contain drop-shadow-md"
+    />
+  );
 };
 
 // --- QUIZ DATA ---
 const QUIZ_DATA = [
-  {
-    id: 1,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "अ",
-    options: ["आ", "अ", "इ", "उ"],
-    correctAnswer: "अ",
-    explanation: "'अ' से अनार (Pomegranate)।"
-  },
-  {
-    id: 2,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "आ",
-    options: ["इ", "ऊ", "आ", "अ"],
-    correctAnswer: "आ",
-    explanation: "'आ' से आम (Mango)।"
-  },
-  {
-    id: 3,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "इ",
-    options: ["ई", "इ", "उ", "अ"],
-    correctAnswer: "इ",
-    explanation: "'इ' से इमली (Tamarind)।"
-  },
-  {
-    id: 4,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "ई",
-    options: ["उ", "अ", "आ", "ई"],
-    correctAnswer: "ई",
-    explanation: "'ई' से ईख (Sugarcane)।"
-  },
-  {
-    id: 5,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "उ",
-    options: ["ऊ", "उ", "इ", "आ"],
-    correctAnswer: "उ",
-    explanation: "'उ' से उल्लू (Owl)।"
-  },
-  {
-    id: 6,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "ऊ",
-    options: ["अ", "उ", "ऊ", "ई"],
-    correctAnswer: "ऊ",
-    explanation: "'ऊ' से ऊन (Wool)।"
-  },
-  {
-    id: 7,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "आ",
-    options: ["आ", "इ", "ऊ", "अ"],
-    correctAnswer: "आ",
-    explanation: "याद है? 'आ' से आम!"
-  },
-  {
-    id: 8,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "अ",
-    options: ["उ", "अ", "आ", "ई"],
-    correctAnswer: "अ",
-    explanation: "फिर से! 'अ' से अनार।"
-  },
-  {
-    id: 9,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "ई",
-    options: ["उ", "ऊ", "ई", "अ"],
-    correctAnswer: "ई",
-    explanation: "याद है? 'ई' से ईख!"
-  },
-  {
-    id: 10,
-    text: "अक्षर पहचानें और सही चित्र चुनें:",
-    letter: "ऊ",
-    options: ["ऊ", "आ", "ई", "इ"],
-    correctAnswer: "ऊ",
-    explanation: "बहुत बढ़िया! 'ऊ' से ऊन।"
-  }
+  { id: 1, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "अ", options: ["आ", "अ", "इ", "उ"], correctAnswer: "अ", explanation: "'अ' से अनार (Pomegranate)।" },
+  { id: 2, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "आ", options: ["इ", "ऊ", "आ", "अ"], correctAnswer: "आ", explanation: "'आ' से आम (Mango)।" },
+  { id: 3, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "इ", options: ["ई", "इ", "उ", "अ"], correctAnswer: "इ", explanation: "'इ' से इमली (Tamarind)।" },
+  { id: 4, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "ई", options: ["उ", "अ", "आ", "ई"], correctAnswer: "ई", explanation: "'ई' से ईख (Sugarcane)।" },
+  { id: 5, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "उ", options: ["ऊ", "उ", "इ", "आ"], correctAnswer: "उ", explanation: "'उ' से उल्लू (Owl)।" },
+  { id: 6, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "ऊ", options: ["अ", "उ", "ऊ", "ई"], correctAnswer: "ऊ", explanation: "'ऊ' से ऊन (Wool)।" },
+  { id: 7, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "आ", options: ["आ", "इ", "ऊ", "अ"], correctAnswer: "आ", explanation: "याद है? 'आ' से आम!" },
+  { id: 8, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "अ", options: ["उ", "अ", "आ", "ई"], correctAnswer: "अ", explanation: "फिर से! 'अ' से अनार।" },
+  { id: 9, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "ई", options: ["उ", "ऊ", "ई", "अ"], correctAnswer: "ई", explanation: "याद है? 'ई' से ईख!" },
+  { id: 10, text: "अक्षर पहचानें और सही चित्र चुनें:", letter: "ऊ", options: ["ऊ", "आ", "ई", "इ"], correctAnswer: "ऊ", explanation: "बहुत बढ़िया! 'ऊ' से ऊन।" }
 ];
 
-export default function AlphabetImageQuiz({ onComplete = (result: { score: number; stars: number }) => {} }) {
-  // NEW: 3-State Architecture
-  const [gameState, setGameState] = useState('start'); // 'start', 'playing', 'completed'
-  
+export default function AlphabetImageQuiz({ onComplete = (result) => {} }) {
+  const [gameState, setGameState] = useState('start'); 
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
@@ -135,7 +49,6 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
     setQuestions(shuffled);
   }, []);
 
-  // Calculate stars when quiz completes
   useEffect(() => {
     if (gameState === 'completed' && questions.length > 0) {
       let earnedStars = 1;
@@ -152,10 +65,8 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
 
   const handleOptionClick = (option) => {
     if (isAnswerSubmitted) return;
-
     setSelectedAnswer(option);
     setIsAnswerSubmitted(true);
-
     if (option === question.correctAnswer) {
       setScore((prev) => prev + 1);
     }
@@ -167,38 +78,23 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
       setSelectedAnswer(null);
       setIsAnswerSubmitted(false);
     } else {
-      setGameState('completed'); // CHANGED FROM setQuizComplete(true)
+      setGameState('completed');
     }
   };
 
-  const handleFinish = () => {
-    onComplete({ score, stars });
-  };
-
-  // --- RENDERING HELPERS ---
   const getOptionStyles = (option) => {
-    if (!isAnswerSubmitted) {
-      return "border-slate-100 bg-white hover:border-sky-500 hover:bg-sky-50 hover:shadow-sm";
-    }
-
-    if (option === question.correctAnswer) {
-      return "border-lime-500 bg-lime-100 z-10 shadow-sm";
-    }
-
-    if (option === selectedAnswer && option !== question.correctAnswer) {
-      return "border-rose-500 bg-rose-100 z-10 shadow-sm";
-    }
-
-    // Unselected wrong options after submission
+    if (!isAnswerSubmitted) return "border-slate-100 bg-white hover:border-sky-500 hover:bg-sky-50 hover:shadow-sm";
+    if (option === question.correctAnswer) return "border-lime-500 bg-lime-100 z-10 shadow-sm";
+    if (option === selectedAnswer && option !== question.correctAnswer) return "border-rose-500 bg-rose-100 z-10 shadow-sm";
     return "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed";
   };
 
-  // --- STATE 1: START SCREEN ---
   if (gameState === 'start') {
     return (
       <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-6 md:p-12 flex flex-col items-center justify-center text-center">
-        <div className="bg-sky-100 w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center mb-6 md:mb-8 shadow-inner">
-          <Emoji symbol="🥭" className="text-[50px] md:text-[70px]" />
+        <div className="bg-sky-100 w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center mb-6 md:mb-8 shadow-inner overflow-hidden border-4 border-sky-50">
+           {/* Automatically pulls the Mango picture for the start screen! */}
+           <img src={HINDI_ASSETS.swar['आ'].examples[0].image} alt="Welcome" className="w-16 h-16 md:w-20 md:h-20 object-contain drop-shadow-md" />
         </div>
         <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-4">व्यंजन से चित्र पहचानो</h2>
         <p className="text-base md:text-xl font-bold text-slate-500 mb-8 max-w-lg">
@@ -214,7 +110,6 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
     );
   }
 
-  // --- STATE 3: RESULTS SCREEN ---
   if (gameState === 'completed') {
     return (
       <div className="w-full max-w-4xl mx-auto min-h-[500px] bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-8 flex flex-col items-center justify-center text-center">
@@ -241,7 +136,7 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
         </div>
 
         <button
-          onClick={handleFinish}
+          onClick={() => onComplete({ score, stars })}
           className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xl py-4 px-12 rounded-2xl transition-colors shadow-sm flex items-center space-x-2"
         >
           <span>Finish & Save</span>
@@ -251,11 +146,9 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
     );
   }
 
-  // --- ACTIVE QUIZ SCREEN ---
   return (
     <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
       
-      {/* MINIMALIST HEADER & PROGRESS */}
       <div className="px-4 md:px-8 pt-4 md:pt-6 pb-2 md:pb-4 flex-shrink-0">
         <div className="flex justify-between items-center mb-2 md:mb-3">
           <span className="text-slate-500 font-bold text-xs md:text-sm uppercase tracking-wider">{question.text}</span>
@@ -268,7 +161,6 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
         </div>
       </div>
 
-      {/* MAIN PLAY CANVAS */}
       <div className="flex-1 min-h-0 px-4 md:px-8 py-2 md:py-6 flex flex-col md:flex-row gap-3 md:gap-8 items-center justify-center">
         
         {/* Left: Alphabet Display */}
@@ -288,13 +180,13 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
                 disabled={isAnswerSubmitted}
                 className={`
                   relative py-3 md:py-3 lg:py-4 rounded-xl md:rounded-2xl border-2 md:border-4 transition-all duration-200 
-                  flex items-center justify-center min-h-[80px] md:min-h-[90px] lg:min-h-[110px]
+                  flex items-center justify-center min-h-[80px] md:min-h-[90px] lg:min-h-[110px] group
                   ${getOptionStyles(option)}
                 `}
               >
-                {/* SVG/Emoji scales intelligently across mobile, laptop, and smartboard */}
-                <div className="transform transition-transform group-hover:scale-110 scale-[0.6] md:scale-[0.75] lg:scale-[0.9]">
-                  {VISUAL_MAP[option]()}
+                {/* Dynamically loads your Canva Image! */}
+                <div className="transform transition-transform group-hover:scale-110">
+                  <RegistryOptionImage letter={option} />
                 </div>
                 
                 {isAnswerSubmitted && option === question.correctAnswer && <CheckCircle className="absolute top-2 right-2 md:top-3 md:right-3 w-6 h-6 md:w-8 md:h-8 text-lime-600 bg-white rounded-full z-20 shadow-sm" />}
@@ -303,14 +195,12 @@ export default function AlphabetImageQuiz({ onComplete = (result: { score: numbe
             ))}
           </div>
 
-          {/* Feedback & Next Button */}
           <div className={`mt-1 md:mt-1 lg:mt-2 min-h-[50px] md:min-h-[60px] lg:min-h-[75px] flex flex-col justify-end transition-opacity duration-300 ${isAnswerSubmitted ? 'opacity-100' : 'opacity-0'}`}>
             {isAnswerSubmitted && (
               <div className={`p-2 md:p-2 lg:p-3 rounded-xl md:rounded-2xl border-2 mb-2 lg:mb-2 font-bold flex items-center md:items-start space-x-2 md:space-x-3 ${selectedAnswer === question.correctAnswer ? 'bg-lime-50 border-lime-200 text-lime-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
                 <div className="shrink-0">{selectedAnswer === question.correctAnswer ? <CheckCircle className="w-5 h-5 md:w-5 md:h-6 text-lime-600" /> : <XCircle className="w-5 h-5 md:w-5 md:h-6 text-rose-600" />}</div>
                 <div>
                   <span className="block text-sm md:text-sm lg:text-base mb-0">{selectedAnswer === question.correctAnswer ? 'बिल्कुल सही! (Correct!)' : 'गलत उत्तर (Wrong!)'}</span>
-                  {/* Note: Explanation hidden on mobile to save space */}
                   <span className="hidden md:block text-slate-600 text-xs lg:text-sm">{question.explanation}</span>
                 </div>
               </div>
