@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 
 import { 
-  BookOpen, Brain, Activity, User, Users, FileText, BarChart, 
+  BookOpen, Brain, Activity, User, Users, FileText, BarChart, Lightbulb, 
   Settings, Globe, Play, LogOut, CheckCircle, Clock, Search,
   Heart, Zap, BookMarked, Star, Video, Gamepad2, Menu, X, ArrowRight, 
   ChevronLeft, ChevronRight, Layers, Lock, Unlock, Shield, Timer, Info, 
@@ -1198,13 +1198,21 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
 // SECTION 8: LANDING VIEW (HOME PAGE)
 // ============================================================================
 
-
 const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, onOpenFeatured, onShowAlert, onNavigateToGames, onNavigateToLessons, onNavigateToTools }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
-  const [dbFeaturedLessons, setDbFeaturedLessons] = useState([]);
-  const [dbFeaturedGames, setDbFeaturedGames] = useState([]);
-  const [dbFeaturedTools, setDbFeaturedTools] = useState([]);
-  const [isLoadingLanding, setIsLoadingLanding] = useState(true); // NEW: Loading state for the homepage
+  
+  // State for the 5-Tier Folder UI
+  const [activeTierId, setActiveTierId] = useState('conceptualiser');
+  
+  // NEW: Centralized Firebase State for all 5 Tiers
+  const [tierData, setTierData] = useState({
+    conceptualiser: [],
+    theatre: [],
+    dojo: [],
+    workbook: [],
+    arcade: []
+  });
+  const [isLoadingTiers, setIsLoadingTiers] = useState(true);
 
   const USPS = [
     { icon: Brain, title: "NEP & NCF Aligned", desc: "Engineered to target the specific competencies written in NEP and NCF.", color: "text-sky-500", bg: "bg-sky-100", shadow: "shadow-sky-200/50" },
@@ -1214,77 +1222,85 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
     { icon: BarChart, title: "AI Powered Analytics", desc: "Actionable AI analytics and personalized suggested feedbacks.", color: "text-purple-500", bg: "bg-purple-100", shadow: "shadow-purple-200/50" }
   ];
 
-  const getIcon = (typeStr: any) => {
-    if (typeStr === 'Video') return Video;
-    if (typeStr === 'Game' || typeStr === 'Gamepad2') return Gamepad2;
-    if (typeStr === 'PDF' || typeStr === 'FileText') return FileText;
-    return Layers;
-  };
+  const FIVE_TIERS = [
+    { 
+      id: 'conceptualiser', label: 'Conceptualiser', desc: 'Interactive Sandbox', 
+      mainColor: 'bg-purple-500', lightColor: 'bg-purple-50', borderColor: 'border-purple-500', textColor: 'text-purple-500', 
+      icon: Lightbulb, actionText: 'View All Tools'
+    },
+    { 
+      id: 'theatre', label: 'Kortex Theatre', desc: 'Video Lessons', 
+      mainColor: 'bg-pink-500', lightColor: 'bg-pink-50', borderColor: 'border-pink-500', textColor: 'text-pink-500', 
+      icon: Video, actionText: 'View All Videos'
+    },
+    { 
+      id: 'dojo', label: 'The Dojo', desc: 'Digital Quizzes', 
+      mainColor: 'bg-orange-500', lightColor: 'bg-orange-50', borderColor: 'border-orange-500', textColor: 'text-orange-500', 
+      icon: Target, actionText: 'View All Quizzes'
+    },
+    { 
+      id: 'workbook', label: 'The Workbook', desc: 'PDFs & Guides', 
+      mainColor: 'bg-sky-500', lightColor: 'bg-sky-50', borderColor: 'border-sky-500', textColor: 'text-sky-500', 
+      icon: FileText, actionText: 'View All Worksheets'
+    },
+    { 
+      id: 'arcade', label: 'Kortex Arcade', desc: 'Conceptual Games', 
+      mainColor: 'bg-lime-500', lightColor: 'bg-lime-50', borderColor: 'border-lime-500', textColor: 'text-lime-600', 
+      icon: Gamepad2, actionText: 'View All Games'
+    }
+  ];
 
+  // Rotate USPs
   useEffect(() => {
     const interval = setInterval(() => { setActiveUsp((prev) => (prev + 1) % USPS.length); }, 3000);
     return () => clearInterval(interval);
   }, []);
 
+  // NEW: Fetch all featured tools and categorize them into the 5 tiers
   useEffect(() => {
-    async function fetchLandingData() {
-      setIsLoadingLanding(true);
+    async function fetchTierData() {
+      setIsLoadingTiers(true);
       try {
-        // Fetch ONLY the items you explicitly marked as 'TRUE' in the is_featured column
-        const q = query(collection(db, 'learning_tools'), where('is_featured', '==', true), limit(30)); 
+        const q = query(collection(db, 'learning_tools'), where('is_featured', '==', true), limit(50));
         const snapshot = await getDocs(q);
-        const featuredItems = snapshot.docs.map((d: any) => ({id: d.id, ...d.data()}));
+        const items = snapshot.docs.map((d: any) => ({id: d.id, ...d.data()}));
 
-        let games = [];
-        let tools = [];
-        let uniqueChaptersMap = {};
+        const categorized: any = {
+          conceptualiser: [],
+          theatre: [],
+          dojo: [],
+          workbook: [],
+          arcade: []
+        };
 
-        featuredItems.forEach((item: any) => {
-          // 1. Route the content into Games vs General Tools
-          if (item.content_type?.toLowerCase() === 'game') {
-             games.push(item);
-          } else if (item.content_type && item.content_type?.toLowerCase() !== 'placeholder') {
-             tools.push(item);
-          }
-
-          // 2. Build the "Featured Chapters" display cards automatically
-          const chapterKey = `${item.grade}_${item.subject}_${item.chapter_number}`;
-          if (!uniqueChaptersMap[chapterKey]) {
-             uniqueChaptersMap[chapterKey] = {
-                id: chapterKey,
-                grade: item.grade,
-                subject: item.subject,
-                chapter: item.chapter_name, // Maps to your UI's expected variable
-                book: item.book || 'Kortex Klassroom',
-                image: item.image || getSubjectFallbackImage(item.subject),
-                color: item.color || 'border-sky-500',
-                items: 1 
-             };
-          } else {
-             // Increment the item count for the little UI badge
-             uniqueChaptersMap[chapterKey].items += 1;
-          }
+        items.forEach((item: any) => {
+          const type = item.content_type?.toLowerCase();
+          // Map database content types to your 5 tiers
+          if (type === 'video') categorized.theatre.push(item);
+          else if (type === 'quiz') categorized.dojo.push(item);
+          else if (type === 'pdf' || type === 'worksheet' || type === 'document') categorized.workbook.push(item);
+          else if (type === 'game') categorized.arcade.push(item);
+          else if (type === 'conceptualiser') categorized.conceptualiser.push(item);
         });
 
-        const featuredLessonsArray = Object.values(uniqueChaptersMap);
-
-        // Update the states (slice to 4 so the UI grid looks perfect)
-        setDbFeaturedLessons(featuredLessonsArray.slice(0, 4));
-        setDbFeaturedGames(games.slice(0, 4));
-        setDbFeaturedTools(tools.slice(0, 4));
-
-      } catch (error: any) { 
-          console.error("Error fetching featured content:", error); 
+        setTierData(categorized);
+      } catch (error) {
+        console.error("Error fetching tier data:", error);
       } finally {
-          setIsLoadingLanding(false);
+        setIsLoadingTiers(false);
       }
     }
     
-    fetchLandingData();
+    fetchTierData();
   }, []);
+
+  const activeTier = FIVE_TIERS.find(t => t.id === activeTierId) || FIVE_TIERS[0];
+  const activeItems = tierData[activeTierId as keyof typeof tierData] || [];
 
   return (
   <div className="min-h-screen bg-slate-50 flex flex-col animate-fade-in relative">
+    
+    {/* Hero Section */}
     <div className="bg-sky-50 pt-16 pb-32 px-4 relative overflow-hidden">
       <div className="absolute top-10 left-10 w-20 h-20 bg-orange-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
       <div className="absolute top-0 right-20 w-32 h-32 bg-lime-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
@@ -1320,6 +1336,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
       </div>
     </div>
 
+    {/* Marquee */}
     <div className="w-full bg-white border-y-4 border-slate-100 py-4 overflow-hidden relative flex items-center z-30 shadow-sm">
       <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
       <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
@@ -1332,149 +1349,155 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
       </div>
     </div>
 
-    <div id="demo-portals" className="max-w-6xl mx-auto px-4 py-20 w-full relative z-20">
+    {/* THE 5-TIER LEARNING LOOP (FOLDER UI) */}
+    <div className="max-w-6xl mx-auto px-4 pt-24 pb-12 w-full relative z-20">
+      <div className="text-center mb-10">
+        <h2 className="text-3xl md:text-5xl font-extrabold text-slate-800 mb-4">
+          The <span className="text-sky-500">5-Tier</span> Learning Loop
+        </h2>
+        <p className="text-center text-slate-500 font-bold max-w-2xl mx-auto text-lg">A complete, systematic ecosystem bridging digital interactivity with physical classroom practice.</p>
+      </div>
+
+      {/* Folder Tabs */}
+      <div className="flex w-full items-end px-1 sm:px-4 pt-4">
+        {FIVE_TIERS.map(tier => {
+          const isActive = activeTierId === tier.id;
+          const Icon = tier.icon;
+          return (
+            <button
+              key={tier.id}
+              onClick={() => setActiveTierId(tier.id)}
+              className={`
+                relative flex-1 py-2 px-1 md:px-4 md:py-4 rounded-t-xl md:rounded-t-3xl transition-all duration-300 flex flex-col lg:flex-row items-center justify-center gap-1 md:gap-2 border-t-2 border-x-2 md:border-t-4 md:border-x-4 text-center lg:text-left
+                ${isActive
+                  ? `${tier.mainColor} border-transparent text-white shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-20 scale-[1.02] md:scale-105 origin-bottom translate-y-[2px] md:translate-y-[4px]` 
+                  : `bg-slate-100 border-slate-200 border-b-0 text-slate-500 hover:bg-slate-200 z-10 translate-y-[2px] md:translate-y-[4px]`
+                }
+              `}
+            >
+              <Icon size={18} className={`shrink-0 sm:w-5 sm:h-5 md:w-6 md:h-6 ${isActive ? 'text-white' : tier.textColor}`} />
+              <div className="w-full overflow-hidden">
+                <div className={`font-black text-[9px] sm:text-[11px] md:text-sm lg:text-base leading-tight truncate ${isActive ? 'text-white' : 'text-slate-700'}`}>
+                  {tier.label}
+                </div>
+                <div className={`hidden lg:block text-xs font-bold truncate ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
+                  {tier.desc}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Folder Body (Content Area) */}
+      {/* UPDATE: Changed 'rounded-b-3xl rounded-tr-3xl' to 'rounded-3xl' so all 4 corners are curved */}
+      <div className={`w-full rounded-3xl border-4 shadow-xl p-4 sm:p-6 md:p-10 transition-colors duration-500 relative z-30 bg-white ${activeTier.borderColor}`}>
+        
+        {/* Dynamic Header & View All Button */}
+        <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className={`text-xl md:text-3xl font-black ${activeTier.textColor}`}>Explore {activeTier.label}</h3>
+            <p className="text-sm md:text-base text-slate-500 font-bold mt-1">Swipe to see examples of our {activeTier.desc.toLowerCase()}.</p>
+          </div>
+          
+          {/* NEW: Dynamic View All Button */}
+          <button 
+            onClick={() => onNavigateToTools && onNavigateToTools(activeTier.id)}
+            className={`shrink-0 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm border-2 ${activeTier.borderColor} ${activeTier.textColor} hover:${activeTier.mainColor} hover:text-white transition-all`}
+          >
+            {activeTier.actionText} <ArrowRight size={16} />
+          </button>
+        </div>
+
+        {/* Database Driven Cards */}
+        <div className="flex overflow-x-auto gap-4 sm:gap-6 pb-6 snap-x hide-scrollbar">
+          
+          {isLoadingTiers ? (
+            <div className="w-full text-center py-12 text-slate-400 font-bold animate-pulse">Loading {activeTier.label} tools...</div>
+          ) : activeItems.length > 0 ? (
+            activeItems.map((item: any) => (
+              <Card 
+                key={item.id} 
+                className={`min-w-[200px] sm:min-w-[240px] lg:min-w-[260px] snap-start flex-shrink-0 cursor-pointer p-0 flex flex-col border-b-8 ${activeTier.borderColor} bg-white overflow-hidden hover:-translate-y-2 transition-transform shadow-md group`}
+                onClick={() => onOpenFeatured(item)}
+              >
+                {/* Image Area */}
+                <div className={`h-32 sm:h-40 w-full ${activeTier.lightColor} relative flex items-center justify-center overflow-hidden`}>
+                  {item.image ? (
+                     <img src={item.image} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  ) : (
+                     <activeTier.icon size={60} className={`sm:w-20 sm:h-20 ${activeTier.textColor} opacity-20 transform group-hover:scale-110 transition-transform duration-500`} />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-transparent to-transparent pointer-events-none"></div>
+                  <div className={`absolute top-3 left-3 sm:top-4 sm:left-4 ${activeTier.mainColor} text-white text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2 py-1 sm:px-3 sm:py-1 rounded-full shadow-sm`}>
+                    {activeTier.label}
+                  </div>
+                </div>
+                
+                {/* Details Area */}
+                <div className="p-4 sm:p-6 flex-1 flex flex-col">
+                  <div className="mb-2">
+                     <p className={`text-[10px] sm:text-xs font-black ${activeTier.textColor} uppercase tracking-wider line-clamp-1`}>{item.lessonContext?.chapter || item.subject || 'Resource'}</p>
+                  </div>
+                  <h3 className="text-sm sm:text-lg lg:text-xl font-extrabold text-slate-800 mb-2 leading-tight line-clamp-2">{item.title}</h3>
+                  
+                  <div className="mt-auto pt-4 flex justify-between items-center border-t border-slate-50">
+                    <div className="flex items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500">
+                      <span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{item.grade}</span>
+                    </div>
+                    <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full ${activeTier.lightColor} flex items-center justify-center group-hover:${activeTier.mainColor} transition-colors`}>
+                      <ArrowRight size={14} className={`sm:w-4 sm:h-4 ${activeTier.textColor} group-hover:text-white`} />
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))
+          ) : (
+            /* "COMING SOON" FALLBACK CARD (For Conceptualisers and empty tiers) */
+            <Card className={`min-w-[260px] sm:min-w-[320px] snap-start flex-shrink-0 p-0 flex flex-col border-b-8 ${activeTier.borderColor} bg-white overflow-hidden shadow-sm`}>
+              <div className={`h-32 sm:h-40 w-full ${activeTier.lightColor} relative flex items-center justify-center`}>
+                <activeTier.icon size={60} className={`sm:w-20 sm:h-20 ${activeTier.textColor} opacity-40`} />
+                <div className="absolute inset-0 flex items-center justify-center">
+                   <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-xl border-2 border-white shadow-sm font-black text-slate-700 tracking-wide uppercase text-sm transform -rotate-2">
+                     In Development
+                   </div>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6 text-center">
+                <h3 className={`text-lg sm:text-xl font-extrabold ${activeTier.textColor} mb-2 leading-tight`}>Interactive {activeTier.label}s</h3>
+                <p className="text-sm font-bold text-slate-500">Our pedagogical engineers are currently building revolutionary new tools for this tier. Check back soon!</p>
+              </div>
+            </Card>
+          )}
+
+        </div>
+      </div>
+    </div>
+
+    {/* Demo Portals */}
+    <div id="demo-portals" className="max-w-6xl mx-auto px-4 pt-12 pb-20 w-full relative z-20">
       <h2 className="text-3xl font-extrabold text-slate-800 text-center mb-2">Select Your Role</h2>
       <p className="text-center text-slate-500 font-bold mb-10">Choose your portal below to dive into personalized learning experiences.</p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <Card onClick={() => setRole('teacher')} className="p-8 text-center group border-b-8 border-sky-500 hover:border-sky-400">
+        <Card onClick={() => setRole('teacher')} className="p-8 text-center group border-b-8 border-sky-500 hover:border-sky-400 cursor-pointer">
           <div className="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-sky-500 transition-colors"><BookOpen size={36} className="text-sky-500 group-hover:text-white transition-colors" /></div>
           <h3 className="text-2xl font-bold text-slate-800 mb-2">Teacher Hub</h3>
           <p className="text-slate-500 font-medium mb-6">Preview lesson plans, manage curriculum, and track competencies.</p>
           <Button variant="outline" className="w-full border-2 border-sky-500 text-sky-500 hover:bg-sky-50">Enter Teacher Portal</Button>
         </Card>
-        <Card onClick={() => setRole('parent')} className="p-8 text-center group border-b-8 border-orange-500 hover:border-orange-400">
+        <Card onClick={() => setRole('parent')} className="p-8 text-center group border-b-8 border-orange-500 hover:border-orange-400 cursor-pointer">
           <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-orange-500 transition-colors"><Users size={36} className="text-orange-500 group-hover:text-white transition-colors" /></div>
           <h3 className="text-2xl font-bold text-slate-800 mb-2">Parent Portal</h3>
           <p className="text-slate-500 font-medium mb-6">View 360° holistic reports and track Panchakosha wellness progress.</p>
           <Button variant="outline" className="w-full border-2 border-orange-500 text-orange-500 hover:bg-orange-50">Enter Parent Portal</Button>
         </Card>
-        <Card onClick={() => {setRole('student'); setStage('foundational');}} className="p-8 text-center group border-b-8 border-lime-500 hover:border-lime-400">
+        <Card onClick={() => {setRole('student'); setStage('foundational');}} className="p-8 text-center group border-b-8 border-lime-500 hover:border-lime-400 cursor-pointer">
           <div className="w-20 h-20 bg-lime-100 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-lime-500 transition-colors"><Gamepad2 size={36} className="text-lime-600 group-hover:text-white transition-colors" /></div>
           <h3 className="text-2xl font-bold text-slate-800 mb-2">Student Hub</h3>
           <p className="text-slate-500 font-medium mb-6">Interactive, gamified learning pathways designed for holistic growth.</p>
           <Button variant="outline" className="w-full border-2 border-lime-600 text-lime-600 hover:bg-lime-50">Enter Student Portal</Button>
         </Card>
       </div>
-    </div>
-
-    {/* Featured Learning Tools Slider */}
-    <div className="max-w-6xl mx-auto px-4 pb-20 w-full">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-8 gap-4">
-        <div><h2 className="text-3xl font-extrabold text-slate-800">Featured Learning Tools</h2><p className="text-slate-500 font-medium mt-2">Bite-sized interactive videos and presentations.</p></div>
-        <Button variant="secondary" onClick={onNavigateToTools} className="hidden sm:flex shrink-0 border-2">View All Tools</Button>
-      </div>
-      <div className="flex overflow-x-auto gap-6 pb-4 snap-x hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-        {isLoadingLanding ? (
-            <div className="p-8 text-slate-400 font-bold w-full text-center">Loading tools from database...</div>
-        ) : dbFeaturedTools.length > 0 ? (
-            dbFeaturedTools.map((tool: any, idx: any) => {
-              const Icon = getIcon(tool.content_type);
-              return (
-                <Card key={idx} className="min-w-[280px] sm:min-w-[320px] snap-start hover:border-sky-300 flex-shrink-0 cursor-pointer group relative p-0 flex flex-col" onClick={() => onOpenFeatured(tool)}>
-                  <div className="relative h-40 w-full bg-slate-200 overflow-hidden">
-                     <img src={tool.image || '/kortex_default_cover.png'} alt={tool.title || 'Kortex Klassroom'} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                     <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-transparent to-transparent pointer-events-none"></div>
-                     <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
-                       <span className="text-xs font-bold text-slate-800 uppercase tracking-wider bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm">{tool.type}</span>
-                       {tool.isPremium && (<div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm flex items-center gap-1"><Star size={10} className="fill-white" /> PRO</div>)}
-                     </div>
-                     <div className={`absolute -bottom-6 left-6 w-14 h-14 rounded-2xl ${tool.color || 'bg-sky-500'} text-white flex items-center justify-center shadow-lg border-4 border-white transform group-hover:-translate-y-1 transition-transform`}><Icon size={24} /></div>
-                  </div>
-                  <div className="pt-10 pb-6 px-6 bg-white flex-1 flex flex-col">
-                    <div className="mb-2">
-                       <p className="text-xs font-black text-sky-600 uppercase tracking-wider line-clamp-1">{tool.lessonContext?.chapter || 'General Resource'}</p>
-                       {tool.lessonContext?.subtopic && <p className="text-[10px] font-bold text-sky-400 mt-0.5 truncate">↳ {tool.lessonContext.subtopic}</p>}
-                    </div>
-                    <h3 className="text-xl font-extrabold text-slate-800 mb-3 group-hover:text-sky-600 transition-colors flex items-center gap-2 leading-tight line-clamp-2">{tool.title} {tool.isPremium && !isLoggedIn && <Lock size={16} className="text-slate-300 shrink-0"/>}</h3>
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mt-auto pt-4 border-t border-slate-100"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{tool.grade}</span><span>•</span><span className="truncate">{tool.subject}</span></div>
-                  </div>
-                </Card>
-              );
-            })
-        ) : (
-            <div className="p-8 text-slate-400 font-bold w-full text-center border-2 border-dashed border-slate-200 rounded-2xl">No featured tools available yet.</div>
-        )}
-      </div>
-      <Button variant="secondary" onClick={onNavigateToTools} className="w-full mt-4 sm:hidden border-2">View All Tools</Button>
-    </div>
-
-    {/* Featured Games Slider */}
-    <div className="max-w-6xl mx-auto px-4 pb-20 w-full">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-8 gap-4">
-        <div><h2 className="text-3xl font-extrabold text-slate-800">Featured Games</h2><p className="text-slate-500 font-medium mt-2">Playful, interactive modules to test your skills.</p></div>
-        <Button variant="secondary" onClick={onNavigateToGames} className="hidden sm:flex shrink-0 border-2">View All Games</Button>
-      </div>
-      <div className="flex overflow-x-auto gap-6 pb-4 snap-x hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-        {isLoadingLanding ? (
-            <div className="p-8 text-slate-400 font-bold w-full text-center">Loading games from database...</div>
-        ) : dbFeaturedGames.length > 0 ? (
-            dbFeaturedGames.map((game: any, idx: any) => {
-              const Icon = getIcon(game.content_type);
-              return (
-                <Card key={idx} className="min-w-[280px] sm:min-w-[320px] snap-start hover:border-pink-400 flex-shrink-0 cursor-pointer group relative p-0 flex flex-col border-b-4 border-b-pink-500" onClick={() => onOpenFeatured(game)}>
-                  <div className="relative h-40 w-full bg-slate-200 overflow-hidden">
-   <img src={game.image || '/kortex_default_cover.png'} alt={game.title || 'Kortex Klassroom'} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-   <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-transparent to-transparent pointer-events-none"></div>
-                     <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
-                       <span className="text-xs font-bold text-slate-800 uppercase tracking-wider bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm">{game.type}</span>
-                       {game.isPremium && (<div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm flex items-center gap-1"><Star size={10} className="fill-white" /> PRO</div>)}
-                     </div>
-                     <div className={`absolute -bottom-6 left-6 w-14 h-14 rounded-2xl ${game.color || 'bg-pink-500'} text-white flex items-center justify-center shadow-lg border-4 border-white transform group-hover:-translate-y-1 transition-transform`}><Icon size={24} /></div>
-                  </div>
-                  <div className="pt-10 pb-6 px-6 bg-white flex-1 flex flex-col">
-                    <div className="mb-2">
-                       <p className="text-xs font-black text-pink-600 uppercase tracking-wider line-clamp-1">{game.lessonContext?.chapter || 'Arcade Mode'}</p>
-                       {game.lessonContext?.subtopic && <p className="text-[10px] font-bold text-pink-400 mt-0.5 truncate">↳ {game.lessonContext.subtopic}</p>}
-                    </div>
-                    <h3 className="text-xl font-extrabold text-slate-800 mb-3 group-hover:text-pink-600 transition-colors flex items-center gap-2 leading-tight line-clamp-2">{game.title} {game.isPremium && !isLoggedIn && <Lock size={16} className="text-slate-300 shrink-0"/>}</h3>
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mt-auto pt-4 border-t border-slate-100"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{game.grade}</span><span>•</span><span className="truncate">{game.subject}</span></div>
-                  </div>
-                </Card>
-              );
-            })
-        ) : (
-            <div className="p-8 text-slate-400 font-bold w-full text-center border-2 border-dashed border-slate-200 rounded-2xl">No featured games available yet.</div>
-        )}
-      </div>
-      <Button variant="secondary" onClick={onNavigateToGames} className="w-full mt-4 sm:hidden border-2">View All Games</Button>
-    </div>
-
-    {/* Featured Lessons Slider */}
-    <div className="max-w-6xl mx-auto px-4 pb-24 w-full">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-8 gap-4">
-        <div><h2 className="text-3xl font-extrabold text-slate-800">Featured Lessons</h2><p className="text-slate-500 font-medium mt-2">Complete learning pathways mapped to the curriculum.</p></div>
-        <Button variant="secondary" onClick={onNavigateToLessons} className="hidden sm:flex shrink-0 border-2">View All Lessons</Button>
-      </div>
-      <div className="flex overflow-x-auto gap-6 pb-4 snap-x hide-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-        {isLoadingLanding ? (
-             <div className="p-8 text-slate-400 font-bold w-full text-center">Loading lessons from database...</div>
-        ) : dbFeaturedLessons.length > 0 ? (
-            dbFeaturedLessons.map((lesson: any, idx: any) => (
-              <Card key={idx} className={`min-w-[300px] sm:min-w-[360px] snap-start border-b-8 ${lesson.color || 'border-sky-500'} flex-shrink-0 cursor-pointer group transition-all duration-300 hover:shadow-lg p-0 flex flex-col`} onClick={() => onOpenFeatured(lesson)}>
-                <div className="relative h-48 w-full bg-slate-200 overflow-hidden">
-                   <img src={lesson.image || '/kortex_default_cover.png'} alt={lesson.chapter || 'Kortex Klassroom'} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                   <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/20 to-transparent pointer-events-none"></div>
-                   <div className="absolute top-4 left-4 right-4 flex justify-between items-start gap-2">
-                      <span className="bg-white/90 backdrop-blur-sm text-slate-800 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full shadow-sm max-w-[65%] truncate">{lesson.book}</span>
-                      <div className="bg-slate-900/60 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm shrink-0"><Layers size={14} /> {lesson.items} Items</div>
-                   </div>
-                </div>
-                <div className="p-6 bg-white flex-1 flex flex-col group-hover:bg-slate-50 transition-colors">
-                   <h3 className="text-2xl font-black text-slate-800 mb-2 group-hover:text-sky-600 transition-colors leading-tight line-clamp-2">{lesson.chapter}</h3>
-                   <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mb-4"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{lesson.grade}</span><span>•</span><span>{lesson.subject}</span></div>
-                   <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600 mt-auto pt-4 border-t border-slate-100">
-                      <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md shadow-sm"><Video size={14} className="text-pink-500"/> Video</span>
-                      <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md shadow-sm"><Layers size={14} className="text-sky-500"/> PPT</span>
-                      <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md shadow-sm"><Gamepad2 size={14} className="text-orange-500"/> Quiz</span>
-                   </div>
-                </div>
-              </Card>
-            ))
-        ) : (
-            <div className="p-8 text-slate-400 font-bold w-full text-center border-2 border-dashed border-slate-200 rounded-2xl">No featured lessons available yet.</div>
-        )}
-      </div>
-      <Button variant="secondary" onClick={onNavigateToLessons} className="w-full mt-4 sm:hidden border-2">View All Lessons</Button>
     </div>
 
     {/* Testimonials */}
