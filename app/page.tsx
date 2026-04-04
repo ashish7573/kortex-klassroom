@@ -3584,23 +3584,22 @@ export default function App() {
   };
 
   const renderContent = () => {
-    if (currentView === 'games') return <GamesView isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartGame={handleStartLesson} />;
+    // 1. Standalone Curriculum Page
     if (currentView === 'lessons') return <LessonsView isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartLesson={handleStartLesson} />;
-    if (currentView === 'tools') return <ToolsView isLoggedIn={isLoggedIn} requireAuth={requireAuth} onOpenTool={(tool: any) => { setPlayingLesson(tool.lessonContext); setPlayingStep(tool.stepIndex); }} />;
     
-    // NEW: Check if the current view is one of our 5 Tiers
+    // 2. The 5 Dynamic Tier Pages (Arcade, Theatre, Dojo, Workbook, Conceptualiser)
     const activeTierObj = FIVE_TIERS?.find(t => t.id === currentView);
     if (activeTierObj) {
-      // UPDATED: Now passes handleOpenFeatured to perfectly wrap and play the clicked card
       return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onOpenTool={handleOpenFeatured} />;
     }
 
+    // 3. User Dashboards
     if (role === 'student') return <StudentView t={t} onStartLesson={handleStartLesson} currentStudent={currentStudent} isLoggedIn={isLoggedIn} requireAuth={requireAuth} />;
     if (role === 'parent') return <ParentView t={t} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartDemo={handleStartDemo} isPro={isPro} />;
-    if (role === 'teacher' || role === 'krew') {return <TeacherView userName={userName} t={t} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartLesson={handleStartLesson} targetContext={targetContext} isPro={isPro} role={role} />;}
+    if (role === 'teacher' || role === 'krew') return <TeacherView userName={userName} t={t} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartLesson={handleStartLesson} targetContext={targetContext} isPro={isPro} role={role} />;
     if (role === 'admin') return <AdminView />;
     
-    // UPDATED: Now properly passing onNavigateToTier to accept the dynamic ID from the folder tabs!
+    // 4. Landing Page
     return <LandingView 
       setRole={setRole} 
       setStage={setStage} 
