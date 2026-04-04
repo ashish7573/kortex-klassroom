@@ -968,7 +968,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
           <Layers size={16} /> Pedagogical Framework
         </div>
         <h2 className="text-4xl md:text-5xl font-black text-slate-800 mb-6 leading-tight">The <span className="text-sky-500">5-Tier</span> Learning Loop</h2>
-        <p className="text-center text-slate-500 font-medium max-w-2xl mx-auto text-lg">From using latest AI based conceptualisers and quizzes to tradionally proved Paper-Pencil practice sheet, Our 5 tyes of tools enable deepest understanding of any concept in a perfect ecosystem bridging digital interactivity with physical classroom practice.</p>
+        <p className="text-center text-slate-500 font-medium max-w-2xl mx-auto text-lg">From using latest AI based conceptualisers and quizzes to tradionally proved Paper-Pencil practice sheet, Our 5 types of tools enable deepest understanding of any concept in a perfect ecosystem bridging digital interactivity with physical classroom practice.</p>
       </div>
 
       {/* Upgraded Tabs: Floating Pill Navigation */}
