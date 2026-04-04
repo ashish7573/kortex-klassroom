@@ -859,7 +859,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
 // SECTION 8: LANDING VIEW (HOME PAGE)
 // ============================================================================
 
-const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured }: any) => {
+const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured, onLoginClick }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
   const [activeTierId, setActiveTierId] = useState('conceptualiser');
   const [tierData, setTierData] = useState({ conceptualiser: [], theatre: [], dojo: [], workbook: [], arcade: [] });
@@ -968,7 +968,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
           <Layers size={16} /> Pedagogical Framework
         </div>
         <h2 className="text-4xl md:text-5xl font-black text-slate-800 mb-6 leading-tight">The <span className="text-sky-500">5-Tier</span> Learning Loop</h2>
-        <p className="text-center text-slate-500 font-medium max-w-2xl mx-auto text-lg">A complete, systematic ecosystem bridging digital interactivity with physical classroom practice.</p>
+        <p className="text-center text-slate-500 font-medium max-w-2xl mx-auto text-lg">From using latest AI based conceptualisers and quizzes to tradionally proved Paper-Pencil practice sheet, Our 5 tyes of tools enable deepest understanding of any concept in a perfect ecosystem bridging digital interactivity with physical classroom practice.</p>
       </div>
 
       {/* Upgraded Tabs: Floating Pill Navigation */}
@@ -1146,9 +1146,12 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
              </div>
              <h2 className="text-4xl md:text-5xl font-black text-slate-800 leading-tight">Meet the <br/><span className="text-amber-500">Kortex Krew.</span></h2>
              <p className="text-lg text-slate-600 font-medium">This platform isn't built by a faceless corporation. Every game, lesson, and concept is painstakingly engineered by a collective of real teachers, child psychologists, and passionate parents across India.</p>
-             <div className="pt-4">
-                <Button variant="fun" className="text-lg px-8 py-4 w-full md:w-auto" onClick={() => window.open('https://forms.gle/placeholder-link', '_blank')}>
+             <div className="pt-6 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                <Button variant="fun" className="text-lg px-8 py-4 w-full sm:w-auto shadow-xl shadow-amber-500/20" onClick={() => window.open('https://forms.gle/g1AY5rG5F6zCoSiw5', '_blank')}>
                    Apply to Join the Krew <ArrowRight size={20} className="ml-2 inline"/>
+                </Button>
+                <Button variant="secondary" className="text-lg px-8 py-4 w-full sm:w-auto border-2 border-amber-200 text-amber-700 hover:border-amber-400 hover:bg-white" onClick={onLoginClick}>
+                   Krew Login <Lock size={20} className="ml-2 inline"/>
                 </Button>
              </div>
           </div>
@@ -3339,8 +3342,9 @@ export default function App() {
     return <LandingView 
       onTryDemo={handleStartDemo} 
       onNavigateToTier={(tierId: any) => setCurrentView(tierId)} 
-      onNavigateToLessons={() => setCurrentView('lessons')}
+      onNavigateToLessons={() => setCurrentView('lessons')} 
       onOpenFeatured={handleOpenFeatured}
+      onLoginClick={() => setShowAuthModal(true)}
     />;
   };
 
@@ -3366,34 +3370,34 @@ export default function App() {
             <span className="font-black text-2xl tracking-tight text-slate-800 hidden xl:block">Kortex<span className="text-sky-500"> Klassroom</span></span>
           </div>
 
-          {/* CENTER: 6 Nav Links (Wrapped in 2 lines, centered) */}
-          <div className="hidden lg:flex flex-1 justify-center items-center gap-4 xl:gap-8 font-extrabold text-slate-500 text-xs text-center leading-tight">
-             <button onClick={() => setCurrentView('lessons')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'lessons' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>All<br/>Lessons</button>
-             <button onClick={() => setCurrentView('conceptualiser')} className={`py-2 px-1 transition-colors hover:text-purple-500 ${currentView === 'conceptualiser' ? 'text-purple-500 border-b-2 border-purple-500' : ''}`}>Interactive<br/>Sandbox</button>
-             <button onClick={() => setCurrentView('theatre')} className={`py-2 px-1 transition-colors hover:text-pink-500 ${currentView === 'theatre' ? 'text-pink-500 border-b-2 border-pink-500' : ''}`}>Kortex<br/>Theatre</button>
-             <button onClick={() => setCurrentView('dojo')} className={`py-2 px-1 transition-colors hover:text-orange-500 ${currentView === 'dojo' ? 'text-orange-500 border-b-2 border-orange-500' : ''}`}>The<br/>Dojo</button>
-             <button onClick={() => setCurrentView('workbook')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'workbook' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>The<br/>Workbook</button>
-             <button onClick={() => setCurrentView('arcade')} className={`py-2 px-1 transition-colors hover:text-lime-600 ${currentView === 'arcade' ? 'text-lime-600 border-b-2 border-lime-500' : ''}`}>Kortex<br/>Arcade</button>
-          </div>
+          {/* RIGHT SIDE CONTAINER: Nav Links & Profile (Aligned Right) */}
+          <div className="flex items-center gap-4 xl:gap-8 ml-auto">
+            
+            {/* 6 Nav Links (Hidden on mobile) */}
+            <div className="hidden lg:flex items-center gap-4 xl:gap-8 font-extrabold text-slate-500 text-xs text-center leading-tight">
+               <button onClick={() => setCurrentView('lessons')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'lessons' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>All<br/>Lessons</button>
+               <button onClick={() => setCurrentView('conceptualiser')} className={`py-2 px-1 transition-colors hover:text-purple-500 ${currentView === 'conceptualiser' ? 'text-purple-500 border-b-2 border-purple-500' : ''}`}>Interactive<br/>Sandbox</button>
+               <button onClick={() => setCurrentView('theatre')} className={`py-2 px-1 transition-colors hover:text-pink-500 ${currentView === 'theatre' ? 'text-pink-500 border-b-2 border-pink-500' : ''}`}>Kortex<br/>Theatre</button>
+               <button onClick={() => setCurrentView('dojo')} className={`py-2 px-1 transition-colors hover:text-orange-500 ${currentView === 'dojo' ? 'text-orange-500 border-b-2 border-orange-500' : ''}`}>The<br/>Dojo</button>
+               <button onClick={() => setCurrentView('workbook')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'workbook' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>The<br/>Workbook</button>
+               <button onClick={() => setCurrentView('arcade')} className={`py-2 px-1 transition-colors hover:text-lime-600 ${currentView === 'arcade' ? 'text-lime-600 border-b-2 border-lime-500' : ''}`}>Kortex<br/>Arcade</button>
+            </div>
 
-          {/* RIGHT: Login/Profile & Mobile Menu */}
-          <div className="flex items-center gap-4 shrink-0">
-            {isLoggedIn ? (
-               <div className="hidden sm:flex items-center gap-3">
-                 <div className="text-right">
-                   <div className="text-sm font-bold text-slate-800 leading-none">{userName || userEmail.split('@')[0]}</div>
-                   <div className="text-xs font-bold text-sky-500 capitalize">{role}</div>
+            {/* Profile & Mobile Menu Toggle */}
+            <div className="flex items-center gap-4 shrink-0">
+              {isLoggedIn && (
+                 <div className="hidden sm:flex items-center gap-3 border-l-2 border-slate-100 pl-4 xl:pl-8">
+                   <div className="text-right">
+                     <div className="text-sm font-bold text-slate-800 leading-none">{userName || userEmail.split('@')[0]}</div>
+                     <div className="text-xs font-bold text-sky-500 capitalize">{role} {isPro ? '(Pro)' : '(Free)'}</div>
+                   </div>
+                   <div className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center text-sky-600 border-2 border-sky-200"><User size={20} /></div>
+                   <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors ml-2" title="Log Out"><LogOut size={18} /></button>
                  </div>
-                 <div className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center text-sky-600 border-2 border-sky-200"><User size={20} /></div>
-                 <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors ml-2" title="Log Out"><LogOut size={18} /></button>
-               </div>
-            ) : (
-               // UPDATED: Discreet login button for Admin/Krew only
-               <button onClick={() => setShowAuthModal(true)} className="hidden lg:flex text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-wider">
-                 Krew Login
-               </button>
-            )}
-            <button className="lg:hidden text-slate-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button>
+              )}
+              <button className="lg:hidden text-slate-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button>
+            </div>
+
           </div>
         </div>
 
@@ -3407,8 +3411,7 @@ export default function App() {
               <button onClick={() => { setCurrentView('workbook'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'workbook' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>The Workbook</button>
               <button onClick={() => { setCurrentView('arcade'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'arcade' ? 'text-lime-600 bg-lime-50' : 'hover:bg-slate-50'}`}>Kortex Arcade</button>
 
-              {!isLoggedIn && <button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-sky-500 mt-2 border-t-2 border-slate-100">Krew Login</button>}
-              {isLoggedIn && <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-red-500 mt-2 border-t-2 border-slate-100">Log Out</button>}
+              {isLoggedIn && <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-red-500 mt-2 border-t-2 border-slate-100 pt-4">Log Out</button>}
            </div>
         )}
       </nav>
