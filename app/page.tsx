@@ -859,7 +859,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
 // SECTION 8: LANDING VIEW (HOME PAGE)
 // ============================================================================
 
-const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons }: any) => {
+const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
   const [activeTierId, setActiveTierId] = useState('conceptualiser');
   const [tierData, setTierData] = useState({ conceptualiser: [], theatre: [], dojo: [], workbook: [], arcade: [] });
