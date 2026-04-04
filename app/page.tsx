@@ -14,6 +14,7 @@ import {
   CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase
 } from 'lucide-react';
 
+import { CONCEPT_REGISTRY } from '../components/conceptualiser/ConceptualiserRegistry';
 import { GAME_REGISTRY } from '../components/games/GameRegistry';
 import { QUIZ_REGISTRY } from '../components/quizzes/QuizRegistry';
 
@@ -80,6 +81,36 @@ const getSubjectFallbackImage = (subjectStr: any) => {
   // We added "(SUBJECT_IMAGES as any)" here to force TypeScript to stand down
   return (SUBJECT_IMAGES as any)[cleanSubj] || SUBJECT_IMAGES['DEFAULT'];
 };
+
+// NEW: Global 5-Tier Configuration
+export const FIVE_TIERS = [
+  { 
+    id: 'conceptualiser', label: 'Conceptualiser', desc: 'Interactive Sandbox', 
+    mainColor: 'bg-purple-500', lightColor: 'bg-purple-50', borderColor: 'border-purple-500', textColor: 'text-purple-500', 
+    icon: Lightbulb, actionText: 'View All Conceptualisers'
+  },
+  { 
+    id: 'theatre', label: 'Kortex Theatre', desc: 'Video Lessons', 
+    mainColor: 'bg-pink-500', lightColor: 'bg-pink-50', borderColor: 'border-pink-500', textColor: 'text-pink-500', 
+    icon: Video, actionText: 'View All Videos'
+  },
+  { 
+    id: 'dojo', label: 'The Dojo', desc: 'Digital Quizzes', 
+    mainColor: 'bg-orange-500', lightColor: 'bg-orange-50', borderColor: 'border-orange-500', textColor: 'text-orange-500', 
+    icon: Target, actionText: 'View All Quizzes'
+  },
+  { 
+    id: 'workbook', label: 'The Workbook', desc: 'PDFs & Guides', 
+    mainColor: 'bg-sky-500', lightColor: 'bg-sky-50', borderColor: 'border-sky-500', textColor: 'text-sky-500', 
+    icon: FileText, actionText: 'View All Worksheets'
+  },
+  { 
+    id: 'arcade', label: 'Kortex Arcade', desc: 'Conceptual Games', 
+    mainColor: 'bg-lime-500', lightColor: 'bg-lime-50', borderColor: 'border-lime-500', textColor: 'text-lime-600', 
+    icon: Gamepad2, actionText: 'View All Games'
+  }
+];
+
 
 const TRANSLATIONS = {
   en: { app_name: "Kortex Klassroom", select_role: "Select Your Role", student: "Student", teacher: "Teacher", parent: "Parent" },
@@ -562,6 +593,20 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
         }
         return <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl p-8 border-4 border-dashed border-purple-200 text-center"><h2 className="text-4xl font-black text-slate-800 mb-4">{currentItem.title}</h2><p className="text-slate-500">Quiz module under construction.</p></div>;
 
+        case 'conceptualiser':
+        const CustomConceptComponent = CONCEPT_REGISTRY[currentItem.content_url];
+        
+        if (CustomConceptComponent) {
+           // Notice the purple styling to match your 5-Tier Conceptualiser theme!
+           return <div className="w-full h-full flex flex-col items-center justify-center bg-purple-50 rounded-3xl overflow-hidden border-4 border-purple-200 shadow-2xl animate-fade-in">
+              <CustomConceptComponent onComplete={handleNext} />
+           </div>;
+        }
+        return <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl p-8 border-4 border-dashed border-purple-200 text-center">
+           <h2 className="text-4xl font-black text-slate-800 mb-4">{currentItem.title}</h2>
+           <p className="text-slate-500 font-bold">Interactive concept module coming soon.</p>
+        </div>;
+
       case 'presentation':
       case 'ppt':
       case 'pdf':
@@ -628,262 +673,124 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
 
 
 // ============================================================================
-// SECTION 5: GAMES VIEW (PUBLIC)
+// SECTION 5 & 6: TIER LIBRARY VIEW (Replaces old Games & Tools views)
 // ============================================================================
 
-const GamesView = ({ isLoggedIn, requireAuth, onStartGame }) => {
+const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool }: any) => {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [allGames, setAllGames] = useState([]);
+  const [tierItems, setTierItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchGames() {
+    async function fetchTierData() {
+      setIsLoading(true);
       try {
         const snapshot = await getDocs(collection(db, 'learning_tools'));
-        let extractedGames = [];
+        let extractedItems: any[] = [];
+        
         snapshot.docs.forEach(doc => {
           const item: any = { id: doc.id, ...doc.data() };
-          if (item.content_type?.toLowerCase() === 'game') {
-             extractedGames.push({
+          const type = item.content_type?.toLowerCase() || '';
+          
+          let belongsToTier = false;
+          if (activeTier.id === 'conceptualiser' && type === 'conceptualiser') belongsToTier = true;
+          else if (activeTier.id === 'theatre' && type === 'video') belongsToTier = true;
+          else if (activeTier.id === 'dojo' && type === 'quiz') belongsToTier = true;
+          else if (activeTier.id === 'workbook' && ['pdf', 'worksheet', 'document', 'presentation', 'ppt'].includes(type)) belongsToTier = true;
+          else if (activeTier.id === 'arcade' && type === 'game') belongsToTier = true;
+
+          if (belongsToTier) {
+             extractedItems.push({
                ...item, 
-               image: item.image || getSubjectFallbackImage(item.subject),
-               lessonContext: { chapter: item.chapter_name, book: item.book }, 
-               stepIndex: 0 // Flat structure doesn't need step indexes in the same way
-             });
-          }
-        });
-        setAllGames(extractedGames);
-      } catch (error: any) { console.error(error); } finally { setIsLoading(false); }
-    }
-    fetchGames();
-  }, []);
-
-  const filteredGames = allGames.filter(game => {
-    const matchClass = selectedClass ? game.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() : true;
-    const dbSubj = game.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : game.subject?.toLowerCase().trim();
-    const matchSubject = selectedSubject ? dbSubj === selectedSubject.toLowerCase().trim() : true;
-    const matchQuery = searchQuery ? game.title?.toLowerCase().includes(searchQuery.toLowerCase()) : true;
-    return matchClass && matchSubject && matchQuery;
-  });
-
-  const clearFilters = () => { setSelectedClass(""); setSelectedSubject(""); setSearchQuery(""); };
-  const hasActiveFilters = selectedClass || selectedSubject || searchQuery;
-
-  return (
-    <div className="space-y-12 animate-fade-in max-w-6xl mx-auto">
-      <div className="bg-gradient-to-r from-orange-400 to-pink-500 rounded-[3rem] p-10 md:p-16 text-white flex flex-col md:flex-row items-center justify-between shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full -translate-y-1/2 translate-x-1/3"></div>
-        <div className="absolute bottom-0 left-10 w-32 h-32 bg-white opacity-10 rounded-full translate-y-1/2"></div>
-        <div className="relative z-10 text-center md:text-left mb-8 md:mb-0">
-          <div className="inline-flex items-center gap-2 bg-white/20 px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-4 backdrop-blur-sm"><Gamepad2 size={16} /> Kortex Arcade</div>
-          <h1 className="text-5xl md:text-6xl font-black mb-4 leading-tight">Learn through <br/>the power of play.</h1>
-          <p className="text-lg text-orange-50 font-medium max-w-lg">Explore hundreds of interactive, curriculum-aligned games designed to make mastering new concepts incredibly fun.</p>
-        </div>
-        <div className="relative z-10 w-48 h-48 bg-white/20 rounded-[2.5rem] backdrop-blur-md border-8 border-white/30 flex items-center justify-center shadow-2xl transform rotate-3"><Gamepad2 size={80} className="text-white drop-shadow-md" /></div>
-      </div>
-
-      <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-            <select className="flex-1 md:w-40 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-pink-500 outline-none" value={selectedClass} onChange={(e: any) => setSelectedClass(e.target.value)}>
-              <option value="">All Grades</option>{GRADES.map(grade => <option key={grade} value={grade}>{grade}</option>)}
-            </select>
-            <select className="flex-1 md:w-48 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-pink-500 outline-none" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
-              <option value="">All Subjects</option>{SUBJECTS.map(subject => <option key={subject} value={subject}>{subject}</option>)}
-            </select>
-         </div>
-         <div className="relative w-full md:flex-1 flex gap-2">
-            <div className="relative flex-1">
-              <input type="text" placeholder="Search all games..." value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-3 pl-4 pr-10 font-bold text-slate-700 focus:border-pink-500 outline-none" />
-              <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
-            </div>
-            {hasActiveFilters && (<button onClick={clearFilters} className="px-4 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold rounded-xl transition-colors shrink-0 flex items-center gap-2"><X size={16} /> Clear</button>)}
-         </div>
-      </div>
-
-      <div className="pb-12">
-        <h2 className="text-2xl font-extrabold text-slate-800 mb-6">Arcade Collection</h2>
-        {isLoading ? (
-           <div className="py-20 text-center text-pink-500 font-bold animate-pulse">Loading Arcade Modules...</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredGames.length > 0 ? filteredGames.map((game, idx) => (
-               <Card key={idx} className="hover:border-pink-400 cursor-pointer group relative p-0 flex flex-col" onClick={() => {
-                   if (game.isPremium) requireAuth(() => onStartGame(game.lessonContext, game.stepIndex), "This is a Premium Game. Sign up for free to access it!");
-                   else onStartGame(game.lessonContext, game.stepIndex);
-                 }}>
-                 <div className="relative h-36 w-full bg-slate-200 overflow-hidden">
-                    <img src={game.image} alt={game.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-transparent to-transparent pointer-events-none"></div>
-                    {game.isPremium && <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm flex items-center gap-1"><Star size={10} className="fill-white" /> PRO</div>}
-                 </div>
-                 <div className="p-5 bg-white flex-1 flex flex-col">
-                   <div className="mb-2">
-                      <p className="text-[16px] font-black text-pink-600 uppercase tracking-wider line-clamp-1">{game.lessonContext?.chapter || 'Arcade Mode'}</p>
-                      {game.lessonContext?.subtopic && <p className="text-[16px] font-bold text-pink-400 mt-0.5 truncate">↳ {game.lessonContext.subtopic}</p>}
-                   </div>
-                   <h3 className="text-lg font-extrabold text-slate-800 mb-2 group-hover:text-pink-600 transition-colors leading-tight line-clamp-2">{game.title} {game.isPremium && !isLoggedIn && <Lock size={14} className="text-slate-300 inline mb-0.5 shrink-0"/>}</h3>
-                   <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mt-auto pt-3 border-t border-slate-100"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{game.grade}</span><span>•</span><span className="truncate">{game.subject}</span></div>
-                 </div>
-               </Card>
-            )) : <div className="col-span-full py-16 text-center bg-white rounded-3xl border-2 border-slate-100"><h3 className="text-xl font-bold text-slate-700">No games found</h3></div>}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-
-
-
-
-
-
-
-
-
-// ============================================================================
-// SECTION 6: TOOLS VIEW (PUBLIC)
-// ============================================================================
-
-const ToolsView = ({ isLoggedIn, requireAuth, onOpenTool }) => {
-  const [selectedClass, setSelectedClass] = useState("");
-  const [selectedSubject, setSelectedSubject] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [allTools, setAllTools] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const getIcon = (typeStr) => {
-    if (typeStr === 'Video') return Video;
-    if (typeStr === 'Game' || typeStr === 'Gamepad2') return Gamepad2;
-    if (typeStr === 'PDF' || typeStr === 'FileText' || typeStr === 'Presentation' || typeStr === 'ppt') return FileText;
-    return Layers;
-  };
-
-  useEffect(() => {
-    async function fetchTools() {
-      try {
-        const snapshot = await getDocs(collection(db, 'learning_tools'));
-        let extractedTools = [];
-        snapshot.docs.forEach(doc => {
-          const item: any = { id: doc.id, ...doc.data() };
-          if (item.content_type && item.content_type?.toLowerCase() !== 'game' && item.content_type?.toLowerCase() !== 'placeholder') {
-             extractedTools.push({
-               ...item, 
-               icon: getIcon(item.content_type), 
                image: item.image || getSubjectFallbackImage(item.subject),
                lessonContext: { chapter: item.chapter_name, book: item.book }, 
                stepIndex: 0
              });
           }
         });
-        setAllTools(extractedTools);
-      } catch (error: any) { console.error(error); } finally { setIsLoading(false); }
+        setTierItems(extractedItems);
+      } catch (error) { console.error(error); } finally { setIsLoading(false); }
     }
-    fetchTools();
-  }, []);
+    fetchTierData();
+  }, [activeTier.id]);
 
-  const filteredTools = allTools.filter(tool => {
-    const matchClass = selectedClass ? tool.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() : true;
-    const dbSubj = tool.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : tool.subject?.toLowerCase().trim();
+  const filteredItems = tierItems.filter((item: any) => {
+    const matchClass = selectedClass ? item.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() : true;
+    const dbSubj = item.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : item.subject?.toLowerCase().trim();
     const matchSubject = selectedSubject ? dbSubj === selectedSubject.toLowerCase().trim() : true;
-    const matchQuery = searchQuery ? tool.title?.toLowerCase().includes(searchQuery.toLowerCase()) : true;
+    const matchQuery = searchQuery ? item.title?.toLowerCase().includes(searchQuery.toLowerCase()) : true;
     return matchClass && matchSubject && matchQuery;
   });
 
+  const Icon = activeTier.icon;
+
   return (
     <div className="space-y-12 animate-fade-in max-w-6xl mx-auto">
-      <div className="bg-gradient-to-r from-teal-400 to-emerald-500 rounded-[3rem] p-10 md:p-16 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between">
+      {/* Dynamic Header Card */}
+      <div className={`bg-gradient-to-r from-slate-800 to-slate-900 rounded-[3rem] p-10 md:p-16 text-white flex flex-col md:flex-row items-center justify-between shadow-xl relative overflow-hidden`}>
+        <div className={`absolute top-0 right-0 w-64 h-64 ${activeTier.mainColor} opacity-20 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl`}></div>
+        <div className={`absolute bottom-0 left-10 w-32 h-32 ${activeTier.mainColor} opacity-20 rounded-full translate-y-1/2 blur-2xl`}></div>
         
-        {/* Dynamic Ambient Background Blobs */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-white opacity-10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-700 opacity-20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
-        
-        {/* Left Side: Typography & Copy */}
-        <div className="relative z-10 text-center md:text-left mb-10 md:mb-0">
-          <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-6 border border-white/30 shadow-sm">
-            <Layers size={16} /> Quick Tools
+        <div className="relative z-10 text-center md:text-left mb-8 md:mb-0">
+          <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-4 backdrop-blur-sm border border-white/20">
+             <Icon size={16} className={activeTier.textColor} /> {activeTier.label}
           </div>
-          <h1 className="text-5xl md:text-6xl font-black mb-4 leading-tight drop-shadow-sm">
-            Interactive <br/>Resources.
-          </h1>
-          <p className="text-lg text-emerald-50 font-medium max-w-lg drop-shadow-sm">
-            Bite-sized videos, worksheets, and 3D models to supplement your learning.
-          </p>
+          <h1 className="text-5xl md:text-6xl font-black mb-4 leading-tight">{activeTier.label}</h1>
+          <p className="text-lg text-slate-300 font-medium max-w-lg">{activeTier.desc}</p>
         </div>
-
-        {/* Right Side: Floating Glassmorphic Composition */}
-        <div className="relative z-10 hidden md:block mr-8">
-           <div className="relative w-48 h-48">
-              {/* Main Center Glass Box */}
-              <div className="absolute inset-0 bg-white/20 rounded-[2.5rem] backdrop-blur-md border-8 border-white/30 flex items-center justify-center shadow-2xl transform rotate-6 hover:rotate-12 transition-transform duration-500 z-10">
-                 <Layers size={80} className="text-white drop-shadow-md" />
-              </div>
-              
-              {/* Floating Video Icon */}
-              <div className="absolute -top-6 -left-6 bg-teal-400 rounded-2xl p-4 shadow-xl border-2 border-white/50 transform -rotate-12 animate-bounce z-20" style={{animationDuration: '3s'}}>
-                 <Video size={28} className="text-white" />
-              </div>
-              
-              {/* Floating Document Icon */}
-              <div className="absolute -bottom-4 -right-6 bg-emerald-400 rounded-2xl p-4 shadow-xl border-2 border-white/50 transform rotate-12 animate-bounce z-20" style={{animationDuration: '4s'}}>
-                 <FileText size={28} className="text-white" />
-              </div>
-           </div>
+        <div className={`relative z-10 w-48 h-48 bg-white/5 rounded-[2.5rem] backdrop-blur-md border-4 border-white/10 flex items-center justify-center shadow-2xl transform rotate-3`}>
+          <Icon size={80} className={`${activeTier.textColor} drop-shadow-lg`} />
         </div>
-        
       </div>
 
+      {/* Filters */}
       <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-            <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" value={selectedClass} onChange={(e: any) => setSelectedClass(e.target.value)}>
+            <select className={`flex-1 md:w-40 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:${activeTier.borderColor}`} value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}>
               <option value="">All Grades</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
-            <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
+            <select className={`flex-1 md:w-48 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:${activeTier.borderColor}`} value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}>
               <option value="">All Subjects</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
          </div>
          <div className="relative w-full md:flex-1 flex gap-2">
             <div className="relative flex-1">
-              <input type="text" placeholder="Search videos, docs..." value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 rounded-xl py-3 pl-4 pr-10 font-bold outline-none focus:border-emerald-500" />
+              <input type="text" placeholder={`Search ${activeTier.label}...`} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-3 pl-4 pr-10 font-bold text-slate-700 outline-none focus:${activeTier.borderColor}`} />
               <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
             </div>
-            {(selectedClass || selectedSubject || searchQuery) && <button onClick={() => {setSelectedClass(""); setSelectedSubject(""); setSearchQuery("");}} className="px-4 bg-slate-100 font-bold rounded-xl flex items-center gap-2"><X size={16} /> Clear</button>}
+            {(selectedClass || selectedSubject || searchQuery) && (<button onClick={() => {setSelectedClass(""); setSelectedSubject(""); setSearchQuery("");}} className="px-4 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold rounded-xl transition-colors shrink-0 flex items-center gap-2"><X size={16} /> Clear</button>)}
          </div>
       </div>
 
+      {/* Grid */}
       <div className="pb-12">
-        <h2 className="text-2xl font-extrabold text-slate-800 mb-6">Resource Library</h2>
-        {isLoading ? (<div className="py-20 text-center font-bold text-emerald-500 animate-pulse">Loading Tools...</div>) : (
+        <h2 className="text-2xl font-extrabold text-slate-800 mb-6">{activeTier.label} Collection</h2>
+        {isLoading ? (
+           <div className={`py-20 text-center ${activeTier.textColor} font-bold animate-pulse`}>Loading modules...</div>
+        ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredTools.length > 0 ? filteredTools.map((tool, idx) => {
-              const Icon = tool.icon;
-              return (
-                <Card key={idx} className="cursor-pointer group relative p-0 flex flex-col hover:border-emerald-300" onClick={() => onOpenTool(tool)}>
-                  <div className="relative h-40 w-full bg-slate-200 overflow-hidden">
-                     <img src={tool.image} alt={tool.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                     <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-transparent to-transparent"></div>
-                     <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
-                       <span className="text-xs font-bold text-slate-800 uppercase tracking-wider bg-white/90 px-3 py-1 rounded-full">{tool.type}</span>
-                       {tool.isPremium && (<div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase px-2 py-1 rounded-md"><Star size={10} className="fill-white inline" /> PRO</div>)}
-                     </div>
-                     <div className={`absolute -bottom-0 left-3 w-12 h-12 rounded-2xl ${tool.color || 'bg-sky-500'} text-white flex items-center justify-center shadow-lg border-4 border-white group-hover:-translate-y-1 transition-transform`}><Icon size={20} /></div>
-                  </div>
-                  <div className="pt-10 pb-6 px-6 bg-white flex-1 flex flex-col">
-                    <div className="mb-2">
-                       <p className="text-[16px] font-black text-emerald-600 uppercase tracking-wider line-clamp-1">{tool.lessonContext?.chapter || 'General Resource'}</p>
-                       {tool.lessonContext?.subtopic && <p className="text-[16px] font-bold text-emerald-400 mt-0.5 truncate">↳ {tool.lessonContext.subtopic}</p>}
-                    </div>
-                    <h3 className="text-xl font-extrabold text-slate-800 mb-3 group-hover:text-emerald-600 flex items-center gap-2 leading-tight line-clamp-2">{tool.title} {tool.isPremium && !isLoggedIn && <Lock size={16} className="text-slate-300 shrink-0"/>}</h3>
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mt-auto pt-4 border-t border-slate-100"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{tool.grade}</span><span>•</span><span className="truncate">{tool.subject}</span></div>
-                  </div>
-                </Card>
-              )
-            }) : (<div className="col-span-full py-16 text-center bg-white rounded-3xl border-2"><h3 className="text-xl font-bold">No tools found</h3></div>)}
+            {filteredItems.length > 0 ? filteredItems.map((item, idx) => (
+               <Card key={idx} className={`hover:${activeTier.borderColor} cursor-pointer group relative p-0 flex flex-col border-b-4 ${activeTier.borderColor}`} onClick={() => {
+                 if (item.isPremium) requireAuth(() => onOpenTool(item), `This is a Premium ${activeTier.label}. Sign up for free to access it!`);
+                 else onOpenTool(item);
+               }}>
+                 <div className="relative h-36 w-full bg-slate-200 overflow-hidden">
+                    <img src={item.image} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                    <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-transparent to-transparent pointer-events-none"></div>
+                    {item.isPremium && <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm flex items-center gap-1"><Star size={10} className="fill-white" /> PRO</div>}
+                 </div>
+                 <div className="p-5 bg-white flex-1 flex flex-col">
+                   <div className="mb-2">
+                      <p className={`text-[12px] font-black ${activeTier.textColor} uppercase tracking-wider line-clamp-1`}>{item.lessonContext?.chapter || activeTier.label}</p>
+                   </div>
+                   <h3 className={`text-lg font-extrabold text-slate-800 mb-2 group-hover:${activeTier.textColor} transition-colors leading-tight line-clamp-2`}>{item.title} {item.isPremium && !isLoggedIn && <Lock size={14} className="text-slate-300 inline mb-0.5 shrink-0"/>}</h3>
+                   <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mt-auto pt-3 border-t border-slate-100"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{item.grade}</span><span>•</span><span className="truncate">{item.subject}</span></div>
+                 </div>
+               </Card>
+            )) : <div className="col-span-full py-16 text-center bg-white rounded-3xl border-2 border-slate-100"><h3 className="text-xl font-bold text-slate-700">No content found</h3></div>}
           </div>
         )}
       </div>
@@ -1198,7 +1105,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
 // SECTION 8: LANDING VIEW (HOME PAGE)
 // ============================================================================
 
-const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, onOpenFeatured, onShowAlert, onNavigateToGames, onNavigateToLessons, onNavigateToTools }: any) => {
+const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, onOpenFeatured, onShowAlert, onNavigateToLessons, onNavigateToTier }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
   
   // State for the 5-Tier Folder UI
@@ -1402,7 +1309,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
           
           {/* NEW: Dynamic View All Button */}
           <button 
-            onClick={() => onNavigateToTools && onNavigateToTools(activeTier.id)}
+            onClick={() => onNavigateToTier && onNavigateToTier(activeTier.id)}
             className={`shrink-0 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm border-2 ${activeTier.borderColor} ${activeTier.textColor} hover:${activeTier.mainColor} hover:text-white transition-all`}
           >
             {activeTier.actionText} <ArrowRight size={16} />
@@ -3642,17 +3549,25 @@ export default function App() {
     setPlayingStep(0);
   };
 
-  const handleOpenFeatured = (item) => {
-    if (item.lessonContext && typeof item.stepIndex !== 'undefined') {
-      const action = () => { setPlayingLesson(item.lessonContext); setPlayingStep(item.stepIndex); };
-      if (item.isPremium) requireAuth(action, "This is a Premium Game. Sign up for free to access it!"); else action();
-      return;
-    }
+  const handleOpenFeatured = (item: any) => {
     const action = () => {
-      setRole('teacher'); setCurrentView('home');
-      setTargetContext({ grade: item.grade, subject: item.subject, lesson: item });
+      // Create a "Quick Play" wrapper around this single tool so the LessonPlayer can render it!
+      const playableLesson = {
+        chapter: item.chapter_name || item.lessonContext?.chapter || item.title || 'Interactive Module',
+        book: item.book || item.lessonContext?.book || 'Kortex Klassroom',
+        flow: [item] // Wrap the tool in an array to create a valid 1-item playlist
+      };
+      
+      setPlayingLesson(playableLesson);
+      setPlayingStep(0);
     };
-    if (item.isPremium) requireAuth(action, "This is a Premium Resource. Sign up for free to access it!"); else action();
+
+    // Check if it's premium content. If it is, demand login. If not, play it immediately!
+    if (item.isPremium) {
+      requireAuth(action, "This is Premium Content. Sign up or log in for free to access it!");
+    } else {
+      action();
+    }
   };
 
   const handleStartLesson = (lesson, stepIndex) => {
@@ -3671,12 +3586,32 @@ export default function App() {
   const renderContent = () => {
     if (currentView === 'games') return <GamesView isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartGame={handleStartLesson} />;
     if (currentView === 'lessons') return <LessonsView isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartLesson={handleStartLesson} />;
-    if (currentView === 'tools') return <ToolsView isLoggedIn={isLoggedIn} requireAuth={requireAuth} onOpenTool={(tool) => { setPlayingLesson(tool.lessonContext); setPlayingStep(tool.stepIndex); }} />;
+    if (currentView === 'tools') return <ToolsView isLoggedIn={isLoggedIn} requireAuth={requireAuth} onOpenTool={(tool: any) => { setPlayingLesson(tool.lessonContext); setPlayingStep(tool.stepIndex); }} />;
+    
+    // NEW: Check if the current view is one of our 5 Tiers
+    const activeTierObj = FIVE_TIERS?.find(t => t.id === currentView);
+    if (activeTierObj) {
+      // UPDATED: Now passes handleOpenFeatured to perfectly wrap and play the clicked card
+      return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onOpenTool={handleOpenFeatured} />;
+    }
+
     if (role === 'student') return <StudentView t={t} onStartLesson={handleStartLesson} currentStudent={currentStudent} isLoggedIn={isLoggedIn} requireAuth={requireAuth} />;
     if (role === 'parent') return <ParentView t={t} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartDemo={handleStartDemo} isPro={isPro} />;
     if (role === 'teacher' || role === 'krew') {return <TeacherView userName={userName} t={t} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartLesson={handleStartLesson} targetContext={targetContext} isPro={isPro} role={role} />;}
     if (role === 'admin') return <AdminView />;
-    return <LandingView setRole={setRole} setStage={setStage} requireAuth={requireAuth} onTryDemo={handleStartDemo} isLoggedIn={isLoggedIn} onOpenFeatured={handleOpenFeatured} onShowAlert={setAlertConfig} onNavigateToGames={() => setCurrentView('games')} onNavigateToLessons={() => setCurrentView('lessons')} onNavigateToTools={() => setCurrentView('tools')} />;
+    
+    // UPDATED: Now properly passing onNavigateToTier to accept the dynamic ID from the folder tabs!
+    return <LandingView 
+      setRole={setRole} 
+      setStage={setStage} 
+      requireAuth={requireAuth} 
+      onTryDemo={handleStartDemo} 
+      isLoggedIn={isLoggedIn} 
+      onOpenFeatured={handleOpenFeatured} 
+      onShowAlert={setAlertConfig} 
+      onNavigateToLessons={() => setCurrentView('lessons')} 
+      onNavigateToTier={(tierId: any) => setCurrentView(tierId)} 
+    />;
   };
 
   return (
@@ -3685,7 +3620,7 @@ export default function App() {
         <AuthModal 
           onClose={() => setShowAuthModal(false)} authMessage={authMessage} 
           onStartDemo={() => { setShowAuthModal(false); handleStartDemo(); }}
-          onStudentLogin={(studentData) => { setRole('student'); setIsLoggedIn(true); setCurrentStudent(studentData); }}
+          onStudentLogin={(studentData: any) => { setRole('student'); setIsLoggedIn(true); setCurrentStudent(studentData); }}
         />
       )}
       {alertConfig && <GeneralAlertModal {...alertConfig} onClose={() => setAlertConfig(null)} />}
@@ -3705,25 +3640,26 @@ export default function App() {
       )}
       
       <nav className="bg-white border-b-4 border-sky-500 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4 md:gap-8">
+        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
+          
+          {/* LEFT: Logo */}
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentView('home'); setStage(null); if (!isLoggedIn) setRole(null); }}>
-            <Image 
-              src="/logo.svg" 
-              alt="Kortex Klassroom Logo" 
-              width={200} 
-              height={50} 
-              priority 
-              className="h-10 w-auto rounded-xl -rotate-3" 
-            />
-            <span className="font-black text-2xl tracking-tight text-slate-800 hidden sm:block">Kortex<span className="text-sky-500"> Klassroom</span></span>
+            <Image src="/logo.svg" alt="Kortex Klassroom Logo" width={200} height={50} priority className="h-10 w-auto rounded-xl -rotate-3" />
+            <span className="font-black text-2xl tracking-tight text-slate-800 hidden xl:block">Kortex<span className="text-sky-500"> Klassroom</span></span>
           </div>
 
-          <div className="flex-1 max-w-xl mx-4 hidden lg:block relative">
-            <input type="text" placeholder="Search any game, tool, grade, subject topic etc." className="w-full bg-slate-100 border-2 border-slate-200 rounded-full py-2.5 pl-5 pr-10 font-bold text-slate-700 outline-none focus:border-sky-500 focus:bg-white transition-colors" onClick={() => alert("Global smart search coming soon! For now, click 'Games' or 'Lessons' to filter specifically.")} />
-            <Search className="absolute right-4 top-3 text-slate-400" size={18} />
+          {/* CENTER: 6 Nav Links (Wrapped in 2 lines, centered) */}
+          <div className="hidden lg:flex flex-1 justify-center items-center gap-4 xl:gap-8 font-extrabold text-slate-500 text-xs text-center leading-tight">
+             <button onClick={() => setCurrentView('lessons')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'lessons' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>All<br/>Lessons</button>
+             <button onClick={() => setCurrentView('conceptualiser')} className={`py-2 px-1 transition-colors hover:text-purple-500 ${currentView === 'conceptualiser' ? 'text-purple-500 border-b-2 border-purple-500' : ''}`}>Interactive<br/>Sandbox</button>
+             <button onClick={() => setCurrentView('theatre')} className={`py-2 px-1 transition-colors hover:text-pink-500 ${currentView === 'theatre' ? 'text-pink-500 border-b-2 border-pink-500' : ''}`}>Kortex<br/>Theatre</button>
+             <button onClick={() => setCurrentView('dojo')} className={`py-2 px-1 transition-colors hover:text-orange-500 ${currentView === 'dojo' ? 'text-orange-500 border-b-2 border-orange-500' : ''}`}>The<br/>Dojo</button>
+             <button onClick={() => setCurrentView('workbook')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'workbook' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>The<br/>Workbook</button>
+             <button onClick={() => setCurrentView('arcade')} className={`py-2 px-1 transition-colors hover:text-lime-600 ${currentView === 'arcade' ? 'text-lime-600 border-b-2 border-lime-500' : ''}`}>Kortex<br/>Arcade</button>
           </div>
 
-          <div className="flex items-center gap-4 shrink-0 ml-auto">
+          {/* RIGHT: Login/Profile & Mobile Menu */}
+          <div className="flex items-center gap-4 shrink-0">
             {isLoggedIn ? (
                <div className="hidden sm:flex items-center gap-3">
                  <div className="text-right">
@@ -3734,30 +3670,24 @@ export default function App() {
                  <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors ml-2" title="Log Out"><LogOut size={18} /></button>
                </div>
             ) : (
-               <div className="hidden lg:flex items-center gap-4 font-bold text-slate-600">
-                 <button onClick={() => setCurrentView('lessons')} className={`transition-colors ${currentView === 'lessons' ? 'text-sky-500 border-b-2 border-sky-500' : 'hover:text-sky-500'}`}>Lessons</button>
-                 <button onClick={() => setCurrentView('tools')} className={`transition-colors ${currentView === 'tools' ? 'text-sky-500 border-b-2 border-sky-500' : 'hover:text-sky-500'}`}>Learning Tools</button>
-                 <button onClick={() => setCurrentView('games')} className={`transition-colors ${currentView === 'games' ? 'text-sky-500 border-b-2 border-sky-500' : 'hover:text-sky-500'}`}>Games</button>
-                 <Button variant="outline" onClick={() => setShowAuthModal(true)} className="py-2 px-6 ml-2 text-sm border-2 shadow-none hover:-translate-y-0">Log In</Button>
-               </div>
+               <Button variant="outline" onClick={() => setShowAuthModal(true)} className="hidden lg:flex py-2 px-6 text-sm border-2 shadow-none hover:-translate-y-0">Log In</Button>
             )}
-            <button className="md:hidden text-slate-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button>
+            <button className="lg:hidden text-slate-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button>
           </div>
         </div>
 
+        {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && (
-           <div className="md:hidden bg-white border-t border-slate-100 p-4 space-y-4 absolute w-full shadow-xl">
-              <div className="flex flex-col gap-3 font-bold text-slate-700 pb-2">
-                 <div className="relative mb-2">
-                    <input type="text" placeholder="Search..." className="w-full bg-slate-100 border-2 border-slate-200 rounded-full py-2.5 pl-5 pr-10 font-bold text-slate-700 outline-none" onClick={() => alert("Global search coming soon!")} />
-                    <Search className="absolute right-4 top-3 text-slate-400" size={18} />
-                 </div>
-                 <button onClick={() => { setCurrentView('lessons'); setMobileMenuOpen(false); }} className={`text-left p-2 rounded-lg ${currentView === 'lessons' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>Lessons</button>
-                 <button onClick={() => { setCurrentView('tools'); setMobileMenuOpen(false); }} className={`text-left p-2 rounded-lg ${currentView === 'tools' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>Learning Tools</button>
-                 <button onClick={() => { setCurrentView('games'); setMobileMenuOpen(false); }} className={`text-left p-2 rounded-lg ${currentView === 'games' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>Games</button>
-                 {!isLoggedIn && <button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }} className="text-left p-2 text-sky-500 mt-2 border-t-2 border-slate-100 pt-4">Log In / Sign Up</button>}
-                 {isLoggedIn && <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="text-left p-2 text-red-500 mt-2 border-t-2 border-slate-100 pt-4">Log Out</button>}
-              </div>
+           <div className="lg:hidden bg-white border-t border-slate-100 p-4 space-y-2 absolute w-full shadow-xl font-bold text-slate-700">
+              <button onClick={() => { setCurrentView('lessons'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'lessons' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>All Lessons</button>
+              <button onClick={() => { setCurrentView('conceptualiser'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'conceptualiser' ? 'text-purple-500 bg-purple-50' : 'hover:bg-slate-50'}`}>Interactive Sandbox</button>
+              <button onClick={() => { setCurrentView('theatre'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'theatre' ? 'text-pink-500 bg-pink-50' : 'hover:bg-slate-50'}`}>Kortex Theatre</button>
+              <button onClick={() => { setCurrentView('dojo'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'dojo' ? 'text-orange-500 bg-orange-50' : 'hover:bg-slate-50'}`}>The Dojo</button>
+              <button onClick={() => { setCurrentView('workbook'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'workbook' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>The Workbook</button>
+              <button onClick={() => { setCurrentView('arcade'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'arcade' ? 'text-lime-600 bg-lime-50' : 'hover:bg-slate-50'}`}>Kortex Arcade</button>
+
+              {!isLoggedIn && <button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-sky-500 mt-2 border-t-2 border-slate-100">Log In / Sign Up</button>}
+              {isLoggedIn && <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-red-500 mt-2 border-t-2 border-slate-100">Log Out</button>}
            </div>
         )}
       </nav>
