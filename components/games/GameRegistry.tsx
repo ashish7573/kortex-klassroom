@@ -11,12 +11,11 @@ const GameLoader = () => (
 );
 
 // 1. Dynamically import the game to prevent Server-Side Rendering crashes
-const Swar1Game = dynamic(() => import('./Swar1Game'), { 
-  ssr: false, 
-  loading: () => <GameLoader /> 
-});
+const Swar1Game = dynamic(() => import('./Swar1Game'), { ssr: false, loading: () => <GameLoader /> });
+const DemoGame = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoGame), { ssr: false });
 
 // 2. Map the database URL string (content_url) to the Game Component
 export const GAME_REGISTRY = {
   '/games/swar1': Swar1Game,
+  '/demo/game': DemoGame,
 };

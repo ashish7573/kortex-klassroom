@@ -15,6 +15,7 @@ const Swar1Quiz = dynamic(() => import('./Swar1Quiz'), { ssr: false, loading: ()
 const Swar2Quiz = dynamic(() => import('./Swar2Quiz'), { ssr: false, loading: () => <QuizLoader /> });
 const Swar3Quiz = dynamic(() => import('./Swar3Quiz'), { ssr: false, loading: () => <QuizLoader /> });
 const Swar4Quiz = dynamic(() => import('./Swar4Quiz'), { ssr: false, loading: () => <QuizLoader /> });
+const DemoQuiz = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoQuiz), { ssr: false });
 
 // 2. Map the database URL string to the dynamically imported component
 export const QUIZ_REGISTRY = {
@@ -22,4 +23,5 @@ export const QUIZ_REGISTRY = {
   '/quizzes/swar2': Swar2Quiz,
   '/quizzes/swar3': Swar3Quiz,
   '/quizzes/swar4': Swar4Quiz,
+  '/demo/quiz': DemoQuiz,
 };

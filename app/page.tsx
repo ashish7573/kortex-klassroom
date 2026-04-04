@@ -189,244 +189,49 @@ const ProgressBar = ({ label, percentage, colorClass }: any) => (
   </div>
 );
 
-const AuthModal = ({ onClose, authMessage, onStartDemo, onStudentLogin }: any) => {
-  const [loginMode, setLoginMode] = useState('adult'); // 'adult' or 'student'
-  
-  // Adult State
+const AuthModal = ({ onClose, authMessage }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState(''); 
-  const [selectedRole, setSelectedRole] = useState('student'); 
-  const [isSignUp, setIsSignUp] = useState(false);
-  
-  // Student State
-  const [studentUsername, setStudentUsername] = useState('');
-  const [studentPin, setStudentPin] = useState('');
-
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleAdultAuth = async (e: any) => {
+  const handleLogin = async (e: any) => {
     e.preventDefault();
     setIsLoading(true); 
     setErrorMsg('');
-
-    // NEW: Tell the global listener to pause security checks while we log in
     sessionStorage.setItem('kortex_is_authenticating', 'true');
 
     try {
       const sessionToken = Math.random().toString(36).substring(2, 15);
       localStorage.setItem('kortex_session_token', sessionToken);
-
-      if (isSignUp) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        await setDoc(doc(db, "users", user.uid), {
-          email: user.email, role: selectedRole, full_name: fullName,
-          is_pro: false, created_at: new Date().toISOString(), session_token: sessionToken
-        });
-        
-        alert("Success! Account created.");
-        onClose();
-      } else {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        // Write the new token to the database safely
-        await updateDoc(doc(db, "users", user.uid), { session_token: sessionToken });
-        onClose();
-      }
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await updateDoc(doc(db, "users", userCredential.user.uid), { session_token: sessionToken });
+      onClose();
     } catch (error: any) { 
-      console.error("🚨 FIREBASE AUTH ERROR:", error);
-      setErrorMsg(error.message.replace('Firebase: ', '')); 
+      setErrorMsg("Invalid credentials. This portal is for authorized Krew members only."); 
     } finally { 
       setIsLoading(false); 
-      // NEW: Tell the listener it is safe to resume security checks
       sessionStorage.removeItem('kortex_is_authenticating');
-    }
-  };
-
-  const handleGoogleAuth = async () => {
-    setIsLoading(true);
-    setErrorMsg('');
-    
-    // NEW: Pause security checks for Google Auth too
-    sessionStorage.setItem('kortex_is_authenticating', 'true');
-    
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      const sessionToken = Math.random().toString(36).substring(2, 15);
-      localStorage.setItem('kortex_session_token', sessionToken);
-      
-      const userDocRef = doc(db, "users", user.uid);
-      const userProfile = await getDoc(userDocRef);
-      
-      if (!userProfile.exists()) {
-        await setDoc(userDocRef, {
-          email: user.email, role: isSignUp ? selectedRole : 'parent', 
-          full_name: user.displayName || 'Google User',
-          is_pro: false, created_at: new Date().toISOString(), session_token: sessionToken
-        });
-      } else {
-        await updateDoc(userDocRef, { session_token: sessionToken });
-      }
-      onClose();
-    } catch (error: any) {
-      console.error("🚨 GOOGLE AUTH ERROR:", error);
-      setErrorMsg(error.message.replace('Firebase: ', ''));
-    } finally {
-      setIsLoading(false);
-      // NEW: Resume security checks
-      sessionStorage.removeItem('kortex_is_authenticating');
-    }
-  };
-
-
-  const handleStudentAuth = async (e: any) => {
-    e.preventDefault();
-    setIsLoading(true); 
-    setErrorMsg('');
-
-    try {
-      const cleanUsername = studentUsername.toLowerCase().trim();
-      const studentsRef = collection(db, "managed_students");
-      const q = query(studentsRef, where("username", "==", cleanUsername), where("pin", "==", studentPin));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        const studentDoc = querySnapshot.docs[0];
-        
-        const sessionToken = Math.random().toString(36).substring(2, 15);
-        localStorage.setItem('kortex_student_session_token', sessionToken);
-        
-        // Update the student's document with the new active token
-        await updateDoc(doc(db, "managed_students", studentDoc.id), {
-           session_token: sessionToken
-        });
-
-        const studentData = { id: studentDoc.id, session_token: sessionToken, ...studentDoc.data() };
-        if (onStudentLogin) onStudentLogin(studentData); 
-        onClose();
-      } else {
-        setErrorMsg("Incorrect Username or PIN.");
-      }
-    } catch (error: any) {
-      console.error("🚨 STUDENT LOGIN ERROR:", error);
-      setErrorMsg("Error connecting to database. Please try again.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
-      <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full max-h-[95vh] shadow-2xl relative border-4 border-slate-100 flex flex-col">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2 z-10"><X size={20} /></button>
+      <div className="bg-white rounded-3xl overflow-hidden max-w-sm w-full shadow-2xl relative border-4 border-slate-100 flex flex-col p-8 text-center">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={20} /></button>
+        <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 transform -rotate-3 shadow-sm"><Lock size={32} className="text-slate-400" /></div>
+        <h2 className="text-2xl font-black text-slate-800 mb-2">Krew Login</h2>
+        <p className="text-slate-500 font-medium text-sm mb-6">Authorized content creators and administrators only.</p>
         
-        <div className="flex bg-slate-50 border-b-2 border-slate-100">
-           <button 
-             onClick={() => { setLoginMode('adult'); setErrorMsg(''); }}
-             className={`flex-1 py-4 font-black text-sm uppercase tracking-wider transition-colors ${loginMode === 'adult' ? 'bg-white text-sky-600 border-t-4 border-sky-500' : 'text-slate-400 hover:bg-slate-100 border-t-4 border-transparent'}`}
-           >
-             Parents & Teachers
-           </button>
-           <button 
-             onClick={() => { setLoginMode('student'); setErrorMsg(''); }}
-             className={`flex-1 py-4 font-black text-sm uppercase tracking-wider transition-colors ${loginMode === 'student' ? 'bg-white text-purple-600 border-t-4 border-purple-500' : 'text-slate-400 hover:bg-slate-100 border-t-4 border-transparent'}`}
-           >
-             Student Login
-           </button>
-        </div>
+        {errorMsg && <div className="mb-4 p-3 bg-red-100 text-red-600 text-sm font-bold rounded-xl animate-shake">{errorMsg}</div>}
 
-        <div className="p-8 overflow-y-auto">
-           {errorMsg && <div className="mb-4 p-3 bg-red-100 text-red-600 text-sm font-bold rounded-xl text-center animate-shake">{errorMsg}</div>}
-
-           {loginMode === 'student' && (
-              <form onSubmit={handleStudentAuth} className="space-y-4 animate-fade-in">
-                 <div className="text-center mb-6">
-                    <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-purple-50"><Users size={32} className="text-purple-500" /></div>
-                    <h2 className="text-2xl font-black text-slate-800">Welcome Back!</h2>
-                    <p className="text-slate-500 font-medium text-sm mt-1">Enter your secret details to play.</p>
-                 </div>
-                 <input 
-                   type="text" placeholder="Your Username" required value={studentUsername} onChange={(e: any) => setStudentUsername(e.target.value)}
-                   className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-purple-600 focus:border-purple-500 outline-none lowercase"
-                 />
-                 <input 
-                   type="password" placeholder="6-Digit Secret PIN" required maxLength={6} value={studentPin} onChange={(e: any) => setStudentPin(e.target.value.replace(/\D/g, ''))}
-                   className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-2xl tracking-widest text-center font-black text-slate-800 focus:border-purple-500 outline-none"
-                 />
-                 <Button type="submit" disabled={isLoading || studentPin.length !== 6 || !studentUsername} className="w-full py-4 text-lg bg-purple-500 hover:bg-purple-600 border-b-4 border-purple-700 active:border-b-0 text-white mt-2">
-                    {isLoading ? 'Checking...' : 'Start Playing!'}
-                 </Button>
-              </form>
-           )}
-
-           {loginMode === 'adult' && (
-              <div className="animate-fade-in">
-                 <div className="text-center mb-6">
-                    <div className="w-16 h-16 bg-sky-500 rounded-2xl flex items-center justify-center mx-auto mb-4 transform -rotate-3 shadow-md"><Brain size={32} className="text-white" /></div>
-                    <h2 className="text-2xl font-black text-slate-800 mb-2">{isSignUp ? 'Create Account' : 'Welcome Back'}</h2>
-                    <p className="text-slate-500 font-medium text-sm">{authMessage}</p>
-                 </div>
-
-                 <form onSubmit={handleAdultAuth} className="space-y-4">
-                    {isSignUp && (
-                      <>
-                        <input type="text" placeholder="Full Name" required value={fullName} onChange={(e: any) => setFullName(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
-                        <select value={selectedRole} onChange={(e: any) => setSelectedRole(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none">
-                          <option value="parent">I am a Parent</option>
-                          <option value="teacher">I am a Teacher</option>
-                          <option value="student">I am an Independent Student</option>
-                        </select>
-                      </>
-                    )}
-                    <input type="email" placeholder="Email Address" required value={email} onChange={(e: any) => setEmail(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
-                    <input type="password" placeholder="Password" required value={password} onChange={(e: any) => setPassword(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-sky-500 outline-none" />
-                    <button type="submit" disabled={isLoading} className="w-full bg-sky-500 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-sky-600 active:translate-y-1 transition-all flex items-center justify-center gap-2">
-                      {isLoading ? 'Please wait...' : (isSignUp ? 'Sign Up' : 'Log In')}
-                    </button>
-                    <div className="mt-4">
-                      <div className="relative flex items-center py-2">
-                        <div className="flex-grow border-t border-slate-200"></div>
-                        <span className="flex-shrink-0 mx-4 text-slate-400 text-sm font-bold">OR</span>
-                        <div className="flex-grow border-t border-slate-200"></div>
-                      </div>
-                      
-                      <button
-                        type="button"
-                        onClick={handleGoogleAuth}
-                        disabled={isLoading}
-                        className="w-full mt-2 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-3"
-                      >
-                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                        </svg>
-                        Continue with Google
-                      </button>
-                    </div>
-                 </form>
-
-                 <div className="mt-6 text-center">
-                    <button onClick={() => setIsSignUp(!isSignUp)} className="text-sky-500 font-bold hover:underline text-sm">
-                      {isSignUp ? 'Already have an account? Log In' : 'Need an account? Sign Up'}
-                    </button>
-                 </div>
-                 {!isSignUp && (
-                    <div className="mt-8 text-center border-t-2 border-slate-100 pt-6">
-                      <p className="text-sm font-bold text-slate-500 mb-3">Just looking around?</p>
-                      <Button variant="secondary" onClick={onStartDemo} className="w-full">Try a Demo Lesson</Button>
-                    </div>
-                 )}
-              </div>
-           )}
-        </div>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <input type="email" placeholder="Email Address" required value={email} onChange={(e: any) => setEmail(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-slate-400" />
+          <input type="password" placeholder="Password" required value={password} onChange={(e: any) => setPassword(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-slate-400" />
+          <button type="submit" disabled={isLoading} className="w-full bg-slate-800 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-slate-900 transition-all">
+            {isLoading ? 'Authenticating...' : 'Secure Login'}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -506,18 +311,10 @@ const getYouTubeEmbedUrl = (url) => {
 };
 
 
-const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinish, onTimeUp }) => {
-  // If a subtopic flow was specifically passed (from our isolation logic), use it. Otherwise, fallback.
-  const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap(sub => sub.tools || []) : []);
+const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
+  const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap((sub: any) => sub.tools || []) : []);
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
   const currentItem = playlist[currentStep];
-
-  useEffect(() => {
-    if (!isLoggedIn) {
-      const timer = setTimeout(() => { if (onTimeUp) onTimeUp(); }, 120000); 
-      return () => clearTimeout(timer);
-    }
-  }, [isLoggedIn, onTimeUp]);
 
   if (!currentItem) {
      return (
@@ -533,32 +330,12 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
   const progressPercentage = ((currentStep + 1) / playlist.length) * 100;
   const isLastStep = currentStep === playlist.length - 1;
 
-  const handleNext = () => { if (isLastStep) onFinish(); else setCurrentStep(prev => prev + 1); };
-  const handlePrev = () => { if (currentStep > 0) setCurrentStep(prev => prev - 1); };
+  const handleNext = () => { if (isLastStep) onFinish(); else setCurrentStep((prev: any) => prev + 1); };
+  const handlePrev = () => { if (currentStep > 0) setCurrentStep((prev: any) => prev - 1); };
 
   const renderContent = () => {
-    // 1. Premium Content Lock (Keep this, it's great!)
-    if (currentItem.isPremium && !isPro) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full text-center p-8 w-full max-w-2xl mx-auto">
-          <div className="bg-slate-900 rounded-[3rem] p-12 border border-slate-800 shadow-2xl relative overflow-hidden w-full">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500 opacity-5 rounded-full blur-3xl"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-rose-500 opacity-5 rounded-full blur-3xl"></div>
-            <div className="relative z-10">
-              <div className="w-24 h-24 bg-gradient-to-br from-amber-400 to-orange-500 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-lg transform rotate-3 border-4 border-slate-800"><Lock size={40} className="text-white" /></div>
-              <h2 className="text-4xl font-black text-white mb-4">Pro Content Locked</h2>
-              <p className="text-slate-400 mb-8 text-lg font-medium">This is an advanced interactive module. Upgrade your account to unlock.</p>
-              <Button className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-white px-8 py-4 text-lg border-none shadow-xl" onClick={() => alert("Upgrade coming soon")}><Star className="fill-white mr-2" size={20}/> Upgrade to Pro</Button>
-              <button onClick={onClose} className="mt-6 text-slate-500 font-bold hover:text-white transition-colors">Return to Dashboard</button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // 2. The Smart Content Router
+    // 100% Frictionless: Premium checks removed. Everything plays!
     switch (currentItem.content_type?.toLowerCase() || currentItem.type?.toLowerCase()) {
-      
       case 'video':
         return (
           <div className="w-full h-full flex flex-col items-center justify-center bg-black">
@@ -576,53 +353,39 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
         );
 
       case 'game':
-        // NEW: Look up the game using the exact content_url from Firebase (e.g. '/games/swar1')
-        const CustomGameComponent = GAME_REGISTRY[currentItem.content_url];
-        
+        const CustomGameComponent = GAME_REGISTRY[currentItem.content_url as keyof typeof GAME_REGISTRY];
         if (CustomGameComponent) {
            return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded-3xl overflow-y-auto border-4 border-slate-800 shadow-2xl animate-fade-in"><CustomGameComponent onComplete={handleNext} /></div>;
         }
         return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 border-4 border-dashed border-slate-800 rounded-3xl p-8 text-center max-w-3xl mx-auto"><h2 className="text-4xl font-black text-white mb-4">{currentItem.title}</h2><p className="text-slate-500">Game module under construction.</p></div>;
 
       case 'quiz':
-        // NEW: Look up the quiz using the exact content_url from Firebase (e.g. '/quizzes/swar1')
-        const CustomQuizComponent = QUIZ_REGISTRY[currentItem.content_url];
-        
+        const CustomQuizComponent = QUIZ_REGISTRY[currentItem.content_url as keyof typeof QUIZ_REGISTRY];
         if (CustomQuizComponent) {
            return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl overflow-y-auto border-4 border-slate-200 shadow-2xl animate-fade-in"><CustomQuizComponent onComplete={handleNext} /></div>;
         }
         return <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl p-8 border-4 border-dashed border-purple-200 text-center"><h2 className="text-4xl font-black text-slate-800 mb-4">{currentItem.title}</h2><p className="text-slate-500">Quiz module under construction.</p></div>;
 
-        case 'conceptualiser':
-        const CustomConceptComponent = CONCEPT_REGISTRY[currentItem.content_url];
-        
+      case 'conceptualiser':
+        const CustomConceptComponent = CONCEPT_REGISTRY[currentItem.content_url as keyof typeof CONCEPT_REGISTRY];
         if (CustomConceptComponent) {
-           // Notice the purple styling to match your 5-Tier Conceptualiser theme!
-           return <div className="w-full h-full flex flex-col items-center justify-center bg-purple-50 rounded-3xl overflow-hidden border-4 border-purple-200 shadow-2xl animate-fade-in">
-              <CustomConceptComponent onComplete={handleNext} />
-           </div>;
+           return <div className="w-full h-full flex flex-col items-center justify-center bg-purple-50 rounded-3xl overflow-hidden border-4 border-purple-200 shadow-2xl animate-fade-in"><CustomConceptComponent onComplete={handleNext} /></div>;
         }
-        return <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl p-8 border-4 border-dashed border-purple-200 text-center">
-           <h2 className="text-4xl font-black text-slate-800 mb-4">{currentItem.title}</h2>
-           <p className="text-slate-500 font-bold">Interactive concept module coming soon.</p>
-        </div>;
+        return <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl p-8 border-4 border-dashed border-purple-200 text-center"><h2 className="text-4xl font-black text-slate-800 mb-4">{currentItem.title}</h2><p className="text-slate-500 font-bold">Interactive concept module coming soon.</p></div>;
 
       case 'presentation':
       case 'ppt':
       case 'pdf':
         let docUrl = currentItem.content_url || '';
-        
-        // Auto-format Canva links for secure embedding
         if (docUrl.includes('canva.com') && !docUrl.includes('embed')) {
             docUrl = docUrl.split('?')[0].replace(/\/view.*$/, '') + '/view?embed';
         }
-
         return (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 rounded-2xl overflow-hidden text-slate-800 relative shadow-2xl">
              {docUrl && (
                <div className="absolute top-0 left-0 right-0 bg-white p-4 border-b border-slate-200 flex justify-between items-center z-10 shadow-sm">
                  <div className="flex items-center gap-3 font-extrabold text-slate-700"><FileText className="text-rose-500" size={20} />{currentItem.title}</div>
-                 <Button variant="secondary" className="py-2 px-4 text-sm border-2 border-slate-200 shadow-sm hover:border-sky-500 hover:text-sky-600" onClick={() => { if (isPro) window.open(docUrl, '_blank'); else alert("Pro feature"); }}>Open Document</Button>
+                 <Button variant="secondary" className="py-2 px-4 text-sm border-2 border-slate-200 shadow-sm hover:border-sky-500 hover:text-sky-600" onClick={() => window.open(docUrl, '_blank')}>Open Document</Button>
                </div>
              )}
              {docUrl ? <iframe className="w-full h-full bg-white pt-[72px]" src={docUrl} allowFullScreen></iframe> : <div className="flex flex-col items-center p-8 text-center bg-white w-full h-full justify-center">Document Ready</div>}
@@ -648,7 +411,7 @@ const LessonPlayer = ({ lesson, initialStep, isPro, isLoggedIn, onClose, onFinis
           <div className="flex justify-between items-end mb-1.5"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Module Progress</span><span className="text-xs font-black text-sky-400">{currentStep + 1} / {playlist.length}</span></div>
           <div className="h-2 bg-slate-800 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div></div>
         </div>
-        <div className="bg-slate-800 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 border border-slate-700">{currentItem.type?.toUpperCase()} {currentItem.isPremium && <Star size={14} className="text-amber-400 fill-amber-400" />}</div>
+        <div className="bg-slate-800 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 border border-slate-700">{currentItem.type?.toUpperCase()}</div>
       </div>
       <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-2 md:p-8 flex items-center justify-center">
          {renderContent()}
@@ -921,45 +684,36 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
     <div className="space-y-12 animate-fade-in max-w-6xl mx-auto">
       {!activeLesson ? (
         <>
-          <div className="bg-gradient-to-r from-sky-400 to-indigo-500 rounded-[3rem] p-10 md:p-16 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between">
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-[3rem] p-10 md:p-16 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between border-t-8 border-sky-500">
             
-            {/* Dynamic Ambient Background Blobs */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-white opacity-10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-700 opacity-20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500 opacity-10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500 opacity-10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
             
-            {/* Left Side: Typography & Copy */}
             <div className="relative z-10 text-center md:text-left mb-10 md:mb-0">
-              <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-6 border border-white/30 shadow-sm">
-                <BookOpen size={16} /> Kortex Curriculum
+              <div className="inline-flex items-center gap-2 bg-sky-500/20 backdrop-blur-md px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-6 border border-sky-500/30 shadow-sm text-sky-400">
+                <BookOpen size={16} /> Kortex Master Curriculum
               </div>
-              <h1 className="text-5xl md:text-6xl font-black mb-4 leading-tight drop-shadow-sm">
-                Master every <br/>concept.
+              <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight drop-shadow-sm">
+                Systematic.<br/>Structured.<br/><span className="text-sky-400">Simple.</span>
               </h1>
-              <p className="text-lg text-sky-50 font-medium max-w-lg drop-shadow-sm">
-                Complete learning pathways mapped to the NCF, featuring Interactive Videos, PDFs, Quizzes and Games.
+              <p className="text-lg text-slate-300 font-medium max-w-xl drop-shadow-sm leading-relaxed">
+                We believe true mastery doesn't happen by playing random games. It happens through carefully sequenced, NCF-aligned learning pathways. Select your grade and subject below to explore our structured curriculum.
               </p>
             </div>
 
-            {/* Right Side: Floating Glassmorphic Composition */}
             <div className="relative z-10 hidden md:block mr-8">
-               <div className="relative w-48 h-48">
-                  {/* Main Center Glass Box */}
-                  <div className="absolute inset-0 bg-white/20 rounded-[2.5rem] backdrop-blur-md border-8 border-white/30 flex items-center justify-center shadow-2xl transform -rotate-3 hover:rotate-3 transition-transform duration-500 z-10">
-                     <BookOpen size={80} className="text-white drop-shadow-md" />
+               <div className="relative w-56 h-56">
+                  <div className="absolute inset-0 bg-white/5 rounded-[2.5rem] backdrop-blur-md border-4 border-white/10 flex items-center justify-center shadow-2xl transform -rotate-3 hover:rotate-3 transition-transform duration-500 z-10">
+                     <Layers size={90} className="text-sky-400 drop-shadow-md" />
                   </div>
-                  
-                  {/* Floating Quiz/Game Icon */}
-                  <div className="absolute -top-6 -right-6 bg-sky-400 rounded-2xl p-4 shadow-xl border-2 border-white/50 transform rotate-12 animate-bounce z-20" style={{animationDuration: '3.5s'}}>
-                     <Gamepad2 size={28} className="text-white" />
+                  <div className="absolute -top-6 -right-6 bg-slate-800 rounded-2xl p-4 shadow-xl border-2 border-slate-700 transform rotate-12 animate-bounce z-20" style={{animationDuration: '3.5s'}}>
+                     <Gamepad2 size={28} className="text-lime-400" />
                   </div>
-                  
-                  {/* Floating Video Icon */}
-                  <div className="absolute -bottom-4 -left-6 bg-indigo-400 rounded-2xl p-4 shadow-xl border-2 border-white/50 transform -rotate-6 animate-bounce z-20" style={{animationDuration: '4.2s'}}>
-                     <Video size={28} className="text-white" />
+                  <div className="absolute -bottom-4 -left-6 bg-slate-800 rounded-2xl p-4 shadow-xl border-2 border-slate-700 transform -rotate-6 animate-bounce z-20" style={{animationDuration: '4.2s'}}>
+                     <Video size={28} className="text-pink-400" />
                   </div>
                </div>
             </div>
-            
           </div>
 
           <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
@@ -1105,65 +859,25 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
 // SECTION 8: LANDING VIEW (HOME PAGE)
 // ============================================================================
 
-const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, onOpenFeatured, onShowAlert, onNavigateToLessons, onNavigateToTier }: any) => {
+const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
-  
-  // State for the 5-Tier Folder UI
   const [activeTierId, setActiveTierId] = useState('conceptualiser');
-  
-  // NEW: Centralized Firebase State for all 5 Tiers
-  const [tierData, setTierData] = useState({
-    conceptualiser: [],
-    theatre: [],
-    dojo: [],
-    workbook: [],
-    arcade: []
-  });
+  const [tierData, setTierData] = useState({ conceptualiser: [], theatre: [], dojo: [], workbook: [], arcade: [] });
   const [isLoadingTiers, setIsLoadingTiers] = useState(true);
 
+  // UPDATED: Highlighting the 5-Tier, Curriculum, and Frictionless approach!
   const USPS = [
-    { icon: Brain, title: "NEP & NCF Aligned", desc: "Engineered to target the specific competencies written in NEP and NCF.", color: "text-sky-500", bg: "bg-sky-100", shadow: "shadow-sky-200/50" },
-    { icon: Layers, title: "Systematic Progression", desc: "Pedagogically correct and beautifully sequenced learning pathways.", color: "text-orange-500", bg: "bg-orange-100", shadow: "shadow-orange-200/50" },
-    { icon: User, title: "Individualised Learning", desc: "Adapts perfectly to every student's unique pace and style.", color: "text-lime-600", bg: "bg-lime-100", shadow: "shadow-lime-200/50" },
-    { icon: Star, title: "Quality Guaranteed", desc: "Quality education and foundational excellence for all guaranteed.", color: "text-pink-500", bg: "bg-pink-100", shadow: "shadow-pink-200/50" },
-    { icon: BarChart, title: "AI Powered Analytics", desc: "Actionable AI analytics and personalized suggested feedbacks.", color: "text-purple-500", bg: "bg-purple-100", shadow: "shadow-purple-200/50" }
+    { icon: Layers, title: "The 5-Tier Loop", desc: "Master concepts through a proven cycle: Sandbox ➔ Video ➔ Quiz ➔ PDF ➔ Game.", color: "text-purple-500", bg: "bg-purple-100", shadow: "shadow-purple-200/50" },
+    { icon: BookOpen, title: "Structured Curriculum", desc: "Not just a random arcade. Every tool is perfectly mapped to chapter-wise progressions.", color: "text-sky-500", bg: "bg-sky-100", shadow: "shadow-sky-200/50" },
+    { icon: Zap, title: "Frictionless Access", desc: "Zero paywalls. Zero sign-ups. Click, play, and learn instantly across all devices.", color: "text-orange-500", bg: "bg-orange-100", shadow: "shadow-orange-200/50" },
+    { icon: Brain, title: "NEP 2020 Aligned", desc: "Meticulously engineered by experts to target foundational and preparatory competencies.", color: "text-emerald-500", bg: "bg-emerald-100", shadow: "shadow-emerald-200/50" }
   ];
 
-  const FIVE_TIERS = [
-    { 
-      id: 'conceptualiser', label: 'Conceptualiser', desc: 'Interactive Sandbox', 
-      mainColor: 'bg-purple-500', lightColor: 'bg-purple-50', borderColor: 'border-purple-500', textColor: 'text-purple-500', 
-      icon: Lightbulb, actionText: 'View All Tools'
-    },
-    { 
-      id: 'theatre', label: 'Kortex Theatre', desc: 'Video Lessons', 
-      mainColor: 'bg-pink-500', lightColor: 'bg-pink-50', borderColor: 'border-pink-500', textColor: 'text-pink-500', 
-      icon: Video, actionText: 'View All Videos'
-    },
-    { 
-      id: 'dojo', label: 'The Dojo', desc: 'Digital Quizzes', 
-      mainColor: 'bg-orange-500', lightColor: 'bg-orange-50', borderColor: 'border-orange-500', textColor: 'text-orange-500', 
-      icon: Target, actionText: 'View All Quizzes'
-    },
-    { 
-      id: 'workbook', label: 'The Workbook', desc: 'PDFs & Guides', 
-      mainColor: 'bg-sky-500', lightColor: 'bg-sky-50', borderColor: 'border-sky-500', textColor: 'text-sky-500', 
-      icon: FileText, actionText: 'View All Worksheets'
-    },
-    { 
-      id: 'arcade', label: 'Kortex Arcade', desc: 'Conceptual Games', 
-      mainColor: 'bg-lime-500', lightColor: 'bg-lime-50', borderColor: 'border-lime-500', textColor: 'text-lime-600', 
-      icon: Gamepad2, actionText: 'View All Games'
-    }
-  ];
-
-  // Rotate USPs
   useEffect(() => {
     const interval = setInterval(() => { setActiveUsp((prev) => (prev + 1) % USPS.length); }, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  // NEW: Fetch all featured tools and categorize them into the 5 tiers
   useEffect(() => {
     async function fetchTierData() {
       setIsLoadingTiers(true);
@@ -1171,33 +885,19 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
         const q = query(collection(db, 'learning_tools'), where('is_featured', '==', true), limit(50));
         const snapshot = await getDocs(q);
         const items = snapshot.docs.map((d: any) => ({id: d.id, ...d.data()}));
-
-        const categorized: any = {
-          conceptualiser: [],
-          theatre: [],
-          dojo: [],
-          workbook: [],
-          arcade: []
-        };
+        const categorized: any = { conceptualiser: [], theatre: [], dojo: [], workbook: [], arcade: [] };
 
         items.forEach((item: any) => {
           const type = item.content_type?.toLowerCase();
-          // Map database content types to your 5 tiers
           if (type === 'video') categorized.theatre.push(item);
           else if (type === 'quiz') categorized.dojo.push(item);
           else if (type === 'pdf' || type === 'worksheet' || type === 'document') categorized.workbook.push(item);
           else if (type === 'game') categorized.arcade.push(item);
           else if (type === 'conceptualiser') categorized.conceptualiser.push(item);
         });
-
         setTierData(categorized);
-      } catch (error) {
-        console.error("Error fetching tier data:", error);
-      } finally {
-        setIsLoadingTiers(false);
-      }
+      } catch (error) { console.error(error); } finally { setIsLoadingTiers(false); }
     }
-    
     fetchTierData();
   }, []);
 
@@ -1205,9 +905,9 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
   const activeItems = tierData[activeTierId as keyof typeof tierData] || [];
 
   return (
-  <div className="min-h-screen bg-slate-50 flex flex-col animate-fade-in relative">
+  <div className="min-h-screen bg-slate-50 flex flex-col animate-fade-in relative overflow-x-hidden">
     
-    {/* Hero Section */}
+    {/* HERO SECTION */}
     <div className="bg-sky-50 pt-16 pb-32 px-4 relative overflow-hidden">
       <div className="absolute top-10 left-10 w-20 h-20 bg-orange-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
       <div className="absolute top-0 right-20 w-32 h-32 bg-lime-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
@@ -1215,17 +915,22 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center relative z-10">
         <div className="space-y-6 text-center md:text-left">
-          <h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 leading-tight tracking-tight">Smarter tools <br/><span className="text-sky-500">Stronger Minds.</span></h1>
-          <p className="text-xl text-slate-600 font-medium max-w-lg mx-auto md:mx-0">India's first NEP 2020 aligned platform. Thousands of interactive games and lesson plans from Balvatika to Grade 8.</p>
+          <div className="inline-flex items-center gap-2 bg-sky-100 text-sky-700 px-4 py-2 rounded-full font-bold text-sm uppercase tracking-wider mb-2 border border-sky-200">
+             <Globe size={16} /> 100% Free & Open Access
+          </div>
+          {/* UPDATED: Headline & Subheadline */}
+          <h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 leading-tight tracking-tight">Smarter Tools,<br/><span className="text-sky-500">Stronger Minds.</span></h1>
+          <p className="text-xl text-slate-600 font-medium max-w-lg mx-auto md:mx-0">Go beyond random videos. Explore a perfectly sequenced curriculum of Interactive Sandboxes, Quizzes, and Games mapped to your exact syllabus.</p>
+          
           <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start pt-4">
-            <Button variant="primary" className="text-lg px-8 py-4 w-full sm:w-auto" onClick={() => requireAuth(() => {setRole('student'); setStage('foundational');}, "Create a free account to track your progress and unlock all games!")}>Sign Up for Free</Button>
-            <Button variant="secondary" className="text-lg px-8 py-4 w-full sm:w-auto border-2 border-slate-300" onClick={onTryDemo}>Try Demo Lesson</Button>
+            <Button variant="primary" className="text-lg px-8 py-4 w-full sm:w-auto shadow-sky-500/30" onClick={() => document.getElementById('five-tiers')?.scrollIntoView({behavior: 'smooth'})}>Explore 5-Tier System</Button>
+            <Button variant="secondary" className="text-lg px-8 py-4 w-full sm:w-auto border-2 border-slate-300" onClick={onTryDemo}>Play Master Demo</Button>
           </div>
         </div>
         <div className="hidden md:flex justify-center items-center relative h-[450px] w-full z-10">
            {USPS.map((usp: any, idx: any) => {
               let diff = idx - activeUsp;
-              if (diff < -2) diff += 5; if (diff > 2) diff -= 5;
+              if (diff < -2) diff += 4; if (diff > 2) diff -= 4;
               const isCenter = diff === 0; const isNext = diff === 1; const isPrev = diff === -1;
               let transform = 'translateX(0) scale(0.4)'; let opacity = '0'; let zIndex = 10; let blur = 'blur(8px)';
               if (isCenter) { transform = 'translateX(0) scale(1.05)'; opacity = '1'; zIndex = 30; blur = 'blur(0px)'; } 
@@ -1245,133 +950,128 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
 
     {/* Marquee */}
     <div className="w-full bg-white border-y-4 border-slate-100 py-4 overflow-hidden relative flex items-center z-30 shadow-sm">
-      <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
-      <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
       <div className="flex animate-marquee w-max hover:[animation-play-state:paused]">
         {[...SUBJECTS, ...SUBJECTS, ...SUBJECTS].map((subject: any, idx: any) => {
           const subjectData = SUBJECT_ICONS[subject] || { icon: Star, color: 'text-slate-400' };
           const Icon = subjectData.icon;
-          return (<div key={idx} className="mx-3 px-5 py-2 bg-slate-50 border-2 border-slate-200 rounded-full font-black text-slate-500 text-xs uppercase tracking-wider flex-shrink-0 flex items-center gap-2 hover:border-sky-400 hover:text-sky-500 hover:bg-sky-50 transition-colors cursor-default shadow-sm group"><Icon size={16} className={`${subjectData.color} transition-transform group-hover:scale-125`} />{subject}</div>);
+          return (<div key={idx} className="mx-3 px-5 py-2 bg-slate-50 border-2 border-slate-200 rounded-full font-black text-slate-500 text-xs uppercase tracking-wider flex-shrink-0 flex items-center gap-2 cursor-default shadow-sm"><Icon size={16} className={subjectData.color} />{subject}</div>);
         })}
       </div>
     </div>
 
-    {/* THE 5-TIER LEARNING LOOP (FOLDER UI) */}
-    <div className="max-w-6xl mx-auto px-4 pt-24 pb-12 w-full relative z-20">
-      <div className="text-center mb-10">
-        <h2 className="text-3xl md:text-5xl font-extrabold text-slate-800 mb-4">
-          The <span className="text-sky-500">5-Tier</span> Learning Loop
-        </h2>
-        <p className="text-center text-slate-500 font-bold max-w-2xl mx-auto text-lg">A complete, systematic ecosystem bridging digital interactivity with physical classroom practice.</p>
+    {/* THE 5-TIER LEARNING LOOP */}
+    <div id="five-tiers" className="max-w-[90rem] mx-auto px-4 pt-24 pb-12 w-full relative z-20 scroll-mt-20">
+      
+      {/* Upgraded Header */}
+      <div className="text-center mb-12">
+        <div className="inline-flex items-center gap-2 bg-sky-100 text-sky-700 px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-4 border border-sky-200 shadow-sm">
+          <Layers size={16} /> Pedagogical Framework
+        </div>
+        <h2 className="text-4xl md:text-5xl font-black text-slate-800 mb-6 leading-tight">The <span className="text-sky-500">5-Tier</span> Learning Loop</h2>
+        <p className="text-center text-slate-500 font-medium max-w-2xl mx-auto text-lg">A complete, systematic ecosystem bridging digital interactivity with physical classroom practice.</p>
       </div>
 
-      {/* Folder Tabs */}
-      <div className="flex w-full items-end px-1 sm:px-4 pt-4">
+      {/* Upgraded Tabs: Floating Pill Navigation */}
+      <div className="flex flex-wrap justify-center gap-2 md:gap-3 lg:gap-4 mb-10 max-w-7xl mx-auto px-2">
         {FIVE_TIERS.map(tier => {
           const isActive = activeTierId === tier.id;
           const Icon = tier.icon;
           return (
-            <button
-              key={tier.id}
-              onClick={() => setActiveTierId(tier.id)}
-              className={`
-                relative flex-1 py-2 px-1 md:px-4 md:py-4 rounded-t-xl md:rounded-t-3xl transition-all duration-300 flex flex-col lg:flex-row items-center justify-center gap-1 md:gap-2 border-t-2 border-x-2 md:border-t-4 md:border-x-4 text-center lg:text-left
-                ${isActive
-                  ? `${tier.mainColor} border-transparent text-white shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-20 scale-[1.02] md:scale-105 origin-bottom translate-y-[2px] md:translate-y-[4px]` 
-                  : `bg-slate-100 border-slate-200 border-b-0 text-slate-500 hover:bg-slate-200 z-10 translate-y-[2px] md:translate-y-[4px]`
-                }
-              `}
+            <button 
+              key={tier.id} 
+              onClick={() => setActiveTierId(tier.id)} 
+              className={`relative px-4 py-2.5 md:px-5 md:py-3 lg:px-6 lg:py-4 rounded-2xl md:rounded-[2rem] transition-all duration-300 flex items-center gap-2 md:gap-3 font-bold text-sm lg:text-base border-2 shadow-sm whitespace-nowrap
+                ${isActive 
+                  ? `${tier.mainColor} border-transparent text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] scale-105 z-10` 
+                  : `bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:border-slate-300 hover:scale-105`
+                }`}
             >
-              <Icon size={18} className={`shrink-0 sm:w-5 sm:h-5 md:w-6 md:h-6 ${isActive ? 'text-white' : tier.textColor}`} />
-              <div className="w-full overflow-hidden">
-                <div className={`font-black text-[9px] sm:text-[11px] md:text-sm lg:text-base leading-tight truncate ${isActive ? 'text-white' : 'text-slate-700'}`}>
-                  {tier.label}
-                </div>
-                <div className={`hidden lg:block text-xs font-bold truncate ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
-                  {tier.desc}
-                </div>
-              </div>
+              <Icon size={20} className={isActive ? 'text-white' : tier.textColor} />
+              <span className="hidden sm:block">{tier.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Folder Body (Content Area) */}
-      {/* UPDATE: Changed 'rounded-b-3xl rounded-tr-3xl' to 'rounded-3xl' so all 4 corners are curved */}
-      <div className={`w-full rounded-3xl border-4 shadow-xl p-4 sm:p-6 md:p-10 transition-colors duration-500 relative z-30 bg-white ${activeTier.borderColor}`}>
+      {/* Upgraded Content Area: Soft Glassmorphic Container */}
+      <div className={`w-full max-w-7xl mx-auto rounded-[3rem] p-6 md:p-10 lg:p-12 transition-colors duration-700 relative z-30 ${activeTier.lightColor} border-4 border-white shadow-xl`}>
         
         {/* Dynamic Header & View All Button */}
-        <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/60 backdrop-blur-md p-6 rounded-[2rem] border border-white shadow-sm">
           <div>
-            <h3 className={`text-xl md:text-3xl font-black ${activeTier.textColor}`}>Explore {activeTier.label}</h3>
-            <p className="text-sm md:text-base text-slate-500 font-bold mt-1">Swipe to see examples of our {activeTier.desc.toLowerCase()}.</p>
+            <h3 className={`text-2xl md:text-3xl font-black ${activeTier.textColor} flex items-center gap-3`}>
+               <activeTier.icon size={28} /> {activeTier.label}
+            </h3>
+            <p className="text-slate-600 font-medium mt-2 leading-relaxed">{activeTier.desc}. Swipe to explore featured modules.</p>
           </div>
           
-          {/* NEW: Dynamic View All Button */}
           <button 
             onClick={() => onNavigateToTier && onNavigateToTier(activeTier.id)}
-            className={`shrink-0 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm border-2 ${activeTier.borderColor} ${activeTier.textColor} hover:${activeTier.mainColor} hover:text-white transition-all`}
+            className={`shrink-0 flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-black text-sm border-2 ${activeTier.borderColor} ${activeTier.textColor} hover:${activeTier.mainColor} hover:text-white transition-all bg-white shadow-sm`}
           >
-            {activeTier.actionText} <ArrowRight size={16} />
+            {activeTier.actionText} <ArrowRight size={18} />
           </button>
         </div>
 
         {/* Database Driven Cards */}
-        <div className="flex overflow-x-auto gap-4 sm:gap-6 pb-6 snap-x hide-scrollbar">
-          
+        <div className="flex overflow-x-auto gap-6 pb-8 pt-4 snap-x hide-scrollbar px-2 -mx-2">
           {isLoadingTiers ? (
-            <div className="w-full text-center py-12 text-slate-400 font-bold animate-pulse">Loading {activeTier.label} tools...</div>
+            <div className="w-full text-center py-16 text-slate-500 font-bold animate-pulse">Loading {activeTier.label} tools...</div>
           ) : activeItems.length > 0 ? (
             activeItems.map((item: any) => (
               <Card 
                 key={item.id} 
-                className={`min-w-[200px] sm:min-w-[240px] lg:min-w-[260px] snap-start flex-shrink-0 cursor-pointer p-0 flex flex-col border-b-8 ${activeTier.borderColor} bg-white overflow-hidden hover:-translate-y-2 transition-transform shadow-md group`}
+                className={`min-w-[280px] sm:min-w-[320px] snap-start flex-shrink-0 cursor-pointer p-0 flex flex-col bg-white overflow-hidden hover:-translate-y-3 transition-all duration-300 shadow-lg hover:shadow-2xl group border-none ring-4 ring-transparent hover:ring-${activeTier.mainColor.replace('bg-', '')}/30`} 
                 onClick={() => onOpenFeatured(item)}
               >
                 {/* Image Area */}
-                <div className={`h-32 sm:h-40 w-full ${activeTier.lightColor} relative flex items-center justify-center overflow-hidden`}>
+                <div className={`h-40 sm:h-48 w-full ${activeTier.lightColor} relative flex items-center justify-center overflow-hidden`}>
                   {item.image ? (
                      <img src={item.image} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                   ) : (
-                     <activeTier.icon size={60} className={`sm:w-20 sm:h-20 ${activeTier.textColor} opacity-20 transform group-hover:scale-110 transition-transform duration-500`} />
+                     <activeTier.icon size={80} className={`${activeTier.textColor} opacity-20 transform group-hover:scale-110 transition-transform duration-500`} />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-transparent to-transparent pointer-events-none"></div>
-                  <div className={`absolute top-3 left-3 sm:top-4 sm:left-4 ${activeTier.mainColor} text-white text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2 py-1 sm:px-3 sm:py-1 rounded-full shadow-sm`}>
-                    {activeTier.label}
+                  <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 via-transparent to-transparent pointer-events-none"></div>
+                  
+                  {/* Dynamic Badge */}
+                  <div className={`absolute top-4 left-4 ${activeTier.mainColor} text-white text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-md flex items-center gap-1.5`}>
+                    <activeTier.icon size={14} /> {activeTier.label}
                   </div>
+
+                  {item.isPremium && <div className="absolute top-4 right-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm flex items-center gap-1"><Star size={10} className="fill-white" /> PRO</div>}
                 </div>
                 
                 {/* Details Area */}
-                <div className="p-4 sm:p-6 flex-1 flex flex-col">
-                  <div className="mb-2">
-                     <p className={`text-[10px] sm:text-xs font-black ${activeTier.textColor} uppercase tracking-wider line-clamp-1`}>{item.lessonContext?.chapter || item.subject || 'Resource'}</p>
+                <div className="p-6 flex-1 flex flex-col">
+                  <div className="mb-3">
+                     <p className={`text-xs font-black ${activeTier.textColor} uppercase tracking-wider line-clamp-1`}>{item.lessonContext?.chapter || item.subject || 'Resource'}</p>
                   </div>
-                  <h3 className="text-sm sm:text-lg lg:text-xl font-extrabold text-slate-800 mb-2 leading-tight line-clamp-2">{item.title}</h3>
+                  <h3 className="text-lg sm:text-xl font-extrabold text-slate-800 mb-4 leading-tight line-clamp-2 group-hover:text-slate-900">{item.title}</h3>
                   
-                  <div className="mt-auto pt-4 flex justify-between items-center border-t border-slate-50">
-                    <div className="flex items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500">
-                      <span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{item.grade}</span>
+                  <div className="mt-auto pt-5 flex justify-between items-center border-t-2 border-slate-50">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                      <span className="bg-slate-100 px-3 py-1.5 rounded-lg text-slate-600">{item.grade}</span>
                     </div>
-                    <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full ${activeTier.lightColor} flex items-center justify-center group-hover:${activeTier.mainColor} transition-colors`}>
-                      <ArrowRight size={14} className={`sm:w-4 sm:h-4 ${activeTier.textColor} group-hover:text-white`} />
+                    <div className={`w-10 h-10 rounded-full ${activeTier.lightColor} flex items-center justify-center group-hover:${activeTier.mainColor} transition-colors duration-300 shadow-sm`}>
+                      <Play size={18} className={`${activeTier.textColor} group-hover:text-white ml-1`} />
                     </div>
                   </div>
                 </div>
               </Card>
             ))
           ) : (
-            /* "COMING SOON" FALLBACK CARD (For Conceptualisers and empty tiers) */
-            <Card className={`min-w-[260px] sm:min-w-[320px] snap-start flex-shrink-0 p-0 flex flex-col border-b-8 ${activeTier.borderColor} bg-white overflow-hidden shadow-sm`}>
-              <div className={`h-32 sm:h-40 w-full ${activeTier.lightColor} relative flex items-center justify-center`}>
-                <activeTier.icon size={60} className={`sm:w-20 sm:h-20 ${activeTier.textColor} opacity-40`} />
+            /* "COMING SOON" FALLBACK CARD */
+            <Card className="min-w-[300px] sm:min-w-[340px] snap-start flex-shrink-0 p-0 flex flex-col bg-white overflow-hidden shadow-lg border-none">
+              <div className={`h-40 sm:h-48 w-full ${activeTier.lightColor} relative flex items-center justify-center`}>
+                <activeTier.icon size={80} className={`${activeTier.textColor} opacity-20`} />
                 <div className="absolute inset-0 flex items-center justify-center">
-                   <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-xl border-2 border-white shadow-sm font-black text-slate-700 tracking-wide uppercase text-sm transform -rotate-2">
-                     In Development
+                   <div className="bg-white/90 backdrop-blur-sm px-6 py-3 rounded-2xl border-2 border-white shadow-lg font-black text-slate-700 tracking-wider uppercase text-sm transform -rotate-3 flex items-center gap-2">
+                     <Settings size={18} className="animate-spin text-slate-400" /> In Development
                    </div>
                 </div>
               </div>
-              <div className="p-4 sm:p-6 text-center">
-                <h3 className={`text-lg sm:text-xl font-extrabold ${activeTier.textColor} mb-2 leading-tight`}>Interactive {activeTier.label}s</h3>
+              <div className="p-6 text-center flex-1 flex flex-col justify-center">
+                <h3 className={`text-xl font-extrabold ${activeTier.textColor} mb-3 leading-tight`}>Interactive {activeTier.label}s</h3>
                 <p className="text-sm font-bold text-slate-500">Our pedagogical engineers are currently building revolutionary new tools for this tier. Check back soon!</p>
               </div>
             </Card>
@@ -1381,33 +1081,81 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
       </div>
     </div>
 
-    {/* Demo Portals */}
-    <div id="demo-portals" className="max-w-6xl mx-auto px-4 pt-12 pb-20 w-full relative z-20">
-      <h2 className="text-3xl font-extrabold text-slate-800 text-center mb-2">Select Your Role</h2>
-      <p className="text-center text-slate-500 font-bold mb-10">Choose your portal below to dive into personalized learning experiences.</p>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <Card onClick={() => setRole('teacher')} className="p-8 text-center group border-b-8 border-sky-500 hover:border-sky-400 cursor-pointer">
-          <div className="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-sky-500 transition-colors"><BookOpen size={36} className="text-sky-500 group-hover:text-white transition-colors" /></div>
-          <h3 className="text-2xl font-bold text-slate-800 mb-2">Teacher Hub</h3>
-          <p className="text-slate-500 font-medium mb-6">Preview lesson plans, manage curriculum, and track competencies.</p>
-          <Button variant="outline" className="w-full border-2 border-sky-500 text-sky-500 hover:bg-sky-50">Enter Teacher Portal</Button>
-        </Card>
-        <Card onClick={() => setRole('parent')} className="p-8 text-center group border-b-8 border-orange-500 hover:border-orange-400 cursor-pointer">
-          <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-orange-500 transition-colors"><Users size={36} className="text-orange-500 group-hover:text-white transition-colors" /></div>
-          <h3 className="text-2xl font-bold text-slate-800 mb-2">Parent Portal</h3>
-          <p className="text-slate-500 font-medium mb-6">View 360° holistic reports and track Panchakosha wellness progress.</p>
-          <Button variant="outline" className="w-full border-2 border-orange-500 text-orange-500 hover:bg-orange-50">Enter Parent Portal</Button>
-        </Card>
-        <Card onClick={() => {setRole('student'); setStage('foundational');}} className="p-8 text-center group border-b-8 border-lime-500 hover:border-lime-400 cursor-pointer">
-          <div className="w-20 h-20 bg-lime-100 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-lime-500 transition-colors"><Gamepad2 size={36} className="text-lime-600 group-hover:text-white transition-colors" /></div>
-          <h3 className="text-2xl font-bold text-slate-800 mb-2">Student Hub</h3>
-          <p className="text-slate-500 font-medium mb-6">Interactive, gamified learning pathways designed for holistic growth.</p>
-          <Button variant="outline" className="w-full border-2 border-lime-600 text-lime-600 hover:bg-lime-50">Enter Student Portal</Button>
-        </Card>
+    {/* NEW: THE CURRICULUM STRATEGY MAP */}
+    <div className="w-full bg-slate-900 text-white py-24 relative overflow-hidden border-t-8 border-sky-500">
+      <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 pointer-events-none"></div>
+      <div className="max-w-6xl mx-auto px-4 relative z-10">
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 bg-sky-500/20 text-sky-400 px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-4 border border-sky-500/30">
+            <BookOpen size={16} /> 100% NCF Mapped Content
+          </div>
+          <h2 className="text-4xl md:text-5xl font-black mb-6 leading-tight">Find exactly what you need,<br/>when you need it.</h2>
+          <p className="text-xl text-slate-400 font-medium max-w-2xl mx-auto">Kortex Klassroom isn't just a random arcade. Every single game, video, and quiz is meticulously organized into a structured curriculum.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
+           <div className="hidden md:block absolute top-1/2 left-0 w-full h-1 bg-slate-800 -translate-y-1/2 z-0"></div>
+           
+           <div className="bg-slate-800 border-2 border-slate-700 p-8 rounded-3xl relative z-10 text-center transform md:-translate-y-4 hover:-translate-y-6 transition-transform shadow-xl">
+             <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-black text-slate-300 border-4 border-slate-900 shadow-inner">1</div>
+             <h3 className="text-2xl font-black text-white mb-2">Select Grade</h3>
+             <p className="text-slate-400 font-bold text-sm">From Balvatika to Grade 8.</p>
+           </div>
+
+           <div className="bg-sky-900 border-2 border-sky-700 p-8 rounded-3xl relative z-10 text-center transform md:translate-y-4 hover:translate-y-2 transition-transform shadow-xl">
+             <div className="w-16 h-16 bg-sky-800 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-black text-sky-300 border-4 border-slate-900 shadow-inner">2</div>
+             <h3 className="text-2xl font-black text-white mb-2">Pick Subject</h3>
+             <p className="text-sky-200/70 font-bold text-sm">Maths, Languages, EVS & More.</p>
+           </div>
+
+           <div className="bg-indigo-900 border-2 border-indigo-700 p-8 rounded-3xl relative z-10 text-center transform md:-translate-y-4 hover:-translate-y-6 transition-transform shadow-xl">
+             <div className="w-16 h-16 bg-indigo-800 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-black text-indigo-300 border-4 border-slate-900 shadow-inner">3</div>
+             <h3 className="text-2xl font-black text-white mb-2">Open Chapter</h3>
+             <p className="text-indigo-200/70 font-bold text-sm">Mapped directly to school books.</p>
+           </div>
+
+           <div className="bg-emerald-900 border-2 border-emerald-700 p-8 rounded-3xl relative z-10 text-center transform md:translate-y-4 hover:translate-y-2 transition-transform shadow-xl">
+             <div className="w-16 h-16 bg-emerald-800 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-black text-emerald-300 border-4 border-slate-900 shadow-inner">4</div>
+             <h3 className="text-2xl font-black text-white mb-2">Start Playing</h3>
+             <p className="text-emerald-200/70 font-bold text-sm">Access the 5-Tier tools instantly.</p>
+           </div>
+        </div>
+
+        <div className="mt-16 text-center relative z-10 flex justify-center">
+           <Button variant="primary" onClick={onNavigateToLessons} className="text-lg px-10 py-5 w-full sm:w-auto shadow-[0_0_40px_rgba(14,165,233,0.3)] hover:shadow-[0_0_60px_rgba(14,165,233,0.5)]">
+              Explore All Lessons <ArrowRight size={20} className="ml-2 inline" />
+           </Button>
+        </div>
+        
       </div>
     </div>
 
-    {/* Testimonials */}
+    {/* NEW: THE KORTEX KREW SECTION */}
+    <div className="bg-amber-50 py-24 w-full border-t-8 border-amber-400 relative overflow-hidden">
+       <div className="absolute top-0 right-0 w-96 h-96 bg-amber-400 opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+       <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-12 items-center relative z-10">
+          <div className="order-2 md:order-1 relative h-[400px] w-full hidden md:block">
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-amber-200 rounded-full blur-2xl opacity-60"></div>
+             <div className="absolute top-10 left-10 w-48 h-48 bg-white rounded-[2rem] border-4 border-amber-100 shadow-xl flex items-center justify-center transform -rotate-6 overflow-hidden"><img src="https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=400&q=80" className="object-cover w-full h-full opacity-90"/></div>
+             <div className="absolute bottom-10 right-10 w-56 h-56 bg-white rounded-[2.5rem] border-4 border-amber-100 shadow-2xl flex items-center justify-center transform rotate-3 overflow-hidden"><img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=400&q=80" className="object-cover w-full h-full opacity-90"/></div>
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-amber-500 rounded-full border-8 border-white shadow-2xl flex items-center justify-center z-20"><Users size={48} className="text-white" /></div>
+          </div>
+          <div className="order-1 md:order-2 space-y-6 text-center md:text-left">
+             <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 px-4 py-2 rounded-full font-bold text-sm uppercase tracking-wider mb-2 border border-amber-200">
+               <Shield size={16} /> Built by Real Experts
+             </div>
+             <h2 className="text-4xl md:text-5xl font-black text-slate-800 leading-tight">Meet the <br/><span className="text-amber-500">Kortex Krew.</span></h2>
+             <p className="text-lg text-slate-600 font-medium">This platform isn't built by a faceless corporation. Every game, lesson, and concept is painstakingly engineered by a collective of real teachers, child psychologists, and passionate parents across India.</p>
+             <div className="pt-4">
+                <Button variant="fun" className="text-lg px-8 py-4 w-full md:w-auto" onClick={() => window.open('https://forms.gle/placeholder-link', '_blank')}>
+                   Apply to Join the Krew <ArrowRight size={20} className="ml-2 inline"/>
+                </Button>
+             </div>
+          </div>
+       </div>
+    </div>
+
+    {/* RESTORED: Testimonials Section */}
     <div className="bg-sky-50 py-24 w-full border-t-4 border-sky-100 relative overflow-hidden">
       <div className="max-w-6xl mx-auto px-4 relative z-10">
         <div className="text-center mb-16"><h2 className="text-4xl font-extrabold text-slate-800">Loved by our Community</h2></div>
@@ -1425,6 +1173,7 @@ const LandingView = ({ setRole, setStage, requireAuth, onTryDemo, isLoggedIn, on
         </div>
       </div>
     </div>
+
   </div>
   );
 };
@@ -3539,102 +3288,72 @@ export default function App() {
   };
 
   const handleStartDemo = () => {
+    // 100% Frictionless PLG Demo: Showcases all 5 tiers instantly.
     setPlayingLesson({
-      chapter: 'Preview: The Magic of Kortex', book: 'Demo Mode',
+      chapter: 'Master Demo: Place Value', book: 'The 5-Tier Experience',
       flow: [
-        { type: 'Video', title: 'Welcome to Kortex', content_url: 'https://www.youtube.com/watch?v=M6XvN0V-vLw', color: 'bg-sky-500', isPremium: false },
-        { type: 'Game', title: 'Interactive Challenge', color: 'bg-orange-500', isPremium: false }
+        { type: 'Conceptualiser', content_type: 'conceptualiser', title: '1. Sandbox: Block Builder', content_url: '/demo/concept', color: 'bg-purple-500', isPremium: false },
+        { type: 'Video', content_type: 'video', title: '2. Theatre: Tens & Ones', content_url: 'https://www.youtube.com/watch?v=1F3AycED1i4', color: 'bg-pink-500', isPremium: false },
+        { type: 'Quiz', content_type: 'quiz', title: '3. Dojo: Quick Check', content_url: '/demo/quiz', color: 'bg-orange-500', isPremium: false },
+        { type: 'PDF', content_type: 'pdf', title: '4. Workbook: Visual Guide', content_url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', color: 'bg-sky-500', isPremium: false },
+        { type: 'Game', content_type: 'game', title: '5. Arcade: Value Pop', content_url: '/demo/game', color: 'bg-lime-500', isPremium: false }
       ]
     });
     setPlayingStep(0);
   };
 
   const handleOpenFeatured = (item: any) => {
-    const action = () => {
-      // Create a "Quick Play" wrapper around this single tool so the LessonPlayer can render it!
+      // Stripped out auth checks. Plays instantly.
       const playableLesson = {
         chapter: item.chapter_name || item.lessonContext?.chapter || item.title || 'Interactive Module',
         book: item.book || item.lessonContext?.book || 'Kortex Klassroom',
-        flow: [item] // Wrap the tool in an array to create a valid 1-item playlist
+        flow: [item] 
       };
-      
       setPlayingLesson(playableLesson);
       setPlayingStep(0);
-    };
-
-    // Check if it's premium content. If it is, demand login. If not, play it immediately!
-    if (item.isPremium) {
-      requireAuth(action, "This is Premium Content. Sign up or log in for free to access it!");
-    } else {
-      action();
-    }
   };
 
-  const handleStartLesson = (lesson, stepIndex) => {
-    const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap(sub => sub.tools || []) : []);
-    const item = playlist[stepIndex];
-    
-    if (item?.isPremium && !isLoggedIn) { 
-       setAuthMessage("Create a free account to unlock Premium interactive content!"); 
-       setShowAuthModal(true); 
-    } else { 
+  const handleStartLesson = (lesson: any, stepIndex: any) => {
+      // Stripped out auth checks. Plays instantly.
        setPlayingLesson(lesson); 
        setPlayingStep(stepIndex); 
-    }
   };
 
   const renderContent = () => {
     // 1. Standalone Curriculum Page
-    if (currentView === 'lessons') return <LessonsView isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartLesson={handleStartLesson} />;
+    if (currentView === 'lessons') return <LessonsView isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartLesson={handleStartLesson} />;
     
-    // 2. The 5 Dynamic Tier Pages (Arcade, Theatre, Dojo, Workbook, Conceptualiser)
+    // 2. The 5 Dynamic Tier Pages
     const activeTierObj = FIVE_TIERS?.find(t => t.id === currentView);
     if (activeTierObj) {
-      return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onOpenTool={handleOpenFeatured} />;
+      return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onOpenTool={handleOpenFeatured} />;
     }
 
     // 3. User Dashboards
-    if (role === 'student') return <StudentView t={t} onStartLesson={handleStartLesson} currentStudent={currentStudent} isLoggedIn={isLoggedIn} requireAuth={requireAuth} />;
-    if (role === 'parent') return <ParentView t={t} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartDemo={handleStartDemo} isPro={isPro} />;
-    if (role === 'teacher' || role === 'krew') return <TeacherView userName={userName} t={t} isLoggedIn={isLoggedIn} requireAuth={requireAuth} onStartLesson={handleStartLesson} targetContext={targetContext} isPro={isPro} role={role} />;
+    if (role === 'student') return <StudentView t={t} onStartLesson={handleStartLesson} currentStudent={currentStudent} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} />;
+    if (role === 'parent') return <ParentView t={t} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartDemo={handleStartDemo} isPro={isPro} />;
+    if (role === 'teacher' || role === 'krew') return <TeacherView userName={userName} t={t} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartLesson={handleStartLesson} targetContext={targetContext} isPro={isPro} role={role} />;
     if (role === 'admin') return <AdminView />;
     
     // 4. Landing Page
     return <LandingView 
-      setRole={setRole} 
-      setStage={setStage} 
-      requireAuth={requireAuth} 
       onTryDemo={handleStartDemo} 
-      isLoggedIn={isLoggedIn} 
-      onOpenFeatured={handleOpenFeatured} 
-      onShowAlert={setAlertConfig} 
-      onNavigateToLessons={() => setCurrentView('lessons')} 
       onNavigateToTier={(tierId: any) => setCurrentView(tierId)} 
+      onNavigateToLessons={() => setCurrentView('lessons')}
+      onOpenFeatured={handleOpenFeatured}
     />;
   };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-sky-200 relative">
-      {showAuthModal && (
-        <AuthModal 
-          onClose={() => setShowAuthModal(false)} authMessage={authMessage} 
-          onStartDemo={() => { setShowAuthModal(false); handleStartDemo(); }}
-          onStudentLogin={(studentData: any) => { setRole('student'); setIsLoggedIn(true); setCurrentStudent(studentData); }}
-        />
-      )}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
       {alertConfig && <GeneralAlertModal {...alertConfig} onClose={() => setAlertConfig(null)} />}
       
       {playingLesson && (
         <LessonPlayer 
-          lesson={playingLesson} initialStep={playingStep} isPro={isPro} isLoggedIn={isLoggedIn}
+          lesson={playingLesson} initialStep={playingStep} isPro={true} isLoggedIn={true} // Hardcoded to prevent guest lockouts
           onClose={() => setPlayingLesson(null)} 
-          onFinish={() => { 
-            setPlayingLesson(null); 
-            if (!isLoggedIn) { setAuthMessage("Create a free account to track your progress!"); setShowAuthModal(true); }
-          }} 
-          onTimeUp={() => {
-             setPlayingLesson(null); setAuthMessage("Your free preview time has expired! Create a free account to keep learning."); setShowAuthModal(true);
-          }}
+          onFinish={() => setPlayingLesson(null)} // Silent exit on finish
         />
       )}
       
@@ -3663,13 +3382,16 @@ export default function App() {
                <div className="hidden sm:flex items-center gap-3">
                  <div className="text-right">
                    <div className="text-sm font-bold text-slate-800 leading-none">{userName || userEmail.split('@')[0]}</div>
-                   <div className="text-xs font-bold text-sky-500 capitalize">{role} {isPro ? '(Pro)' : '(Free)'}</div>
+                   <div className="text-xs font-bold text-sky-500 capitalize">{role}</div>
                  </div>
                  <div className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center text-sky-600 border-2 border-sky-200"><User size={20} /></div>
                  <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors ml-2" title="Log Out"><LogOut size={18} /></button>
                </div>
             ) : (
-               <Button variant="outline" onClick={() => setShowAuthModal(true)} className="hidden lg:flex py-2 px-6 text-sm border-2 shadow-none hover:-translate-y-0">Log In</Button>
+               // UPDATED: Discreet login button for Admin/Krew only
+               <button onClick={() => setShowAuthModal(true)} className="hidden lg:flex text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-wider">
+                 Krew Login
+               </button>
             )}
             <button className="lg:hidden text-slate-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button>
           </div>
@@ -3685,7 +3407,7 @@ export default function App() {
               <button onClick={() => { setCurrentView('workbook'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'workbook' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>The Workbook</button>
               <button onClick={() => { setCurrentView('arcade'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'arcade' ? 'text-lime-600 bg-lime-50' : 'hover:bg-slate-50'}`}>Kortex Arcade</button>
 
-              {!isLoggedIn && <button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-sky-500 mt-2 border-t-2 border-slate-100">Log In / Sign Up</button>}
+              {!isLoggedIn && <button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-sky-500 mt-2 border-t-2 border-slate-100">Krew Login</button>}
               {isLoggedIn && <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-red-500 mt-2 border-t-2 border-slate-100">Log Out</button>}
            </div>
         )}
@@ -3718,4 +3440,3 @@ export default function App() {
     </div>
   );
 }
-
