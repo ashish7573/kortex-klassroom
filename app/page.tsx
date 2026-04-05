@@ -2286,19 +2286,15 @@ const studentData = studentDoc.data() as {
     const actualIndex = currentSubtopic ? currentSubtopic.tools.findIndex((t: any) => t.title === tool.title) : 0;
     const finalOrderIndex = tool.orderIndex || tool.content_order || (actualIndex + 1);
 
+    // FIXED: Maps exactly to the new 12-Step Cascading State variables
     setKrewWizard({
       show: true, isEdit: true,
-      originalData: { chapter: lesson.chapter, subtopic: subtopicTitle, toolTitle: tool.title },
+      originalToolTitle: tool.title,
       grade: normalizedGrade, subject: normalizedSubject, book: lesson.book || 'Kortex Klassroom',
-      chapterNumber: lesson.chapter_number || 1,
-      chapterSelect: lesson.chapter, newChapter: '', 
-      subtopicOrder: currentSubtopic?.subtopic_order || 1,
-      subtopicSelect: subtopicTitle, newSubtopic: '',
-      contentOrder: finalOrderIndex,
-      toolType: normalizedType, toolTitle: tool.title, 
-      imageUrl: tool.image || tool.image_url || '',
-      url: tool.content_url || '',
-      gameCode: tool.gameCode || (normalizedType === 'Game' || normalizedType === 'Quiz' ? tool.title : ''), 
+      chapterSelect: lesson.chapter, newChapter: '', chapterNumber: lesson.chapter_number || 1,
+      subtopicSelect: subtopicTitle, newSubtopic: '', subtopicOrder: currentSubtopic?.subtopic_order || 1,
+      toolSelect: tool.title, toolOrder: finalOrderIndex, toolType: normalizedType, 
+      toolTitle: tool.title, imageUrl: tool.image || tool.image_url || '', url: tool.content_url || '', 
       isFeatured: tool.is_featured || false
     });
   };
