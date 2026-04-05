@@ -2086,22 +2086,28 @@ const studentData = studentDoc.data() as {
   };
 
 
-  // 2. HELPER: Find matching document for direct DB writes
-  const getMatchedDoc = async (g: any, s: any, c: any) => {
+  // 2. HELPER: Find exact tool document for Flat DB Edits
+  const getExactToolDoc = async (g: any, s: any, c: any, sub: any, title: any) => {
      const snap = await getDocs(collection(db, 'learning_tools'));
      return snap.docs.find((d: any) => {
         const data = d.data();
         const dGrade = data.grade?.toLowerCase().trim() || '';
         const dSubj = data.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : (data.subject?.toLowerCase().trim() || '');
-        const dChap = data.chapter?.toLowerCase().trim() || '';
+        const dChap = (data.chapter_name || data.chapter || '')?.toLowerCase().trim();
+        const dSub = data.subtopic?.toLowerCase().trim() || '';
+        const dTitle = data.title?.toLowerCase().trim() || '';
+        
         const fGrade = g?.toLowerCase().trim() || '';
         const fSubj = s?.toLowerCase().trim() === 'mathematics' ? 'maths' : (s?.toLowerCase().trim() || '');
         const fChap = c?.toLowerCase().trim() || '';
-        return dGrade === fGrade && dSubj === fSubj && dChap === fChap;
+        const fSub = sub?.toLowerCase().trim() || '';
+        const fTitle = title?.toLowerCase().trim() || '';
+        
+        return dGrade === fGrade && dSubj === fSubj && dChap === fChap && dSub === fSub && dTitle === fTitle;
      });
   };
 
-  // 3. SUBMIT LOGIC: Handles both pristine Adds and cascading Edits safely
+  // 3. SUBMIT LOGIC: Flat Database Direct Publisher
   const handleSubmitWizard = async () => {
      const finalChapter = krewWizard.chapterSelect === 'NEW' ? krewWizard.newChapter : krewWizard.chapterSelect;
      const finalSubtopic = krewWizard.subtopicSelect === 'NEW' ? krewWizard.newSubtopic : krewWizard.subtopicSelect;
@@ -2109,7 +2115,6 @@ const studentData = studentDoc.data() as {
          alert("Please fill out all required fields!"); return; 
      }
 
-     // Validate Chapter Number Uniqueness
      if (krewWizard.chapterSelect === 'NEW') {
          const numTaken = wizardData.some((c: any) => Number(c.chapter_number) === Number(krewWizard.chapterNumber));
          if (numTaken) { alert(`Chapter Number ${krewWizard.chapterNumber} is already used by an existing chapter. Please choose another.`); return; }
@@ -2125,63 +2130,56 @@ const studentData = studentDoc.data() as {
      else if (tType === 'pdf' || tType === 'presentation') toolColor = 'bg-sky-500';
      else if (tType === 'game') toolColor = 'bg-lime-500';
 
-     const payload = {
-        grade: krewWizard.grade, subject: krewWizard.subject, chapter_number: Number(krewWizard.chapterNumber),
-        chapter: finalChapter, book: krewWizard.book || 'Kortex Klassroom', subtopic_order: Number(krewWizard.subtopicOrder),
+     // FORMATTED PERFECTLY FOR THE LESSON PLAYER (Flat Structure)
+     const flatPayload = {
+        grade: krewWizard.grade, 
+        subject: krewWizard.subject, 
+        chapter_number: Number(krewWizard.chapterNumber),
+        chapter_name: finalChapter, 
+        chapter: finalChapter, // Fallback support
+        book: krewWizard.book || 'Kortex Klassroom', 
+        subtopic_order: Number(krewWizard.subtopicOrder),
         subtopic: finalSubtopic,
-        tool: { 
-            type: krewWizard.toolType, content_type: krewWizard.toolType.toLowerCase(), title: krewWizard.toolTitle, 
-            image: krewWizard.imageUrl, content_url: krewWizard.url, 
-            orderIndex: Number(krewWizard.toolOrder), isPremium: false, is_featured: krewWizard.isFeatured, color: toolColor 
-        }
+        title: krewWizard.toolTitle, 
+        content_type: krewWizard.toolType.toLowerCase(), 
+        type: krewWizard.toolType, // Fallback support
+        image: krewWizard.imageUrl || '', 
+        content_url: krewWizard.url, 
+        content_order: Number(krewWizard.toolOrder), 
+        orderIndex: Number(krewWizard.toolOrder), // Fallback support
+        isPremium: false, 
+        is_featured: krewWizard.isFeatured, 
+        color: toolColor,
+        created_at: new Date().toISOString()
      };
 
      const isEditAction = krewWizard.toolSelect !== 'NEW' && krewWizard.toolSelect !== '';
 
      try {
-       // DIRECT DATABASE UPDATE
+       // DIRECT DATABASE UPDATE (Flat Document)
        if (isEditAction) {
-          const oldDoc = await getMatchedDoc(payload.grade, payload.subject, krewWizard.chapterSelect);
+          const oldDoc = await getExactToolDoc(flatPayload.grade, flatPayload.subject, krewWizard.chapterSelect, krewWizard.subtopicSelect, krewWizard.originalToolTitle);
           if (oldDoc) {
-             let oldData = oldDoc.data();
-             let oldSubTopics = oldData.subTopics || [];
-             const sIdx = oldSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === krewWizard.subtopicSelect.toLowerCase().trim());
-             if (sIdx > -1) {
-                oldSubTopics[sIdx].tools = (oldSubTopics[sIdx].tools || []).filter((t: any) => t.title !== krewWizard.originalToolTitle);
-                await setDoc(doc(db, 'learning_tools', oldDoc.id), { subTopics: oldSubTopics }, { merge: true });
-             }
-          }
-       }
-
-       const newDoc = await getMatchedDoc(payload.grade, payload.subject, payload.chapter);
-       if (!newDoc) {
-          await addDoc(collection(db, 'learning_tools'), { grade: payload.grade, subject: payload.subject, chapter: payload.chapter, chapter_number: payload.chapter_number, book: payload.book, subTopics: [{ title: payload.subtopic, subtopic_order: payload.subtopic_order, tools: [payload.tool] }] });
-       } else {
-          const existingData = newDoc.data();
-          let newSubTopics = existingData.subTopics || [];
-          const subIndex = newSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === payload.subtopic.toLowerCase().trim());
-          if (subIndex > -1) {
-             newSubTopics[subIndex].tools = (newSubTopics[subIndex].tools || []).filter((t: any) => t.title !== payload.tool.title);
-             const insertAt = Math.max(0, Math.min(newSubTopics[subIndex].tools.length, payload.tool.orderIndex - 1));
-             newSubTopics[subIndex].tools.splice(insertAt, 0, payload.tool);
-             newSubTopics[subIndex].subtopic_order = payload.subtopic_order; 
+             await setDoc(doc(db, 'learning_tools', oldDoc.id), flatPayload, { merge: true });
           } else {
-             newSubTopics.push({ title: payload.subtopic, subtopic_order: payload.subtopic_order, tools: [payload.tool] });
+             // Failsafe if it couldn't find the exact old doc to overwrite
+             await addDoc(collection(db, 'learning_tools'), flatPayload);
           }
-          await setDoc(doc(db, 'learning_tools', newDoc.id), { subTopics: newSubTopics, chapter_number: payload.chapter_number, book: payload.book }, { merge: true });
+       } else {
+          await addDoc(collection(db, 'learning_tools'), flatPayload);
        }
 
        // LOG TO ADMIN AUDIT
        await addDoc(collection(db, 'content_requests'), {
           krew_member_id: auth.currentUser?.uid || 'unknown', krew_member_email: auth.currentUser?.email || 'Direct Update',
           action_type: isEditAction ? 'CASCADING_EDIT' : 'CASCADING_ADD', target_type: 'TOOL', target_grade: krewWizard.grade, target_subject: krewWizard.subject, 
-          payload: payload, originalTitle: krewWizard.originalToolTitle || null, 
-          status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString(), created_at: new Date().toISOString()
+          payload: flatPayload, originalTitle: krewWizard.originalToolTitle || null, 
+          status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString()
        });
        
        alert(`Success! Content ${isEditAction ? 'updated' : 'added'} instantly.`);
        setKrewWizard(initialWizardState);
-       setActiveLesson(null); 
+       setActiveLesson(null); // Forces UI to refresh the curriculum
      } catch (error: any) { console.error(error); alert("Error saving content directly."); } finally { setIsSendingRequest(false); }
   };
 
