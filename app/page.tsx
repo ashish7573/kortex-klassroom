@@ -2280,7 +2280,6 @@ const studentData = studentDoc.data() as {
       imageUrl: tool.image || tool.image_url || '',
       url: tool.content_url || '',
       gameCode: tool.gameCode || (normalizedType === 'Game' || normalizedType === 'Quiz' ? tool.title : ''), 
-      isPremium: false,
       isFeatured: tool.is_featured || false
     });
   };
