@@ -2189,36 +2189,43 @@ const studentData = studentDoc.data() as {
      
      try {
        const filterString = selectedAnalyticsFilter || '';
-       const [grade, subject] = filterString.split(' • ');
+       const [grade, subject] = filterString.split(' • ').map((s: string) => s.trim());
 
-       // 1. DIRECT DELETE LOGIC
-       if (targetType === 'CHAPTER') {
-          await deleteDoc(doc(db, 'learning_tools', targetId));
-       } else {
-          const targetDocSnap = await getDoc(doc(db, 'learning_tools', targetId));
-          if (targetDocSnap.exists()) {
-             let data = targetDocSnap.data();
-             if (targetType === 'SUBTOPIC') {
-                data.subTopics = (data.subTopics || []).filter((s: any) => s.title !== safeTitle);
-             } else if (targetType === 'TOOL') {
-                data.subTopics = (data.subTopics || []).map((sub: any) => {
-                   sub.tools = (sub.tools || []).filter((t: any) => t.title !== safeTitle);
-                   return sub;
-                });
-             }
-             await setDoc(doc(db, 'learning_tools', targetDocSnap.id), { subTopics: data.subTopics }, { merge: true });
-          }
+       // 1. FLAT DATABASE DELETE LOGIC
+       const snapshot = await getDocs(collection(db, 'learning_tools'));
+       const docsToDelete = snapshot.docs.filter((docSnap: any) => {
+           const data = docSnap.data();
+           const dGrade = data.grade?.toLowerCase().trim() || '';
+           const dSubj = data.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : (data.subject?.toLowerCase().trim() || '');
+           
+           // Make sure we are only deleting from the currently selected Grade and Subject
+           if (dGrade !== grade?.toLowerCase() || dSubj !== subject?.toLowerCase()) return false;
+
+           // Match the specific target
+           if (targetType === 'CHAPTER') {
+               return (data.chapter_name || data.chapter)?.toLowerCase().trim() === safeTitle.toLowerCase().trim();
+           } else if (targetType === 'SUBTOPIC') {
+               return data.subtopic?.toLowerCase().trim() === safeTitle.toLowerCase().trim();
+           } else if (targetType === 'TOOL') {
+               return data.title?.toLowerCase().trim() === safeTitle.toLowerCase().trim();
+           }
+           return false;
+       });
+
+       // Delete all matched flat documents
+       for (const docSnap of docsToDelete) {
+           await deleteDoc(doc(db, 'learning_tools', docSnap.id));
        }
        
        // 2. LOG TO ADMIN AUDIT
        await addDoc(collection(db, 'content_requests'), { 
          krew_member_id: auth.currentUser?.uid || 'unknown', krew_member_email: auth.currentUser?.email || 'Direct Update',
-         action_type: 'DELETE', target_type: targetType, target_id: targetId, target_grade: grade?.trim() || '', target_subject: subject?.trim() || '', 
+         action_type: 'DELETE', target_type: targetType, target_grade: grade || '', target_subject: subject || '', 
          payload: { title: safeTitle }, status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString(), created_at: new Date().toISOString()
        });
 
-       alert("Successfully deleted!");
-       setActiveLesson(null); 
+       alert(`Successfully deleted!`);
+       setActiveLesson(null); // Forces the UI to refresh the curriculum list
      } catch (error: any) { console.error(error); alert("Error deleting content."); }
   };
 
