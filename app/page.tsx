@@ -11,7 +11,7 @@ import {
   Calculator, Leaf, Palette, Music, Monitor, Type, Check, Bell, Plus, 
   Database, Edit3, Trash2, UploadCloud, Save, ChevronDown, ChevronUp, 
   Sparkles, ArrowUpRight, Target, PlayCircle, UserPlus, LineChart, 
-  CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase
+  CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase, Filter
 } from 'lucide-react';
 
 import { CONCEPT_REGISTRY } from '../components/conceptualiser/ConceptualiserRegistry';
@@ -1679,414 +1679,59 @@ const ParentView = ({ t, isLoggedIn, requireAuth, onStartDemo, isPro }: any) => 
 
 
 // ============================================================================
-// SECTION 11: TEACHER & KREW VIEW (UPGRADED CMS & RESTORED ANALYTICS)
+// SECTION 11: KREW GLOBAL EDITOR PANEL (HEADLESS CMS)
 // ============================================================================
+const KrewEditorPanel = () => {
+  const [wizardMode, setWizardMode] = useState<any>(null);
+  const [wizardData, setWizardData] = useState<any>([]); 
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [targetLevel, setTargetLevel] = useState('TOOL'); // Handles both DELETE and EDIT scoping
 
-const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targetContext, isPro, role }) => {
-  const [activeTab, setActiveTab] = useState('lessons');
-  const [isEditMode, setIsEditMode] = useState(false);
-
-  const [myClasses, setMyClasses] = useState([]);
-  const [myStudents, setMyStudents] = useState([]);
-  const [dbCurriculum, setDbCurriculum] = useState([]);
-  
-  const [selectedAnalyticsFilter, setSelectedAnalyticsFilter] = useState('');
-  
-  const [guestSelectedGrade, setGuestSelectedGrade] = useState('');
-  const [guestSelectedSubject, setGuestSelectedSubject] = useState('');
-
-  const [classStats, setClassStats] = useState({ avg: 0, struggling: [], top: [], total: 0 });
-  
-  // --- NEW STATES FOR STUDENT TAB & AI REPORTS ---
-  const [studentFilter, setStudentFilter] = useState('ALL'); 
-  const [reportStudent, setReportStudent] = useState(null); // Holds student data for the AI report modal
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeLesson, setActiveLesson] = useState(null);
-
-  const [showClassModal, setShowClassModal] = useState(false);
-  const [newGrade, setNewGrade] = useState('');
-  const [newSubject, setNewSubject] = useState('');
-  const [isSavingClass, setIsSavingClass] = useState(false);
-
-  // --- STUDENT MANAGER STATES (APAAR ARCHITECTURE) ---
-  const [showManageStudentModal, setShowManageStudentModal] = useState(false);
-  const [studentModalTab, setStudentModalTab] = useState('create'); // 'create' or 'import'
-  const [isSavingStudent, setIsSavingStudent] = useState(false);
-
-  const [newStudentForm, setNewStudentForm] = useState({
-     apaarId: '', fullName: '', fathersName: '', mothersName: '',
-     contact1: '', isWhatsapp1: true, contact2: '', dob: '', selectedClasses: []
-  });
-
-  const [importForm, setImportForm] = useState({ apaarId: '', dob: '', selectedClasses: [] });
-
-  // --- KREW CMS STATES ---
-  const [expandedSubTopics, setExpandedSubTopics] = useState({});
-  const [wizardData, setWizardData] = useState([]); 
-  
   const initialWizardState = { 
-     show: false, isEdit: false, originalToolTitle: '',
      grade: '', subject: '', book: 'Kortex Klassroom', 
      chapterSelect: '', newChapter: '', chapterNumber: '', 
      subtopicSelect: '', newSubtopic: '', subtopicOrder: '', 
      toolSelect: '', toolOrder: '', toolType: 'Conceptualiser', 
-     toolTitle: '', imageUrl: '', url: '', isFeatured: false 
+     toolTitle: '', imageUrl: '', url: '', isFeatured: false, originalToolTitle: '' 
   };
   const [krewWizard, setKrewWizard] = useState(initialWizardState);
-  
-  const [krewEdit, setKrewEdit] = useState({ show: false, type: '', chapterId: '', oldTitle: '', newTitle: '', parentSubtopic: '' });
-  const [isSendingRequest, setIsSendingRequest] = useState(false);
 
-  const toggleSubTopic = (id: any) => setExpandedSubTopics(prev => ({ ...prev, [id]: !prev[id] }));
-
-  useEffect(() => {
-    if (targetContext && targetContext.lesson) {
-      setActiveTab('lessons');
-      const cleanSubj = targetContext.subject?.toLowerCase().trim() === 'mathematics' ? 'Maths' : targetContext.subject?.trim();
-      const cleanGrade = targetContext.grade?.trim();
-      
-      // Auto-set the correct filter type depending on whether they are logged in or a guest
-      if (isLoggedIn && myClasses.length > 0) {
-         setSelectedAnalyticsFilter(`${cleanGrade} • ${cleanSubj}`);
-      } else {
-         setGuestSelectedGrade(cleanGrade || '');
-         setGuestSelectedSubject(cleanSubj || '');
-      }
-      setActiveLesson(targetContext.lesson);
-    }
-  }, [targetContext, isLoggedIn, myClasses.length]);
-
-  useEffect(() => {
-    async function loadTeacherClasses() {
-      const user = auth.currentUser;
-      if (!user) { setIsLoading(false); return; }
-      try {
-        const q = query(collection(db, 'teacher_classes'), where('teacher_id', '==', user.uid));
-        const querySnapshot = await getDocs(q);
-        const classes = querySnapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data() 
-        } as { id: string, grade: string, subject: string }));
-        setMyClasses(classes);
-        if (classes.length > 0 && !targetContext) {
-           setSelectedAnalyticsFilter(`${classes[0].grade} • ${classes[0].subject}`);
-        }
-      } catch (e: any) { console.error("Database Error:", e); } finally { setIsLoading(false); }
-    }
-    loadTeacherClasses();
-  }, [isLoggedIn, targetContext]);
-
-  useEffect(() => {
-    async function fetchClassData() {
-      const user = auth.currentUser;
-      if (!user) return;
-      try {
-        // Fetch ALL students assigned to this teacher using the new APAAR teacher_ids array
-        const sQuery = query(collection(db, 'managed_students'), where('teacher_ids', 'array-contains', user.uid));
-        const sSnapshot = await getDocs(sQuery);
-        const allStudents = sSnapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data() 
-        } as { 
-          id: string; name: string; enrolled_classes?: string[]; status?: string; 
-          stars_earned?: number; contact1?: string; is_whatsapp1?: boolean; username?: string | null; 
-        }));
-        setMyStudents(allStudents);
-
-        // Calculate Analytics stats ONLY for the currently selected analytics filter
-        if (selectedAnalyticsFilter) {
-          const classStudents = allStudents.filter(s => (s.enrolled_classes || []).includes(selectedAnalyticsFilter));
-          if (classStudents.length > 0) {
-            const studentIds = classStudents.map(s => s.id);
-            const pQuery = query(collection(db, 'progress_logs'), where('student_id', 'in', studentIds.slice(0, 30)));
-            const pSnapshot = await getDocs(pQuery);
-            const logs = pSnapshot.docs.map(doc => doc.data() as { score_percentage?: number });
-            const totalScore = logs.reduce((acc, curr) => acc + curr.score_percentage, 0);
-            const avg = logs.length > 0 ? Math.round(totalScore / logs.length) : 0;
-            setClassStats({ 
-               avg, 
-               struggling: classStudents.filter(s => s.status === 'Struggling').map(s => s.name), 
-               top: classStudents.filter(s => s.status === 'Excelling').map(s => s.name), 
-               total: classStudents.length 
-            });
-          } else {
-            setClassStats({ avg: 0, struggling: [], top: [], total: 0 });
-          }
-        }
-      } catch (e: any) { console.error(e); }
-    }
-    fetchClassData();
-  }, [selectedAnalyticsFilter, isLoggedIn, showManageStudentModal]);
-
-  // FIXED: Curriculum fetch now properly uses learning_tools and groups them dynamically!
-  useEffect(() => {
-    async function fetchCurriculumFromDB() {
-      try {
-        // 1. Fetch the flat tools from the NEW database
-        const snapshot = await getDocs(collection(db, 'learning_tools'));
-        let allFlatTools = snapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data() 
-        } as { 
-          id: string; grade?: string; subject?: string; chapter_number?: number; 
-          chapter_name?: string; book?: string; image?: string; content_type?: string; 
-          subtopic?: string; title?: string; subtopic_order?: number; content_order?: number; 
-        }));
-
-        let filteredFlatTools = allFlatTools;
-
-        // 2. FILTER LOGIC: Only keep the tools for the currently selected class
-        if (isLoggedIn && myClasses.length > 0) {
-           if (selectedAnalyticsFilter) {
-              const [filterGrade, filterSubject] = selectedAnalyticsFilter.split(' • ').map(s => s?.toLowerCase().trim());
-              filteredFlatTools = allFlatTools.filter(m => {
-                 const dbSubj = m.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : m.subject?.toLowerCase().trim();
-                 return m.grade?.toLowerCase().trim() === filterGrade && dbSubj === filterSubject;
-              });
-           }
-        } else {
-           // Apply Guest Dropdown Filters
-           filteredFlatTools = allFlatTools.filter(m => {
-              const matchGrade = guestSelectedGrade ? m.grade?.toLowerCase().trim() === guestSelectedGrade.toLowerCase().trim() : true;
-              const dbSubj = m.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : m.subject?.toLowerCase().trim();
-              const matchSubj = guestSelectedSubject ? dbSubj === guestSelectedSubject.toLowerCase().trim() : true;
-              return matchGrade && matchSubj;
-           });
-        }
-
-        // 3. GROUPING LOGIC
-        const chaptersMap = {};
-
-        filteredFlatTools.forEach(tool => {
-           const key = `${tool.grade}_${tool.subject}_${tool.chapter_number}`;
-           
-           if (!chaptersMap[key]) {
-              chaptersMap[key] = {
-                 id: key,
-                 grade: tool.grade,
-                 subject: tool.subject,
-                 chapter_number: tool.chapter_number,
-                 chapter: tool.chapter_name,
-                 book: tool.book || 'Kortex Klassroom',
-                 image: tool.image || null,
-                 items: 0,
-                 color: 'border-sky-500',
-                 subTopicsMap: {} 
-              };
-           }
-
-           if (tool.content_type && tool.content_type?.toLowerCase() !== 'placeholder') {
-              chaptersMap[key].items += 1;
-           }
-
-           if (tool.subtopic) {
-              const subKey = tool.subtopic;
-              if (!chaptersMap[key].subTopicsMap[subKey]) {
-                 chaptersMap[key].subTopicsMap[subKey] = {
-                    title: tool.subtopic,
-                    subtopic_order: tool.subtopic_order || 1,
-                    tools: []
-                 };
-              }
-              if (tool.title && tool.content_type?.toLowerCase() !== 'placeholder') {
-                 chaptersMap[key].subTopicsMap[subKey].tools.push(tool);
-              }
-           }
-        });
-
-        // 4. SORTING LOGIC
-        const processedModules = Object.values(chaptersMap).map((chapter: any) => {
-           let subTopicsArray = Object.values(chapter.subTopicsMap) as any[];
-
-                subTopicsArray.forEach((sub: any) => {
-                  sub.tools.sort((a: any, b: any) => (a.content_order || 1) - (b.content_order || 1));
-                });
-
-                subTopicsArray.sort((a: any, b: any) => (a.subtopic_order || 1) - (b.subtopic_order || 1));
-
-           chapter.subTopics = subTopicsArray;
-           delete chapter.subTopicsMap;
-
-           if (!chapter.image) chapter.image = getSubjectFallbackImage(chapter.subject);
-
-           return chapter;
-        });
-
-        processedModules.sort((a, b) => a.chapter_number - b.chapter_number);
-
-        // 5. Hand it to the Teacher UI!
-        setDbCurriculum(processedModules); 
-      } catch (e: any) { 
-        console.error("Error fetching Teacher Curriculum:", e); 
-      }
-    }
-    
-    fetchCurriculumFromDB();
-  }, [selectedAnalyticsFilter, isLoggedIn, myClasses.length, guestSelectedGrade, guestSelectedSubject, targetContext]);
-
-  // 1. UPDATED DATA FETCHER: Grabs full hierarchy for cascading dropdowns
   useEffect(() => {
     async function fetchWizardData() {
-      if(krewWizard.show && krewWizard.grade && krewWizard.subject) {
-        const filterGrade = krewWizard.grade.toLowerCase().trim();
-        const filterSubject = krewWizard.subject.toLowerCase().trim();
+      if (wizardMode && krewWizard.grade && krewWizard.subject) {
+        const fg = krewWizard.grade.toLowerCase().trim();
+        const fs = krewWizard.subject.toLowerCase().trim();
         try {
           const snapshot = await getDocs(collection(db, 'learning_tools'));
-          const allTools = snapshot.docs.map(d => d.data());
-
-          const filtered = allTools.filter((m: any) => {
+          const filtered = snapshot.docs.map(d => d.data()).filter((m: any) => {
              const dbSubj = m.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : m.subject?.toLowerCase().trim();
-             return m.grade?.toLowerCase().trim() === filterGrade && dbSubj === filterSubject;
+             return m.grade?.toLowerCase().trim() === fg && dbSubj === fs;
           });
 
           const chapterMap: any = {};
           filtered.forEach((tool: any) => {
               const chapName = tool.chapter_name || tool.chapter;
               if (!chapName) return;
-              if (!chapterMap[chapName]) {
-                  chapterMap[chapName] = { chapter: chapName, chapter_number: tool.chapter_number, subTopicsMap: {} };
-              }
+              if (!chapterMap[chapName]) chapterMap[chapName] = { chapter: chapName, chapter_number: tool.chapter_number, subTopicsMap: {} };
               if (tool.subtopic) {
-                  if (!chapterMap[chapName].subTopicsMap[tool.subtopic]) {
-                      chapterMap[chapName].subTopicsMap[tool.subtopic] = { title: tool.subtopic, order: tool.subtopic_order || 1, tools: [] };
-                  }
-                  if (tool.title && tool.content_type && tool.content_type !== 'placeholder') {
-                      chapterMap[chapName].subTopicsMap[tool.subtopic].tools.push(tool);
-                  }
+                  if (!chapterMap[chapName].subTopicsMap[tool.subtopic]) chapterMap[chapName].subTopicsMap[tool.subtopic] = { title: tool.subtopic, order: tool.subtopic_order || 1, tools: [] };
+                  if (tool.title && tool.content_type && tool.content_type !== 'placeholder') chapterMap[chapName].subTopicsMap[tool.subtopic].tools.push(tool);
               }
           });
 
-          const formattedData = Object.values(chapterMap).map((c: any) => ({
-              chapter: c.chapter,
-              chapter_number: c.chapter_number,
-              subTopics: Object.values(c.subTopicsMap)
-          }));
-
+          const formattedData = Object.values(chapterMap).map((c: any) => ({ chapter: c.chapter, chapter_number: c.chapter_number, subTopics: Object.values(c.subTopicsMap) }));
           setWizardData(formattedData as any);
         } catch (e: any) { console.error(e); }
       } else { setWizardData([]); }
     }
     fetchWizardData();
-  }, [krewWizard.grade, krewWizard.subject, krewWizard.show]);
+  }, [krewWizard.grade, krewWizard.subject, wizardMode]);
 
   const selectedChapData: any = wizardData.find((c: any) => c.chapter === krewWizard.chapterSelect);
   const availableSubtopics = selectedChapData?.subTopics || [];
   const selectedSubtopicData: any = availableSubtopics.find((s: any) => s.title === krewWizard.subtopicSelect);
   const availableTools = selectedSubtopicData?.tools || [];
 
-  const handleAddClass = async () => {
-    if (!newGrade || !newSubject) return;
-    setIsSavingClass(true); 
-    try {
-      const user = auth.currentUser;
-      const docRef = await addDoc(collection(db, 'teacher_classes'), { teacher_id: user.uid, grade: newGrade, subject: newSubject, created_at: new Date().toISOString() });
-      setMyClasses([...myClasses, { id: docRef.id, grade: newGrade, subject: newSubject }]); 
-      setSelectedAnalyticsFilter(`${newGrade} • ${newSubject}`);
-      setNewGrade(''); setNewSubject(''); setShowClassModal(false); 
-    } catch (error: any) { console.error(error); alert("Failed to add class."); } finally { setIsSavingClass(false); }
-  };
-
-  const handleRemoveClass = async (classId) => {
-    if(!window.confirm("Are you sure you want to remove this class?")) return;
-    try {
-      await deleteDoc(doc(db, 'teacher_classes', classId));
-      const updatedClasses = myClasses.filter(c => c.id !== classId);
-      setMyClasses(updatedClasses); 
-      if (updatedClasses.length > 0) setSelectedAnalyticsFilter(`${updatedClasses[0].grade} • ${updatedClasses[0].subject}`);
-      else setSelectedAnalyticsFilter('');
-    } catch (error: any) { console.error(error); }
-  };
-
- // Helper: Precise Age Calculator
-  const calculateAge = (dobString) => {
-     if (!dobString) return '--';
-     const birthDate = new Date(dobString);
-     const today = new Date();
-     let years = today.getFullYear() - birthDate.getFullYear();
-     let months = today.getMonth() - birthDate.getMonth();
-     let days = today.getDate() - birthDate.getDate();
-     if (days < 0) { months--; days += new Date(today.getFullYear(), today.getMonth(), 0).getDate(); }
-     if (months < 0) { years--; months += 12; }
-     return `${years} Y, ${months} M, ${days} D`;
-  };
-
-  // Helper: Toggle Class Selection in Forms
-  const toggleClassSelection = (formType, classStr) => {
-   if (formType === 'create') {
-      const current = newStudentForm.selectedClasses;
-      if (current.includes(classStr)) {
-         setNewStudentForm({ ...newStudentForm, selectedClasses: current.filter(c => c !== classStr) });
-      } else {
-         setNewStudentForm({ ...newStudentForm, selectedClasses: [...current, classStr] });
-      }
-   } else {
-      const current = importForm.selectedClasses;
-      if (current.includes(classStr)) {
-         setImportForm({ ...importForm, selectedClasses: current.filter(c => c !== classStr) });
-      } else {
-         setImportForm({ ...importForm, selectedClasses: [...current, classStr] });
-      }
-   }
-};
-
-  const handleCreateStudent = async () => {
-     const f = newStudentForm;
-     if (!/^\d{12}$/.test(f.apaarId)) return alert("APAAR ID must be exactly 12 numeric digits.");
-     if (!f.fullName || !f.fathersName || !f.mothersName || !f.contact1 || !f.dob) return alert("Please fill all mandatory fields.");
-     if (f.selectedClasses.length === 0) return alert("Please select at least one class to assign this student to.");
-     
-     setIsSavingStudent(true);
-     try {
-        // 1. Check for duplicates
-        const q = query(collection(db, 'managed_students'), where('apaar_id', '==', f.apaarId));
-        const snap = await getDocs(q);
-        if (!snap.empty) { setIsSavingStudent(false); return alert("A student with this APAAR ID already exists! Please use the 'Import' tab."); }
-
-        // 2. Create the master record (Login credentials remain null for parents to fill later)
-        const newStudentData = {
-           apaar_id: f.apaarId, name: f.fullName, dob: f.dob, fathers_name: f.fathersName, mothers_name: f.mothersName,
-           contact1: f.contact1, is_whatsapp1: f.isWhatsapp1, contact2: f.contact2,
-           enrolled_classes: f.selectedClasses, teacher_ids: [auth.currentUser.uid],
-           username: null, pin: null, parent_id: null, stars_earned: 0, status: 'On Track', created_at: new Date().toISOString()
-        };
-        await addDoc(collection(db, 'managed_students'), newStudentData);
-        alert("Student Profile Created! It is now securely awaiting Parent claim & login setup.");
-        setShowManageStudentModal(false);
-        setNewStudentForm({apaarId: '', fullName: '', fathersName: '', mothersName: '', contact1: '', isWhatsapp1: true, contact2: '', dob: '', selectedClasses: []});
-     } catch (error: any) { console.error(error); alert("Error creating student."); } finally { setIsSavingStudent(false); }
-  };
-
-  const handleImportStudent = async () => {
-     const f = importForm;
-     if (!/^\d{12}$/.test(f.apaarId)) return alert("APAAR ID must be exactly 12 numeric digits.");
-     if (!f.dob || f.selectedClasses.length === 0) return alert("Please enter DOB and select at least one class.");
-     
-     setIsSavingStudent(true);
-     try {
-        // 2-Factor Auth style search: Must match BOTH APAAR and DOB
-        const q = query(collection(db, 'managed_students'), where('apaar_id', '==', f.apaarId), where('dob', '==', f.dob));
-        const snap = await getDocs(q);
-        if (snap.empty) { setIsSavingStudent(false); return alert("No matching student found. Please check the APAAR ID and DOB, or create a new profile."); }
-        
-        const studentDoc = snap.docs[0];
-const studentData = studentDoc.data() as { 
-  name: string; enrolled_classes?: string[]; teacher_ids?: string[]; 
-};
-        
-        // Merge the new classes and teacher access without overwriting existing data
-        const updatedClasses = [...new Set([...(studentData.enrolled_classes || []), ...f.selectedClasses])];
-        const updatedTeachers = [...new Set([...(studentData.teacher_ids || []), auth.currentUser.uid])];
-        
-        await setDoc(doc(db, 'managed_students', studentDoc.id), { enrolled_classes: updatedClasses, teacher_ids: updatedTeachers }, { merge: true });
-        alert(`Successfully imported ${studentData.name} into your roster!`);
-        setShowManageStudentModal(false);
-        setImportForm({ apaarId: '', dob: '', selectedClasses: [] });
-     } catch (error: any) { console.error(error); alert("Error importing student."); } finally { setIsSavingStudent(false); }
-  };
-
-
-  // 2. HELPER: Find exact tool document for Flat DB Edits
   const getExactToolDoc = async (g: any, s: any, c: any, sub: any, title: any) => {
      const snap = await getDocs(collection(db, 'learning_tools'));
      return snap.docs.find((d: any) => {
@@ -2096,32 +1741,60 @@ const studentData = studentDoc.data() as {
         const dChap = (data.chapter_name || data.chapter || '')?.toLowerCase().trim();
         const dSub = data.subtopic?.toLowerCase().trim() || '';
         const dTitle = data.title?.toLowerCase().trim() || '';
-        
-        const fGrade = g?.toLowerCase().trim() || '';
-        const fSubj = s?.toLowerCase().trim() === 'mathematics' ? 'maths' : (s?.toLowerCase().trim() || '');
-        const fChap = c?.toLowerCase().trim() || '';
-        const fSub = sub?.toLowerCase().trim() || '';
-        const fTitle = title?.toLowerCase().trim() || '';
-        
-        return dGrade === fGrade && dSubj === fSubj && dChap === fChap && dSub === fSub && dTitle === fTitle;
+        return dGrade === (g||'').toLowerCase().trim() && dSubj === (s||'').toLowerCase().trim() && dChap === (c||'').toLowerCase().trim() && dSub === (sub||'').toLowerCase().trim() && dTitle === (title||'').toLowerCase().trim();
      });
   };
 
-  // 3. SUBMIT LOGIC: Flat Database Direct Publisher
   const handleSubmitWizard = async () => {
+     const isEdit = wizardMode === 'EDIT';
      const finalChapter = krewWizard.chapterSelect === 'NEW' ? krewWizard.newChapter : krewWizard.chapterSelect;
      const finalSubtopic = krewWizard.subtopicSelect === 'NEW' ? krewWizard.newSubtopic : krewWizard.subtopicSelect;
+     
+     // 1. BULK EDIT CHAPTER (Renames Chapter across all flat docs)
+     if (isEdit && targetLevel === 'CHAPTER') {
+         if (!krewWizard.newChapter || !krewWizard.chapterNumber) { alert("Please provide the new Chapter Name and Number!"); return; }
+         setIsSendingRequest(true);
+         try {
+             const snapshot = await getDocs(collection(db, 'learning_tools'));
+             const docsToUpdate = snapshot.docs.filter((d: any) => d.data().grade === krewWizard.grade && d.data().subject === krewWizard.subject && (d.data().chapter_name || d.data().chapter) === krewWizard.chapterSelect);
+             for (const docSnap of docsToUpdate) {
+                 await setDoc(doc(db, 'learning_tools', docSnap.id), { chapter: krewWizard.newChapter, chapter_name: krewWizard.newChapter, chapter_number: Number(krewWizard.chapterNumber) }, { merge: true });
+             }
+             await addDoc(collection(db, 'content_requests'), { krew_member_id: auth.currentUser?.uid || 'unknown', action_type: 'BULK_EDIT_CHAPTER', payload: { old: krewWizard.chapterSelect, new: krewWizard.newChapter }, status: 'APPROVED', resolved_by: 'Krew Auto-Publish', resolved_at: new Date().toISOString() });
+             alert(`Successfully updated Chapter name for ${docsToUpdate.length} items!`);
+             setWizardMode(null); window.location.reload();
+         } catch(e: any) { console.error(e); alert("Error updating chapter."); } finally { setIsSendingRequest(false); }
+         return;
+     }
+
+     // 2. BULK EDIT SUBTOPIC (Renames Subtopic across all flat docs in that chapter)
+     if (isEdit && targetLevel === 'SUBTOPIC') {
+         if (!krewWizard.newSubtopic || !krewWizard.subtopicOrder) { alert("Please provide the new Subtopic Name and Order!"); return; }
+         setIsSendingRequest(true);
+         try {
+             const snapshot = await getDocs(collection(db, 'learning_tools'));
+             const docsToUpdate = snapshot.docs.filter((d: any) => d.data().grade === krewWizard.grade && d.data().subject === krewWizard.subject && (d.data().chapter_name || d.data().chapter) === krewWizard.chapterSelect && d.data().subtopic === krewWizard.subtopicSelect);
+             for (const docSnap of docsToUpdate) {
+                 await setDoc(doc(db, 'learning_tools', docSnap.id), { subtopic: krewWizard.newSubtopic, subtopic_order: Number(krewWizard.subtopicOrder) }, { merge: true });
+             }
+             await addDoc(collection(db, 'content_requests'), { krew_member_id: auth.currentUser?.uid || 'unknown', action_type: 'BULK_EDIT_SUBTOPIC', payload: { old: krewWizard.subtopicSelect, new: krewWizard.newSubtopic }, status: 'APPROVED', resolved_by: 'Krew Auto-Publish', resolved_at: new Date().toISOString() });
+             alert(`Successfully updated Subtopic name for ${docsToUpdate.length} items!`);
+             setWizardMode(null); window.location.reload();
+         } catch(e: any) { console.error(e); alert("Error updating subtopic."); } finally { setIsSendingRequest(false); }
+         return;
+     }
+
+     // 3. STANDARD TOOL ADD/EDIT
      if (!krewWizard.grade || !krewWizard.subject || !finalChapter || !krewWizard.chapterNumber || !finalSubtopic || !krewWizard.toolTitle || !krewWizard.url) { 
          alert("Please fill out all required fields!"); return; 
      }
 
-     if (krewWizard.chapterSelect === 'NEW') {
+     if (!isEdit && krewWizard.chapterSelect === 'NEW') {
          const numTaken = wizardData.some((c: any) => Number(c.chapter_number) === Number(krewWizard.chapterNumber));
-         if (numTaken) { alert(`Chapter Number ${krewWizard.chapterNumber} is already used by an existing chapter. Please choose another.`); return; }
+         if (numTaken) { alert(`Chapter Number ${krewWizard.chapterNumber} is already used. Please choose another.`); return; }
      }
 
      setIsSendingRequest(true);
-     
      let toolColor = 'bg-sky-500';
      const tType = krewWizard.toolType.toLowerCase();
      if (tType === 'conceptualiser') toolColor = 'bg-purple-500';
@@ -2130,706 +1803,103 @@ const studentData = studentDoc.data() as {
      else if (tType === 'pdf' || tType === 'presentation') toolColor = 'bg-sky-500';
      else if (tType === 'game') toolColor = 'bg-lime-500';
 
-     // FORMATTED PERFECTLY FOR THE LESSON PLAYER (Flat Structure)
      const flatPayload = {
-        grade: krewWizard.grade, 
-        subject: krewWizard.subject, 
-        chapter_number: Number(krewWizard.chapterNumber),
-        chapter_name: finalChapter, 
-        chapter: finalChapter, // Fallback support
-        book: krewWizard.book || 'Kortex Klassroom', 
-        subtopic_order: Number(krewWizard.subtopicOrder),
-        subtopic: finalSubtopic,
-        title: krewWizard.toolTitle, 
-        content_type: krewWizard.toolType.toLowerCase(), 
-        type: krewWizard.toolType, // Fallback support
-        image: krewWizard.imageUrl || '', 
-        content_url: krewWizard.url, 
-        content_order: Number(krewWizard.toolOrder), 
-        orderIndex: Number(krewWizard.toolOrder), // Fallback support
-        isPremium: false, 
-        is_featured: krewWizard.isFeatured, 
-        color: toolColor,
-        created_at: new Date().toISOString()
+        grade: krewWizard.grade, subject: krewWizard.subject, chapter_number: Number(krewWizard.chapterNumber),
+        chapter_name: finalChapter, chapter: finalChapter, book: krewWizard.book || 'Kortex Klassroom', 
+        subtopic_order: Number(krewWizard.subtopicOrder), subtopic: finalSubtopic, title: krewWizard.toolTitle, 
+        content_type: krewWizard.toolType.toLowerCase(), type: krewWizard.toolType, image: krewWizard.imageUrl || '', 
+        content_url: krewWizard.url, content_order: Number(krewWizard.toolOrder), orderIndex: Number(krewWizard.toolOrder), 
+        isPremium: false, is_featured: krewWizard.isFeatured, color: toolColor, created_at: new Date().toISOString()
      };
 
-     const isEditAction = krewWizard.toolSelect !== 'NEW' && krewWizard.toolSelect !== '';
-
      try {
-       // DIRECT DATABASE UPDATE (Flat Document)
-       if (isEditAction) {
+       if (isEdit) {
           const oldDoc = await getExactToolDoc(flatPayload.grade, flatPayload.subject, krewWizard.chapterSelect, krewWizard.subtopicSelect, krewWizard.originalToolTitle);
-          if (oldDoc) {
-             await setDoc(doc(db, 'learning_tools', oldDoc.id), flatPayload, { merge: true });
-          } else {
-             // Failsafe if it couldn't find the exact old doc to overwrite
-             await addDoc(collection(db, 'learning_tools'), flatPayload);
-          }
+          if (oldDoc) await setDoc(doc(db, 'learning_tools', oldDoc.id), flatPayload, { merge: true });
+          else await addDoc(collection(db, 'learning_tools'), flatPayload);
        } else {
           await addDoc(collection(db, 'learning_tools'), flatPayload);
        }
-
-       // LOG TO ADMIN AUDIT
-       await addDoc(collection(db, 'content_requests'), {
-          krew_member_id: auth.currentUser?.uid || 'unknown', krew_member_email: auth.currentUser?.email || 'Direct Update',
-          action_type: isEditAction ? 'CASCADING_EDIT' : 'CASCADING_ADD', target_type: 'TOOL', target_grade: krewWizard.grade, target_subject: krewWizard.subject, 
-          payload: flatPayload, originalTitle: krewWizard.originalToolTitle || null, 
-          status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString()
-       });
+       await addDoc(collection(db, 'content_requests'), { krew_member_id: auth.currentUser?.uid || 'unknown', action_type: isEdit ? 'EDIT' : 'ADD', target_type: 'TOOL', payload: flatPayload, status: 'APPROVED', resolved_by: 'Krew Auto-Publish', resolved_at: new Date().toISOString() });
        
-       alert(`Success! Content ${isEditAction ? 'updated' : 'added'} instantly.`);
-       setKrewWizard(initialWizardState);
-       setActiveLesson(null); // Forces UI to refresh the curriculum
-     } catch (error: any) { console.error(error); alert("Error saving content directly."); } finally { setIsSendingRequest(false); }
+       alert(`Success! Content ${isEdit ? 'updated' : 'added'} instantly.`);
+       setWizardMode(null); window.location.reload(); 
+     } catch (error: any) { console.error(error); alert("Error saving content."); } finally { setIsSendingRequest(false); }
   };
 
-  const handleKrewDelete = async (targetType: any, targetId: any, title: any) => {
-     const safeTitle = title || 'Untitled Item';
-     if (!window.confirm(`Are you sure you want to permanently DELETE "${safeTitle}"? This will be live instantly.`)) return;
-     
-     try {
-       const filterString = selectedAnalyticsFilter || '';
-       const [grade, subject] = filterString.split(' • ').map((s: string) => s.trim());
+  const handleExecuteDelete = async () => {
+     if (!krewWizard.grade || !krewWizard.subject || !krewWizard.chapterSelect) { alert("Please select targets to delete."); return; }
+     if (!window.confirm(`WARNING: Are you sure you want to permanently DELETE this ${targetLevel}? This affects the live database instantly.`)) return;
 
-       // 1. FLAT DATABASE DELETE LOGIC
+     setIsSendingRequest(true);
+     try {
        const snapshot = await getDocs(collection(db, 'learning_tools'));
        const docsToDelete = snapshot.docs.filter((docSnap: any) => {
            const data = docSnap.data();
-           const dGrade = data.grade?.toLowerCase().trim() || '';
-           const dSubj = data.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : (data.subject?.toLowerCase().trim() || '');
-           
-           // Make sure we are only deleting from the currently selected Grade and Subject
-           if (dGrade !== grade?.toLowerCase() || dSubj !== subject?.toLowerCase()) return false;
+           if (data.grade?.toLowerCase().trim() !== krewWizard.grade.toLowerCase().trim() || 
+              (data.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : data.subject?.toLowerCase().trim()) !== krewWizard.subject.toLowerCase().trim()) return false;
 
-           // Match the specific target
-           if (targetType === 'CHAPTER') {
-               return (data.chapter_name || data.chapter)?.toLowerCase().trim() === safeTitle.toLowerCase().trim();
-           } else if (targetType === 'SUBTOPIC') {
-               return data.subtopic?.toLowerCase().trim() === safeTitle.toLowerCase().trim();
-           } else if (targetType === 'TOOL') {
-               return data.title?.toLowerCase().trim() === safeTitle.toLowerCase().trim();
-           }
+           if (targetLevel === 'CHAPTER') return (data.chapter_name || data.chapter)?.toLowerCase().trim() === krewWizard.chapterSelect.toLowerCase().trim();
+           if (targetLevel === 'SUBTOPIC') return (data.chapter_name || data.chapter)?.toLowerCase().trim() === krewWizard.chapterSelect.toLowerCase().trim() && data.subtopic?.toLowerCase().trim() === krewWizard.subtopicSelect.toLowerCase().trim();
+           if (targetLevel === 'TOOL') return (data.chapter_name || data.chapter)?.toLowerCase().trim() === krewWizard.chapterSelect.toLowerCase().trim() && data.subtopic?.toLowerCase().trim() === krewWizard.subtopicSelect.toLowerCase().trim() && data.title?.toLowerCase().trim() === krewWizard.toolSelect.toLowerCase().trim();
            return false;
        });
 
-       // Delete all matched flat documents
-       for (const docSnap of docsToDelete) {
-           await deleteDoc(doc(db, 'learning_tools', docSnap.id));
-       }
-       
-       // 2. LOG TO ADMIN AUDIT
-       await addDoc(collection(db, 'content_requests'), { 
-         krew_member_id: auth.currentUser?.uid || 'unknown', krew_member_email: auth.currentUser?.email || 'Direct Update',
-         action_type: 'DELETE', target_type: targetType, target_grade: grade || '', target_subject: subject || '', 
-         payload: { title: safeTitle }, status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString(), created_at: new Date().toISOString()
-       });
+       for (const docSnap of docsToDelete) await deleteDoc(doc(db, 'learning_tools', docSnap.id));
+       await addDoc(collection(db, 'content_requests'), { krew_member_id: auth.currentUser?.uid || 'unknown', action_type: 'DELETE', target_type: targetLevel, payload: { chapter: krewWizard.chapterSelect, subtopic: krewWizard.subtopicSelect, tool: krewWizard.toolSelect }, status: 'APPROVED', resolved_by: 'Krew Auto-Publish', resolved_at: new Date().toISOString() });
 
-       alert(`Successfully deleted!`);
-       setActiveLesson(null); // Forces the UI to refresh the curriculum list
-     } catch (error: any) { console.error(error); alert("Error deleting content."); }
+       alert(`Successfully deleted ${docsToDelete.length} records!`);
+       setWizardMode(null); window.location.reload(); 
+     } catch (error: any) { console.error(error); alert("Error deleting content."); } finally { setIsSendingRequest(false); }
   };
 
-  const handleEditClick = (type: any, chapterId: any, oldTitle: any, parentSubtopic = null) => {
-     setKrewEdit({ show: true, type, chapterId, oldTitle, newTitle: oldTitle || '', parentSubtopic });
-  };
-
-  const handleSendQuickEdit = async () => {
-     if (!krewEdit.newTitle) return;
-     setIsSendingRequest(true);
-     try {
-       const filterString = selectedAnalyticsFilter || '';
-       const [grade, subject] = filterString.split(' • ');
-
-       // 1. DIRECT RENAME LOGIC
-       const curRef = doc(db, 'learning_tools', krewEdit.chapterId);
-       const curSnap = await getDoc(curRef);
-       if (curSnap.exists()) {
-          let data = curSnap.data();
-          if (krewEdit.type === 'CHAPTER') {
-             data.chapter = krewEdit.newTitle;
-             data.chapter_name = krewEdit.newTitle; 
-          } else if (krewEdit.type === 'SUBTOPIC') {
-             const sIdx = (data.subTopics || []).findIndex((s: any) => s.title === krewEdit.oldTitle);
-             if (sIdx > -1) data.subTopics[sIdx].title = krewEdit.newTitle;
-          }
-          await setDoc(curRef, data, { merge: true });
-       }
-
-       // 2. LOG TO ADMIN AUDIT (Now with strict undefined fallbacks!)
-       await addDoc(collection(db, 'content_requests'), { 
-          krew_member_id: auth.currentUser?.uid || 'unknown', krew_member_email: auth.currentUser?.email || 'Direct Update',
-          action_type: 'EDIT', target_type: krewEdit.type, target_id: krewEdit.chapterId, 
-          target_grade: grade?.trim() || '', target_subject: subject?.trim() || '', 
-          payload: { oldTitle: krewEdit.oldTitle, newTitle: krewEdit.newTitle, parentSubtopic: krewEdit.parentSubtopic }, 
-          status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString(), created_at: new Date().toISOString()
-        });
-
-        alert("Successfully renamed! Changes are live.");
-        setKrewEdit({ show: false, type: '', chapterId: '', oldTitle: '', newTitle: '', parentSubtopic: '' });
-        setActiveLesson(null); 
-     } catch (error: any) { console.error(error); alert("Error renaming."); } finally { setIsSendingRequest(false); }
-  };
-
-  const handleFullEditClick = (tool: any, subtopicTitle: any, lesson: any) => {
-    let normalizedType = 'Video';
-    if (tool.type) {
-       const t = tool.type.toLowerCase();
-       if (t === 'game' || t === 'gamepad2') normalizedType = 'Game';
-       else if (t === 'pdf') normalizedType = 'PDF';
-       else if (t === 'presentation' || t === 'ppt') normalizedType = 'Presentation';
-       else if (t === 'quiz') normalizedType = 'Quiz';
-       else if (t === 'conceptualiser') normalizedType = 'Conceptualiser';
-    }
-
-    let normalizedSubject = lesson.subject?.trim() || '';
-    if (normalizedSubject.toLowerCase() === 'mathematics') normalizedSubject = 'Maths';
-    else if (normalizedSubject) normalizedSubject = normalizedSubject.charAt(0).toUpperCase() + normalizedSubject.slice(1).toLowerCase();
-    
-    let normalizedGrade = lesson.grade?.trim() || '';
-
-    const currentSubtopic = lesson.subTopics?.find((s: any) => s.title === subtopicTitle);
-    const actualIndex = currentSubtopic ? currentSubtopic.tools.findIndex((t: any) => t.title === tool.title) : 0;
-    const finalOrderIndex = tool.orderIndex || tool.content_order || (actualIndex + 1);
-
-    // FIXED: Maps exactly to the new 12-Step Cascading State variables
-    setKrewWizard({
-      show: true, isEdit: true,
-      originalToolTitle: tool.title,
-      grade: normalizedGrade, subject: normalizedSubject, book: lesson.book || 'Kortex Klassroom',
-      chapterSelect: lesson.chapter, newChapter: '', chapterNumber: lesson.chapter_number || 1,
-      subtopicSelect: subtopicTitle, newSubtopic: '', subtopicOrder: currentSubtopic?.subtopic_order || 1,
-      toolSelect: tool.title, toolOrder: finalOrderIndex, toolType: normalizedType, 
-      toolTitle: tool.title, imageUrl: tool.image || tool.image_url || '', url: tool.content_url || '', 
-      isFeatured: tool.is_featured || false
-    });
-  };
-
-  if (isLoading) return <div className="py-20 text-center animate-pulse font-bold text-slate-400">Connecting to Kortex Database...</div>;
+  const openWizard = (mode: any) => { setWizardMode(mode); setKrewWizard(initialWizardState); setTargetLevel('TOOL'); };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-6xl mx-auto pb-20">
-      <div className={`p-8 rounded-[2.5rem] border-2 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 ${isEditMode ? 'bg-emerald-50 border-emerald-100' : 'bg-sky-50 border-sky-100'}`}>
-        <div className="flex items-center gap-5">
-           <div className={`w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border-2 shrink-0 ${isEditMode ? 'border-emerald-200' : 'border-sky-200'}`}>
-              <User size={32} className={isEditMode ? 'text-emerald-600' : 'text-sky-600'} />
-           </div>
-           <div>
-              <h2 className="text-3xl font-black text-slate-800">{userName ? `${userName}'s Workspace` : 'Teacher Dashboard'}</h2>
-              <p className="text-slate-500 font-bold">{isLoggedIn ? `${myClasses.length} Real-time Classrooms` : 'Unlock your digital classroom today'}</p>
-           </div>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-           {/* GUEST VIEW: Show both Sign Up and Pro buttons */}
-           {!isLoggedIn && (
-              <>
-                 <Button variant="secondary" onClick={() => requireAuth(() => {}, "Create your free teacher account to assign lessons and track students!")} className="flex-1 md:flex-none bg-white !text-sky-600 hover:bg-sky-50 shadow-sm py-2 px-5 text-sm border-2 border-sky-200">
-                    Create Free Account
-                 </Button>
-                 <Button onClick={() => requireAuth(() => {}, "Sign up to unlock Pro analytics and advanced learning tools!")} className="flex-1 md:flex-none !bg-gradient-to-r from-amber-400 to-orange-500 !text-white border-none shadow-md hover:shadow-lg py-2 px-5 text-sm">
-                    <Star size={16} className="fill-white inline mr-1" /> Upgrade to Pro
-                 </Button>
-              </>
-           )}
-
-           {/* FREE TEACHER VIEW: Show only Pro button */}
-           {isLoggedIn && !isPro && role !== 'admin' && (
-              <Button onClick={() => alert("Billing portal opening soon!")} className="flex-1 md:flex-none !bg-gradient-to-r from-amber-400 to-orange-500 !text-white border-none shadow-md hover:shadow-lg py-2 px-5 text-sm">
-                 <Star size={16} className="fill-white inline mr-1" /> Upgrade to Pro
-              </Button>
-           )}
-
-           {/* KREW MODE TOGGLE */}
-           {role === 'krew' && (
-              <div className="flex items-center gap-3 bg-white p-2 rounded-full border-2 border-slate-200 shadow-sm ml-auto">
-                 <span className={`text-xs font-black uppercase tracking-wider px-3 transition-colors ${!isEditMode ? 'text-sky-600' : 'text-slate-400'}`}>Preview</span>
-                 <button onClick={() => setIsEditMode(!isEditMode)} className={`w-14 h-7 rounded-full relative transition-colors shadow-inner ${isEditMode ? 'bg-emerald-500' : 'bg-slate-300'}`}><div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${isEditMode ? 'translate-x-7' : 'translate-x-0'}`}></div></button>
-                 <span className={`text-xs font-black uppercase tracking-wider px-3 transition-colors ${isEditMode ? 'text-emerald-600' : 'text-slate-400'}`}>Build Mode</span>
-              </div>
-           )}
-        </div>
+    <>
+      <div className="w-full bg-slate-800 text-white px-4 py-3 flex justify-between items-center shadow-md border-b-4 border-slate-900">
+         <div className="font-black flex items-center gap-2 tracking-wide"><Database size={18} className="text-emerald-400"/> KREW STUDIO</div>
+         <div className="flex gap-2">
+            <Button onClick={()=>openWizard('ADD')} className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm py-1.5 px-3 h-auto"><Plus size={16} className="mr-1"/> Add</Button>
+            <Button onClick={()=>openWizard('EDIT')} className="bg-amber-500 hover:bg-amber-600 text-white shadow-sm py-1.5 px-3 h-auto"><Edit3 size={16} className="mr-1"/> Edit</Button>
+            <Button onClick={()=>openWizard('DELETE')} className="bg-rose-500 hover:bg-rose-600 text-white shadow-sm py-1.5 px-3 h-auto"><Trash2 size={16} className="mr-1"/> Delete</Button>
+         </div>
       </div>
 
-      <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
-        <button onClick={() => {setActiveTab('lessons'); setActiveLesson(null);}} className={`px-8 py-3 rounded-xl font-black text-sm uppercase transition-all ${activeTab === 'lessons' ? (isEditMode ? 'bg-emerald-500 text-white shadow-md' : 'bg-white text-sky-600 shadow-sm') : 'text-slate-500'}`}>My Grades</button>
-        <button onClick={() => setActiveTab('analytics')} className={`px-8 py-3 rounded-xl font-black text-sm uppercase transition-all ${activeTab === 'analytics' ? (isEditMode ? 'bg-emerald-500 text-white shadow-md' : 'bg-white text-sky-600 shadow-sm') : 'text-slate-500'}`}>Analytics</button>
-        <button onClick={() => setActiveTab('students')} className={`px-8 py-3 rounded-xl font-black text-sm uppercase transition-all ${activeTab === 'students' ? (isEditMode ? 'bg-emerald-500 text-white shadow-md' : 'bg-white text-sky-600 shadow-sm') : 'text-slate-500'}`}>Students</button>
-      </div>
-
-      {activeTab !== 'lessons' && !isLoggedIn && (
-        <div className="bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] p-16 md:p-24 text-center shadow-sm mt-6">
-           <div className="w-24 h-24 bg-sky-50 rounded-full flex items-center justify-center mx-auto mb-6"><Lock size={40} className="text-sky-500" /></div>
-           <h3 className="text-3xl font-black text-slate-800 mb-4">Teacher Portal Locked</h3>
-           <p className="text-slate-500 max-w-md mx-auto mb-8 font-medium">Create a free teacher account to access analytics and manage students.</p>
-           <Button onClick={() => requireAuth(() => {}, "Please log in to access this feature.")} className="px-8 py-4 text-lg border-b-4">Sign Up / Log In</Button>
-        </div>
-      )}
-
-      {activeTab !== 'lessons' && isLoggedIn && myClasses.length === 0 && (
-        <div className="bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] p-20 text-center mt-6"><Database size={48} className="mx-auto text-slate-300 mb-4" /><h3 className="text-xl font-bold text-slate-700">No Classrooms Found</h3><p className="text-slate-500 max-w-sm mx-auto mt-2">Go to 'My Grades' and click "Manage Classes" to add your first class combination.</p></div>
-      )}
-
-      {/* RESTORED CONTENT FOR ANALYTICS (WITH PRO LOCK) */}
-      {activeTab === 'analytics' && isLoggedIn && myClasses.length > 0 && (() => {
-         // Check if the user is locked out of Pro features
-         const isLocked = !isPro && role !== 'admin' && role !== 'krew';
-         
-         // Feed in dummy data if locked, otherwise use real class stats!
-         const displayAvg = isLocked ? 84 : classStats.avg;
-         const displayStruggling = isLocked ? ['Aarav', 'Diya'] : classStats.struggling;
-         const displayTop = isLocked ? ['Kabir', 'Ananya', 'Rohan'] : classStats.top;
-         const displayCurriculum = isLocked && dbCurriculum.length === 0 
-            ? [{chapter: 'Number Systems & Place Value'}, {chapter: 'Addition and Subtraction'}, {chapter: 'Introduction to Fractions'}] 
-            : dbCurriculum;
-
-         return (
-            <div className="relative animate-fade-in">
-               
-               {/* 🔒 THE PRO LOCK OVERLAY */}
-               {isLocked && (
-                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-start pt-32 bg-white/30 backdrop-blur-[6px] rounded-[2.5rem]">
-                     <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl text-center max-w-lg border-2 border-amber-100 flex flex-col items-center animate-fade-in-up">
-                        <div className="w-24 h-24 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mb-6 shadow-xl border-4 border-white transform -rotate-3">
-                           <Lock size={40} className="text-white" />
-                        </div>
-                        <h3 className="text-3xl font-black text-slate-800 mb-3">Unlock AI Analytics</h3>
-                        <p className="text-slate-600 font-medium mb-8 text-lg">Get real-time insights, identify struggling students instantly, and track chapter-by-chapter mastery with Kortex Klassroom Pro.</p>
-                        <Button onClick={() => alert("Billing portal opening soon!")} className="w-full !bg-gradient-to-r from-amber-400 to-orange-500 !text-white border-none shadow-xl hover:shadow-2xl py-4 text-xl">
-                           <Star size={24} className="fill-white inline mr-2" /> Upgrade to Pro
-                        </Button>
-                     </div>
-                  </div>
-               )}
-
-               {/* THE DASHBOARD (Blurred if Locked) */}
-               <div className={`space-y-8 ${isLocked ? 'opacity-60 select-none pointer-events-none transition-all duration-500' : ''}`}>
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                     <Card className="p-8 text-center flex flex-col items-center justify-center">
-                        <div className="text-7xl font-black text-slate-800">{displayAvg}%</div>
-                        <div className="text-slate-400 font-bold uppercase text-xs mt-2 mb-4 tracking-wider">Overall Class Mastery</div>
-                        <div className="w-full bg-slate-100 rounded-full h-4 shadow-inner overflow-hidden"><div className="bg-emerald-500 h-full rounded-full transition-all duration-1000" style={{width: `${displayAvg}%`}}></div></div>
-                     </Card>
-                     <div className="lg:col-span-2 bg-white rounded-3xl border-2 border-slate-100 p-8 shadow-sm">
-                        <h3 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2"><Sparkles className="text-amber-500"/> AI Insights & Actions</h3>
-                        <p className="text-slate-600 mb-6 font-medium">The class average is currently <span className="font-bold text-sky-600">{displayAvg}%</span>. {displayStruggling.length > 0 ? `We recommend focused review for ${displayStruggling.length} students to keep them on track.` : 'Everyone is currently on track!'}</p>
-                        <div className="flex flex-wrap gap-4">
-                           {displayStruggling.length > 0 && (
-                             <div className="flex-1 bg-rose-50 p-5 rounded-2xl border border-rose-100 shadow-sm"><span className="text-xs font-black text-rose-600 uppercase flex items-center gap-1 mb-3"><AlertTriangle size={14}/> Attention Needed</span><div className="flex flex-wrap gap-2">{displayStruggling.map(s => <span key={s} className="bg-white px-3 py-1 rounded-lg text-xs font-bold text-rose-500 shadow-sm border border-rose-100">{s}</span>)}</div></div>
-                           )}
-                           {displayTop.length > 0 && (
-                             <div className="flex-1 bg-lime-50 p-5 rounded-2xl border border-lime-100 shadow-sm"><span className="text-xs font-black text-lime-600 uppercase flex items-center gap-1 mb-3"><Trophy size={14}/> Excelling</span><div className="flex flex-wrap gap-2">{displayTop.map(s => <span key={s} className="bg-white px-3 py-1 rounded-lg text-xs font-bold text-lime-600 shadow-sm border border-lime-100">{s}</span>)}</div></div>
-                           )}
-                        </div>
-                     </div>
-                  </div>
-
-                  <div className="bg-white rounded-3xl border-2 border-slate-100 p-8 shadow-sm">
-                     <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2"><BookOpen className="text-sky-500"/> Chapter Completion Breakdown</h3>
-                     {displayCurriculum.length === 0 ? (
-                        <p className="text-slate-400 font-medium text-center py-6">No curriculum data available to map.</p>
-                     ) : (
-                        <div className="space-y-5">
-                           {displayCurriculum.map((mod, idx) => {
-                              const fakeProgress = isLocked ? Math.max(20, 95 - (idx * 25)) : Math.max(15, 95 - (idx * 12)); 
-                              const colorClass = fakeProgress > 75 ? 'bg-lime-500' : fakeProgress > 40 ? 'bg-amber-400' : 'bg-rose-500';
-                              return (
-                                <div key={idx} className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                   <div className="w-8 font-black text-slate-300 text-lg">{(idx + 1).toString().padStart(2, '0')}</div>
-                                   <div className="flex-1">
-                                      <div className="flex justify-between mb-2">
-                                         <span className="text-sm font-bold text-slate-700">{mod.chapter}</span>
-                                         <span className={`text-sm font-black ${colorClass.replace('bg-', 'text-')}`}>{fakeProgress}%</span>
-                                      </div>
-                                      <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden"><div className={`${colorClass} h-2.5 rounded-full transition-all duration-1000`} style={{width: `${fakeProgress}%`}}></div></div>
-                                   </div>
-                                </div>
-                              )
-                           })}
-                        </div>
-                     )}
-                  </div>
-               </div>
-            </div>
-         );
-      })()}
-
-      {/* RESTORED CONTENT FOR STUDENTS (WITH PRO LOCK) */}
-      {activeTab === 'students' && isLoggedIn && myClasses.length > 0 && (() => {
-         // Check if the user is locked out of Pro features
-         const isLocked = !isPro && role !== 'admin' && role !== 'krew';
-         
-         // Feed in dummy data if locked, otherwise use real students!
-         const displayStudents = isLocked ? [
-            { id: 'dummy1', name: 'Aarav Sharma', username: 'aarav123', pin: '847291', status: 'On Track', stars_earned: 142 },
-            { id: 'dummy2', name: 'Diya Patel', username: 'diya456', pin: '392018', status: 'Struggling', stars_earned: 45 },
-            { id: 'dummy3', name: 'Kabir Singh', username: 'kabir789', pin: '571920', status: 'Excelling', stars_earned: 280 }
-         ] : myStudents;
-
-         return (
-            <div className="relative animate-fade-in">
-               
-               {/* 🔒 THE PRO LOCK OVERLAY */}
-               {isLocked && (
-                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-start pt-24 bg-white/30 backdrop-blur-[6px] rounded-[2.5rem]">
-                     <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl text-center max-w-lg border-2 border-amber-100 flex flex-col items-center animate-fade-in-up">
-                        <div className="w-24 h-24 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mb-6 shadow-xl border-4 border-white transform -rotate-3">
-                           <Lock size={40} className="text-white" />
-                        </div>
-                        <h3 className="text-3xl font-black text-slate-800 mb-3">Unlock Student Management</h3>
-                        <p className="text-slate-600 font-medium mb-8 text-lg">Generate direct login credentials, track individual progress, and manage your entire classroom roster with Kortex Klassroom Pro.</p>
-                        <Button onClick={() => alert("Billing portal opening soon!")} className="w-full !bg-gradient-to-r from-amber-400 to-orange-500 !text-white border-none shadow-xl hover:shadow-2xl py-4 text-xl">
-                           <Star size={24} className="fill-white inline mr-2" /> Upgrade to Pro
-                        </Button>
-                     </div>
-                  </div>
-               )}
-
-               {/* THE DASHBOARD (Blurred if Locked) */}
-               <div className={`space-y-6 ${isLocked ? 'opacity-60 select-none pointer-events-none transition-all duration-500' : ''}`}>
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm">
-                    <div>
-                       <h3 className="text-xl font-black text-slate-800">Class Roster</h3>
-                       <p className="text-slate-500 text-sm font-bold mt-1">Manage student accounts, contacts, and generate AI reports.</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                       {/* THE NEW CLASS FILTER */}
-                       <select value={studentFilter} onChange={(e: any) => setStudentFilter(e.target.value)} className="bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm flex-1 md:flex-none">
-                          <option value="ALL">View All Students</option>
-                          {myClasses.map(cls => <option key={cls.id} value={`${cls.grade} • ${cls.subject}`}>{cls.grade} • {cls.subject}</option>)}
-                       </select>
-                       
-                       <Button onClick={() => {
-                          if (!isPro && role !== 'admin' && role !== 'krew') return alert("Student Management is a Pro feature. Please upgrade to add students.");
-                          setShowManageStudentModal(true);
-                       }} className="py-3 px-6 shadow-none border-2 text-sm flex-1 md:flex-none">
-                          <Users size={18} className="mr-2"/> Manage Students
-                       </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-x-auto shadow-sm">
-                     <table className="w-full text-left min-w-[1000px]">
-                        <thead className="bg-slate-50"><tr>
-                           <th className="p-6 font-black text-slate-400 text-xs uppercase tracking-wider">Student Name</th>
-                           <th className="p-6 font-black text-slate-400 text-xs uppercase tracking-wider">Enrolled Classes</th>
-                           <th className="p-6 font-black text-slate-400 text-xs uppercase tracking-wider">Parent Contact</th>
-                           <th className="p-6 font-black text-slate-400 text-xs uppercase tracking-wider">Login Details</th>
-                           <th className="p-6 font-black text-slate-400 text-xs uppercase tracking-wider text-right">Actions</th>
-                        </tr></thead>
-                        <tbody className="divide-y divide-slate-50">
-                           {(() => {
-                              // Filter the displayStudents array based on the dropdown selection!
-                              const filteredStudents = studentFilter === 'ALL' 
-                                 ? displayStudents 
-                                 : displayStudents.filter(s => (s.enrolled_classes || []).includes(studentFilter));
-
-                              if (filteredStudents.length === 0) {
-                                 return <tr><td colSpan={5} className="p-12 text-center text-slate-400 font-bold">No students found for this selection.</td></tr>;
-                              }
-
-                              return filteredStudents.map(s => (
-                                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-6">
-                                       <div className="font-extrabold text-slate-800 text-base">{s.name}</div>
-                                       <div className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${s.status === 'Excelling' ? 'bg-lime-100 text-lime-700' : s.status === 'Struggling' ? 'bg-rose-100 text-rose-700' : 'bg-sky-100 text-sky-700'}`}>
-                                          {s.status} • {s.stars_earned || 0} ⭐
-                                       </div>
-                                    </td>
-                                    <td className="p-6">
-                                       <div className="flex flex-wrap gap-1 max-w-[200px]">
-                                          {(s.enrolled_classes || []).map((cls, idx) => (
-                                             <span key={idx} className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md border border-slate-200 whitespace-nowrap">{cls}</span>
-                                          ))}
-                                          {(!s.enrolled_classes || s.enrolled_classes.length === 0) && <span className="text-xs text-slate-400 italic">No classes</span>}
-                                       </div>
-                                    </td>
-                                    <td className="p-6">
-                                       <div className="text-sm font-bold text-slate-700">{s.contact1 || 'Not Provided'}</div>
-                                       {s.is_whatsapp1 && <div className="text-[10px] font-black text-emerald-600 mt-0.5 uppercase tracking-wider">✅ WhatsApp</div>}
-                                    </td>
-                                    <td className="p-6">
-                                       {s.username ? (
-                                          <div className="text-xs font-mono font-bold text-sky-600 bg-sky-50 px-3 py-1.5 rounded inline-block shadow-sm border border-sky-100">User: {s.username}</div>
-                                       ) : (
-                                          <div className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded inline-block uppercase tracking-wider border border-amber-200"><Clock size={10} className="inline mr-1 mb-0.5"/> Awaiting Parent Setup</div>
-                                       )}
-                                    </td>
-                                    <td className="p-6 text-right">
-                                       <button onClick={() => setReportStudent(s)} className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                                          <Sparkles size={14} className="text-purple-200" /> AI Report
-                                       </button>
-                                    </td>
-                                 </tr>
-                              ));
-                           })()}
-                        </tbody>
-                     </table>
-                  </div>
-               </div>
-            </div>
-         );
-      })()}
-
-
-
-      {activeTab === 'lessons' && (
-         <div className="space-y-6 animate-fade-in">
-            {/* FIXED: The Filter Bar uses Dropdowns for Guests and Buttons for Teachers */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm">
-               
-               {isLoggedIn && myClasses.length > 0 ? (
-                  <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0">
-                     {myClasses.map(f => (<button key={f.id} onClick={() => {setSelectedAnalyticsFilter(`${f.grade} • ${f.subject}`); setActiveLesson(null);}} className={`px-6 py-2 rounded-full border-2 font-bold whitespace-nowrap transition-all ${selectedAnalyticsFilter === `${f.grade} • ${f.subject}` ? (isEditMode ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : 'bg-sky-500 border-sky-500 text-white shadow-lg') : 'bg-white text-slate-500'}`}>{f.grade} • {f.subject}</button>))}
-                  </div>
-               ) : (
-                  <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                     <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-                     <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={guestSelectedGrade} onChange={(e: any) => setGuestSelectedGrade(e.target.value)}>
-                       <option value="">All Grades</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                     </select>
-                     <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={guestSelectedSubject} onChange={(e: any) => setGuestSelectedSubject(e.target.value)}>
-                       <option value="">All Subjects</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                     </select>
-                     {(guestSelectedGrade || guestSelectedSubject) && <button onClick={() => {setGuestSelectedGrade(""); setGuestSelectedSubject("");}} className="px-4 py-2 bg-slate-100 font-bold rounded-xl flex items-center gap-2 hover:bg-slate-200 text-slate-600"><X size={16} /> Clear</button>}
-                  </div>
-               )}
-
-               {isLoggedIn && <Button variant="secondary" onClick={() => setShowClassModal(true)} className="shrink-0 border-2 shadow-none py-2 text-sm"><Settings size={16} className="mr-2 inline" /> Manage Classes</Button>}
-            </div>
-
-            {!activeLesson ? (
-               <>
-                  {isEditMode && role === 'krew' && (
-                     <Button onClick={() => setKrewWizard({...initialWizardState, show: true, grade: selectedAnalyticsFilter.split(' • ')[0] || guestSelectedGrade, subject: selectedAnalyticsFilter.split(' • ')[1] || guestSelectedSubject})} className="w-full bg-emerald-500 hover:bg-emerald-600 border-b-4 border-emerald-700 py-4 text-lg border-2 border-dashed border-emerald-400 shadow-xl shadow-emerald-500/20"><Plus size={20} className="inline mr-2" /> Global Content Wizard: Build Curriculum</Button>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                     {dbCurriculum.length > 0 ? dbCurriculum.map(lesson => (
-                        <Card key={lesson.id} className={`p-6 cursor-pointer relative group transition-colors ${isEditMode ? 'hover:border-emerald-400' : 'hover:border-sky-400'}`} onClick={() => !isEditMode && setActiveLesson(lesson)}>
-                           {isEditMode && (
-                             <div className="absolute top-4 right-4 flex gap-2 z-10">
-                               <button onClick={(e: any) => { e.stopPropagation(); handleEditClick('CHAPTER', lesson.id, lesson.chapter); }} className="bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"><Edit3 size={16} /></button>
-                               <button onClick={(e: any) => { e.stopPropagation(); handleKrewDelete('CHAPTER', lesson.id, lesson.chapter); }} className="bg-red-50 text-red-400 hover:bg-red-500 hover:text-white p-2 rounded-xl transition-colors shadow-sm"><Trash2 size={16} /></button>
-                             </div>
-                           )}
-                           <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded mb-3 inline-block ${isEditMode ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>{lesson.book}</span>
-                           <h3 className={`text-xl font-black text-slate-800 leading-tight pr-20 mb-2 ${isEditMode ? 'group-hover:text-emerald-600' : 'group-hover:text-sky-600'}`}>{lesson.chapter}</h3>
-                           <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mb-4"><span className="bg-slate-100 px-2 py-1 rounded-md">{lesson.grade}</span><span>•</span><span>{lesson.subject}</span></div>
-                           <div className="text-slate-400 text-sm font-bold mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                              <span className="flex items-center gap-1"><Layers size={14}/> {(lesson.subTopics || lesson.flow)?.length || 0} Modules</span>
-                              {isEditMode && <Button variant="secondary" onClick={() => setActiveLesson(lesson)} className="px-3 py-1 text-xs border-2 shadow-none">Open Builder</Button>}
-                           </div>
-                        </Card>
-                     )) : (<div className="col-span-full py-12 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-2xl">No curriculum mapped to this filter yet.</div>)}
-                  </div>
-               </>
-            ) : (
-               <>
-                  <button onClick={() => setActiveLesson(null)} className={`flex items-center gap-2 font-bold bg-white px-4 py-2 rounded-full shadow-sm border-2 border-slate-100 w-fit transition-colors ${isEditMode ? 'text-emerald-600 hover:border-emerald-200' : 'text-sky-600 hover:border-sky-200'}`}><ChevronLeft size={18} /> Back to Chapters</button>
-                  <div className={`bg-white rounded-3xl p-8 shadow-sm relative overflow-hidden transition-all border-2 border-b-8 ${isEditMode ? 'border-emerald-500' : 'border-sky-500'}`}>
-                     <div className={`absolute top-0 right-0 w-64 h-64 rounded-full -translate-y-1/2 translate-x-1/3 z-0 ${isEditMode ? 'bg-emerald-50' : 'bg-sky-50'}`}></div>
-                     <div className="relative z-10"><span className={`text-sm font-bold uppercase tracking-wider px-3 py-1.5 rounded-full inline-block mb-4 ${isEditMode ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>{activeLesson.book}</span><h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-2">{activeLesson.chapter}</h2></div>
-                  </div>
-
-                  <div className="px-0 md:px-8 py-4 space-y-4">
-                     {activeLesson.subTopics && activeLesson.subTopics.map((subTopic, sIdx) => {
-                        const isExpanded = expandedSubTopics[subTopic.id || sIdx];
-                        return (
-                           <div key={subTopic.id || sIdx} className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all">
-                              <div className={`w-full flex flex-col md:flex-row items-start md:items-center justify-between p-5 transition-colors ${isEditMode ? 'bg-emerald-50/50' : 'bg-slate-50 hover:bg-slate-100'}`}>
-                                 <button onClick={() => toggleSubTopic(subTopic.id || sIdx)} className="flex items-center gap-4 flex-1 text-left w-full">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm shrink-0 transition-colors ${isEditMode ? 'bg-emerald-200 text-emerald-800' : 'bg-sky-200 text-sky-700'}`}>{sIdx + 1}</div>
-                                    <h3 className="text-lg md:text-xl font-extrabold text-slate-800 leading-tight">{subTopic.title}</h3>
-                                 </button>
-                                 <div className="flex items-center gap-3 shrink-0 mt-4 md:mt-0 md:pl-4 self-end md:self-auto">
-                                    {isEditMode && (<>
-                                       <button onClick={() => handleEditClick('SUBTOPIC', activeLesson.id, subTopic.title)} className="bg-white text-emerald-500 hover:text-white hover:bg-emerald-500 p-2 rounded-full border border-slate-200 shadow-sm transition-colors"><Edit3 size={16}/></button>
-                                       <button onClick={() => handleKrewDelete('SUBTOPIC', activeLesson.id, subTopic.title)} className="bg-white text-red-400 hover:text-white hover:bg-red-500 p-2 rounded-full border border-slate-200 shadow-sm transition-colors"><Trash2 size={16}/></button>
-                                    </>)}
-                                    <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm hidden sm:block">{subTopic.tools?.length || 0} Tools</span>
-                                    <button onClick={() => toggleSubTopic(subTopic.id || sIdx)} className="bg-white p-1 rounded-full shadow-sm border border-slate-200">{isExpanded ? <ChevronUp className="text-slate-400" size={20} /> : <ChevronDown className="text-slate-400" size={20} />}</button>
-                                 </div>
-                              </div>
-
-                              {isExpanded && (
-                                 <div className="p-4 border-t-2 border-slate-100 bg-white space-y-3">
-                                    {subTopic.tools && subTopic.tools.length > 0 ? [...subTopic.tools].sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((item, index) => (
-                                       <div key={index} className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 rounded-xl border-2 border-slate-100 transition-colors group relative ${isEditMode ? 'hover:border-emerald-300' : 'hover:border-sky-300'}`}>
-                                          <div className="flex items-center gap-4">
-                                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>
-                                             {(() => {
-                                                const toolType = (item.content_type || item.type || '').toLowerCase();
-                                                if (toolType === 'video') return <Video size={24}/>;
-                                                if (toolType === 'pdf' || toolType === 'presentation' || toolType === 'ppt') return <FileText size={24}/>;
-                                                if (toolType === 'quiz') return <Brain size={24}/>; // Or whichever quiz icon you imported!
-                                                return <Gamepad2 size={24}/>;
-                                              })()}
-                                          </div>
-                                          <div>
-                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">#{item.orderIndex || index + 1} • {item.content_type || item.type || 'Tool'}</span>
-                                                {item.isPremium && <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1"><Star size={8} className="fill-amber-700"/> Pro</span>}
-                                             </div>
-                                             <h4 className="text-lg font-extrabold text-slate-800">{item.title}</h4>
-                                          </div>
-                                       </div>
-                                          <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
-                                             {isEditMode ? (<>
-                                                <button onClick={() => handleFullEditClick(item, subTopic.title, activeLesson)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors border-2 border-emerald-100 flex items-center gap-2"><Edit3 size={16}/> Edit</button>
-                                                <button onClick={() => handleKrewDelete('TOOL', activeLesson.id, item.title)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors border-2 border-red-100 flex items-center gap-2"><Trash2 size={16}/> Remove</button>
-                                             </>) : (
-                                                <Button variant="secondary" className="flex-1 md:flex-none py-2 px-6 text-sm font-bold border-2 shadow-none hover:border-sky-500 hover:text-sky-600" onClick={() => {
-                                                   const isolatedPlaylist = [...subTopic.tools].sort((a,b) => (a.orderIndex || 0) - (b.orderIndex || 0));
-                                                   onStartLesson({ chapter: activeLesson.chapter, book: activeLesson.book, subtopic: subTopic.title, flow: isolatedPlaylist }, index);
-                                                }}>{item.isPremium && !isLoggedIn ? <Lock size={14}/> : 'Start Tool'}</Button>
-                                             )}
-                                          </div>
-                                       </div>
-                                    )) : ( <div className="text-center py-6 text-slate-400 font-medium text-sm border-2 border-dashed border-slate-100 rounded-xl">No tools here yet.</div> )}
-                                    {isEditMode && (<button onClick={() => setKrewWizard({...initialWizardState, show: true, grade: activeLesson.grade, subject: activeLesson.subject, book: activeLesson.book, chapterSelect: activeLesson.chapter, subtopicSelect: subTopic.title})} className="w-full mt-4 bg-white border-2 border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors"><Plus size={18}/> Add New Tool to {subTopic.title}</button>)}
-                                 </div>
-                              )}
-                           </div>
-                        );
-                     })}
-                  </div>
-               </>
-            )}
-         </div>
-      )}
-
-      {showClassModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative border-4 border-slate-100">
-            <button onClick={() => setShowClassModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={20} /></button>
-            <h2 className="text-2xl font-black text-slate-800 mb-6">Manage Your Classes</h2>
-            <div className="space-y-4 mb-8">
-               <h3 className="font-bold text-slate-500 text-sm uppercase tracking-wider">Add a New Class</h3>
-               <div className="flex gap-2">
-                 <select value={newGrade} onChange={(e: any) => setNewGrade(e.target.value)} className="flex-1 bg-slate-50 border-2 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-sky-500"><option value="">Grade</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select>
-                 <select value={newSubject} onChange={(e: any) => setNewSubject(e.target.value)} className="flex-1 bg-slate-50 border-2 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-sky-500"><option value="">Subject</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
-               </div>
-               <Button onClick={handleAddClass} disabled={!newGrade || !newSubject || isSavingClass} className="w-full py-2">{isSavingClass ? 'Adding...' : 'Add Class to Dashboard'}</Button>
-            </div>
-            <div className="space-y-3">
-               <h3 className="font-bold text-slate-500 text-sm uppercase tracking-wider">Current Classes</h3>
-               {myClasses.length === 0 && <p className="text-sm text-slate-400 font-medium">No classes added yet.</p>}
-               <div className="max-h-48 overflow-y-auto pr-2 space-y-2">
-                 {myClasses.map(cls => (
-                   <div key={cls.id} className="flex items-center justify-between bg-slate-50 border-2 border-slate-100 p-3 rounded-xl">
-                      <span className="font-bold text-slate-700 text-sm">{cls.grade} • {cls.subject}</span>
-                      <button onClick={() => handleRemoveClass(cls.id)} className="text-red-400 hover:text-red-600 bg-red-50 p-1.5 rounded-lg transition-colors"><X size={16} /></button>
-                   </div>
-                 ))}
-               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      
-         {/* MANAGE STUDENT MODAL (DUAL TAB APAAR ARCHITECTURE) */}
-      {showManageStudentModal && (
-         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4 py-8 overflow-y-auto">
-            <div className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl relative border-4 border-slate-100 my-auto">
-               <button onClick={() => setShowManageStudentModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={20} /></button>
-               
-               <div className="flex items-center gap-4 mb-6">
-                  <div className="w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center"><Users size={28} className="text-sky-500"/></div>
-                  <div><h2 className="text-2xl font-black text-slate-800">Student Management</h2><p className="text-slate-500 text-sm font-bold">Securely add students using their unique APAAR ID.</p></div>
-               </div>
-
-               {/* TAB TOGGLE */}
-               <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-full mb-6">
-                  <button onClick={() => setStudentModalTab('create')} className={`flex-1 py-3 rounded-lg font-bold text-sm uppercase transition-all ${studentModalTab === 'create' ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500'}`}>Create New Profile</button>
-                  <button onClick={() => setStudentModalTab('import')} className={`flex-1 py-3 rounded-lg font-bold text-sm uppercase transition-all ${studentModalTab === 'import' ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500'}`}>Import Existing</button>
-               </div>
-
-               {studentModalTab === 'create' ? (
-                  <div className="space-y-4">
-                     <div className="bg-sky-50 p-4 rounded-xl border border-sky-100 text-xs font-bold text-sky-700 mb-2">Create the academic record. Parents will claim it later to generate secure logins.</div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={newStudentForm.apaarId} onChange={(e: any) => setNewStudentForm({...newStudentForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-sky-500 tracking-[0.2em]" /></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Student Full Name *</label><input type="text" value={newStudentForm.fullName} onChange={(e: any) => setNewStudentForm({...newStudentForm, fullName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Date of Birth *</label><input type="date" value={newStudentForm.dob} onChange={(e: any) => setNewStudentForm({...newStudentForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /><div className="text-[10px] font-black text-sky-600 text-right mt-1">Calculated Age: {calculateAge(newStudentForm.dob)}</div></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Father's Name *</label><input type="text" value={newStudentForm.fathersName} onChange={(e: any) => setNewStudentForm({...newStudentForm, fathersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mother's Name *</label><input type="text" value={newStudentForm.mothersName} onChange={(e: any) => setNewStudentForm({...newStudentForm, mothersName: e.target.value})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 1 (Compulsory) *</label><input type="text" maxLength={10} value={newStudentForm.contact1} onChange={(e: any) => setNewStudentForm({...newStudentForm, contact1: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /><div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={newStudentForm.isWhatsapp1} onChange={(e: any) => setNewStudentForm({...newStudentForm, isWhatsapp1: e.target.checked})} className="accent-green-500 cursor-pointer" /><label className="text-[10px] font-bold text-slate-500 cursor-pointer"> This is a WhatsApp Number</label></div></div>
-                        <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Contact 2 (Optional)</label><input type="text" maxLength={10} value={newStudentForm.contact2} onChange={(e: any) => setNewStudentForm({...newStudentForm, contact2: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
-                     </div>
-                     
-                     <div className="pt-4 border-t-2 border-slate-100">
-                        <label className="block text-xs font-black text-slate-700 mb-3 uppercase tracking-wider">Assign to Your Classes *</label>
-                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                           {myClasses.map(cls => {
-                              const classStr = `${cls.grade} • ${cls.subject}`;
-                              const isSelected = newStudentForm.selectedClasses.includes(classStr);
-                              return (
-                                 <button key={cls.id} onClick={() => toggleClassSelection('create', classStr)} className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${isSelected ? 'bg-sky-50 border-sky-500 text-sky-700' : 'bg-white border-slate-200 text-slate-500 hover:border-sky-300'}`}>{classStr}</button>
-                              );
-                           })}
-                           {myClasses.length === 0 && <span className="text-xs text-rose-500 font-bold">You need to add Classes to your Dashboard first!</span>}
-                        </div>
-                     </div>
-                     <Button onClick={handleCreateStudent} disabled={isSavingStudent} className="w-full py-4 text-lg mt-4">{isSavingStudent ? 'Saving Profile...' : 'Create Student Profile'}</Button>
-                  </div>
-               ) : (
-                  <div className="space-y-6">
-                     <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-xs font-bold text-amber-700 mb-2">Security Check: To import a student, you must verify both their APAAR ID and their exact Date of Birth.</div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">12-Digit APAAR ID *</label><input type="text" maxLength={12} placeholder="e.g. 123456789012" value={importForm.apaarId} onChange={(e: any) => setImportForm({...importForm, apaarId: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-4 font-mono font-bold text-slate-700 outline-none focus:border-sky-500 tracking-[0.2em] text-center text-xl" /></div>
-                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Verify Date of Birth *</label><input type="date" value={importForm.dob} onChange={(e: any) => setImportForm({...importForm, dob: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" /></div>
-                     <div className="pt-4 border-t-2 border-slate-100">
-                        <label className="block text-xs font-black text-slate-700 mb-3 uppercase tracking-wider">Assign to Your Classes *</label>
-                        <div className="flex flex-wrap gap-2">
-                           {myClasses.map(cls => {
-                              const classStr = `${cls.grade} • ${cls.subject}`;
-                              const isSelected = importForm.selectedClasses.includes(classStr);
-                              return (
-                                 <button key={cls.id} onClick={() => toggleClassSelection('import', classStr)} className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${isSelected ? 'bg-sky-50 border-sky-500 text-sky-700' : 'bg-white border-slate-200 text-slate-500 hover:border-sky-300'}`}>{classStr}</button>
-                              );
-                           })}
-                        </div>
-                     </div>
-                     <Button onClick={handleImportStudent} disabled={isSavingStudent} className="w-full py-4 text-lg bg-sky-600 hover:bg-sky-700">{isSavingStudent ? 'Searching...' : 'Verify & Import Student'}</Button>
-                  </div>
-               )}
-            </div>
-         </div>
-      )}
-
-      {krewEdit.show && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
-            <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative border-4 border-emerald-100">
-               <button onClick={() => setKrewEdit({...krewEdit, show: false})} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={20} /></button>
-               <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mb-4"><Edit3 size={28} className="text-emerald-500"/></div>
-               <h2 className="text-2xl font-black text-slate-800 mb-2">Edit {krewEdit.type}</h2>
-               <p className="text-slate-500 text-sm font-bold mb-6">Rename '{krewEdit.oldTitle}'</p>
-               <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">New Title *</label>
-               <input type="text" autoFocus value={krewEdit.newTitle || ''} onChange={(e: any) => setKrewEdit({...krewEdit, newTitle: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 mb-6" />
-               <Button onClick={handleSendQuickEdit} disabled={!krewEdit.newTitle || isSendingRequest || krewEdit.newTitle === krewEdit.oldTitle} className="w-full bg-emerald-500 hover:bg-emerald-600 border-b-4 border-emerald-700 py-3 text-lg">{isSendingRequest ? 'Sending...' : 'Submit Edit Request'}</Button>
-            </div>
-         </div>
-      )}
-
-      {krewWizard.show && (
-         <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/80 backdrop-blur-md animate-fade-in px-4 py-12 sm:py-24 overflow-y-auto">
-            <div className="bg-white rounded-[2.5rem] p-8 max-w-4xl w-full shadow-2xl relative border-4 border-emerald-100 my-auto">
-               <button onClick={() => setKrewWizard(initialWizardState)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={20} /></button>
+      {wizardMode && (
+         <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4 py-12 sm:py-24 overflow-y-auto">
+            <div className="bg-white rounded-[2.5rem] p-8 max-w-4xl w-full shadow-2xl relative border-4 border-slate-100 my-auto">
+               <button onClick={() => setWizardMode(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={20} /></button>
                
                <div className="flex items-center gap-4 mb-8 border-b-2 border-slate-100 pb-6">
-                  <div className={`w-14 h-14 ${krewWizard.toolSelect && krewWizard.toolSelect !== 'NEW' ? 'bg-amber-100' : 'bg-emerald-100'} rounded-2xl flex items-center justify-center transform -rotate-3`}>
-                     <Database size={28} className={krewWizard.toolSelect && krewWizard.toolSelect !== 'NEW' ? 'text-amber-500' : 'text-emerald-500'}/>
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transform -rotate-3 ${wizardMode === 'ADD' ? 'bg-emerald-100 text-emerald-500' : wizardMode === 'EDIT' ? 'bg-amber-100 text-amber-500' : 'bg-rose-100 text-rose-500'}`}>
+                     {wizardMode === 'ADD' ? <Plus size={28}/> : wizardMode === 'EDIT' ? <Edit3 size={28}/> : <Trash2 size={28}/>}
                   </div>
                   <div>
-                     <h2 className="text-2xl font-black text-slate-800">{krewWizard.toolSelect && krewWizard.toolSelect !== 'NEW' ? 'Edit Database Record' : 'Content Upload Wizard'}</h2>
-                     <p className="text-slate-500 font-bold text-sm">Follow the 12 steps below to map content correctly.</p>
+                     <h2 className="text-2xl font-black text-slate-800">{wizardMode === 'ADD' ? 'Add New Content' : wizardMode === 'EDIT' ? 'Edit Database Record' : 'Delete Content Protocol'}</h2>
+                     <p className="text-slate-500 font-bold text-sm">Secure live database modification.</p>
                   </div>
                </div>
 
                <div className="space-y-6">
+                  {/* --- TARGET LEVEL SELECTOR (For EDIT and DELETE) --- */}
+                  {(wizardMode === 'DELETE' || wizardMode === 'EDIT') && (
+                     <div className={`p-5 rounded-2xl border mb-6 ${wizardMode === 'DELETE' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}>
+                        <label className={`block text-[10px] font-black mb-3 uppercase tracking-wider ${wizardMode === 'DELETE' ? 'text-rose-500' : 'text-amber-600'}`}>0. Target Level To {wizardMode}</label>
+                        <div className="flex flex-wrap gap-4">
+                           {['CHAPTER', 'SUBTOPIC', 'TOOL'].map(t => (
+                              <label key={t} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold transition-all ${targetLevel === t ? (wizardMode === 'DELETE' ? 'bg-white text-rose-600 border-rose-500 shadow-sm' : 'bg-white text-amber-600 border-amber-500 shadow-sm') : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                 <input type="radio" name="tLevel" checked={targetLevel === t} onChange={() => { setTargetLevel(t); setKrewWizard({...initialWizardState, grade: krewWizard.grade, subject: krewWizard.subject}); }} className="hidden"/> {t}
+                              </label>
+                           ))}
+                        </div>
+                     </div>
+                  )}
+
                   {/* STEPS 1-2: Core */}
                   <div className="bg-slate-50 p-5 rounded-2xl border-2 border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">1. Grade *</label><select value={krewWizard.grade} onChange={(e: any) => setKrewWizard({...initialWizardState, show: true, grade: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select Grade...</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                     <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">2. Subject *</label><select value={krewWizard.subject} onChange={(e: any) => setKrewWizard({...krewWizard, subject: e.target.value, chapterSelect: '', subtopicSelect: '', toolSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select Subject...</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                     <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">1. Grade *</label><select value={krewWizard.grade} onChange={(e: any) => setKrewWizard({...initialWizardState, grade: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500"><option value="">Select Grade...</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                     <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">2. Subject *</label><select value={krewWizard.subject} onChange={(e: any) => setKrewWizard({...krewWizard, subject: e.target.value, chapterSelect: '', subtopicSelect: '', toolSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500"><option value="">Select Subject...</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                   </div>
 
                   {/* STEPS 3-4: Chapter */}
@@ -2839,110 +1909,124 @@ const studentData = studentDoc.data() as {
                          <div className="flex gap-2">
                              <select value={krewWizard.chapterSelect} onChange={(e: any) => {
                                  const val = e.target.value;
-                                 if (val === 'NEW') {
-                                     // Cascade NEW downwards
-                                     setKrewWizard({...krewWizard, chapterSelect: 'NEW', chapterNumber: '', subtopicSelect: 'NEW', newSubtopic: '', subtopicOrder: '', toolSelect: 'NEW', toolOrder: '', toolType: 'Conceptualiser', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
-                                 } else {
+                                 if (val === 'NEW') setKrewWizard({...krewWizard, chapterSelect: 'NEW', chapterNumber: '', subtopicSelect: wizardMode === 'ADD' ? 'NEW' : '', newSubtopic: '', subtopicOrder: '', toolSelect: wizardMode === 'ADD' ? 'NEW' : '', toolOrder: '', toolType: 'Conceptualiser', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
+                                 else {
                                      const chap = wizardData.find((c: any) => c.chapter === val);
-                                     setKrewWizard({...krewWizard, chapterSelect: val, chapterNumber: chap?.chapter_number || '', subtopicSelect: '', newSubtopic: '', subtopicOrder: '', toolSelect: '', toolOrder: '', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
+                                     setKrewWizard({...krewWizard, chapterSelect: val, newChapter: (wizardMode === 'EDIT' && targetLevel === 'CHAPTER') ? val : '', chapterNumber: chap?.chapter_number || '', subtopicSelect: '', newSubtopic: '', subtopicOrder: '', toolSelect: '', toolOrder: '', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
                                  }
-                             }} disabled={!krewWizard.subject} className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-50">
+                             }} disabled={!krewWizard.subject} className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 disabled:opacity-50">
                                  <option value="" disabled>Select Existing...</option>
                                  {wizardData.map((c: any) => <option key={c.chapter} value={c.chapter}>{c.chapter}</option>)}
-                                 <option value="NEW" className="font-bold text-emerald-600">+ Create New Chapter</option>
+                                 {wizardMode === 'ADD' && <option value="NEW" className="font-bold text-emerald-600">+ Create New Chapter</option>}
                              </select>
                              
-                             {krewWizard.chapterSelect === 'NEW' && (<input type="text" value={krewWizard.newChapter} onChange={(e: any) => setKrewWizard({...krewWizard, newChapter: e.target.value})} className="flex-1 bg-white border-2 border-emerald-400 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Enter new chapter name..." />)}
+                             {/* Show input if creating new, OR if editing this specific chapter level */}
+                             {(krewWizard.chapterSelect === 'NEW' || (wizardMode === 'EDIT' && targetLevel === 'CHAPTER' && krewWizard.chapterSelect)) && (
+                                <input type="text" value={krewWizard.newChapter} onChange={(e: any) => setKrewWizard({...krewWizard, newChapter: e.target.value})} className="flex-1 bg-white border-2 border-emerald-400 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder={wizardMode === 'EDIT' ? "Update chapter name..." : "New chapter name..."} />
+                             )}
                          </div>
                      </div>
-                     <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">4. Chapter No.</label><input type="number" min="1" value={krewWizard.chapterNumber} onChange={(e: any) => setKrewWizard({...krewWizard, chapterNumber: e.target.value})} disabled={krewWizard.chapterSelect !== 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500 disabled:bg-slate-100 disabled:text-slate-400" /></div>
+                     <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">4. Chapter No.</label><input type="number" min="1" value={krewWizard.chapterNumber} onChange={(e: any) => setKrewWizard({...krewWizard, chapterNumber: e.target.value})} disabled={krewWizard.chapterSelect !== 'NEW' && !(wizardMode === 'EDIT' && targetLevel === 'CHAPTER')} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-black text-center text-slate-700 outline-none focus:border-sky-500 disabled:bg-slate-100 disabled:text-slate-400" /></div>
                   </div>
 
-                  {/* STEPS 5-6: Subtopic */}
-                  <div className="bg-slate-50 p-5 rounded-2xl border-2 border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
-                     <div className="md:col-span-3">
-                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">5. Subtopic Name *</label>
-                         <div className="flex gap-2">
-                             <select value={krewWizard.subtopicSelect} onChange={(e: any) => {
-                                 const val = e.target.value;
-                                 if (val === 'NEW') {
-                                     setKrewWizard({...krewWizard, subtopicSelect: 'NEW', newSubtopic: '', subtopicOrder: '', toolSelect: 'NEW', toolOrder: '', toolType: 'Conceptualiser', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
-                                 } else {
-                                     const sub = availableSubtopics.find((s: any) => s.title === val);
-                                     setKrewWizard({...krewWizard, subtopicSelect: val, subtopicOrder: sub?.order || '', toolSelect: '', toolOrder: '', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
-                                 }
-                             }} disabled={!krewWizard.chapterSelect || krewWizard.chapterSelect === 'NEW'} className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-50">
-                                {krewWizard.chapterSelect === 'NEW' ? <option value="NEW" className="font-bold text-emerald-600">+ Create New Subtopic</option> : <><option value="" disabled>Select Existing...</option>{availableSubtopics.map((s: any, idx: number) => <option key={idx} value={s.title}>{s.title}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New Subtopic</option></>}
-                             </select>
-                             
-                             {krewWizard.subtopicSelect === 'NEW' && (<input type="text" value={krewWizard.newSubtopic} onChange={(e: any) => setKrewWizard({...krewWizard, newSubtopic: e.target.value})} className="flex-1 bg-white border-2 border-emerald-400 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Enter new subtopic name..." />)}
-                         </div>
-                     </div>
-                     <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">6. Subtopic Order</label><input type="number" min="1" value={krewWizard.subtopicOrder} onChange={(e: any) => setKrewWizard({...krewWizard, subtopicOrder: e.target.value})} disabled={krewWizard.subtopicSelect !== 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500 disabled:bg-slate-100 disabled:text-slate-400" /></div>
-                  </div>
-
-                  {/* STEPS 7-12: The Tool (Content) */}
-                  <div className={`${krewWizard.toolSelect && krewWizard.toolSelect !== 'NEW' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'} p-5 rounded-2xl border-2 space-y-4`}>
-                     <div className="flex justify-between items-center mb-2">
-                        <label className={`block text-sm font-black ${krewWizard.toolSelect && krewWizard.toolSelect !== 'NEW' ? 'text-amber-700' : 'text-emerald-700'} uppercase tracking-wider`}>Tool Configuration</label>
-                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border-2 border-slate-200">
-                           <input type="checkbox" id="feat" checked={krewWizard.isFeatured} onChange={(e: any) => setKrewWizard({...krewWizard, isFeatured: e.target.checked})} className="w-4 h-4 accent-emerald-500 cursor-pointer" />
-                           <label htmlFor="feat" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1"><Sparkles size={14} className="text-emerald-500"/> Is Featured?</label>
+                  {/* STEPS 5-6: Subtopic (Hidden if Target Level is Chapter) */}
+                  {!(targetLevel === 'CHAPTER') && (
+                     <div className="bg-slate-50 p-5 rounded-2xl border-2 border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="md:col-span-3">
+                            <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">5. Subtopic Name *</label>
+                            <div className="flex gap-2">
+                                <select value={krewWizard.subtopicSelect} onChange={(e: any) => {
+                                    const val = e.target.value;
+                                    if (val === 'NEW') setKrewWizard({...krewWizard, subtopicSelect: 'NEW', newSubtopic: '', subtopicOrder: '', toolSelect: wizardMode === 'ADD' ? 'NEW' : '', toolOrder: '', toolType: 'Conceptualiser', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
+                                    else {
+                                        const sub = availableSubtopics.find((s: any) => s.title === val);
+                                        setKrewWizard({...krewWizard, subtopicSelect: val, newSubtopic: (wizardMode === 'EDIT' && targetLevel === 'SUBTOPIC') ? val : '', subtopicOrder: sub?.order || sub?.subtopic_order || '', toolSelect: '', toolOrder: '', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
+                                    }
+                                }} disabled={!krewWizard.chapterSelect || krewWizard.chapterSelect === 'NEW'} className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 disabled:opacity-50">
+                                   {krewWizard.chapterSelect === 'NEW' ? <option value="NEW" className="font-bold text-emerald-600">+ Create New Subtopic</option> : <><option value="" disabled>Select Existing...</option>{availableSubtopics.map((s: any, idx: number) => <option key={idx} value={s.title}>{s.title}</option>)} {wizardMode === 'ADD' && <option value="NEW" className="font-bold text-emerald-600">+ Create New Subtopic</option>}</>}
+                                </select>
+                                
+                                {(krewWizard.subtopicSelect === 'NEW' || (wizardMode === 'EDIT' && targetLevel === 'SUBTOPIC' && krewWizard.subtopicSelect)) && (
+                                   <input type="text" value={krewWizard.newSubtopic} onChange={(e: any) => setKrewWizard({...krewWizard, newSubtopic: e.target.value})} className="flex-1 bg-white border-2 border-emerald-400 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder={wizardMode === 'EDIT' ? "Update subtopic name..." : "New subtopic name..."} />
+                                )}
+                            </div>
                         </div>
+                        <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">6. Subtopic Order</label><input type="number" min="1" value={krewWizard.subtopicOrder} onChange={(e: any) => setKrewWizard({...krewWizard, subtopicOrder: e.target.value})} disabled={krewWizard.subtopicSelect !== 'NEW' && !(wizardMode === 'EDIT' && targetLevel === 'SUBTOPIC')} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-black text-center text-slate-700 outline-none focus:border-sky-500 disabled:bg-slate-100 disabled:text-slate-400" /></div>
                      </div>
+                  )}
 
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                         <div className="md:col-span-3">
-                             <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">7. Target Tool *</label>
-                             <select value={krewWizard.toolSelect} onChange={(e: any) => {
-                                 const val = e.target.value;
-                                 if (val === 'NEW') setKrewWizard({...krewWizard, toolSelect: 'NEW', toolOrder: '', toolType: 'Conceptualiser', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
-                                 else {
-                                     const tool = availableTools.find((t: any) => t.title === val);
-                                     if(tool) {
-                                         let tType = 'Video';
-                                         if(tool.type) {
-                                            const t = tool.type.toLowerCase();
-                                            if (t==='game'||t==='gamepad2') tType='Game'; else if (t==='pdf') tType='PDF'; else if (t==='presentation'||t==='ppt') tType='Presentation'; else if (t==='quiz') tType='Quiz'; else if (t==='conceptualiser') tType='Conceptualiser';
-                                         }
-                                         setKrewWizard({...krewWizard, toolSelect: val, toolOrder: tool.orderIndex || tool.content_order || 1, toolType: tType, toolTitle: tool.title, imageUrl: tool.image || tool.image_url || '', url: tool.content_url || '', originalToolTitle: tool.title, isFeatured: tool.is_featured || false});
-                                     }
-                                 }
-                             }} disabled={!krewWizard.subtopicSelect || krewWizard.subtopicSelect === 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-50">
-                                {krewWizard.subtopicSelect === 'NEW' ? <option value="NEW" className="font-bold text-emerald-600">+ Upload New Content</option> : <><option value="" disabled>Select Existing Content to Edit...</option>{availableTools.map((t: any, idx: number) => <option key={idx} value={t.title}>{t.title} ({t.type || t.content_type})</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Upload New Content</option></>}
-                             </select>
-                         </div>
-                         <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">8. Tool Order</label><input type="number" min="1" value={krewWizard.toolOrder} onChange={(e: any) => setKrewWizard({...krewWizard, toolOrder: e.target.value})} disabled={krewWizard.toolSelect !== 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500 disabled:bg-slate-100 disabled:text-slate-400" /></div>
+                  {/* STEPS 7-12: Tool Data (Hidden if Target Level is Chapter or Subtopic) */}
+                  {!(targetLevel === 'CHAPTER' || targetLevel === 'SUBTOPIC') && (
+                     <div className="bg-slate-50 p-5 rounded-2xl border-2 border-slate-100 space-y-4">
+                        
+                        {/* RESTORED: isFeatured Checkbox */}
+                        <div className="flex justify-between items-center mb-4 border-b-2 border-slate-100 pb-4">
+                           <label className={`block text-sm font-black ${wizardMode === 'EDIT' ? 'text-amber-500' : 'text-emerald-500'} uppercase tracking-wider`}>Tool Configuration</label>
+                           <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border-2 border-slate-200">
+                              <input type="checkbox" id="feat" checked={krewWizard.isFeatured} onChange={(e: any) => setKrewWizard({...krewWizard, isFeatured: e.target.checked})} className="w-4 h-4 accent-emerald-500 cursor-pointer" />
+                              <label htmlFor="feat" className="text-xs font-bold text-slate-500 cursor-pointer flex items-center gap-1"><Sparkles size={14} className="text-emerald-400"/> Is Featured?</label>
+                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                            <div className="md:col-span-3">
+                                <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">7. Target Tool *</label>
+                                <select value={krewWizard.toolSelect} onChange={(e: any) => {
+                                    const val = e.target.value;
+                                    if (val === 'NEW') setKrewWizard({...krewWizard, toolSelect: 'NEW', toolOrder: '', toolType: 'Conceptualiser', toolTitle: '', imageUrl: '', url: '', originalToolTitle: ''});
+                                    else {
+                                        const tool = availableTools.find((t: any) => t.title === val);
+                                        if(tool) {
+                                            let tType = 'Video';
+                                            if(tool.type) {
+                                               const t = tool.type.toLowerCase();
+                                               if (t==='game'||t==='gamepad2') tType='Game'; else if (t==='pdf') tType='PDF'; else if (t==='presentation'||t==='ppt') tType='Presentation'; else if (t==='quiz') tType='Quiz'; else if (t==='conceptualiser') tType='Conceptualiser';
+                                            }
+                                            setKrewWizard({...krewWizard, toolSelect: val, toolOrder: tool.orderIndex || tool.content_order || 1, toolType: tType, toolTitle: tool.title, imageUrl: tool.image || tool.image_url || '', url: tool.content_url || '', originalToolTitle: tool.title, isFeatured: tool.is_featured || false});
+                                        }
+                                    }
+                                }} disabled={!krewWizard.subtopicSelect || krewWizard.subtopicSelect === 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 disabled:opacity-50">
+                                   {krewWizard.subtopicSelect === 'NEW' ? <option value="NEW" className="font-bold text-emerald-600">+ Upload New Content</option> : <><option value="" disabled>Select Existing Content...</option>{availableTools.map((t: any, idx: number) => <option key={idx} value={t.title}>{t.title} ({t.type || t.content_type})</option>)} {wizardMode === 'ADD' && <option value="NEW" className="font-bold text-emerald-600">+ Upload New Content</option>}</>}
+                                </select>
+                            </div>
+                            <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">8. Tool Order</label><input type="number" min="1" value={krewWizard.toolOrder} onChange={(e: any) => setKrewWizard({...krewWizard, toolOrder: e.target.value})} disabled={krewWizard.toolSelect !== 'NEW' && wizardMode !== 'ADD'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-3 font-black text-center text-slate-700 outline-none focus:border-sky-500 disabled:bg-slate-100 disabled:text-slate-400" /></div>
+                        </div>
+
+                        {wizardMode !== 'DELETE' && krewWizard.toolSelect && (
+                            <>
+                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                   <div className="md:col-span-1">
+                                      <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">9. Content Type</label>
+                                      <select value={krewWizard.toolType} onChange={(e: any) => setKrewWizard({...krewWizard, toolType: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500">
+                                         <option value="Conceptualiser">Conceptualiser</option><option value="Video">Video</option><option value="Quiz">Quiz</option><option value="PDF">PDF</option><option value="Game">Game</option>
+                                      </select>
+                                   </div>
+                                   <div className="md:col-span-2"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">10. Title of Content *</label><input type="text" value={krewWizard.toolTitle} onChange={(e: any) => setKrewWizard({...krewWizard, toolTitle: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" placeholder="e.g. Place Value 3D" /></div>
+                               </div>
+                               
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">11. Image URL</label><input type="text" value={krewWizard.imageUrl} onChange={(e: any) => setKrewWizard({...krewWizard, imageUrl: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-sm text-slate-700 outline-none focus:border-sky-500" placeholder="/thumbnails/math.jpg" /></div>
+                                  <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">12. Route Path *</label><input type="text" value={krewWizard.url} onChange={(e: any) => setKrewWizard({...krewWizard, url: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-sky-500 text-sm" placeholder="/conceptualisers/tool" /></div>
+                               </div>
+                            </>
+                        )}
                      </div>
-
-                     {krewWizard.toolSelect && (
-                         <>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="md:col-span-1">
-                                   <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">9. Content Type</label>
-                                   <select value={krewWizard.toolType} onChange={(e: any) => setKrewWizard({...krewWizard, toolType: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500">
-                                      <option value="Conceptualiser">Conceptualiser</option><option value="Video">Video</option><option value="Quiz">Quiz</option><option value="PDF">PDF</option><option value="Game">Game</option>
-                                   </select>
-                                </div>
-                                <div className="md:col-span-2"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">10. Title of Content *</label><input type="text" value={krewWizard.toolTitle} onChange={(e: any) => setKrewWizard({...krewWizard, toolTitle: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" placeholder="e.g. Place Value 3D" /></div>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                               <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">11. Image URL (Thumbnail)</label><input type="text" value={krewWizard.imageUrl} onChange={(e: any) => setKrewWizard({...krewWizard, imageUrl: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-sm text-slate-700 outline-none focus:border-emerald-500" placeholder="/thumbnails/math.jpg" /></div>
-                               <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">12. Content Route Path *</label><input type="text" value={krewWizard.url} onChange={(e: any) => setKrewWizard({...krewWizard, url: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-emerald-500 text-sm" placeholder={['Game', 'Quiz', 'Conceptualiser'].includes(krewWizard.toolType) ? "/conceptualisers/my-tool" : "https://youtube.com/..."} /></div>
-                            </div>
-                         </>
-                     )}
-                  </div>
+                  )}
                </div>
                
-               <Button onClick={handleSubmitWizard} disabled={isSendingRequest || !krewWizard.toolTitle || !krewWizard.url} className={`w-full mt-8 ${krewWizard.toolSelect && krewWizard.toolSelect !== 'NEW' ? 'bg-amber-500 hover:bg-amber-600 border-amber-700' : 'bg-emerald-500 hover:bg-emerald-600 border-emerald-700'} border-b-4 active:border-b-0 py-5 text-lg shadow-xl`}>
-                  {isSendingRequest ? 'Saving...' : (krewWizard.toolSelect && krewWizard.toolSelect !== 'NEW' ? 'Update Existing Content' : 'Save New Content')} <Database size={20} className="ml-2 inline" />
-               </Button>
+               {wizardMode === 'DELETE' ? (
+                  <Button onClick={handleExecuteDelete} disabled={isSendingRequest || !krewWizard.chapterSelect} className="w-full mt-8 bg-rose-500 hover:bg-rose-600 border-b-4 border-rose-700 text-white font-black py-6 text-lg shadow-xl">
+                     {isSendingRequest ? 'Executing Deletion...' : `PERMANENTLY DELETE ${targetLevel}`} <Trash2 size={20} className="ml-2 inline" />
+                  </Button>
+               ) : (
+                  <Button onClick={handleSubmitWizard} disabled={isSendingRequest || (targetLevel === 'TOOL' && (!krewWizard.toolTitle || !krewWizard.url))} className={`w-full mt-8 ${wizardMode === 'EDIT' ? 'bg-amber-500 hover:bg-amber-600 border-amber-700' : 'bg-emerald-500 hover:bg-emerald-600 border-emerald-700'} border-b-4 text-white font-black py-6 text-lg shadow-xl`}>
+                     {isSendingRequest ? 'Saving...' : (wizardMode === 'EDIT' ? `UPDATE ${targetLevel} RECORD` : 'SAVE NEW CONTENT')} <Database size={20} className="ml-2 inline" />
+                  </Button>
+               )}
             </div>
          </div>
       )}
-    </div>
+    </>
   );
 };
 
@@ -3568,7 +2652,7 @@ export default function App() {
     // 3. User Dashboards
     if (role === 'student') return <StudentView t={t} onStartLesson={handleStartLesson} currentStudent={currentStudent} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} />;
     if (role === 'parent') return <ParentView t={t} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartDemo={handleStartDemo} isPro={isPro} />;
-    if (role === 'teacher' || role === 'krew') return <TeacherView userName={userName} t={t} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartLesson={handleStartLesson} targetContext={targetContext} isPro={isPro} role={role} />;
+   
     if (role === 'admin') return <AdminView />;
     
     // 4. Landing Page
@@ -3648,6 +2732,10 @@ export default function App() {
            </div>
         )}
       </nav>
+
+        {/* THE HEADLESS CMS EDITOR PANEL */}
+       {role === 'krew' && currentView !== 'home' && <KrewEditorPanel />}
+
 
       <main className={`${currentView === 'home' && !role ? '' : 'py-8 px-4'} w-full overflow-hidden`}>
         {renderContent()}
