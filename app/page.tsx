@@ -1727,15 +1727,18 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
   
   const initialWizardState = { 
      show: false, isEdit: false, originalData: null,
-     grade: '', subject: '', book: 'Kortex Klassroom', chapterSelect: '', newChapter: '', subtopicSelect: '', newSubtopic: '', 
-     toolType: 'Video', toolTitle: '', url: '', gameCode: '', isPremium: false, orderIndex: 1 
+     grade: '', subject: '', book: 'Kortex Klassroom', 
+     chapterNumber: 1, chapterSelect: '', newChapter: '', 
+     subtopicOrder: 1, subtopicSelect: '', newSubtopic: '', 
+     contentOrder: 1, toolType: 'Conceptualiser', toolTitle: '', 
+     imageUrl: '', url: '', gameCode: '', isFeatured: false 
   };
   const [krewWizard, setKrewWizard] = useState(initialWizardState);
   
   const [krewEdit, setKrewEdit] = useState({ show: false, type: '', chapterId: '', oldTitle: '', newTitle: '', parentSubtopic: '' });
   const [isSendingRequest, setIsSendingRequest] = useState(false);
 
-  const toggleSubTopic = (id) => setExpandedSubTopics(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleSubTopic = (id: any) => setExpandedSubTopics(prev => ({ ...prev, [id]: !prev[id] }));
 
   useEffect(() => {
     if (targetContext && targetContext.lesson) {
@@ -1762,9 +1765,9 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         const q = query(collection(db, 'teacher_classes'), where('teacher_id', '==', user.uid));
         const querySnapshot = await getDocs(q);
         const classes = querySnapshot.docs.map(doc => ({ 
-  id: doc.id, 
-  ...doc.data() 
-} as { id: string, grade: string, subject: string }));
+          id: doc.id, 
+          ...doc.data() 
+        } as { id: string, grade: string, subject: string }));
         setMyClasses(classes);
         if (classes.length > 0 && !targetContext) {
            setSelectedAnalyticsFilter(`${classes[0].grade} • ${classes[0].subject}`);
@@ -1783,12 +1786,12 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         const sQuery = query(collection(db, 'managed_students'), where('teacher_ids', 'array-contains', user.uid));
         const sSnapshot = await getDocs(sQuery);
         const allStudents = sSnapshot.docs.map(doc => ({ 
-  id: doc.id, 
-  ...doc.data() 
-} as { 
-  id: string; name: string; enrolled_classes?: string[]; status?: string; 
-  stars_earned?: number; contact1?: string; is_whatsapp1?: boolean; username?: string | null; 
-}));
+          id: doc.id, 
+          ...doc.data() 
+        } as { 
+          id: string; name: string; enrolled_classes?: string[]; status?: string; 
+          stars_earned?: number; contact1?: string; is_whatsapp1?: boolean; username?: string | null; 
+        }));
         setMyStudents(allStudents);
 
         // Calculate Analytics stats ONLY for the currently selected analytics filter
@@ -1823,13 +1826,13 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         // 1. Fetch the flat tools from the NEW database
         const snapshot = await getDocs(collection(db, 'learning_tools'));
         let allFlatTools = snapshot.docs.map(doc => ({ 
-  id: doc.id, 
-  ...doc.data() 
-} as { 
-  id: string; grade?: string; subject?: string; chapter_number?: number; 
-  chapter_name?: string; book?: string; image?: string; content_type?: string; 
-  subtopic?: string; title?: string; subtopic_order?: number; content_order?: number; 
-}));
+          id: doc.id, 
+          ...doc.data() 
+        } as { 
+          id: string; grade?: string; subject?: string; chapter_number?: number; 
+          chapter_name?: string; book?: string; image?: string; content_type?: string; 
+          subtopic?: string; title?: string; subtopic_order?: number; content_order?: number; 
+        }));
 
         let filteredFlatTools = allFlatTools;
 
@@ -1852,7 +1855,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
            });
         }
 
-        // 3. GROUPING LOGIC (The exact code you found!)
+        // 3. GROUPING LOGIC
         const chaptersMap = {};
 
         filteredFlatTools.forEach(tool => {
@@ -1892,7 +1895,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
            }
         });
 
-        // 4. SORTING LOGIC: Make sure Chapters and Videos are in exact order
+        // 4. SORTING LOGIC
         const processedModules = Object.values(chaptersMap).map((chapter: any) => {
            let subTopicsArray = Object.values(chapter.subTopicsMap) as any[];
 
@@ -1922,8 +1925,7 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
     fetchCurriculumFromDB();
   }, [selectedAnalyticsFilter, isLoggedIn, myClasses.length, guestSelectedGrade, guestSelectedSubject, targetContext]);
 
-
-
+  // UPDATED: Smart Chapter Extraction for the Dropdown
   useEffect(() => {
     async function fetchWizardData() {
       if(krewWizard.show && krewWizard.grade && krewWizard.subject) {
@@ -1931,24 +1933,37 @@ const TeacherView = ({ userName, t, isLoggedIn, requireAuth, onStartLesson, targ
         const filterSubject = krewWizard.subject.toLowerCase().trim();
         try {
           const snapshot = await getDocs(collection(db, 'learning_tools'));
-          const allMods = snapshot.docs.map(d => ({
-  id: d.id, 
-  ...d.data()
-} as { 
-  id: string; subject?: string; grade?: string; chapter?: string; subTopics?: any[]; 
-}));
-          const filtered = allMods.filter(m => {
+          const allTools = snapshot.docs.map(d => d.data());
+
+          const filtered = allTools.filter((m: any) => {
              const dbSubj = m.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : m.subject?.toLowerCase().trim();
              return m.grade?.toLowerCase().trim() === filterGrade && dbSubj === filterSubject;
           });
-          setWizardData(filtered);
+
+          // Group by Unique Chapters and their Subtopics
+          const chapterMap: any = {};
+          filtered.forEach((tool: any) => {
+              const chapName = tool.chapter_name || tool.chapter;
+              if (!chapName) return;
+              if (!chapterMap[chapName]) {
+                  chapterMap[chapName] = { chapter: chapName, subTopics: new Set() };
+              }
+              if (tool.subtopic) chapterMap[chapName].subTopics.add(tool.subtopic);
+          });
+
+          const formattedData = Object.values(chapterMap).map((c: any) => ({
+              chapter: c.chapter,
+              subTopics: Array.from(c.subTopics)
+          }));
+
+          setWizardData(formattedData as any);
         } catch (e: any) { console.error(e); }
       } else { setWizardData([]); }
     }
     fetchWizardData();
   }, [krewWizard.grade, krewWizard.subject, krewWizard.show]);
 
-  const selectedChapData = wizardData.find(c => c.chapter === krewWizard.chapterSelect);
+  const selectedChapData: any = wizardData.find((c: any) => c.chapter === krewWizard.chapterSelect);
   const availableSubtopics = selectedChapData?.subTopics || [];
 
   const handleAddClass = async () => {
@@ -2061,82 +2076,177 @@ const studentData = studentDoc.data() as {
      } catch (error: any) { console.error(error); alert("Error importing student."); } finally { setIsSavingStudent(false); }
   };
 
+  // HELPER: Find matching document for direct DB writes
+  const getMatchedDoc = async (g: any, s: any, c: any) => {
+     const snap = await getDocs(collection(db, 'learning_tools'));
+     return snap.docs.find((d: any) => {
+        const data = d.data();
+        const dGrade = data.grade?.toLowerCase().trim() || '';
+        const dSubj = data.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : (data.subject?.toLowerCase().trim() || '');
+        const dChap = data.chapter?.toLowerCase().trim() || '';
+        const fGrade = g?.toLowerCase().trim() || '';
+        const fSubj = s?.toLowerCase().trim() === 'mathematics' ? 'maths' : (s?.toLowerCase().trim() || '');
+        const fChap = c?.toLowerCase().trim() || '';
+        return dGrade === fGrade && dSubj === fSubj && dChap === fChap;
+     });
+  };
+
   const handleSubmitWizard = async () => {
      const finalChapter = krewWizard.chapterSelect === 'NEW' ? krewWizard.newChapter : krewWizard.chapterSelect;
      const finalSubtopic = krewWizard.subtopicSelect === 'NEW' ? krewWizard.newSubtopic : krewWizard.subtopicSelect;
-     if (!krewWizard.grade || !krewWizard.subject || !finalChapter || !finalSubtopic || !krewWizard.toolTitle) { alert("Please fill out all required tiers!"); return; }
+     if (!krewWizard.grade || !krewWizard.subject || !finalChapter || !finalSubtopic || !krewWizard.toolTitle) { alert("Please fill out all required fields!"); return; }
      setIsSendingRequest(true);
      
+     let toolColor = 'bg-sky-500';
+     const tType = krewWizard.toolType.toLowerCase();
+     if (tType === 'conceptualiser') toolColor = 'bg-purple-500';
+     else if (tType === 'video') toolColor = 'bg-pink-500';
+     else if (tType === 'quiz') toolColor = 'bg-orange-500';
+     else if (tType === 'pdf' || tType === 'presentation') toolColor = 'bg-sky-500';
+     else if (tType === 'game') toolColor = 'bg-lime-500';
+
      const payload = {
-        title: krewWizard.toolTitle, grade: krewWizard.grade, subject: krewWizard.subject, book: krewWizard.book || 'Kortex Klassroom', chapter: finalChapter, subtopic: finalSubtopic,
-        tool: { type: krewWizard.toolType, title: krewWizard.toolTitle, content_url: krewWizard.url, gameCode: krewWizard.gameCode, orderIndex: Number(krewWizard.orderIndex), isPremium: krewWizard.isPremium, color: (krewWizard.toolType === 'Game' || krewWizard.toolType === 'Quiz') ? 'bg-orange-500' : 'bg-sky-500' }
+        grade: krewWizard.grade, subject: krewWizard.subject, chapter_number: Number(krewWizard.chapterNumber),
+        chapter: finalChapter, book: krewWizard.book || 'Kortex Klassroom', subtopic_order: Number(krewWizard.subtopicOrder),
+        subtopic: finalSubtopic,
+        tool: { 
+            type: krewWizard.toolType, content_type: krewWizard.toolType.toLowerCase(), title: krewWizard.toolTitle, 
+            image: krewWizard.imageUrl, content_url: krewWizard.url, gameCode: krewWizard.gameCode, 
+            orderIndex: Number(krewWizard.contentOrder), isPremium: false, is_featured: krewWizard.isFeatured, color: toolColor 
+        }
      };
 
      const actionType = krewWizard.isEdit ? 'FULL_TIER_EDIT' : 'FULL_TIER_ADD';
 
      try {
+       // 1. DIRECT DATABASE UPDATE (Bypasses Admin)
+       if (krewWizard.isEdit) {
+          const orig = krewWizard.originalData;
+          const oldDoc = await getMatchedDoc(payload.grade, payload.subject, orig.chapter);
+          if (oldDoc) {
+             let oldData = oldDoc.data();
+             let oldSubTopics = oldData.subTopics || [];
+             const sIdx = oldSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === orig.subtopic.toLowerCase().trim());
+             if (sIdx > -1) {
+                oldSubTopics[sIdx].tools = (oldSubTopics[sIdx].tools || []).filter((t: any) => t.title !== orig.toolTitle);
+                await setDoc(doc(db, 'learning_tools', oldDoc.id), { subTopics: oldSubTopics }, { merge: true });
+             }
+          }
+       }
+
+       const newDoc = await getMatchedDoc(payload.grade, payload.subject, payload.chapter);
+       if (!newDoc) {
+          await addDoc(collection(db, 'learning_tools'), { grade: payload.grade, subject: payload.subject, chapter: payload.chapter, chapter_number: payload.chapter_number, book: payload.book, subTopics: [{ title: payload.subtopic, subtopic_order: payload.subtopic_order, tools: [payload.tool] }] });
+       } else {
+          const existingData = newDoc.data();
+          let newSubTopics = existingData.subTopics || [];
+          const subIndex = newSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === payload.subtopic.toLowerCase().trim());
+          if (subIndex > -1) {
+             newSubTopics[subIndex].tools = (newSubTopics[subIndex].tools || []).filter((t: any) => t.title !== payload.tool.title);
+             const insertAt = Math.max(0, Math.min(newSubTopics[subIndex].tools.length, payload.tool.orderIndex - 1));
+             newSubTopics[subIndex].tools.splice(insertAt, 0, payload.tool);
+             newSubTopics[subIndex].subtopic_order = payload.subtopic_order; 
+          } else {
+             newSubTopics.push({ title: payload.subtopic, subtopic_order: payload.subtopic_order, tools: [payload.tool] });
+          }
+          await setDoc(doc(db, 'learning_tools', newDoc.id), { subTopics: newSubTopics, chapter_number: payload.chapter_number, book: payload.book }, { merge: true });
+       }
+
+       // 2. LOG TO ADMIN AUDIT (Auto-Approved History)
        await addDoc(collection(db, 'content_requests'), {
-          krew_member_id: auth.currentUser.uid, krew_member_email: auth.currentUser.email,
+          krew_member_id: auth.currentUser?.uid || 'unknown', krew_member_email: auth.currentUser?.email || 'Direct Update',
           action_type: actionType, target_type: 'TOOL', target_grade: krewWizard.grade, target_subject: krewWizard.subject, 
-          payload: payload, originalData: krewWizard.originalData || null, status: 'pending', created_at: new Date().toISOString()
+          payload: payload, originalData: krewWizard.originalData || null, 
+          status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString(), created_at: new Date().toISOString()
        });
-       alert(`Success! ${krewWizard.isEdit ? 'Edit' : 'Add'} Request sent to Admin for approval.`);
+       
+       alert(`Success! ${krewWizard.isEdit ? 'Edit' : 'Add'} instantly published to the live app.`);
        setKrewWizard(initialWizardState);
-     } catch (error: any) { console.error(error); alert("Error sending request."); } finally { setIsSendingRequest(false); }
+       setActiveLesson(null); // Forces UI to refresh the curriculum
+     } catch (error: any) { console.error(error); alert("Error saving content directly."); } finally { setIsSendingRequest(false); }
   };
 
-  const handleKrewDelete = async (targetType, targetId, title) => {
-     // 1. The Failsafe: If title is undefined, we give it a default string so Firebase doesn't crash
+  const handleKrewDelete = async (targetType: any, targetId: any, title: any) => {
      const safeTitle = title || 'Untitled Item';
-     
-     if (!window.confirm(`Send request to Admin to DELETE "${safeTitle}"?`)) return;
+     if (!window.confirm(`Are you sure you want to permanently DELETE "${safeTitle}"? This will be live instantly.`)) return;
      
      try {
-       // Add a fallback here too, just in case the filter is empty
        const filterString = selectedAnalyticsFilter || '';
        const [grade, subject] = filterString.split(' • ');
+
+       // 1. DIRECT DELETE LOGIC
+       if (targetType === 'CHAPTER') {
+          await deleteDoc(doc(db, 'learning_tools', targetId));
+       } else {
+          const targetDocSnap = await getDoc(doc(db, 'learning_tools', targetId));
+          if (targetDocSnap.exists()) {
+             let data = targetDocSnap.data();
+             if (targetType === 'SUBTOPIC') {
+                data.subTopics = (data.subTopics || []).filter((s: any) => s.title !== safeTitle);
+             } else if (targetType === 'TOOL') {
+                data.subTopics = (data.subTopics || []).map((sub: any) => {
+                   sub.tools = (sub.tools || []).filter((t: any) => t.title !== safeTitle);
+                   return sub;
+                });
+             }
+             await setDoc(doc(db, 'learning_tools', targetDocSnap.id), { subTopics: data.subTopics }, { merge: true });
+          }
+       }
        
+       // 2. LOG TO ADMIN AUDIT
        await addDoc(collection(db, 'content_requests'), { 
-         krew_member_id: auth.currentUser.uid, 
-         krew_member_email: auth.currentUser.email,
-         action_type: 'DELETE', 
-         target_type: targetType, 
-         target_id: targetId, 
-         target_grade: grade?.trim() || '', 
-         target_subject: subject?.trim() || '', 
-         // 2. Pass the safeTitle to the payload
-         payload: { title: safeTitle }, 
-         status: 'pending', 
-         created_at: new Date().toISOString()
+         krew_member_id: auth.currentUser?.uid || 'unknown', krew_member_email: auth.currentUser?.email || 'Direct Update',
+         action_type: 'DELETE', target_type: targetType, target_id: targetId, target_grade: grade?.trim() || '', target_subject: subject?.trim() || '', 
+         payload: { title: safeTitle }, status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString(), created_at: new Date().toISOString()
        });
-       alert("Delete request sent to Admin!");
-     } catch (error: any) { 
-       console.error(error); 
-       alert("Error sending delete request.");
-     }
+
+       alert("Successfully deleted!");
+       setActiveLesson(null); 
+     } catch (error: any) { console.error(error); alert("Error deleting content."); }
   };
 
-  const handleEditClick = (type, chapterId, oldTitle, parentSubtopic = null) => {
-    setKrewEdit({ show: true, type, chapterId, oldTitle, newTitle: oldTitle, parentSubtopic });
+  const handleEditClick = (type: any, chapterId: any, oldTitle: any, parentSubtopic = null) => {
+     setKrewEdit({ show: true, type, chapterId, oldTitle, newTitle: oldTitle || '', parentSubtopic });
   };
 
   const handleSendQuickEdit = async () => {
-    if (!krewEdit.newTitle) return;
-    setIsSendingRequest(true);
-    try {
-      const [grade, subject] = selectedAnalyticsFilter.split(' • ');
-      await addDoc(collection(db, 'content_requests'), { 
-         krew_member_id: auth.currentUser.uid, krew_member_email: auth.currentUser.email,
-         action_type: 'EDIT', target_type: krewEdit.type, target_id: krewEdit.chapterId, target_grade: grade.trim(), target_subject: subject.trim(), 
-         payload: { oldTitle: krewEdit.oldTitle, newTitle: krewEdit.newTitle, parentSubtopic: krewEdit.parentSubtopic }, 
-         status: 'pending', created_at: new Date().toISOString()
-       });
-       alert("Quick Edit request sent to Admin for approval.");
-       setKrewEdit({ show: false, type: '', chapterId: '', oldTitle: '', newTitle: '', parentSubtopic: '' });
-    } catch (error: any) { console.error(error); } finally { setIsSendingRequest(false); }
+     if (!krewEdit.newTitle) return;
+     setIsSendingRequest(true);
+     try {
+       const filterString = selectedAnalyticsFilter || '';
+       const [grade, subject] = filterString.split(' • ');
+
+       // 1. DIRECT RENAME LOGIC
+       const curRef = doc(db, 'learning_tools', krewEdit.chapterId);
+       const curSnap = await getDoc(curRef);
+       if (curSnap.exists()) {
+          let data = curSnap.data();
+          if (krewEdit.type === 'CHAPTER') {
+             data.chapter = krewEdit.newTitle;
+             data.chapter_name = krewEdit.newTitle; 
+          } else if (krewEdit.type === 'SUBTOPIC') {
+             const sIdx = (data.subTopics || []).findIndex((s: any) => s.title === krewEdit.oldTitle);
+             if (sIdx > -1) data.subTopics[sIdx].title = krewEdit.newTitle;
+          }
+          await setDoc(curRef, data, { merge: true });
+       }
+
+       // 2. LOG TO ADMIN AUDIT (Now with strict undefined fallbacks!)
+       await addDoc(collection(db, 'content_requests'), { 
+          krew_member_id: auth.currentUser?.uid || 'unknown', krew_member_email: auth.currentUser?.email || 'Direct Update',
+          action_type: 'EDIT', target_type: krewEdit.type, target_id: krewEdit.chapterId, 
+          target_grade: grade?.trim() || '', target_subject: subject?.trim() || '', 
+          payload: { oldTitle: krewEdit.oldTitle, newTitle: krewEdit.newTitle, parentSubtopic: krewEdit.parentSubtopic }, 
+          status: 'APPROVED', resolved_by: 'Auto-Publish System', resolved_at: new Date().toISOString(), created_at: new Date().toISOString()
+        });
+
+        alert("Successfully renamed! Changes are live.");
+        setKrewEdit({ show: false, type: '', chapterId: '', oldTitle: '', newTitle: '', parentSubtopic: '' });
+        setActiveLesson(null); 
+     } catch (error: any) { console.error(error); alert("Error renaming."); } finally { setIsSendingRequest(false); }
   };
 
-  const handleFullEditClick = (tool, subtopicTitle, lesson) => {
+  const handleFullEditClick = (tool: any, subtopicTitle: any, lesson: any) => {
     let normalizedType = 'Video';
     if (tool.type) {
        const t = tool.type.toLowerCase();
@@ -2144,6 +2254,7 @@ const studentData = studentDoc.data() as {
        else if (t === 'pdf') normalizedType = 'PDF';
        else if (t === 'presentation' || t === 'ppt') normalizedType = 'Presentation';
        else if (t === 'quiz') normalizedType = 'Quiz';
+       else if (t === 'conceptualiser') normalizedType = 'Conceptualiser';
     }
 
     let normalizedSubject = lesson.subject?.trim() || '';
@@ -2152,18 +2263,25 @@ const studentData = studentDoc.data() as {
     
     let normalizedGrade = lesson.grade?.trim() || '';
 
-    const currentSubtopic = lesson.subTopics?.find(s => s.title === subtopicTitle);
-    const actualIndex = currentSubtopic ? currentSubtopic.tools.findIndex(t => t.title === tool.title) : 0;
-    const finalOrderIndex = tool.orderIndex || (actualIndex + 1);
+    const currentSubtopic = lesson.subTopics?.find((s: any) => s.title === subtopicTitle);
+    const actualIndex = currentSubtopic ? currentSubtopic.tools.findIndex((t: any) => t.title === tool.title) : 0;
+    const finalOrderIndex = tool.orderIndex || tool.content_order || (actualIndex + 1);
 
     setKrewWizard({
       show: true, isEdit: true,
       originalData: { chapter: lesson.chapter, subtopic: subtopicTitle, toolTitle: tool.title },
       grade: normalizedGrade, subject: normalizedSubject, book: lesson.book || 'Kortex Klassroom',
-      chapterSelect: lesson.chapter, newChapter: '', subtopicSelect: subtopicTitle, newSubtopic: '',
-      toolType: normalizedType, toolTitle: tool.title, url: tool.content_url || '',
+      chapterNumber: lesson.chapter_number || 1,
+      chapterSelect: lesson.chapter, newChapter: '', 
+      subtopicOrder: currentSubtopic?.subtopic_order || 1,
+      subtopicSelect: subtopicTitle, newSubtopic: '',
+      contentOrder: finalOrderIndex,
+      toolType: normalizedType, toolTitle: tool.title, 
+      imageUrl: tool.image || tool.image_url || '',
+      url: tool.content_url || '',
       gameCode: tool.gameCode || (normalizedType === 'Game' || normalizedType === 'Quiz' ? tool.title : ''), 
-      isPremium: tool.isPremium || false, orderIndex: finalOrderIndex
+      isPremium: false,
+      isFeatured: tool.is_featured || false
     });
   };
 
@@ -2667,7 +2785,7 @@ const studentData = studentDoc.data() as {
                <h2 className="text-2xl font-black text-slate-800 mb-2">Edit {krewEdit.type}</h2>
                <p className="text-slate-500 text-sm font-bold mb-6">Rename '{krewEdit.oldTitle}'</p>
                <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">New Title *</label>
-               <input type="text" autoFocus value={krewEdit.newTitle} onChange={(e: any) => setKrewEdit({...krewEdit, newTitle: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 mb-6" />
+               <input type="text" autoFocus value={krewEdit.newTitle || ''} onChange={(e: any) => setKrewEdit({...krewEdit, newTitle: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 mb-6" />
                <Button onClick={handleSendQuickEdit} disabled={!krewEdit.newTitle || isSendingRequest || krewEdit.newTitle === krewEdit.oldTitle} className="w-full bg-emerald-500 hover:bg-emerald-600 border-b-4 border-emerald-700 py-3 text-lg">{isSendingRequest ? 'Sending...' : 'Submit Edit Request'}</Button>
             </div>
          </div>
@@ -2675,37 +2793,97 @@ const studentData = studentDoc.data() as {
 
       {krewWizard.show && (
          <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/80 backdrop-blur-md animate-fade-in px-4 py-12 sm:py-24 overflow-y-auto">
-            <div className="bg-white rounded-[2.5rem] p-8 max-w-2xl w-full shadow-2xl relative border-4 border-emerald-100 my-auto">
+            <div className="bg-white rounded-[2.5rem] p-8 max-w-4xl w-full shadow-2xl relative border-4 border-emerald-100 my-auto">
                <button onClick={() => setKrewWizard(initialWizardState)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2"><X size={20} /></button>
-               <div className="flex items-center gap-4 mb-6">
+               
+               <div className="flex items-center gap-4 mb-8 border-b-2 border-slate-100 pb-6">
                   <div className={`w-14 h-14 ${krewWizard.isEdit ? 'bg-amber-100' : 'bg-emerald-100'} rounded-2xl flex items-center justify-center transform -rotate-3`}>
-                     {krewWizard.isEdit ? <Edit3 size={28} className="text-amber-500"/> : <Shield size={28} className="text-emerald-500"/>}
+                     {krewWizard.isEdit ? <Edit3 size={28} className="text-amber-500"/> : <Database size={28} className="text-emerald-500"/>}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-slate-800">{krewWizard.isEdit ? 'Edit Learning Tool' : '5-Tier Content Wizard'}</h2>
-                    <p className={`${krewWizard.isEdit ? 'text-amber-600' : 'text-emerald-600'} font-bold text-sm`}>{krewWizard.isEdit ? `Modifying '${krewWizard.originalData?.toolTitle}'` : 'Design curriculum payloads securely.'}</p>
+                    <h2 className="text-2xl font-black text-slate-800">{krewWizard.isEdit ? 'Edit Database Record' : 'New Content Entry'}</h2>
+                    <p className={`${krewWizard.isEdit ? 'text-amber-600' : 'text-emerald-600'} font-bold text-sm`}>Structured identical to the Bulk Upload CSV.</p>
                   </div>
                </div>
+
                <div className="space-y-6">
-                  <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 grid grid-cols-2 gap-4">
-                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 1: Grade *</label><select value={krewWizard.grade} onChange={(e: any) => setKrewWizard({...krewWizard, grade: e.target.value, chapterSelect: '', subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select...</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 2: Subject *</label><select value={krewWizard.subject} onChange={(e: any) => setKrewWizard({...krewWizard, subject: e.target.value, chapterSelect: '', subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select...</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                  {/* ROW 1: Hierarchy */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border-2 border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">1. Grade *</label><select value={krewWizard.grade} onChange={(e: any) => setKrewWizard({...krewWizard, grade: e.target.value, chapterSelect: '', subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select...</option>{GRADES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                     <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">2. Subject *</label><select value={krewWizard.subject} onChange={(e: any) => setKrewWizard({...krewWizard, subject: e.target.value, chapterSelect: '', subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="">Select...</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                     <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">Book Name</label><input type="text" value={krewWizard.book} onChange={(e: any) => setKrewWizard({...krewWizard, book: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" placeholder="Kortex Klassroom" /></div>
                   </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 space-y-4">
-                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 3: Chapter *</label><select value={krewWizard.chapterSelect} onChange={(e: any) => setKrewWizard({...krewWizard, chapterSelect: e.target.value, subtopicSelect: ''})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="" disabled>Select Existing Chapter...</option>{wizardData.map(c => <option key={c.id} value={c.chapter}>{c.chapter}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New Chapter</option></select>{krewWizard.chapterSelect === 'NEW' && (<input type="text" value={krewWizard.newChapter} onChange={(e: any) => setKrewWizard({...krewWizard, newChapter: e.target.value})} className="mt-2 w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Type new chapter name..." />)}</div>
-                     <div><label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Tier 4: Subtopic *</label><select value={krewWizard.subtopicSelect} onChange={(e: any) => setKrewWizard({...krewWizard, subtopicSelect: e.target.value})} disabled={!krewWizard.chapterSelect || krewWizard.chapterSelect === 'NEW'} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-50"><option value="" disabled>Select Existing Subtopic...</option>{availableSubtopics.map((s, idx) => <option key={idx} value={s.title}>{s.title}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New Subtopic</option></select>{krewWizard.subtopicSelect === 'NEW' && (<input type="text" value={krewWizard.newSubtopic} onChange={(e: any) => setKrewWizard({...krewWizard, newSubtopic: e.target.value})} className="mt-2 w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none" placeholder="Type new subtopic name..." />)}</div>
-                  </div>
-                  <div className={`${krewWizard.isEdit ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'} p-5 rounded-2xl border-2 space-y-4`}>
-                     <div className="flex justify-between items-center mb-2"><label className={`block text-xs font-black ${krewWizard.isEdit ? 'text-amber-600' : 'text-emerald-600'} uppercase tracking-wider`}>Tier 5: Learning Tool Output</label><div className="flex items-center gap-2"><input type="checkbox" id="prem" checked={krewWizard.isPremium} onChange={(e: any) => setKrewWizard({...krewWizard, isPremium: e.target.checked})} className="w-4 h-4 accent-amber-500 cursor-pointer" /><label htmlFor="prem" className="text-xs font-bold text-slate-600 cursor-pointer flex items-center gap-1"><Star size={12} className="text-amber-500 fill-amber-500"/> Pro Only</label></div></div>
-                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-1"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Order Index</label><input type="number" min="1" value={krewWizard.orderIndex} onChange={(e: any) => setKrewWizard({...krewWizard, orderIndex: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-3 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500" /></div>
-                        <div className="md:col-span-1"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Type</label><select value={krewWizard.toolType} onChange={(e: any) => setKrewWizard({...krewWizard, toolType: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="Video">Video</option><option value="Game">Game</option><option value="PDF">PDF</option><option value="Presentation">PPT</option><option value="Quiz">Quiz</option></select></div>
-                        <div className="md:col-span-2"><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Tool Title</label><input type="text" value={krewWizard.toolTitle} onChange={(e: any) => setKrewWizard({...krewWizard, toolTitle: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" placeholder="e.g. Photosynthesis 3D" /></div>
+
+                  {/* ROW 2: Chapter */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border-2 border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+                     <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">3. Chapter #</label><input type="number" min="1" value={krewWizard.chapterNumber} onChange={(e: any) => setKrewWizard({...krewWizard, chapterNumber: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500" /></div>
+                     <div className="md:col-span-3">
+                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">4. Chapter Name *</label>
+                         <div className="flex gap-2">
+                             <select value={krewWizard.chapterSelect} onChange={(e: any) => setKrewWizard({...krewWizard, chapterSelect: e.target.value, subtopicSelect: ''})} className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500"><option value="" disabled>Select Existing...</option>{wizardData.map((c: any) => <option key={c.chapter} value={c.chapter}>{c.chapter}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New</option></select>
+                             {krewWizard.chapterSelect === 'NEW' && (<input type="text" value={krewWizard.newChapter} onChange={(e: any) => setKrewWizard({...krewWizard, newChapter: e.target.value})} className="flex-1 bg-white border-2 border-emerald-400 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-200" placeholder="New chapter name..." />)}
+                         </div>
                      </div>
-                     <div>{['Game', 'Quiz'].includes(krewWizard.toolType) ? (<><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Raw Code Snippet</label><textarea value={krewWizard.gameCode} onChange={(e: any) => setKrewWizard({...krewWizard, gameCode: e.target.value})} className="w-full h-32 bg-slate-900 text-emerald-400 font-mono text-xs border-2 border-slate-700 rounded-xl p-4 outline-none focus:border-emerald-500" placeholder="// Code" /></>) : (<><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Secure Embed URL Link</label><input type="text" value={krewWizard.url} onChange={(e: any) => setKrewWizard({...krewWizard, url: e.target.value})} className="w-full bg-white border-2 border-emerald-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-emerald-500 text-sm" placeholder="https://..." /></>)}</div>
+                  </div>
+
+                  {/* ROW 3: Subtopic */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border-2 border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+                     <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">5. Subtopic Order</label><input type="number" min="1" value={krewWizard.subtopicOrder} onChange={(e: any) => setKrewWizard({...krewWizard, subtopicOrder: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500" /></div>
+                     <div className="md:col-span-3">
+                         <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">6. Subtopic Name *</label>
+                         <div className="flex gap-2">
+                             <select value={krewWizard.subtopicSelect} onChange={(e: any) => setKrewWizard({...krewWizard, subtopicSelect: e.target.value})} disabled={!krewWizard.chapterSelect || krewWizard.chapterSelect === 'NEW'} className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-50"><option value="" disabled>Select Existing...</option>{availableSubtopics.map((s: string, idx: number) => <option key={idx} value={s}>{s}</option>)}<option value="NEW" className="font-bold text-emerald-600">+ Create New</option></select>
+                             {krewWizard.subtopicSelect === 'NEW' && (<input type="text" value={krewWizard.newSubtopic} onChange={(e: any) => setKrewWizard({...krewWizard, newSubtopic: e.target.value})} className="flex-1 bg-white border-2 border-emerald-400 rounded-xl px-4 py-3 font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-200" placeholder="New subtopic name..." />)}
+                         </div>
+                     </div>
+                  </div>
+
+                  {/* ROW 4 & 5: Content Specs */}
+                  <div className={`${krewWizard.isEdit ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'} p-5 rounded-2xl border-2 space-y-4`}>
+                     <div className="flex justify-between items-center mb-2">
+                        <label className={`block text-sm font-black ${krewWizard.isEdit ? 'text-amber-700' : 'text-emerald-700'} uppercase tracking-wider`}>Tool Configuration</label>
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border-2 border-slate-200">
+                           <input type="checkbox" id="feat" checked={krewWizard.isFeatured} onChange={(e: any) => setKrewWizard({...krewWizard, isFeatured: e.target.checked})} className="w-4 h-4 accent-emerald-500 cursor-pointer" />
+                           <label htmlFor="feat" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1"><Sparkles size={14} className="text-emerald-500"/> Is Featured?</label>
+                        </div>
+                     </div>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="md:col-span-1"><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">7. Content Order</label><input type="number" min="1" value={krewWizard.contentOrder} onChange={(e: any) => setKrewWizard({...krewWizard, contentOrder: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-3 font-black text-center text-slate-700 outline-none focus:border-emerald-500" /></div>
+                        
+                        <div className="md:col-span-3">
+                           <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">8. Content Type (5-Tier)</label>
+                           <select value={krewWizard.toolType} onChange={(e: any) => setKrewWizard({...krewWizard, toolType: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500">
+                              <option value="Conceptualiser">Tier 1: Conceptualiser (Sandbox)</option>
+                              <option value="Video">Tier 2: Video (Theatre)</option>
+                              <option value="Quiz">Tier 3: Quiz (Dojo)</option>
+                              <option value="PDF">Tier 4: PDF/Doc (Workbook)</option>
+                              <option value="Game">Tier 5: Game (Arcade)</option>
+                           </select>
+                        </div>
+                     </div>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">9. Title of Content *</label><input type="text" value={krewWizard.toolTitle} onChange={(e: any) => setKrewWizard({...krewWizard, toolTitle: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500" placeholder="e.g. Place Value 3D" /></div>
+                        <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">10. Image URL (Thumbnail)</label><input type="text" value={krewWizard.imageUrl} onChange={(e: any) => setKrewWizard({...krewWizard, imageUrl: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-mono text-sm text-slate-700 outline-none focus:border-emerald-500" placeholder="https://..." /></div>
+                     </div>
+                     
+                     <div>
+                        <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider">11. Content URL / Route Path</label>
+                        <input type="text" value={krewWizard.url} onChange={(e: any) => setKrewWizard({...krewWizard, url: e.target.value})} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-emerald-500 text-sm mb-3" placeholder={['Game', 'Quiz', 'Conceptualiser'].includes(krewWizard.toolType) ? "/conceptualisers/my-tool" : "https://youtube.com/..."} />
+                        
+                        {['Game', 'Quiz', 'Conceptualiser'].includes(krewWizard.toolType) && (
+                            <>
+                              <label className="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-wider mt-4">OR Raw Component Code (For Admin Review)</label>
+                              <textarea value={krewWizard.gameCode} onChange={(e: any) => setKrewWizard({...krewWizard, gameCode: e.target.value})} className="w-full h-32 bg-slate-900 text-emerald-400 font-mono text-xs border-2 border-slate-700 rounded-xl p-4 outline-none focus:border-emerald-500" placeholder="// Paste React Component Code here" />
+                            </>
+                        )}
+                     </div>
                   </div>
                </div>
-               <Button onClick={handleSubmitWizard} disabled={isSendingRequest || !krewWizard.toolTitle} className={`w-full mt-8 ${krewWizard.isEdit ? 'bg-amber-500 hover:bg-amber-600 border-amber-700' : 'bg-emerald-500 hover:bg-emerald-600 border-emerald-700'} border-b-4 active:border-b-0 py-4 text-lg`}>{isSendingRequest ? 'Packaging...' : 'Send Payload to Admin Queue'}</Button>
+               <Button onClick={handleSubmitWizard} disabled={isSendingRequest || !krewWizard.toolTitle} className={`w-full mt-8 ${krewWizard.isEdit ? 'bg-amber-500 hover:bg-amber-600 border-amber-700' : 'bg-emerald-500 hover:bg-emerald-600 border-emerald-700'} border-b-4 active:border-b-0 py-5 text-lg shadow-xl`}>
+                  {isSendingRequest ? 'Packaging...' : 'Save & Send to Admin Database'} <Database size={20} className="ml-2 inline" />
+               </Button>
             </div>
          </div>
       )}
