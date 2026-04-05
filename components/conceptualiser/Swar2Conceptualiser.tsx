@@ -162,7 +162,8 @@ export default function Swar2Conceptualiser({ onComplete }: any) {
   const handleNext = () => {
     const maxSteps = isAha ? 0 : 4;
     if (stepIndex < maxSteps) {
-      setStepIndex(prev => prev + 1);
+      // FIX: Math.min forces it to NEVER go above 4, even on rapid double-clicks
+      setStepIndex(prev => Math.min(prev + 1, maxSteps));
     } else {
       if (swarIndex < SWAR_LIST.length - 1) {
         setSwarIndex(prev => prev + 1);
@@ -175,7 +176,8 @@ export default function Swar2Conceptualiser({ onComplete }: any) {
 
   const handlePrev = () => {
     if (stepIndex > 0) {
-      setStepIndex(prev => prev - 1);
+      // FIX: Math.max prevents it from ever going below 0
+      setStepIndex(prev => Math.max(prev - 1, 0));
     } else {
       if (swarIndex > 0) {
         setSwarIndex(prev => prev - 1);
@@ -239,7 +241,8 @@ export default function Swar2Conceptualiser({ onComplete }: any) {
         >
           
           {/* STEPS 1-4: Examples (Hidden for AHA) */}
-          {!isRevealStep && !isAha && (
+          {/* FIX: Added safe-check so it never tries to render an undefined index */}
+          {!isRevealStep && !isAha && letterData.examples[stepIndex] && (
             <>
               <ImageFallback 
                 src={letterData.examples[stepIndex].image} 

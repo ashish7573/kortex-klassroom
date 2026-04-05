@@ -11,7 +11,7 @@ const ConceptLoader = () => (
 
 // Lazy load the new component we just made
 const Swar1Concept = dynamic(() => import('./Swar1conceptualiser'), { ssr: false });
-const Swar2Concept = dynamic(() => import('./Swar2conceptualiser'), { ssr: false });
+const Swar2Concept = dynamic(() => import('./Swar2Conceptualiser'), { ssr: false });
 const DemoConcept = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoConcept), { ssr: false });
 const HindiWordBuilder = dynamic(() => import('./HindiWordBuilder'), { ssr: false });
 
