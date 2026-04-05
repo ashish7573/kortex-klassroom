@@ -2085,20 +2085,6 @@ const studentData = studentDoc.data() as {
      } catch (error: any) { console.error(error); alert("Error importing student."); } finally { setIsSavingStudent(false); }
   };
 
-  // HELPER: Find matching document for direct DB writes
-  const getMatchedDoc = async (g: any, s: any, c: any) => {
-     const snap = await getDocs(collection(db, 'learning_tools'));
-     return snap.docs.find((d: any) => {
-        const data = d.data();
-        const dGrade = data.grade?.toLowerCase().trim() || '';
-        const dSubj = data.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : (data.subject?.toLowerCase().trim() || '');
-        const dChap = data.chapter?.toLowerCase().trim() || '';
-        const fGrade = g?.toLowerCase().trim() || '';
-        const fSubj = s?.toLowerCase().trim() === 'mathematics' ? 'maths' : (s?.toLowerCase().trim() || '');
-        const fChap = c?.toLowerCase().trim() || '';
-        return dGrade === fGrade && dSubj === fSubj && dChap === fChap;
-     });
-  };
 
   // 2. HELPER: Find matching document for direct DB writes
   const getMatchedDoc = async (g: any, s: any, c: any) => {
