@@ -96,7 +96,7 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   // Physics Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const physicsBubblesRef = useRef<any[]>([]);
-  const bubbleDOMRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const bubbleDOMRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
   const animationFrameRef = useRef<number | null>(null);
   const targetAudioRef = useRef<HTMLAudioElement | null>(null);
 
