@@ -14,9 +14,10 @@ import {
   CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase, Filter
 } from 'lucide-react';
 
-import { CONCEPT_REGISTRY } from '../components/conceptualiser/ConceptualiserRegistry';
-import { GAME_REGISTRY } from '../components/games/GameRegistry';
-import { QUIZ_REGISTRY } from '../components/quizzes/QuizRegistry';
+import ConceptualiserRegistry from '../components/conceptualiser/ConceptualiserRegistry';
+import GameRegistry from '../components/games/GameRegistry';
+import QuizRegistry from '../components/quizzes/QuizRegistry';
+
 
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -353,28 +354,29 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
         );
 
       case 'game':
-        const CustomGameComponent = GAME_REGISTRY[currentItem.content_url as keyof typeof GAME_REGISTRY];
-        if (CustomGameComponent) {
-           return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded-3xl overflow-y-auto border-4 border-slate-800 shadow-2xl animate-fade-in"><CustomGameComponent onComplete={handleNext} /></div>;
-        }
-        return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 border-4 border-dashed border-slate-800 rounded-3xl p-8 text-center max-w-3xl mx-auto"><h2 className="text-4xl font-black text-white mb-4">{currentItem.title}</h2><p className="text-slate-500">Game module under construction.</p></div>;
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded-3xl overflow-hidden border-4 border-slate-800 shadow-2xl animate-fade-in">
+            <GameRegistry lesson={currentItem} onComplete={handleNext} />
+          </div>
+        );
 
       case 'quiz':
-        const CustomQuizComponent = QUIZ_REGISTRY[currentItem.content_url as keyof typeof QUIZ_REGISTRY];
-        if (CustomQuizComponent) {
-           return <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl overflow-y-auto border-4 border-slate-200 shadow-2xl animate-fade-in"><CustomQuizComponent onComplete={handleNext} /></div>;
-        }
-        return <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl p-8 border-4 border-dashed border-purple-200 text-center"><h2 className="text-4xl font-black text-slate-800 mb-4">{currentItem.title}</h2><p className="text-slate-500">Quiz module under construction.</p></div>;
+        // Routes to the Quiz Switchboard
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl overflow-y-auto border-4 border-slate-200 shadow-2xl animate-fade-in">
+            <QuizRegistry lesson={currentItem} onComplete={handleNext} />
+          </div>
+        );
 
       case 'conceptualiser':
-        const CustomConceptComponent = CONCEPT_REGISTRY[currentItem.content_url as keyof typeof CONCEPT_REGISTRY];
-        if (CustomConceptComponent) {
-           return <div className="w-full h-full flex flex-col items-center justify-center bg-purple-50 rounded-3xl overflow-hidden border-4 border-purple-200 shadow-2xl animate-fade-in"><CustomConceptComponent onComplete={handleNext} /></div>;
-        }
-        return <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-3xl p-8 border-4 border-dashed border-purple-200 text-center"><h2 className="text-4xl font-black text-slate-800 mb-4">{currentItem.title}</h2><p className="text-slate-500 font-bold">Interactive concept module coming soon.</p></div>;
+        // Routes to the Conceptualiser Switchboard
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-purple-50 rounded-3xl overflow-hidden border-4 border-purple-200 shadow-2xl animate-fade-in">
+            <ConceptualiserRegistry lesson={currentItem} onComplete={handleNext} />
+          </div>
+        );
 
-      case 'presentation':
-      case 'ppt':
+   
       case 'pdf':
         let docUrl = currentItem.content_url || '';
         if (docUrl.includes('canva.com') && !docUrl.includes('embed')) {
@@ -1754,6 +1756,7 @@ const AdminView = () => {
            const is_premium = row[11]?.toUpperCase() === 'TRUE';
            const book = row[12] || "";
            const is_featured = row[13]?.toUpperCase() === 'TRUE';
+           const subtopicId = row[14] || "";
            
            if (!grade || !subject) continue; // Failsafe
            
@@ -1771,6 +1774,7 @@ const AdminView = () => {
               chapter_name,
               subtopic_order,
               subtopic,
+              subtopicId,
               content_order,
               content_type,
               title,

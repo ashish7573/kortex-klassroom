@@ -1,21 +1,46 @@
 "use client";
 import dynamic from 'next/dynamic';
-import React from 'react';
+import React, { Suspense } from 'react';
 
-// A beautiful, arcade-style loading state for your games
+// Loading Shell
 const GameLoader = () => (
-  <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-900 rounded-3xl border-4 border-slate-800">
-     <div className="w-16 h-16 border-4 border-pink-500/30 border-t-pink-500 rounded-full animate-spin mb-6"></div>
-     <h3 className="text-slate-300 font-bold animate-pulse tracking-widest uppercase text-sm">Booting Game Engine...</h3>
+  <div className="w-full h-[60vh] flex flex-col items-center justify-center bg-slate-900 rounded-[3xl] border-4 border-slate-800">
+     <div className="w-16 h-16 border-8 border-slate-800 border-t-lime-500 rounded-full animate-spin mb-6"></div>
+     <h3 className="text-slate-400 font-black text-xl animate-pulse uppercase tracking-widest">Loading Game...</h3>
   </div>
 );
 
-// 1. Dynamically import the game to prevent Server-Side Rendering crashes
-const Swar1Game = dynamic(() => import('./Swar1Game'), { ssr: false, loading: () => <GameLoader /> });
-const DemoGame = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoGame), { ssr: false });
+// The FLN Hindi Balloon Pop Game
+const SwarVyanjanGame = dynamic(() => import('./SwarVyanjanGame'), { 
+  ssr: false,
+  loading: () => <GameLoader /> 
+});
 
-// 2. Map the database URL string (content_url) to the Game Component
-export const GAME_REGISTRY = {
-  '/games/swar1': Swar1Game,
-  '/demo/game': DemoGame,
-};
+// For future unique games
+const SPECIFIC_GAMES: any = {};
+
+export default function GameRegistry({ lesson, onComplete }: any) {
+  const slug = lesson.subtopicId || lesson.content_url?.split('/').pop();
+
+  if (!slug) return <div className="p-10 text-center text-rose-500 font-bold">Error: Missing Subtopic ID</div>;
+
+  // 1. Check for unique games first
+  const SpecificGame = SPECIFIC_GAMES[slug];
+  if (SpecificGame) {
+    return <Suspense fallback={<GameLoader />}><SpecificGame onComplete={onComplete} /></Suspense>;
+  }
+
+  // 2. Route by Subject
+  return (
+    <Suspense fallback={<GameLoader />}>
+      {lesson.subject === 'Hindi' ? (
+        <SwarVyanjanGame lesson={lesson} onComplete={onComplete} />
+      ) : (
+        <div className="p-12 text-center bg-slate-800 rounded-3xl border-2 border-slate-700">
+          <h2 className="text-lime-500 font-black text-2xl">Game Coming Soon!</h2>
+          <p className="text-slate-400 font-bold">The {lesson.subject} game is currently under construction.</p>
+        </div>
+      )}
+    </Suspense>
+  );
+}
