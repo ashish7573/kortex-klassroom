@@ -11,7 +11,7 @@ import {
   Calculator, Leaf, Palette, Music, Monitor, Type, Check, Bell, Plus, 
   Database, Edit3, Trash2, UploadCloud, Save, ChevronDown, ChevronUp, 
   Sparkles, ArrowUpRight, Target, PlayCircle, UserPlus, LineChart, 
-  CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase, Filter
+  CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase, Filter, Share2
 } from 'lucide-react';
 
 import ConceptualiserRegistry from '../components/conceptualiser/ConceptualiserRegistry';
@@ -23,6 +23,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, query, where, orderBy, deleteDoc, addDoc, limit } from "firebase/firestore";
 import { AnyOfSchema } from 'firebase/ai';
+import { useSearchParams } from 'next/navigation';
 
 
 
@@ -315,7 +316,18 @@ const getYouTubeEmbedUrl = (url) => {
 const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap((sub: any) => sub.tools || []) : []);
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
+  const [copied, setCopied] = useState(false); // NEW: Track copy state
   const currentItem = playlist[currentStep];
+
+  // NEW: Share Function
+  const handleShare = () => {
+    if (!currentItem) return;
+    const toolId = currentItem.subtopicId || currentItem.id;
+    const shareLink = `${window.location.origin}/?tool=${toolId}`;
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (!currentItem) {
      return (
@@ -413,7 +425,14 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
           <div className="flex justify-between items-end mb-1.5"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Module Progress</span><span className="text-xs font-black text-sky-400">{currentStep + 1} / {playlist.length}</span></div>
           <div className="h-2 bg-slate-800 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div></div>
         </div>
-        <div className="bg-slate-800 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 border border-slate-700">{currentItem.type?.toUpperCase()}</div>
+        <div className="flex items-center gap-3">
+            {/* NEW: SHARE BUTTON */}
+            <button onClick={handleShare} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-full font-bold text-xs sm:text-sm transition-all border border-slate-700">
+               {copied ? <CheckCircle size={16} className="text-emerald-400" /> : <Share2 size={16} />}
+               <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
+            </button>
+            <div className="bg-slate-800 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 border border-slate-700">{currentItem.type?.toUpperCase()}</div>
+        </div>
       </div>
       <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-2 md:p-8 flex items-center justify-center">
          {renderContent()}
@@ -1949,8 +1968,12 @@ const AdminView = () => {
 // ============================================================================
 
 export default function App() {
+  // NEW: Global URL Reader
+  const searchParams = useSearchParams();
+  const sharedToolId = searchParams ? searchParams.get('tool') : null;
+
   // NEW: Deployment-Safe Back Button History API Wrappers
-  const [currentView, _setCurrentView] = useState<string>('home'); 
+  const [currentView, _setCurrentView] = useState<string>('home');
   const setCurrentView = (view: string) => {
      if (typeof window !== 'undefined') {
          window.history.pushState({ type: 'view', view }, '', '');
@@ -2053,6 +2076,43 @@ export default function App() {
   
   const [playingStep, setPlayingStep] = useState<number>(0);
   const [targetContext, setTargetContext] = useState<any>(null);
+  // NEW: Automatically open shared links
+  useEffect(() => {
+    if (sharedToolId && !playingLesson) {
+      const fetchSharedTool = async () => {
+        try {
+          // 1. Try to find the tool by Document ID
+          const docRef = doc(db, 'learning_tools', sharedToolId);
+          const docSnap = await getDoc(docRef);
+          let itemData = null;
+
+          if (docSnap.exists()) {
+            itemData = { id: docSnap.id, ...docSnap.data() };
+          } else {
+            // 2. Try to find the tool by its Subtopic ID
+            const q = query(collection(db, 'learning_tools'), where('subtopicId', '==', sharedToolId));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              itemData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            }
+          }
+
+          // 3. If found, instantly play it!
+          if (itemData) {
+            setPlayingLesson({
+              chapter: itemData.chapter_name || itemData.chapter || itemData.title || 'Interactive Module',
+              book: itemData.book || 'Kortex Klassroom',
+              flow: [itemData]
+            });
+            setPlayingStep(0);
+          }
+        } catch (error) {
+          console.error("Error fetching shared tool:", error);
+        }
+      };
+      fetchSharedTool();
+    }
+  }, [sharedToolId]);
 
   // NEW: Vercel-Safe Back Button Listener
   useEffect(() => {
