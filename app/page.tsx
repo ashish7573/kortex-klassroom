@@ -1046,17 +1046,35 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
                 {/* Details Area */}
                 <div className="p-6 flex-1 flex flex-col">
                   <div className="mb-3">
-                     <p className={`text-xs font-black ${activeTier.textColor} uppercase tracking-wider line-clamp-1`}>{item.lessonContext?.chapter || item.subject || 'Resource'}</p>
+                     <div className="mb-3">
+                        <p className={`text-14 font-black ${activeTier.textColor} uppercase tracking-wider line-clamp-1`}>{item.chapter_name || item.subject || 'Resource'}</p>
+                      </div>
                   </div>
                   <h3 className="text-lg sm:text-xl font-extrabold text-slate-800 mb-4 leading-tight line-clamp-2 group-hover:text-slate-900">{item.title}</h3>
                   
                   <div className="mt-auto pt-5 flex justify-between items-center border-t-2 border-slate-50">
+                    
+                    {/* Grade and Subject Badge */}
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                      <span className="bg-slate-100 px-3 py-1.5 rounded-lg text-slate-600">{item.grade}</span>
+                      <span className="bg-slate-100 px-3 py-1.5 rounded-lg text-slate-600">
+                        {item.grade} • {item.subject}
+                      </span>
                     </div>
-                    <div className={`w-10 h-10 rounded-full ${activeTier.lightColor} flex items-center justify-center group-hover:${activeTier.mainColor} transition-colors duration-300 shadow-sm`}>
-                      <Play size={18} className={`${activeTier.textColor} group-hover:text-white ml-1`} />
+                    
+                    {/* Dynamic Action Button */}
+                    <div className={`px-4 py-2.5 rounded-xl ${activeTier.lightColor} flex items-center justify-center group-hover:${activeTier.mainColor} transition-colors duration-300 shadow-sm`}>
+                      <span className={`text-[11px] font-black uppercase tracking-wider ${activeTier.textColor} group-hover:text-white flex items-center gap-1.5`}>
+                        {{
+                          'Conceptualiser': 'Learn Concept',
+                          'Video': 'Play Video',
+                          'Game': 'Play Game',
+                          'Quiz': 'Take Quiz',
+                          'PDF': 'Read PDF',
+                        }[item.content_type] || 'Start Lesson'}
+                        <Play size={12} className="fill-current" />
+                      </span>
                     </div>
+
                   </div>
                 </div>
               </Card>

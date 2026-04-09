@@ -10,18 +10,17 @@ const ConceptLoader = () => (
 );
 
 // RENAME: Now specifically imported as the SwarVyanjan Engine
-const SwarVyanjanConceptualiser = dynamic(() => import('./SwarVyanjanConceptualiser'), { 
-  ssr: false,
-  loading: () => <ConceptLoader /> 
-});
+const SwarVyanjanConceptualiser = dynamic(() => import('./SwarVyanjanConceptualiser'), { ssr: false,loading: () => <ConceptLoader /> });
 
 // Unique Tools (Keeping these here just in case they are needed for Ch 1 or 2)
 const PlaceValueDemo = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoConcept), { ssr: false });
 const HindiWordBuilder = dynamic(() => import('./HindiWordBuilder'), { ssr: false });
+const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: false,loading: () => <ConceptLoader /> });
 
 const SPECIFIC_TOOLS: any = {
   'place-value-intro': PlaceValueDemo,
   'hindi-word-builder-game': HindiWordBuilder,
+  'rounding-mountain': MountainRounding,
 };
 
 export default function ConceptualiserRegistry({ lesson, onComplete }: any) {
