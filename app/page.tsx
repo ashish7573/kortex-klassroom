@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 
 import { 
@@ -1967,7 +1967,7 @@ const AdminView = () => {
 // SECTION 13: THE TRAFFIC CONTROLLER (MAIN APP)
 // ============================================================================
 
-export default function App() {
+function MainApp() {
   // NEW: Global URL Reader
   const searchParams = useSearchParams();
   const sharedToolId = searchParams ? searchParams.get('tool') : null;
@@ -2321,5 +2321,25 @@ export default function App() {
         .hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
     </div>
+  );
+}
+
+
+
+
+
+// ============================================================================
+// SECTION 14: SUSPENSE WRAPPER (REQUIRED FOR URL SEARCH PARAMS)
+// ============================================================================
+export default function App() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900">
+         <div className="w-16 h-16 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+         <h2 className="text-white font-black text-xl tracking-widest uppercase">Loading Kortex...</h2>
+      </div>
+    }>
+      <MainApp />
+    </Suspense>
   );
 }
