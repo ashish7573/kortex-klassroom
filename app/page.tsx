@@ -1641,16 +1641,20 @@ const KrewEditorPanel = () => {
 
 
 // ============================================================================
-// SECTION 12: DIRECTOR COMMAND CENTER (WITH UPGRADED BULK UPLOAD)
+// SECTION 12: DIRECTOR COMMAND CENTER (WITH UPGRADED BULK UPLOAD & ANALYTICS)
 // ============================================================================
 
 const AdminView = () => {
-  const [activeTab, setActiveTab] = useState('approvals');
+  const [activeTab, setActiveTab] = useState('analytics'); // Default to Analytics now!
   const [pendingRequests, setPendingRequests] = useState([]);
   const [requestHistory, setRequestHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadingCSV, setIsUploadingCSV] = useState(false);
+  
+  // NEW: Analytics State
+  const [analytics, setAnalytics] = useState<any>(null);
 
+  // Fetch Approvals
   useEffect(() => {
     async function fetchRequests() {
       setIsLoading(true);
@@ -1671,7 +1675,54 @@ const AdminView = () => {
     if (activeTab === 'approvals') fetchRequests();
   }, [activeTab]);
 
-  const handleRequestAction = async (request, actionStatus) => {
+  // NEW: Fetch Analytics
+  useEffect(() => {
+    async function fetchAnalytics() {
+      setIsLoading(true);
+      try {
+        // Grab the last 2000 events to keep the dashboard extremely fast
+        const q = query(collection(db, 'analytics_events'), orderBy('timestamp', 'desc'), limit(2000));
+        const snap = await getDocs(q);
+        const events = snap.docs.map(d => d.data());
+
+        // 1. Calculate Unique Devices (Silent Visitors)
+        const uniqueDevices = new Set(events.map(e => e.device_id)).size;
+        
+        // 2. Categorize Events
+        const lessonStarts = events.filter(e => e.event_type === 'lesson_started');
+        const lessonCompletions = events.filter(e => e.event_type === 'lesson_completed');
+        const pageViews = events.filter(e => e.event_type === 'page_view');
+        const demoStarts = events.filter(e => e.event_type === 'demo_started');
+        
+        // 3. Find Most Popular Chapters
+        const chapterCounts: any = {};
+        lessonStarts.forEach(e => {
+            const chap = e.payload?.chapter || 'Unknown Module';
+            chapterCounts[chap] = (chapterCounts[chap] || 0) + 1;
+        });
+        const topChapters = Object.entries(chapterCounts)
+            .sort((a: any, b: any) => b[1] - a[1])
+            .slice(0, 5); // Top 5
+
+        setAnalytics({
+            totalVisitors: uniqueDevices,
+            totalStarts: lessonStarts.length,
+            totalCompletions: lessonCompletions.length,
+            completionRate: lessonStarts.length ? Math.round((lessonCompletions.length / lessonStarts.length) * 100) : 0,
+            pageViews: pageViews.length,
+            demoStarts: demoStarts.length,
+            topChapters
+        });
+      } catch (error: any) { 
+        console.error("🚨 ANALYTICS FETCH ERROR:", error); 
+      } finally { 
+        setIsLoading(false); 
+      }
+    }
+    if (activeTab === 'analytics') fetchAnalytics();
+  }, [activeTab]);
+
+  const handleRequestAction = async (request: any, actionStatus: string) => {
     const isApproved = actionStatus === 'APPROVED';
     if (!window.confirm(`Are you sure you want to ${isApproved ? 'APPROVE' : 'REJECT'} this request?`)) return;
     
@@ -1679,7 +1730,7 @@ const AdminView = () => {
       const adminEmail = auth.currentUser?.email || 'Admin';
       const requestRef = doc(db, 'content_requests', request.id);
       
-      const getMatchedDoc = async (g, s, c) => {
+      const getMatchedDoc = async (g: string, s: string, c: string) => {
          const snap = await getDocs(collection(db, 'learning_tools'));
          return snap.docs.find(d => {
             const data = d.data();
@@ -1703,7 +1754,7 @@ const AdminView = () => {
             if (request.target_type === 'CHAPTER') {
                data.chapter = p.newTitle;
             } else if (request.target_type === 'SUBTOPIC') {
-               const sIdx = (data.subTopics || []).findIndex(s => s.title === p.oldTitle);
+               const sIdx = (data.subTopics || []).findIndex((s: any) => s.title === p.oldTitle);
                if (sIdx > -1) data.subTopics[sIdx].title = p.newTitle;
             }
             await setDoc(curRef, data, { merge: true });
@@ -1719,9 +1770,9 @@ const AdminView = () => {
          if (oldDoc) {
             let oldData = oldDoc.data();
             let oldSubTopics = oldData.subTopics || [];
-            const sIdx = oldSubTopics.findIndex(s => s.title?.toLowerCase().trim() === orig.subtopic.toLowerCase().trim());
+            const sIdx = oldSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === orig.subtopic.toLowerCase().trim());
             if (sIdx > -1) {
-               oldSubTopics[sIdx].tools = (oldSubTopics[sIdx].tools || []).filter(t => t.title !== orig.toolTitle);
+               oldSubTopics[sIdx].tools = (oldSubTopics[sIdx].tools || []).filter((t: any) => t.title !== orig.toolTitle);
                await setDoc(doc(db, 'learning_tools', oldDoc.id), { subTopics: oldSubTopics }, { merge: true });
             }
          }
@@ -1732,10 +1783,10 @@ const AdminView = () => {
          } else {
              const existingData = newDoc.data();
              let newSubTopics = existingData.subTopics || [];
-             const subIndex = newSubTopics.findIndex(s => s.title?.toLowerCase().trim() === p.subtopic.toLowerCase().trim());
+             const subIndex = newSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === p.subtopic.toLowerCase().trim());
 
              if (subIndex > -1) {
-                newSubTopics[subIndex].tools = (newSubTopics[subIndex].tools || []).filter(t => t.title !== p.tool.title);
+                newSubTopics[subIndex].tools = (newSubTopics[subIndex].tools || []).filter((t: any) => t.title !== p.tool.title);
                 const insertAt = Math.max(0, Math.min(newSubTopics[subIndex].tools.length, p.tool.orderIndex - 1));
                 newSubTopics[subIndex].tools.splice(insertAt, 0, p.tool);
              } else {
@@ -1755,10 +1806,10 @@ const AdminView = () => {
          } else {
             const existingData = existingDoc.data();
             let newSubTopics = existingData.subTopics || [];
-            const subIndex = newSubTopics.findIndex(s => s.title?.toLowerCase().trim() === p.subtopic.toLowerCase().trim());
+            const subIndex = newSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === p.subtopic.toLowerCase().trim());
             
             if (subIndex > -1) {
-               newSubTopics[subIndex].tools = (newSubTopics[subIndex].tools || []).filter(t => t.title !== p.tool.title);
+               newSubTopics[subIndex].tools = (newSubTopics[subIndex].tools || []).filter((t: any) => t.title !== p.tool.title);
                const insertAt = Math.max(0, Math.min(newSubTopics[subIndex].tools.length, p.tool.orderIndex - 1));
                newSubTopics[subIndex].tools.splice(insertAt, 0, p.tool); 
             } else { newSubTopics.push({ title: p.subtopic, tools: [p.tool] }); }
@@ -1775,10 +1826,10 @@ const AdminView = () => {
             if (targetDocSnap.exists()) {
                let data = targetDocSnap.data();
                if (request.target_type === 'SUBTOPIC') {
-                  data.subTopics = (data.subTopics || []).filter(s => s.title !== request.payload.title);
+                  data.subTopics = (data.subTopics || []).filter((s: any) => s.title !== request.payload.title);
                } else if (request.target_type === 'TOOL') {
-                  data.subTopics = (data.subTopics || []).map(sub => {
-                     sub.tools = (sub.tools || []).filter(t => t.title !== request.payload.title);
+                  data.subTopics = (data.subTopics || []).map((sub: any) => {
+                     sub.tools = (sub.tools || []).filter((t: any) => t.title !== request.payload.title);
                      return sub;
                   });
                }
@@ -1792,8 +1843,8 @@ const AdminView = () => {
       const updatedRequest = { ...request, status: actionStatus, resolved_by: adminEmail, resolved_at: timestamp };
       await setDoc(requestRef, { status: actionStatus, resolved_by: adminEmail, resolved_at: timestamp }, { merge: true });
       
-      setPendingRequests(prev => prev.filter(req => req.id !== request.id));
-      setRequestHistory(prev => [updatedRequest, ...prev]);
+      setPendingRequests((prev: any) => prev.filter((req: any) => req.id !== request.id));
+      setRequestHistory((prev: any) => [updatedRequest, ...prev]);
       alert(isApproved ? `APPROVED! Database updated automatically.` : "REJECTED. Archived in History.");
     } catch (error: any) { console.error("🚨 ERROR UPDATING REQUEST:", error); }
   };
@@ -1886,18 +1937,110 @@ const AdminView = () => {
     };
     reader.readAsText(file);
   };
+  
   return (
     <div className="max-w-7xl mx-auto animate-fade-in space-y-8 pb-20">
       <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 border-b-8 border-indigo-500 relative overflow-hidden">
          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
-         <div className="flex items-center gap-6 relative z-10"><div className="w-16 h-16 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg border-2 border-indigo-300 transform -rotate-3"><Briefcase size={32} className="text-white" /></div><div><h2 className="text-3xl font-black tracking-tight">Director Dashboard</h2><div className="text-indigo-300 font-bold uppercase tracking-widest text-sm mt-1 flex items-center gap-2"><div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div> Firebase Connected</div></div></div>
+         <div className="flex items-center gap-6 relative z-10">
+            <div className="w-16 h-16 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg border-2 border-indigo-300 transform -rotate-3">
+                <Briefcase size={32} className="text-white" />
+            </div>
+            <div>
+                <h2 className="text-3xl font-black tracking-tight">Director Dashboard</h2>
+                <div className="text-indigo-300 font-bold uppercase tracking-widest text-sm mt-1 flex items-center gap-2"><div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div> Firebase Connected</div>
+            </div>
+         </div>
       </div>
 
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border-2 border-slate-100 shadow-sm w-fit">
+        <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${activeTab === 'analytics' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}><BarChart size={16} /> Traffic & Analytics</button>
         <button onClick={() => setActiveTab('approvals')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${activeTab === 'approvals' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>Content Approvals {pendingRequests.length > 0 && <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-bounce">{pendingRequests.length}</span>}</button>
         <button onClick={() => setActiveTab('database')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${activeTab === 'database' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}><Database size={16} /> System Config</button>
       </div>
 
+      {/* NEW: ANALYTICS TAB */}
+      {activeTab === 'analytics' && (
+         <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+               <div>
+                  <h3 className="text-2xl font-black text-slate-800">Platform Analytics</h3>
+                  <p className="text-slate-500 font-medium mt-1">Live anonymous tracking of user engagement and content popularity.</p>
+               </div>
+            </div>
+            
+            {isLoading ? (
+               <div className="py-20 text-center text-indigo-500 font-bold animate-pulse">Compiling Data Engine...</div>
+            ) : !analytics ? (
+               <div className="py-20 text-center text-slate-500 font-bold">No data available yet. Start clicking around the site!</div>
+            ) : (
+               <>
+                  {/* Top Stats Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                     <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden group hover:border-sky-300 transition-colors">
+                        <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform"><Users size={60} className="text-sky-500"/></div>
+                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Unique Devices</p>
+                        <h4 className="text-4xl font-black text-slate-800">{analytics.totalVisitors}</h4>
+                     </div>
+                     <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden group hover:border-purple-300 transition-colors">
+                        <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform"><Activity size={60} className="text-purple-500"/></div>
+                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Total Page Views</p>
+                        <h4 className="text-4xl font-black text-slate-800">{analytics.pageViews}</h4>
+                     </div>
+                     <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden group hover:border-lime-300 transition-colors">
+                        <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform"><Play size={60} className="text-lime-500"/></div>
+                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Lessons Started</p>
+                        <h4 className="text-4xl font-black text-slate-800">{analytics.totalStarts}</h4>
+                     </div>
+                     <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden group hover:border-amber-300 transition-colors">
+                        <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform"><Target size={60} className="text-amber-500"/></div>
+                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Completion Rate</p>
+                        <h4 className="text-4xl font-black text-slate-800">{analytics.completionRate}%</h4>
+                     </div>
+                  </div>
+
+                  {/* Bottom Row */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                     
+                     {/* Top Modules List */}
+                     <div className="lg:col-span-2 bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 md:p-8">
+                        <h4 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2"><Flame size={20} className="text-orange-500"/> Top Performing Modules</h4>
+                        {analytics.topChapters.length === 0 ? (
+                           <p className="text-slate-400 font-medium italic">No lessons have been started yet.</p>
+                        ) : (
+                           <div className="space-y-4">
+                              {analytics.topChapters.map(([chapter, count]: any, idx: number) => (
+                                 <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <div className="flex items-center gap-4">
+                                       <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-500 font-black flex items-center justify-center shrink-0">#{idx + 1}</div>
+                                       <span className="font-extrabold text-slate-700">{chapter}</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm">{count} Starts</div>
+                                 </div>
+                              ))}
+                           </div>
+                        )}
+                     </div>
+
+                     {/* Conversion Snippet */}
+                     <div className="bg-slate-900 text-white rounded-3xl border-4 border-indigo-900 shadow-sm p-6 md:p-8 flex flex-col justify-center">
+                        <h4 className="text-xl font-black text-white mb-2 text-center">Demo Conversion</h4>
+                        <p className="text-slate-400 text-sm font-medium text-center mb-8">How many users test drove the platform vs explored the real curriculum?</p>
+                        
+                        <div className="bg-slate-800 rounded-2xl p-6 text-center border-2 border-slate-700">
+                           <div className="text-5xl font-black text-sky-400 mb-2">{analytics.demoStarts}</div>
+                           <p className="text-slate-300 font-bold text-sm uppercase tracking-wider">Demo Plays</p>
+                        </div>
+                        <p className="text-center text-xs text-slate-500 mt-6 mt-auto">Note: High demo plays and low unique visitors means users are returning to replay the demo repeatedly.</p>
+                     </div>
+
+                  </div>
+               </>
+            )}
+         </div>
+      )}
+
+      {/* APPROVALS TAB */}
       {activeTab === 'approvals' && (
          <div className="space-y-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6"><div><h3 className="text-2xl font-black text-slate-800">Curriculum Approval Queue</h3><p className="text-slate-500 font-medium mt-1">Review changes submitted by your Krew members before they go live.</p></div></div>
@@ -1907,7 +2050,7 @@ const AdminView = () => {
                <div className="bg-white border-2 border-slate-100 p-16 rounded-3xl text-center shadow-sm"><div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6"><CheckCircle size={40} className="text-green-500"/></div><h3 className="text-2xl font-black text-slate-800 mb-2">All Caught Up!</h3><p className="text-slate-500 font-medium">There are no pending curriculum requests from the Krew.</p></div>
             ) : (
                <div className="space-y-4">
-                  {pendingRequests.map(req => {
+                  {pendingRequests.map((req: any) => {
                      const isAdd = req.action_type === 'FULL_TIER_ADD';
                      const isEdit = req.action_type === 'FULL_TIER_EDIT' || req.action_type === 'EDIT';
                      return (
@@ -1959,7 +2102,7 @@ const AdminView = () => {
                            {requestHistory.length === 0 ? (
                               <tr><td colSpan={5} className="p-8 text-center text-slate-400 font-medium">No history recorded yet.</td></tr>
                            ) : (
-                              requestHistory.map(req => (
+                              requestHistory.map((req: any) => (
                                  <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4 font-bold text-slate-500 whitespace-nowrap">{new Date(req.resolved_at || req.created_at).toLocaleString()}</td>
                                     <td className="p-4 font-medium text-slate-700">{req.krew_member_email || 'Krew'}</td>
@@ -1984,6 +2127,7 @@ const AdminView = () => {
          </div>
       )}
 
+      {/* DATABASE TAB */}
       {activeTab === 'database' && (
          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
             <div className="bg-white border-4 border-slate-100 p-10 rounded-3xl text-center shadow-sm relative">
@@ -2018,15 +2162,12 @@ function MainApp() {
   // NEW: Global URL Reader
   const searchParams = useSearchParams();
   const sharedToolId = searchParams ? searchParams.get('tool') : null;
-  const urlView = searchParams ? searchParams.get('view') : null; // Check for a shared view!
+  const urlView = searchParams ? searchParams.get('view') : null; 
 
-  // NEW: Deployment-Safe Back Button History API Wrappers
-  // Start on the URL view, otherwise default to 'home'
   const [currentView, _setCurrentView] = useState<string>(urlView || 'home');
   
   const setCurrentView = (view: string) => {
      if (typeof window !== 'undefined') {
-         // Create the new URL. If home, clean it. Otherwise add ?view=...
          const newUrl = view === 'home' ? '/' : `/?view=${view}`;
          window.history.pushState({ type: 'view', view }, '', newUrl);
      }
@@ -2044,75 +2185,11 @@ function MainApp() {
   const [stage, setStage] = useState<string | null>(null);
   const [lang, setLang] = useState('en');
 
-  
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [userEmail, setUserEmail] = useState(''); 
   const [userName, setUserName] = useState(''); 
 
-  // FIXED: Real-time listener with STRICT token enforcement & Race Condition Fix
-  useEffect(() => {
-    let unsubscribeSnapshot = () => {}; // Failsafe for cleanup
-
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setIsLoggedIn(true);
-        setUserEmail(user.email); 
-        
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          
-          unsubscribeSnapshot = onSnapshot(
-             userDocRef, 
-             (docSnap) => {
-               if (docSnap.exists()) {
-                  const data = docSnap.data();
-                  const localToken = localStorage.getItem('kortex_session_token');
-                  
-                  // NEW: Check if a login process is actively happening right now
-                  const isAuthenticating = sessionStorage.getItem('kortex_is_authenticating');
-                  
-                  // --- STRICT SECURITY CHECK ---
-                  // Only kick the user out if they are NOT currently logging in!
-                  if (!isAuthenticating && data.session_token && data.session_token !== localToken) {
-                     unsubscribeSnapshot(); // 1. Kill the listener FIRST
-                     logout();              // 2. Then log out safely
-                     setAlertConfig({ 
-                        title: "Session Expired", 
-                        message: "You have been securely logged out because your account was accessed from another device.",
-                        type: "warning" 
-                     });
-                     return; 
-                  }
-
-                  setRole(data.role);
-                  setIsPro(data.is_pro || data.isPro || false); 
-                  setUserName(data.full_name || ''); 
-               } else {
-                  setUserName(user.displayName || '');
-               }
-             },
-             (error) => {
-               console.warn("Secure disconnect triggered. Listener closed.");
-             }
-          );
-        } catch (error: any) { console.error("🚨 ERROR FETCHING FIRESTORE PROFILE:", error); }
-      } else {
-        setIsLoggedIn(false); 
-        setUserEmail(''); 
-        setUserName(''); 
-        unsubscribeSnapshot(); 
-      }
-    });
-    
-    return () => {
-       unsubscribeAuth();
-       unsubscribeSnapshot();
-    };
-  }, []);
-  
-  
-  
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMessage, setAuthMessage] = useState("Join Kortex Klassroom to unlock all features.");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -2128,12 +2205,125 @@ function MainApp() {
   
   const [playingStep, setPlayingStep] = useState<number>(0);
   const [targetContext, setTargetContext] = useState<any>(null);
-  // NEW: Automatically open shared links
+
+
+  // ==========================================================================
+  // NEW: SILENT ANALYTICS ENGINE
+  // ==========================================================================
+  const trackEvent = async (eventType: string, eventData: any = {}) => {
+    try {
+      // 1. Get or Create a Silent Device ID
+      let deviceId = localStorage.getItem('kortex_device_id');
+      let isFirstVisit = false;
+
+      if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        localStorage.setItem('kortex_device_id', deviceId);
+        isFirstVisit = true;
+      }
+      
+      // 2. Basic non-identifying device info
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      // 3. If brand new, log the acquisition event first
+      if (isFirstVisit) {
+        await addDoc(collection(db, 'analytics_events'), {
+          device_id: deviceId, event_type: 'new_visitor', timestamp: new Date().toISOString(), is_mobile: isMobile
+        });
+      }
+
+      // 4. Log the actual requested event
+      await addDoc(collection(db, 'analytics_events'), {
+        device_id: deviceId,
+        event_type: eventType,
+        payload: eventData,
+        timestamp: new Date().toISOString(),
+        is_mobile: isMobile
+      });
+    } catch (error) {
+      console.warn("Analytics ping failed silently.", error); // Won't crash the app
+    }
+  };
+
+  // 🎯 TRACKING: Page Views
+  useEffect(() => {
+    if (currentView) {
+      trackEvent('page_view', { view: currentView });
+    }
+  }, [currentView]);
+
+  // 🎯 TRACKING: Lesson Starts
+  useEffect(() => {
+    if (playingLesson) {
+      trackEvent('lesson_started', { 
+         chapter: playingLesson.chapter,
+         book: playingLesson.book,
+         total_steps: playingLesson.flow?.length || 0
+      });
+    }
+  }, [playingLesson]);
+
+
+  // FIXED: Real-time listener with STRICT token enforcement & Race Condition Fix
+  useEffect(() => {
+    let unsubscribeSnapshot = () => {}; 
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setIsLoggedIn(true);
+        setUserEmail(user.email); 
+        
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          
+          unsubscribeSnapshot = onSnapshot(
+             userDocRef, 
+             (docSnap) => {
+               if (docSnap.exists()) {
+                  const data = docSnap.data();
+                  const localToken = localStorage.getItem('kortex_session_token');
+                  const isAuthenticating = sessionStorage.getItem('kortex_is_authenticating');
+                  
+                  if (!isAuthenticating && data.session_token && data.session_token !== localToken) {
+                     unsubscribeSnapshot(); 
+                     logout();              
+                     setAlertConfig({ 
+                        title: "Session Expired", 
+                        message: "You have been securely logged out because your account was accessed from another device.",
+                        type: "warning" 
+                     });
+                     return; 
+                  }
+
+                  setRole(data.role);
+                  setIsPro(data.is_pro || data.isPro || false); 
+                  setUserName(data.full_name || ''); 
+               } else {
+                  setUserName(user.displayName || '');
+               }
+             },
+             (error) => { console.warn("Secure disconnect triggered."); }
+          );
+        } catch (error: any) { console.error("🚨 ERROR FETCHING FIRESTORE PROFILE:", error); }
+      } else {
+        setIsLoggedIn(false); 
+        setUserEmail(''); 
+        setUserName(''); 
+        unsubscribeSnapshot(); 
+      }
+    });
+    
+    return () => {
+       unsubscribeAuth();
+       unsubscribeSnapshot();
+    };
+  }, []);
+
+  // Automatically open shared links
   useEffect(() => {
     if (sharedToolId && !playingLesson) {
       const fetchSharedTool = async () => {
         try {
-          // 1. Try to find the tool by Document ID
           const docRef = doc(db, 'learning_tools', sharedToolId);
           const docSnap = await getDoc(docRef);
           let itemData = null;
@@ -2141,7 +2331,6 @@ function MainApp() {
           if (docSnap.exists()) {
             itemData = { id: docSnap.id, ...docSnap.data() };
           } else {
-            // 2. Try to find the tool by its Subtopic ID
             const q = query(collection(db, 'learning_tools'), where('subtopicId', '==', sharedToolId));
             const snap = await getDocs(q);
             if (!snap.empty) {
@@ -2149,7 +2338,6 @@ function MainApp() {
             }
           }
 
-          // 3. If found, instantly play it!
           if (itemData) {
             setPlayingLesson({
               chapter: itemData.chapter_name || itemData.chapter || itemData.title || 'Interactive Module',
@@ -2158,38 +2346,28 @@ function MainApp() {
             });
             setPlayingStep(0);
           }
-        } catch (error) {
-          console.error("Error fetching shared tool:", error);
-        }
+        } catch (error) { console.error("Error fetching shared tool:", error); }
       };
       fetchSharedTool();
     }
   }, [sharedToolId]);
 
-  // NEW: Vercel-Safe Back Button Listener
+  // Vercel-Safe Back Button Listener
   useEffect(() => {
-    // SSR Failsafe
     if (typeof window === 'undefined') return;
 
-    // 1. Log the starting page so we have a baseline to go back to
-    // Log the ACTUAL starting view so the Back button knows where it started
     const startingView = urlView || 'home';
     window.history.replaceState({ type: 'init', view: startingView }, '', window.location.search || '/');
 
-    // 2. Intercept the physical back button
     const handlePopState = (event: PopStateEvent) => {
       const state = event.state;
-      
-      // Safety measure: Always close open modals/lessons when Back is pressed
       _setPlayingLesson(null);
       setShowAuthModal(false);
 
       if (state) {
-        // Restore the previous view or role
         if (state.view) _setCurrentView(state.view);
         if (state.role !== undefined) _setRole(state.role);
       } else {
-        // Failsafe: If no history exists, go Home
         _setCurrentView('home');
         _setRole(null);
       }
@@ -2200,17 +2378,10 @@ function MainApp() {
   }, []);
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
 
-  // FIXED: Manual logout completely wipes the state, solving the student PIN issue safely.
    const logout = async () => {
      try { 
-        if (auth.currentUser) {
-           await signOut(auth); 
-        }
-        
-        // NEW: Clear the security tokens from this device!
+        if (auth.currentUser) await signOut(auth); 
         localStorage.removeItem('kortex_session_token');
-
-        // Manually wipe all UI state upon logging out
         setRole(null); 
         setIsPro(false); 
         setIsLoggedIn(false); 
@@ -2224,7 +2395,9 @@ function MainApp() {
   };
 
   const handleStartDemo = () => {
-    // 100% Frictionless PLG Demo: Showcases all 5 tiers instantly.
+    // 🎯 TRACKING: Demo Starts
+    trackEvent('demo_started', {});
+
     setPlayingLesson({
       chapter: 'Master Demo: Place Value', book: 'The 5-Tier Experience',
       flow: [
@@ -2239,7 +2412,6 @@ function MainApp() {
   };
 
   const handleOpenFeatured = (item: any) => {
-      // Stripped out auth checks. Plays instantly.
       const playableLesson = {
         chapter: item.chapter_name || item.lessonContext?.chapter || item.title || 'Interactive Module',
         book: item.book || item.lessonContext?.book || 'Kortex Klassroom',
@@ -2250,25 +2422,20 @@ function MainApp() {
   };
 
   const handleStartLesson = (lesson: any, stepIndex: any) => {
-      // Stripped out auth checks. Plays instantly.
        setPlayingLesson(lesson); 
        setPlayingStep(stepIndex); 
   };
 
   const renderContent = () => {
-    // 1. Standalone Curriculum Page
     if (currentView === 'lessons') return <LessonsView isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartLesson={handleStartLesson} />;
     
-    // 2. The 5 Dynamic Tier Pages
     const activeTierObj = FIVE_TIERS?.find(t => t.id === currentView);
     if (activeTierObj) {
       return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onOpenTool={handleOpenFeatured} />;
     }
 
-    // 3. User Dashboards
       if (role === 'admin') return <AdminView />;
     
-    // 4. Landing Page
     return <LandingView 
       onTryDemo={handleStartDemo} 
       onNavigateToTier={(tierId: any) => setCurrentView(tierId)} 
@@ -2285,9 +2452,13 @@ function MainApp() {
       
       {playingLesson && (
         <LessonPlayer 
-          lesson={playingLesson} initialStep={playingStep} isPro={true} isLoggedIn={true} // Hardcoded to prevent guest lockouts
+          lesson={playingLesson} initialStep={playingStep} isPro={true} isLoggedIn={true} 
           onClose={() => setPlayingLesson(null)} 
-          onFinish={() => setPlayingLesson(null)} // Silent exit on finish
+          onFinish={() => {
+             // 🎯 TRACKING: Lesson Completed!
+             trackEvent('lesson_completed', { chapter: playingLesson.chapter });
+             setPlayingLesson(null);
+          }} 
         />
       )}
       
@@ -2377,7 +2548,6 @@ function MainApp() {
     </div>
   );
 }
-
 
 
 
