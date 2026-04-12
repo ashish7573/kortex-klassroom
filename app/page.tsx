@@ -304,6 +304,14 @@ const WorkInProgressView = ({ title, onReturn }) => (
 // ============================================================================
 
 
+const getYouTubeEmbedUrl = (url: any) => {
+  if (!url) return '';
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  const videoId = (match && match[2].length === 11) ? match[2] : null;
+  return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0` : url;
+};
+
 const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap((sub: any) => sub.tools || []) : []);
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
