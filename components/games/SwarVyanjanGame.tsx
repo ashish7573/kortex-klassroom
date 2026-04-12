@@ -324,35 +324,35 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
       
       {/* START SCREEN */}
       {gameState === 'start' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900 p-6 text-center">
-          <div className="w-full max-w-2xl bg-slate-800 p-8 md:p-12 rounded-[2.5rem] border-4 border-slate-700 shadow-2xl">
-            <h1 className="text-4xl md:text-5xl font-black text-white mb-4">{lesson.title}</h1>
-            <p className="text-slate-400 font-bold text-lg md:text-xl mb-8">
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900 p-4 md:p-6 text-center overflow-y-auto">
+          <div className="w-full max-w-2xl bg-slate-800 p-6 md:p-12 rounded-3xl md:rounded-[2.5rem] border-4 border-slate-700 shadow-2xl my-auto">
+            <h1 className="text-3xl md:text-5xl font-black text-white mb-2 md:mb-4">{lesson.title}</h1>
+            <p className="text-slate-400 font-bold text-sm md:text-xl mb-4 md:mb-8 leading-snug">
               Pop the balloons that match the Target!<br/>
               <span className="text-lime-400">+10 for correct</span> | <span className="text-rose-400">-5 for wrong</span><br/>
               You have 30 seconds and 3 lives.
             </p>
 
-            <div className="mb-10 bg-slate-900 p-6 rounded-3xl inline-block border-2 border-slate-700 shadow-inner">
-               <p className="text-slate-500 font-bold uppercase tracking-widest text-sm mb-2">Target to Find:</p>
-               <div className="flex items-center justify-center gap-6">
+            <div className="mb-6 md:mb-10 bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl inline-block border-2 border-slate-700 shadow-inner">
+               <p className="text-slate-500 font-bold uppercase tracking-widest text-xs md:text-sm mb-2">Target to Find:</p>
+               <div className="flex items-center justify-center gap-4 md:gap-6">
                   {mode === 'IMAGE_TO_LETTER' && targetImageUrl ? (
-                     <img src={targetImageUrl} className="w-20 h-20 object-contain drop-shadow-md bg-white/10 rounded-full p-2" alt="Target" />
+                     <img src={targetImageUrl} className="w-14 h-14 md:w-20 md:h-20 object-contain drop-shadow-md bg-white/10 rounded-full p-2" alt="Target" />
                   ) : mode === 'AUDIO_TO_LETTER' ? (
-                     <div className="w-20 h-20 bg-sky-500 rounded-full flex items-center justify-center"><Volume2 className="text-white w-10 h-10 animate-pulse"/></div>
+                     <div className="w-14 h-14 md:w-20 md:h-20 bg-sky-500 rounded-full flex items-center justify-center"><Volume2 className="text-white w-8 h-8 md:w-10 h-10 animate-pulse"/></div>
                   ) : (
-                     <span className="text-7xl font-black text-sky-400">{targetLetter}</span>
+                     <span className="text-5xl md:text-7xl font-black text-sky-400 leading-none">{targetLetter}</span>
                   )}
-                  <button onClick={playTargetAudioBtn} className="w-16 h-16 bg-sky-500 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md">
-                     <Volume2 className="text-white w-8 h-8"/>
+                  <button onClick={playTargetAudioBtn} className="w-12 h-12 md:w-16 md:h-16 bg-sky-500 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md">
+                     <Volume2 className="text-white w-6 h-6 md:w-8 md:h-8"/>
                   </button>
                </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <button onClick={() => startGame('easy')} className="py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black rounded-2xl border-b-4 border-emerald-700 active:translate-y-1 transition-all">EASY</button>
-              <button onClick={() => startGame('medium')} className="py-4 px-6 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-2xl border-b-4 border-amber-700 active:translate-y-1 transition-all">MEDIUM</button>
-              <button onClick={() => startGame('hard')} className="py-4 px-6 bg-rose-500 hover:bg-rose-400 text-white font-black rounded-2xl border-b-4 border-rose-700 active:translate-y-1 transition-all">HARD</button>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+              <button onClick={() => startGame('easy')} className="py-3 md:py-4 px-4 md:px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black rounded-xl md:rounded-2xl border-b-4 border-emerald-700 active:translate-y-1 transition-all">EASY</button>
+              <button onClick={() => startGame('medium')} className="py-3 md:py-4 px-4 md:px-6 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-xl md:rounded-2xl border-b-4 border-amber-700 active:translate-y-1 transition-all">MEDIUM</button>
+              <button onClick={() => startGame('hard')} className="py-3 md:py-4 px-4 md:px-6 bg-rose-500 hover:bg-rose-400 text-white font-black rounded-xl md:rounded-2xl border-b-4 border-rose-700 active:translate-y-1 transition-all">HARD</button>
             </div>
           </div>
         </div>
@@ -386,31 +386,40 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
       )}
 
       {/* PLAYING HUD */}
-      <div className="relative z-10 bg-slate-800/90 backdrop-blur-md p-3 md:p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
-        <div className="flex gap-2 md:gap-4">
-           <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-700">
-             <Star className="w-5 h-5 text-sky-500 fill-sky-500" /> <span className="font-black text-white text-xl">{score}</span>
+      <div className="relative z-10 bg-slate-800/90 backdrop-blur-md p-2 md:p-5 border-b border-slate-700 flex flex-col md:flex-row justify-between items-center shrink-0 gap-2 md:gap-0 shadow-md">
+        
+        {/* Top Row on Mobile: Score, Lives, Timer */}
+        <div className="flex w-full md:w-auto justify-between md:justify-start items-center gap-2 md:gap-4">
+           <div className="flex items-center gap-1.5 md:gap-2 bg-slate-900 px-2 py-1.5 md:px-3 md:py-2 rounded-lg md:rounded-xl border border-slate-700">
+             <Star className="w-4 h-4 md:w-5 md:h-5 text-sky-500 fill-sky-500" /> <span className="font-black text-white text-sm md:text-xl leading-none">{score}</span>
            </div>
-           <div className="flex items-center gap-1 bg-slate-900 px-3 py-2 rounded-xl border border-slate-700">
+           <div className="flex items-center gap-0.5 md:gap-1 bg-slate-900 px-2 py-1.5 md:px-3 md:py-2 rounded-lg md:rounded-xl border border-slate-700">
              {[...Array(3)].map((_, i) => (
-                <Heart key={i} className={`w-5 h-5 ${i < lives ? 'text-rose-500 fill-rose-500' : 'text-slate-700 fill-slate-800'}`} />
+                <Heart key={i} className={`w-3 h-3 md:w-5 md:h-5 ${i < lives ? 'text-rose-500 fill-rose-500' : 'text-slate-700 fill-slate-800'}`} />
              ))}
+           </div>
+           
+           {/* Mobile Timer */}
+           <div className={`md:hidden flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-lg border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'}`}>
+             <Clock className="w-4 h-4" /> <span className="font-black text-sm leading-none">0:{timeLeft.toString().padStart(2, '0')}</span>
            </div>
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2 top-3 bg-indigo-600 px-6 py-2 rounded-full border-4 border-indigo-400 flex items-center gap-4">
-          <span className="text-indigo-200 font-bold uppercase hidden sm:block">Find:</span>
+        {/* Center Target Box - Relative on mobile (stacks below stats), Absolute on Desktop */}
+        <div className="relative md:absolute md:left-1/2 md:-translate-x-1/2 md:top-3 bg-indigo-600 px-4 md:px-6 py-1.5 md:py-2 rounded-full border-2 md:border-4 border-indigo-400 flex items-center justify-center gap-2 md:gap-4 shadow-sm w-fit mx-auto">
+          <span className="text-indigo-200 font-bold uppercase hidden sm:block text-xs md:text-base">Find:</span>
           {mode === 'AUDIO_TO_LETTER' ? (
-             <button onClick={playTargetAudioBtn} className="w-10 h-10 bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all"><Volume2 className="text-indigo-600"/></button>
+             <button onClick={playTargetAudioBtn} className="w-8 h-8 md:w-10 md:h-10 bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all"><Volume2 className="text-indigo-600 w-4 h-4 md:w-6 md:h-6"/></button>
           ) : mode === 'IMAGE_TO_LETTER' && targetImageUrl ? (
-             <img src={targetImageUrl} className="w-10 h-10 object-contain drop-shadow-md bg-white/20 rounded-full p-1" alt="Target" />
+             <img src={targetImageUrl} className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-md bg-white/20 rounded-full p-1" alt="Target" />
           ) : (
-             <span className="text-3xl font-black text-white">{targetLetter}</span>
+             <span className="text-xl md:text-3xl font-black text-white leading-none">{targetLetter}</span>
           )}
         </div>
 
-        <div className={`flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-xl border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'}`}>
-           <Clock className="w-5 h-5" /> <span className="font-black text-xl">0:{timeLeft.toString().padStart(2, '0')}</span>
+        {/* Desktop Timer */}
+        <div className={`hidden md:flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-xl border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'}`}>
+           <Clock className="w-5 h-5" /> <span className="font-black text-xl leading-none">0:{timeLeft.toString().padStart(2, '0')}</span>
         </div>
       </div>
 

@@ -304,22 +304,12 @@ const WorkInProgressView = ({ title, onReturn }) => (
 // ============================================================================
 
 
-const getYouTubeEmbedUrl = (url) => {
-  if (!url) return '';
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = url.match(regExp);
-  const videoId = (match && match[2].length === 11) ? match[2] : null;
-  return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0` : url;
-};
-
-
 const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap((sub: any) => sub.tools || []) : []);
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
-  const [copied, setCopied] = useState(false); // NEW: Track copy state
+  const [copied, setCopied] = useState(false); 
   const currentItem = playlist[currentStep];
 
-  // NEW: Share Function
   const handleShare = () => {
     if (!currentItem) return;
     const toolId = currentItem.subtopicId || currentItem.id;
@@ -347,14 +337,13 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   const handlePrev = () => { if (currentStep > 0) setCurrentStep((prev: any) => prev - 1); };
 
   const renderContent = () => {
-    // 100% Frictionless: Premium checks removed. Everything plays!
     switch (currentItem.content_type?.toLowerCase() || currentItem.type?.toLowerCase()) {
       case 'video':
         return (
           <div className="w-full h-full flex flex-col items-center justify-center bg-black">
             {currentItem.content_url ? (
               <iframe 
-                className="w-full h-full max-w-5xl max-h-[70vh] rounded-2xl shadow-2xl border-4 border-slate-800" 
+                className="w-full h-full max-w-5xl max-h-[75vh] rounded-xl shadow-2xl border-2 border-slate-800" 
                 src={getYouTubeEmbedUrl(currentItem.content_url)} 
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
@@ -367,27 +356,24 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
 
       case 'game':
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded-3xl overflow-hidden border-4 border-slate-800 shadow-2xl animate-fade-in">
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 md:rounded-3xl overflow-hidden border-0 md:border-2 border-slate-800 shadow-2xl animate-fade-in">
             <GameRegistry lesson={currentItem} onComplete={handleNext} />
           </div>
         );
 
       case 'quiz':
-        // Routes to the Quiz Switchboard
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl overflow-y-auto border-4 border-slate-200 shadow-2xl animate-fade-in">
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 md:rounded-3xl overflow-y-auto border-0 md:border-2 border-slate-200 shadow-2xl animate-fade-in">
             <QuizRegistry lesson={currentItem} onComplete={handleNext} />
           </div>
         );
 
       case 'conceptualiser':
-        // Routes to the Conceptualiser Switchboard
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-purple-50 rounded-3xl overflow-hidden border-4 border-purple-200 shadow-2xl animate-fade-in">
+          <div className="w-full h-full flex flex-col items-center justify-center bg-sky-50 md:rounded-3xl overflow-hidden border-0 md:border-2 border-sky-100 shadow-2xl animate-fade-in">
             <ConceptualiserRegistry lesson={currentItem} onComplete={handleNext} />
           </div>
         );
-
    
       case 'pdf':
         let docUrl = currentItem.content_url || '';
@@ -395,14 +381,14 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
             docUrl = docUrl.split('?')[0].replace(/\/view.*$/, '') + '/view?embed';
         }
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 rounded-2xl overflow-hidden text-slate-800 relative shadow-2xl">
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 md:rounded-2xl overflow-hidden text-slate-800 relative shadow-2xl">
              {docUrl && (
-               <div className="absolute top-0 left-0 right-0 bg-white p-4 border-b border-slate-200 flex justify-between items-center z-10 shadow-sm">
-                 <div className="flex items-center gap-3 font-extrabold text-slate-700"><FileText className="text-rose-500" size={20} />{currentItem.title}</div>
-                 <Button variant="secondary" className="py-2 px-4 text-sm border-2 border-slate-200 shadow-sm hover:border-sky-500 hover:text-sky-600" onClick={() => window.open(docUrl, '_blank')}>Open Document</Button>
+               <div className="absolute top-0 left-0 right-0 bg-white p-3 border-b border-slate-200 flex justify-between items-center z-10 shadow-sm">
+                 <div className="flex items-center gap-2 font-extrabold text-sm text-slate-700 truncate pr-4"><FileText className="text-rose-500 shrink-0" size={16} />{currentItem.title}</div>
+                 <Button variant="secondary" className="py-1.5 px-3 text-xs border border-slate-200 shadow-sm hover:border-sky-500 hover:text-sky-600 shrink-0" onClick={() => window.open(docUrl, '_blank')}>Open</Button>
                </div>
              )}
-             {docUrl ? <iframe className="w-full h-full bg-white pt-[72px]" src={docUrl} allowFullScreen></iframe> : <div className="flex flex-col items-center p-8 text-center bg-white w-full h-full justify-center">Document Ready</div>}
+             {docUrl ? <iframe className="w-full h-full bg-white pt-[56px]" src={docUrl} allowFullScreen></iframe> : <div className="flex flex-col items-center p-8 text-center bg-white w-full h-full justify-center">Document Ready</div>}
           </div>
         );
 
@@ -413,36 +399,55 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col animate-fade-in font-sans">
-      <div className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm relative z-10">
-        <div className="flex items-center gap-4">
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-all"><X size={20} /></button>
-          <div className="hidden sm:block">
-             <h1 className="text-white font-extrabold text-lg">{currentItem.title}</h1>
-             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">{lesson.chapter}{lesson.subtopic ? ` • ${lesson.subtopic}` : ''}</p>
+      
+      {/* DIET HEADER */}
+      <div className="bg-slate-900 border-b border-slate-800 px-3 py-2 md:px-4 md:py-2.5 flex items-center justify-between shrink-0 shadow-sm relative z-10">
+        
+        {/* Left: Close & Title Stack */}
+        <div className="flex items-center gap-2 md:gap-4 min-w-0">
+          <button onClick={onClose} className="w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-all"><X size={18} className="md:w-5 md:h-5" /></button>
+          <div className="hidden sm:flex flex-col md:flex-row md:items-center gap-0 md:gap-2 min-w-0">
+             <h1 className="text-white font-extrabold text-sm md:text-base truncate max-w-[150px] lg:max-w-[300px]">{currentItem.title}</h1>
+             <span className="hidden md:block w-1 h-1 bg-slate-600 rounded-full shrink-0"></span>
+             <p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-wider truncate max-w-[150px] lg:max-w-[200px]">{lesson.chapter}{lesson.subtopic ? ` • ${lesson.subtopic}` : ''}</p>
           </div>
         </div>
-        <div className="flex-1 max-w-md mx-8 hidden md:block">
-          <div className="flex justify-between items-end mb-1.5"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Module Progress</span><span className="text-xs font-black text-sky-400">{currentStep + 1} / {playlist.length}</span></div>
-          <div className="h-2 bg-slate-800 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div></div>
+
+        {/* Center: Desktop Progress Bar */}
+        <div className="flex-1 max-w-[200px] lg:max-w-xs mx-4 hidden md:flex flex-col justify-center">
+          <div className="flex justify-between items-end mb-1"><span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Progress</span><span className="text-[10px] font-black text-sky-400">{currentStep + 1} / {playlist.length}</span></div>
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div></div>
         </div>
-        <div className="flex items-center gap-3">
-            {/* NEW: SHARE BUTTON */}
-            <button onClick={handleShare} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-full font-bold text-xs sm:text-sm transition-all border border-slate-700">
-               {copied ? <CheckCircle size={16} className="text-emerald-400" /> : <Share2 size={16} />}
+
+        {/* Right: Share & Type Pill */}
+        <div className="flex items-center gap-2 shrink-0">
+            <button onClick={handleShare} className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold text-[10px] md:text-xs transition-all border border-slate-700">
+               {copied ? <CheckCircle size={14} className="text-emerald-400" /> : <Share2 size={14} />}
                <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
             </button>
-            <div className="bg-slate-800 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 border border-slate-700">{currentItem.type?.toUpperCase()}</div>
+            <div className="bg-slate-800 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold text-[10px] md:text-xs flex items-center gap-1.5 border border-slate-700">{currentItem.type?.toUpperCase()}</div>
         </div>
       </div>
-      <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-2 md:p-8 flex items-center justify-center">
+
+      {/* DIET CONTENT CONTAINER */}
+      <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-0 md:p-2 lg:p-4 flex items-center justify-center">
          {renderContent()}
       </div>
-      <div className="bg-slate-900 border-t border-slate-800 px-6 py-4 flex items-center justify-between shrink-0 relative z-10">
-        <button onClick={handlePrev} disabled={currentStep === 0} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all ${currentStep === 0 ? 'opacity-30 cursor-not-allowed text-slate-500' : 'text-slate-300 hover:text-white border-2 border-slate-700'}`}><ChevronLeft size={20} /> Previous</button>
-        <button onClick={handleNext} className={`px-8 py-3 rounded-xl font-black flex items-center gap-2 transition-all border-b-4 active:border-b-0 active:translate-y-1 ${isLastStep ? 'bg-lime-500 text-slate-900 border-lime-700' : 'bg-sky-500 text-white border-sky-700'}`}>
-          {isLastStep ? (<>Complete Lesson <CheckCircle size={20} /></>) : (<>Next Step <ChevronRight size={20} /></>)}
+
+      {/* DIET FOOTER */}
+      <div className="bg-slate-900 border-t border-slate-800 px-3 py-2 md:px-4 md:py-3 flex items-center justify-between shrink-0 relative z-10">
+        <button onClick={handlePrev} disabled={currentStep === 0} className={`px-4 py-2 md:px-5 md:py-2 rounded-lg md:rounded-xl font-bold text-xs md:text-sm flex items-center gap-1.5 transition-all ${currentStep === 0 ? 'opacity-30 cursor-not-allowed text-slate-500' : 'text-slate-300 hover:text-white border border-slate-700 hover:bg-slate-800'}`}><ChevronLeft size={16} /> <span className="hidden sm:inline">Previous</span></button>
+        
+        {/* Mobile Progress Bar (Moved here because header is too small) */}
+        <div className="md:hidden flex-1 px-4">
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div></div>
+        </div>
+
+        <button onClick={handleNext} className={`px-5 py-2 md:px-6 md:py-2 rounded-lg md:rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all border shadow-sm ${isLastStep ? 'bg-lime-500 text-slate-900 border-lime-600 hover:bg-lime-400' : 'bg-sky-500 text-white border-sky-600 hover:bg-sky-400'}`}>
+          {isLastStep ? (<>Complete <CheckCircle size={16} className="hidden sm:inline" /></>) : (<>Next <ChevronRight size={16} /></>)}
         </button>
       </div>
+
     </div>
   );
 };
@@ -916,6 +921,40 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
           else if (type === 'game') categorized.arcade.push(item);
           else if (type === 'conceptualiser') categorized.conceptualiser.push(item);
         });
+        setTierData(categorized);
+      } catch (error) { console.error(error); } finally { setIsLoadingTiers(false); }
+    }
+    fetchTierData();
+  }, []);useEffect(() => {
+    async function fetchTierData() {
+      setIsLoadingTiers(true);
+      try {
+        // Grab featured items (Removed the limit here so we don't accidentally cut off games!)
+        const q = query(collection(db, 'learning_tools'), where('is_featured', '==', true));
+        const snapshot = await getDocs(q);
+        let items = snapshot.docs.map((d: any) => ({id: d.id, ...d.data()}));
+
+        // 1. Sort all items by 'created_at' so the NEWEST are at the top of the list
+        items.sort((a: any, b: any) => {
+           const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+           const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+           return dateB - dateA;
+        });
+
+        const categorized: any = { conceptualiser: [], theatre: [], dojo: [], workbook: [], arcade: [] };
+
+        items.forEach((item: any) => {
+          // 2. Add .trim() to bulletproof against accidental spaces in your CSV
+          const type = item.content_type?.toLowerCase().trim(); 
+          
+          // 3. Distribute them, but strictly stop when a category hits 10 items
+          if (type === 'video' && categorized.theatre.length < 10) categorized.theatre.push(item);
+          else if (type === 'quiz' && categorized.dojo.length < 10) categorized.dojo.push(item);
+          else if ((type === 'pdf' || type === 'worksheet' || type === 'document') && categorized.workbook.length < 10) categorized.workbook.push(item);
+          else if ((type === 'game' || type === 'arcade') && categorized.arcade.length < 10) categorized.arcade.push(item);
+          else if (type === 'conceptualiser' && categorized.conceptualiser.length < 10) categorized.conceptualiser.push(item);
+        });
+        
         setTierData(categorized);
       } catch (error) { console.error(error); } finally { setIsLoadingTiers(false); }
     }
@@ -1971,12 +2010,17 @@ function MainApp() {
   // NEW: Global URL Reader
   const searchParams = useSearchParams();
   const sharedToolId = searchParams ? searchParams.get('tool') : null;
+  const urlView = searchParams ? searchParams.get('view') : null; // Check for a shared view!
 
   // NEW: Deployment-Safe Back Button History API Wrappers
-  const [currentView, _setCurrentView] = useState<string>('home');
+  // Start on the URL view, otherwise default to 'home'
+  const [currentView, _setCurrentView] = useState<string>(urlView || 'home');
+  
   const setCurrentView = (view: string) => {
      if (typeof window !== 'undefined') {
-         window.history.pushState({ type: 'view', view }, '', '');
+         // Create the new URL. If home, clean it. Otherwise add ?view=...
+         const newUrl = view === 'home' ? '/' : `/?view=${view}`;
+         window.history.pushState({ type: 'view', view }, '', newUrl);
      }
      _setCurrentView(view);
   };
@@ -2120,7 +2164,9 @@ function MainApp() {
     if (typeof window === 'undefined') return;
 
     // 1. Log the starting page so we have a baseline to go back to
-    window.history.replaceState({ type: 'init', view: 'home' }, '', '');
+    // Log the ACTUAL starting view so the Back button knows where it started
+    const startingView = urlView || 'home';
+    window.history.replaceState({ type: 'init', view: startingView }, '', window.location.search || '/');
 
     // 2. Intercept the physical back button
     const handlePopState = (event: PopStateEvent) => {
