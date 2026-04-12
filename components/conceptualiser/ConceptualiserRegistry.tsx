@@ -9,31 +9,39 @@ const ConceptLoader = () => (
   </div>
 );
 
-// RENAME: Now specifically imported as the SwarVyanjan Engine
-const SwarVyanjanConceptualiser = dynamic(() => import('./SwarVyanjanConceptualiser'), { ssr: false,loading: () => <ConceptLoader /> });
+// Core Modules
+const SwarVyanjanConceptualiser = dynamic(() => import('./SwarVyanjanConceptualiser'), { ssr: false, loading: () => <ConceptLoader /> });
+const HindiWordBuilder = dynamic(() => import('./HindiWordBuilder'), { ssr: false, loading: () => <ConceptLoader /> });
 
-// Unique Tools (Keeping these here just in case they are needed for Ch 1 or 2)
+// Unique Tools 
 const PlaceValueDemo = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoConcept), { ssr: false });
-const HindiWordBuilder = dynamic(() => import('./HindiWordBuilder'), { ssr: false });
-const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: false,loading: () => <ConceptLoader /> });
+const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: false, loading: () => <ConceptLoader /> });
 
+// THE ROUTER: Map the Subtopic IDs from your CSV to the actual React Components
 const SPECIFIC_TOOLS: any = {
   'place-value-intro': PlaceValueDemo,
-  'hindi-word-builder-game': HindiWordBuilder,
   'rounding-mountain': MountainRounding,
+  
+  // Route all three word builder lessons to the same "Smart" component
+  'word-builder-2': HindiWordBuilder,
+  'word-builder-3': HindiWordBuilder,
+  'word-builder-4': HindiWordBuilder,
 };
 
 export default function ConceptualiserRegistry({ lesson, onComplete }: any) {
+  // Grab the unique ID you assigned in the CSV
   const slug = lesson.subtopicId || lesson.routePath?.split('/').pop();
 
   if (!slug) return <div className="p-10 text-center text-rose-500 font-bold">Error: Missing Subtopic ID</div>;
 
+  // 1. Check if it is a Custom Tool
   const SpecificTool = SPECIFIC_TOOLS[slug];
   if (SpecificTool) {
-    return <Suspense fallback={<ConceptLoader />}><SpecificTool onComplete={onComplete} /></Suspense>;
+    // IMPORTANT: We pass the 'lesson' prop here so the tool can read the title!
+    return <Suspense fallback={<ConceptLoader />}><SpecificTool lesson={lesson} onComplete={onComplete} /></Suspense>;
   }
 
-  // Focus: If it's a standard letter lesson, use the SwarVyanjan Shell
+  // 2. Default Fallback: If it's a standard letter lesson, use the SwarVyanjan Shell
   return (
     <Suspense fallback={<ConceptLoader />}>
       <SwarVyanjanConceptualiser subtopicId={slug} onComplete={onComplete} />
