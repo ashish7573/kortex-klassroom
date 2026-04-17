@@ -81,13 +81,12 @@ const OPERATIONS = [
   { id: 'div', label: 'Division' },
 ];
 
-// UPDATED: Accepting standard Kortex Klassroom props
 export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   const [gameState, setGameState] = useState('menu'); 
   const [config, setConfig] = useState({ ops: 'mul', players: 4 });
   const [players, setPlayers] = useState<any[]>([]);
   
-const stateRef = useRef<any[]>([]);
+  const stateRef = useRef<any[]>([]);
   const requestRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
 
@@ -217,25 +216,28 @@ const stateRef = useRef<any[]>([]);
   // --- RENDERERS ---
   if (gameState === 'menu') {
     return (
-      <div className="w-full h-full min-h-[600px] bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-slate-200 rounded-3xl relative">
-        {/* EXit Button */}
-        <button onClick={() => onComplete()} className="absolute top-4 right-4 bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white p-3 rounded-full transition-colors z-20">
-           <X size={24} />
+      // FIXED: Added overflow-y-auto and adjusted padding for mobile scrolling
+      <div className="w-full h-full min-h-[500px] bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-slate-200 rounded-3xl relative overflow-y-auto">
+        
+        {/* FIXED: Made the exit button smaller on mobile so it doesn't overlap text */}
+        <button onClick={() => onComplete()} className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white p-2 md:p-3 rounded-full transition-colors z-20">
+           <X size={20} className="md:w-6 md:h-6" />
         </button>
 
-        <div className="max-w-2xl w-full bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl">
-          <div className="text-center mb-10">
-            <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2">Math Defenders</h1>
-            <p className="text-slate-400 font-bold">SmartBoard Classroom Edition</p>
+        {/* FIXED: Scaled down margins and paddings for mobile (sm: prefix) */}
+        <div className="max-w-2xl w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-8 shadow-2xl my-auto">
+          <div className="text-center mb-6 sm:mb-10 mt-4 sm:mt-0">
+            <h1 className="text-3xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2">Math Defenders</h1>
+            <p className="text-slate-400 font-bold text-sm sm:text-base">SmartBoard & Mobile Edition</p>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Rocket className="text-blue-400"/> Select Mission</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 flex items-center gap-2"><Rocket className="text-blue-400 w-5 h-5 sm:w-6 sm:h-6"/> Select Mission</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
               {OPERATIONS.map(op => (
                 <button
                   key={op.id} onClick={() => setConfig(c => ({...c, ops: op.id}))}
-                  className={`p-3 rounded-xl border-2 text-left font-semibold transition-all ${config.ops === op.id ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-300'}`}
+                  className={`p-2 sm:p-3 rounded-xl border-2 text-left font-semibold text-sm sm:text-base transition-all ${config.ops === op.id ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-300'}`}
                 >
                   {op.label}
                 </button>
@@ -243,13 +245,13 @@ const stateRef = useRef<any[]>([]);
             </div>
           </div>
 
-          <div className="mb-10">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Users className="text-green-400"/> Select Players</h2>
-            <div className="flex gap-4">
+          <div className="mb-6 sm:mb-10">
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 flex items-center gap-2"><Users className="text-green-400 w-5 h-5 sm:w-6 sm:h-6"/> Select Players</h2>
+            <div className="flex gap-2 sm:gap-4">
               {[1, 2, 3, 4].map(num => (
                 <button
                   key={num} onClick={() => setConfig(c => ({...c, players: num}))}
-                  className={`flex-1 py-4 rounded-xl border-2 text-2xl font-bold transition-all ${config.players === num ? 'bg-green-600/20 border-green-500 text-green-400' : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-400'}`}
+                  className={`flex-1 py-2 sm:py-4 rounded-xl border-2 text-lg sm:text-2xl font-bold transition-all ${config.players === num ? 'bg-green-600/20 border-green-500 text-green-400' : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-400'}`}
                 >
                   {num}P
                 </button>
@@ -257,8 +259,8 @@ const stateRef = useRef<any[]>([]);
             </div>
           </div>
 
-          <button onClick={startGame} className="w-full py-5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-2xl shadow-lg flex items-center justify-center gap-3 transform hover:scale-[1.02] transition-transform">
-            <Play fill="currentColor" /> INITIATE LAUNCH
+          <button onClick={startGame} className="w-full py-3 sm:py-5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-xl sm:text-2xl shadow-lg flex items-center justify-center gap-2 sm:gap-3 transform hover:scale-[1.02] transition-transform">
+            <Play fill="currentColor" className="w-5 h-5 sm:w-6 sm:h-6" /> INITIATE LAUNCH
           </button>
         </div>
       </div>
@@ -267,23 +269,23 @@ const stateRef = useRef<any[]>([]);
 
   if (gameState === 'gameover') {
     return (
-      <div className="w-full h-full min-h-[600px] bg-slate-950 flex flex-col items-center justify-center p-4 rounded-3xl">
-        <div className="max-w-xl w-full bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl text-center">
-          <Trophy className="w-24 h-24 text-yellow-400 mx-auto mb-6" />
-          <h1 className="text-5xl font-bold text-white mb-8">Mission Over</h1>
+      <div className="w-full h-full min-h-[500px] bg-slate-950 flex flex-col items-center justify-center p-4 rounded-3xl overflow-y-auto relative">
+        <div className="max-w-xl w-full bg-slate-900 border border-slate-700 rounded-2xl p-6 sm:p-8 shadow-2xl text-center my-auto">
+          <Trophy className="w-16 h-16 sm:w-24 sm:h-24 text-yellow-400 mx-auto mb-4 sm:mb-6" />
+          <h1 className="text-3xl sm:text-5xl font-bold text-white mb-6 sm:mb-8">Mission Over</h1>
           
-          <div className="space-y-4 mb-8">
+          <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
             {players.sort((a,b) => b.score - a.score).map((p, idx) => (
-              <div key={p.id} className={`flex justify-between items-center p-4 rounded-xl border ${p.theme.bg} ${p.theme.border}`}>
-                <span className={`text-xl font-bold ${p.theme.ship}`}>Player {p.id + 1} {idx === 0 && '👑'}</span>
-                <span className="text-2xl font-mono text-white">{p.score} pts</span>
+              <div key={p.id} className={`flex justify-between items-center p-3 sm:p-4 rounded-xl border ${p.theme.bg} ${p.theme.border}`}>
+                <span className={`text-lg sm:text-xl font-bold ${p.theme.ship}`}>Player {p.id + 1} {idx === 0 && '👑'}</span>
+                <span className="text-xl sm:text-2xl font-mono text-white">{p.score} pts</span>
               </div>
             ))}
           </div>
 
-          <div className="flex gap-4">
-             <button onClick={() => setGameState('menu')} className="flex-1 py-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xl transition-colors">Return to Base</button>
-             <button onClick={() => onComplete()} className="flex-1 py-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xl transition-colors">Exit Lesson</button>
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+             <button onClick={() => setGameState('menu')} className="flex-1 py-3 sm:py-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-lg sm:text-xl transition-colors">Return to Base</button>
+             <button onClick={() => onComplete()} className="flex-1 py-3 sm:py-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-lg sm:text-xl transition-colors">Exit Lesson</button>
           </div>
         </div>
       </div>
@@ -292,8 +294,8 @@ const stateRef = useRef<any[]>([]);
 
   // --- PLAYING STATE ---
   return (
-    // Horizontal scrolling allows 4 players to exist on mobile without squishing into unplayable slivers
-    <div className="h-[80vh] min-h-[600px] w-full bg-slate-950 overflow-x-auto overflow-y-hidden flex select-none touch-none font-sans text-slate-200 rounded-3xl hide-scrollbar">
+    // FIXED: min-h reduced to 500px so numpad fits on shorter phone screens
+    <div className="h-[80vh] min-h-[500px] w-full bg-slate-950 overflow-x-auto overflow-y-hidden flex select-none touch-none font-sans text-slate-200 rounded-3xl hide-scrollbar">
       {players.map((p, index) => (
         <div 
           key={p.id} 
@@ -309,7 +311,7 @@ const stateRef = useRef<any[]>([]);
             <div className="font-mono text-xl font-bold text-white bg-black/50 px-3 py-1 rounded-lg border border-slate-700 backdrop-blur-sm">{p.score.toString().padStart(4, '0')}</div>
             <div className="flex gap-1">
               {[...Array(3)].map((_, i) => (
-                <Heart key={i} className={`w-6 h-6 ${i < p.lives ? 'text-red-500 drop-shadow-[0_0_5px_red]' : 'text-slate-800'}`} fill={i < p.lives ? 'currentColor' : 'none'} />
+                <Heart key={i} className={`w-5 h-5 sm:w-6 sm:h-6 ${i < p.lives ? 'text-red-500 drop-shadow-[0_0_5px_red]' : 'text-slate-800'}`} fill={i < p.lives ? 'currentColor' : 'none'} />
               ))}
             </div>
           </div>
@@ -324,68 +326,68 @@ const stateRef = useRef<any[]>([]);
 
             {p.enemies.map((e: any) => (
               <div key={e.id} className="absolute transform -translate-x-1/2 -translate-y-1/2 text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]" style={{ left: `${e.x}%`, top: `${e.y}%` }}>
-                <Bug size={40} className="animate-bounce" />
+                <Bug size={32} className="animate-bounce sm:w-10 sm:h-10" />
               </div>
             ))}
 
             <div className={`absolute bottom-[5%] transform -translate-x-1/2 transition-transform duration-75 ${p.theme.ship} ${p.theme.glow}`} style={{ left: `${p.shipX}%` }}>
-              <Rocket size={48} fill="currentColor" className={`-rotate-45 ${p.moving !== 0 ? 'scale-110' : ''}`} />
+              <Rocket size={40} fill="currentColor" className={`-rotate-45 sm:w-12 sm:h-12 ${p.moving !== 0 ? 'scale-110' : ''}`} />
               <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-4 h-6 bg-orange-500 blur-[4px] rounded-full animate-pulse opacity-80" />
             </div>
 
             {p.isDead && (
               <div className="absolute inset-0 bg-red-950/80 backdrop-blur-sm flex items-center justify-center z-20">
-                <span className="text-4xl font-black text-red-500 tracking-widest uppercase drop-shadow-lg rotate-[-10deg]">Destroyed</span>
+                <span className="text-3xl sm:text-4xl font-black text-red-500 tracking-widest uppercase drop-shadow-lg rotate-[-10deg]">Destroyed</span>
               </div>
             )}
           </div>
 
           {/* DASHBOARD / CONTROLS */}
-          <div className="flex-[4.5] bg-slate-900 p-2 sm:p-4 flex flex-col gap-3">
-            <div className={`flex justify-between items-center px-4 py-3 rounded-xl border-2 bg-slate-950 shadow-inner ${p.input === p.question.answer ? 'border-green-500 bg-green-950/20' : 'border-slate-700'}`}>
-              <span className="text-3xl font-extrabold text-blue-200 tracking-wide">{p.question.text} = </span>
-              <span className={`text-4xl font-mono font-bold px-4 py-1 rounded-lg min-w-[80px] text-right ${p.input === p.question.answer ? 'text-green-400 bg-green-900/30' : 'text-amber-400 bg-amber-900/20'}`}>{p.input || '?'}</span>
+          <div className="flex-[4.5] bg-slate-900 p-2 sm:p-4 flex flex-col gap-2 sm:gap-3">
+            <div className={`flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 rounded-xl border-2 bg-slate-950 shadow-inner ${p.input === p.question.answer ? 'border-green-500 bg-green-950/20' : 'border-slate-700'}`}>
+              <span className="text-2xl sm:text-3xl font-extrabold text-blue-200 tracking-wide">{p.question.text} = </span>
+              <span className={`text-3xl sm:text-4xl font-mono font-bold px-3 sm:px-4 py-1 rounded-lg min-w-[70px] text-right ${p.input === p.question.answer ? 'text-green-400 bg-green-900/30' : 'text-amber-400 bg-amber-900/20'}`}>{p.input || '?'}</span>
             </div>
 
-            <div className="flex-1 flex gap-3">
+            <div className="flex-1 flex gap-2 sm:gap-3">
               {/* Directional Pad */}
               <div className="flex flex-col gap-2 w-1/4 min-w-[60px]">
                 <button 
                   onPointerDown={() => handleMovement(p.id, -1)}
                   onPointerUp={() => handleMovement(p.id, 0)}
                   onPointerLeave={() => handleMovement(p.id, 0)}
-                  onPointerCancel={() => handleMovement(p.id, 0)} // SAFEFY: Added cancel
+                  onPointerCancel={() => handleMovement(p.id, 0)}
                   className="flex-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl flex items-center justify-center shadow-lg transition-colors touch-none"
                 >
-                  <ChevronLeft size={40} className="text-slate-300" />
+                  <ChevronLeft size={32} className="text-slate-300 sm:w-10 sm:h-10" />
                 </button>
                 <button 
                   onPointerDown={() => handleMovement(p.id, 1)}
                   onPointerUp={() => handleMovement(p.id, 0)}
                   onPointerLeave={() => handleMovement(p.id, 0)}
-                  onPointerCancel={() => handleMovement(p.id, 0)} // SAFETY: Added cancel
+                  onPointerCancel={() => handleMovement(p.id, 0)}
                   className="flex-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl flex items-center justify-center shadow-lg transition-colors touch-none"
                 >
-                  <ChevronRight size={40} className="text-slate-300" />
+                  <ChevronRight size={32} className="text-slate-300 sm:w-10 sm:h-10" />
                 </button>
               </div>
 
               {/* Number Pad */}
-              <div className="grid grid-cols-3 gap-2 flex-1">
+              <div className="grid grid-cols-3 gap-1 sm:gap-2 flex-1">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                  <button key={num} onClick={() => handleNumpad(p.id, num.toString())} className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 active:scale-95 border border-slate-700 rounded-xl text-2xl font-bold shadow-md transition-all flex items-center justify-center">
+                  <button key={num} onClick={() => handleNumpad(p.id, num.toString())} className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 active:scale-95 border border-slate-700 rounded-xl text-xl sm:text-2xl font-bold shadow-md transition-all flex items-center justify-center">
                     {num}
                   </button>
                 ))}
-                <button onClick={() => handleNumpad(p.id, 'clear')} className="bg-red-900/40 hover:bg-red-800/60 active:scale-95 border border-red-900/50 text-red-300 rounded-xl text-lg font-bold shadow-md transition-all flex items-center justify-center">CLR</button>
-                <button onClick={() => handleNumpad(p.id, '0')} className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 active:scale-95 border border-slate-700 rounded-xl text-2xl font-bold shadow-md transition-all flex items-center justify-center">0</button>
-                <button onClick={() => handleNumpad(p.id, 'del')} className="bg-orange-900/40 hover:bg-orange-800/60 active:scale-95 border border-orange-900/50 text-orange-300 rounded-xl text-lg font-bold shadow-md transition-all flex items-center justify-center">DEL</button>
+                <button onClick={() => handleNumpad(p.id, 'clear')} className="bg-red-900/40 hover:bg-red-800/60 active:scale-95 border border-red-900/50 text-red-300 rounded-xl text-sm sm:text-lg font-bold shadow-md transition-all flex items-center justify-center">CLR</button>
+                <button onClick={() => handleNumpad(p.id, '0')} className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 active:scale-95 border border-slate-700 rounded-xl text-xl sm:text-2xl font-bold shadow-md transition-all flex items-center justify-center">0</button>
+                <button onClick={() => handleNumpad(p.id, 'del')} className="bg-orange-900/40 hover:bg-orange-800/60 active:scale-95 border border-orange-900/50 text-orange-300 rounded-xl text-sm sm:text-lg font-bold shadow-md transition-all flex items-center justify-center">DEL</button>
               </div>
 
               {/* Fire Button */}
-              <div className="w-1/4 min-w-[70px] flex">
-                <button onClick={() => handleLaunch(p.id)} disabled={p.input !== p.question.answer || p.isDead} className={`w-full rounded-xl flex flex-col items-center justify-center font-black text-xl tracking-wider transition-all duration-300 shadow-xl border-b-4 ${p.input === p.question.answer && !p.isDead ? 'bg-green-500 hover:bg-green-400 border-green-700 text-white animate-pulse scale-105' : 'bg-slate-800 border-slate-900 text-slate-600 opacity-60'}`}>
-                  <Rocket size={32} className={`mb-2 ${p.input === p.question.answer ? 'animate-bounce' : ''}`} />
+              <div className="w-1/4 min-w-[60px] sm:min-w-[70px] flex">
+                <button onClick={() => handleLaunch(p.id)} disabled={p.input !== p.question.answer || p.isDead} className={`w-full rounded-xl flex flex-col items-center justify-center font-black text-sm sm:text-xl tracking-wider transition-all duration-300 shadow-xl border-b-4 ${p.input === p.question.answer && !p.isDead ? 'bg-green-500 hover:bg-green-400 border-green-700 text-white animate-pulse scale-105' : 'bg-slate-800 border-slate-900 text-slate-600 opacity-60'}`}>
+                  <Rocket size={24} className={`mb-1 sm:mb-2 sm:w-8 sm:h-8 ${p.input === p.question.answer ? 'animate-bounce' : ''}`} />
                   FIRE
                 </button>
               </div>
