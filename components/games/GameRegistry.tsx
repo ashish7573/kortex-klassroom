@@ -10,27 +10,43 @@ const GameLoader = () => (
   </div>
 );
 
-// The FLN Hindi Balloon Pop Game
+// --- IMPORT YOUR GAMES HERE ---
+
+// 1. The FLN Hindi Balloon Pop Game
 const SwarVyanjanGame = dynamic(() => import('./SwarVyanjanGame'), { 
   ssr: false,
   loading: () => <GameLoader /> 
 });
 
-// For future unique games
-const SPECIFIC_GAMES: any = {};
+// 2. Restore your Place Value Master Demo Game!
+const DemoGame = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoGame), { ssr: false });
+
+// 3. NEW: The Math Defenders Space Shooter!
+const MathDefenders = dynamic(() => import('../games/MathDefenders'), { 
+  ssr: false, 
+  loading: () => <GameLoader /> 
+});
+
+
+// --- THE ROUTER SWITCHBOARD ---
+const SPECIFIC_GAMES: any = {
+  '/demo/game': DemoGame,          // Catches your old demo URL
+  'math-defenders': MathDefenders, // Catches your new arcade game from the CSV
+};
 
 export default function GameRegistry({ lesson, onComplete }: any) {
+  // Grab the ID from the database
   const slug = lesson.subtopicId || lesson.content_url?.split('/').pop();
 
   if (!slug) return <div className="p-10 text-center text-rose-500 font-bold">Error: Missing Subtopic ID</div>;
 
-  // 1. Check for unique games first
+  // 1. Check for unique games first (Like Math Defenders)
   const SpecificGame = SPECIFIC_GAMES[slug];
   if (SpecificGame) {
-    return <Suspense fallback={<GameLoader />}><SpecificGame onComplete={onComplete} /></Suspense>;
+    return <Suspense fallback={<GameLoader />}><SpecificGame lesson={lesson} onComplete={onComplete} /></Suspense>;
   }
 
-  // 2. Route by Subject
+  // 2. Route by Subject (Fallback logic)
   return (
     <Suspense fallback={<GameLoader />}>
       {lesson.subject === 'Hindi' ? (

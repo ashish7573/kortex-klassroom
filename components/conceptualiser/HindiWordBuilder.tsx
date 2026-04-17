@@ -35,6 +35,8 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         scale: 1, draggingItem: null as any | null, dragOffset: { x: 0, y: 0 }, clickStart: { x: 0, y: 0, time: 0 }
     });
 
+const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+
     // --- SMART AUDIO ROUTER ---
     const playLocalAudio = (text: string) => {
         if (!text) return;
@@ -296,15 +298,12 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         };
     }, [resizeAndLayout]);
 
-    // --- Bulletproof Touch Coordinates ---
-    const getPos = (e: any) => {
+    // --- Bulletproof Pointer Coordinates ---
+    const getPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return { x: 0, y: 0 };
-        // ChangedTouches ensures we capture the exact pixel where the finger left the screen!
-        const touch = e.changedTouches ? e.changedTouches[0] : (e.touches ? e.touches[0] : null);
-        const cx = touch ? touch.clientX : e.clientX;
-        const cy = touch ? touch.clientY : e.clientY;
-        return { x: cx - rect.left, y: cy - rect.top };
+        // Pointer events natively support touch, mouse, and smartboard pens seamlessly!
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
     const handlePointerDown = (e: any) => {
@@ -389,8 +388,11 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
             <div className="flex-1 relative w-full h-full cursor-pointer" ref={containerRef}>
                 <canvas 
                     ref={canvasRef}
-                    onMouseDown={handlePointerDown} onMouseMove={handlePointerMove} onMouseUp={handlePointerUp} onMouseLeave={handlePointerUp}
-                    onTouchStart={handlePointerDown} onTouchEnd={handlePointerUp}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                    onPointerOut={handlePointerUp}
                     className="absolute inset-0 w-full h-full touch-none select-none"
                 />
             </div>
