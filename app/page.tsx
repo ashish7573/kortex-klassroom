@@ -303,7 +303,6 @@ const WorkInProgressView = ({ title, onReturn }) => (
 // SECTION 4: THE IMMERSIVE LESSON PLAYER (REGISTRIES & CANVA EMBEDS)
 // ============================================================================
 
-
 const getYouTubeEmbedUrl = (url: any) => {
   if (!url) return '';
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -316,7 +315,14 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap((sub: any) => sub.tools || []) : []);
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
   const [copied, setCopied] = useState(false); 
+  
+  // NEW: State to track if we should show the finale screen
+  const [showFinale, setShowFinale] = useState(false);
+  
   const currentItem = playlist[currentStep];
+  
+  // NEW: Check if this is the Master Demo
+  const isMasterDemo = lesson.id === 'master-demo-1';
 
   const handleShare = () => {
     if (!currentItem) return;
@@ -327,7 +333,7 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (!currentItem) {
+  if (!currentItem && !showFinale) {
      return (
        <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-fade-in font-sans text-white px-4 text-center">
           <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 shadow-xl border-2 border-slate-700"><Activity size={32} className="text-slate-500" /></div>
@@ -341,8 +347,75 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   const progressPercentage = ((currentStep + 1) / playlist.length) * 100;
   const isLastStep = currentStep === playlist.length - 1;
 
-  const handleNext = () => { if (isLastStep) onFinish(); else setCurrentStep((prev: any) => prev + 1); };
+  // UPDATED: Logic to trap the demo at the end and show the finale
+  const handleNext = () => { 
+      if (isLastStep) {
+          if (isMasterDemo) {
+              setShowFinale(true);
+          } else {
+              onFinish();
+          }
+      } else {
+          setCurrentStep((prev: any) => prev + 1); 
+      }
+  };
+  
   const handlePrev = () => { if (currentStep > 0) setCurrentStep((prev: any) => prev - 1); };
+
+  // --- NEW: THE GRAND FINALE SCREEN ---
+  if (showFinale) {
+    const exploreOptions = [
+      { id: 'lessons', label: 'All Lessons', icon: Globe, color: 'text-sky-500' },
+      { id: 'conceptualiser', label: 'Conceptualisers', icon: Lightbulb, color: 'text-purple-500' },
+      { id: 'theatre', label: 'Video Lessons', icon: PlayCircle, color: 'text-rose-500' },
+      { id: 'dojo', label: 'Quick Checks', icon: Target, color: 'text-amber-500' },
+      { id: 'workbook', label: 'Visual Guides', icon: BookOpen, color: 'text-emerald-500' },
+      { id: 'arcade', label: 'Kortex Arcade', icon: Gamepad2, color: 'text-lime-500' },
+    ];
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-fade-in font-sans px-4">
+            <div className="max-w-4xl w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 text-center shadow-2xl relative overflow-hidden">
+                <div className="absolute -top-20 -left-20 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div className="relative z-10">
+                    <div className="w-20 h-20 bg-gradient-to-br from-sky-400 to-sky-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-sky-500/30">
+                        <Star className="text-white w-10 h-10 fill-white" />
+                    </div>
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-3 tracking-tight">Demo Complete!</h1>
+                    <p className="text-lg md:text-xl text-slate-400 font-medium mb-10 max-w-2xl mx-auto">
+                        You've seen the future of interactive learning. <br className="hidden md:block" />
+                        <span className="text-sky-400 font-bold">What would you like to explore next?</span>
+                    </p>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {exploreOptions.map(opt => (
+                            <button 
+                                key={opt.id}
+                                onClick={() => {
+                                    onClose(); 
+                                    const event = new CustomEvent('navigate-tab', { detail: opt.id });
+                                    window.dispatchEvent(event);
+                                }}
+                                className="group bg-slate-800 border-2 border-slate-700 hover:border-slate-500 rounded-2xl p-4 md:p-5 flex flex-col items-center gap-3 transition-all hover:-translate-y-1 hover:shadow-xl hover:bg-slate-700/50"
+                            >
+                                <div className={`w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center border border-slate-700 group-hover:scale-110 transition-transform ${opt.color}`}>
+                                    <opt.icon size={24} />
+                                </div>
+                                <span className="text-white font-bold text-sm">{opt.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                    
+                    <button onClick={onClose} className="mt-8 text-slate-500 hover:text-slate-300 font-bold uppercase tracking-widest text-xs transition-colors">
+                        Return to Homepage
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+  }
 
   const renderContent = () => {
     switch (currentItem.content_type?.toLowerCase() || currentItem.type?.toLowerCase()) {
@@ -2376,6 +2449,14 @@ function MainApp() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+useEffect(() => {
+    const handleNav = (e: any) => setCurrentView(e.detail);
+    window.addEventListener('navigate-tab', handleNav);
+    return () => window.removeEventListener('navigate-tab', handleNav);
+  }, []);
+
+
   const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
 
    const logout = async () => {
@@ -2394,20 +2475,53 @@ function MainApp() {
     if (isLoggedIn) actionCallback(); else { setAuthMessage(message); setShowAuthModal(true); }
   };
 
-  const handleStartDemo = () => {
+ const handleStartDemo = () => {
     // 🎯 TRACKING: Demo Starts
     trackEvent('demo_started', {});
 
-    setPlayingLesson({
-      chapter: 'Master Demo: Place Value', book: 'The 5-Tier Experience',
+    const demoLesson = {
+      id: 'master-demo-1',
+      title: "Kortex Master Demo",
+      chapter: "Interactive Trailer",
+      subtopic: "Platform Showcase",
+      book: "The 5-Tier Experience",
       flow: [
-        { type: 'Conceptualiser', content_type: 'conceptualiser', title: '1. Sandbox: Block Builder', content_url: '/demo/concept', color: 'bg-purple-500', isPremium: false },
-        { type: 'Video', content_type: 'video', title: '2. Theatre: Tens & Ones', content_url: 'https://www.youtube.com/watch?v=1F3AycED1i4', color: 'bg-pink-500', isPremium: false },
-        { type: 'Quiz', content_type: 'quiz', title: '3. Dojo: Quick Check', content_url: '/demo/quiz', color: 'bg-orange-500', isPremium: false },
-        { type: 'PDF', content_type: 'pdf', title: '4. Workbook: Visual Guide', content_url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', color: 'bg-sky-500', isPremium: false },
-        { type: 'Game', content_type: 'game', title: '5. Arcade: Value Pop', content_url: '/demo/game', color: 'bg-lime-500', isPremium: false }
+        {
+          id: 'demo-step-1',
+          type: 'conceptualiser',
+          content_type: 'conceptualiser',
+          subtopicId: 'word-builder-2',
+          title: 'Visualizer: 2-Letter Words',
+          subject: 'Hindi'
+        },
+        {
+          id: 'demo-step-2',
+          type: 'quiz',
+          content_type: 'quiz',
+          subtopicId: 'vyanjan-pa',
+          title: 'Assessment: प वर्ग',
+          subject: 'Hindi'
+        },
+        {
+          id: 'demo-step-3',
+          type: 'game',
+          content_type: 'game',
+          subtopicId: 'math-defenders',
+          title: 'Arcade: Math Defenders',
+          subject: 'Maths'
+        },
+        {
+          id: 'demo-step-4',
+          type: 'game',
+          content_type: 'game',
+          subtopicId: 'swar-a-oo',
+          title: 'Gamification: Swar Pop',
+          subject: 'Hindi'
+        }
       ]
-    });
+    };
+    
+    setPlayingLesson(demoLesson);
     setPlayingStep(0);
   };
 
