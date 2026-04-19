@@ -1,19 +1,30 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Play, Trophy, Users, User, Clock, CheckCircle, RotateCcw, ArrowRight, Star, Volume2, Eye } from 'lucide-react';
+import { Play, Trophy, Users, User, Clock, CheckCircle, RotateCcw, ArrowRight, Volume2, Eye, Lock } from 'lucide-react';
 import { getWordsForSubtopic, getWordData } from '@/lib/HindiWordDictionary';
 import { HINDI_ASSETS } from '@/lib/SwarVyanjanDictionary';
 
+// --- HELPER: Grapheme Segmenter (Fixes 'ड़' and Matra splitting) ---
+const segmentWord = (word: string) => {
+    if (!word) return [];
+    try {
+        const segmenter = new Intl.Segmenter('hi-IN', { granularity: 'grapheme' });
+        return Array.from(segmenter.segment(word)).map(s => s.segment);
+    } catch (e) {
+        return word.split('');
+    }
+};
+
 const HINDI_CONSONANTS = [
     "क", "ख", "ग", "घ", "च", "छ", "ज", "झ", "ट", "ठ", "ड", "ढ", "ण", 
-    "त", "थ", "द", "ध", "न", "प", "फ", "ब", "भ", "म", "य", "र", "ल", "व", "श", "ष", "स", "ह"
+    "त", "थ", "द", "ध", "न", "प", "फ", "ब", "भ", "म", "य", "र", "ल", "व", "श", "ष", "स", "ह", "ड़", "ढ़"
 ];
 
 // --- HELPER: Smart Image ---
 const SmartImage = ({ wordData, className }: { wordData: any, className: string }) => {
   const [hasError, setHasError] = useState(false);
   if (hasError || !wordData.imageUrl) {
-    return <div className={`flex items-center justify-center bg-slate-100 rounded-xl shadow-sm ${className}`}><span className="text-6xl md:text-7xl">{wordData.emoji || '🖼️'}</span></div>;
+    return <div className={`flex items-center justify-center bg-slate-100 rounded-xl shadow-sm ${className}`}><span className="text-3xl md:text-5xl">{wordData.emoji || '🖼️'}</span></div>;
   }
   return <img src={wordData.imageUrl} alt={wordData.english} onError={() => setHasError(true)} className={`object-contain bg-white rounded-xl shadow-sm ${className}`} />;
 };
@@ -29,8 +40,8 @@ const playSuccessPop = () => {
         osc.connect(gainNode);
         gainNode.connect(ctx.destination);
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(600, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1400, ctx.currentTime + 0.1);
         gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
         osc.start(ctx.currentTime);
@@ -59,25 +70,26 @@ const playErrorBuzzer = () => {
 
 
 // ============================================================================
-// INDEPENDENT PLAYER BOARD (Bubble Scatter Engine)
+// ISOLATED PLAYER ENGINE (Manages HUD + Physics Arena)
 // ============================================================================
-const PlayerBoard = ({ playerId, wordLength, wordPool, onScoreUpdate, isMultiplayer }: any) => {
+const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isMultiplayer }: any) => {
     const [targetWord, setTargetWord] = useState<any>(null);
     const [foundCount, setFoundCount] = useState(0);
-    const [bubbles, setBubbles] = useState<{char: string, isUsed: boolean}[]>([]);
-    
-    // Hint System States
     const [audioProgress, setAudioProgress] = useState(0);
     const [visualProgress, setVisualProgress] = useState(0);
     const [audioUsed, setAudioUsed] = useState(false);
     const [visualUsed, setVisualUsed] = useState(false);
     const [maxWordScore, setMaxWordScore] = useState(3);
-    
-    // Visual Feedback
-    const [wrongBubbleIdx, setWrongBubbleIdx] = useState<number | null>(null);
     const [scoreFloat, setScoreFloat] = useState<{val: number, id: number} | null>(null);
 
+    // Physics Engine State
+    const [bubbleList, setBubbleList] = useState<any[]>([]);
+    const physicsBubbles = useRef<any[]>([]);
+    const animationRef = useRef<number | null>(null);
     const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+
+    const playerColor = playerId === 'p1' ? 'blue' : 'rose';
+    const targetChars = targetWord ? segmentWord(targetWord.word) : [];
 
     // --- AUDIO ROUTER ---
     const playDictionaryAudio = (text: string) => {
@@ -91,7 +103,6 @@ const PlayerBoard = ({ playerId, wordLength, wordPool, onScoreUpdate, isMultipla
                 const letterData = HINDI_ASSETS[text];
                 if (letterData) audioPath = letterData.audio;
             }
-
             if (audioPath) {
                 if (activeAudioRef.current) {
                     activeAudioRef.current.pause();
@@ -104,241 +115,220 @@ const PlayerBoard = ({ playerId, wordLength, wordPool, onScoreUpdate, isMultipla
         } catch (e) { console.error(e); }
     };
 
-    // --- INVISIBLE INJECTION REFILL ---
-    const loadNewWord = useCallback((currentBubbles: {char: string, isUsed: boolean}[]) => {
+    // --- BUBBLE INJECTION ---
+    const loadNewWord = useCallback(() => {
         const nextWord = wordPool[Math.floor(Math.random() * wordPool.length)];
+        const neededChars = segmentWord(nextWord.word);
         
-        let nextBubbles = [...currentBubbles];
+        let newBubbles = [];
         
-        // 1. Initial Load: Fill board with 20 random letters
-        if (nextBubbles.length === 0) {
-            for (let i = 0; i < 20; i++) {
-                nextBubbles.push({ char: HINDI_CONSONANTS[Math.floor(Math.random() * HINDI_CONSONANTS.length)], isUsed: false });
-            }
-        }
-
-        // 2. Find empty slots (where isUsed is true). If none (like start of game), pick random spots.
-        let emptyIndices = nextBubbles.map((b, i) => b.isUsed ? i : -1).filter(i => i !== -1);
-        if (emptyIndices.length < nextWord.word.length) {
-            emptyIndices = [];
-            while (emptyIndices.length < nextWord.word.length) {
-                let r = Math.floor(Math.random() * 20);
-                if (!emptyIndices.includes(r)) emptyIndices.push(r);
-            }
-        }
-
-        // 3. Inject the needed letters into the empty spots!
-        const neededChars = nextWord.word.split('');
-        for (let i = 0; i < neededChars.length; i++) {
-            const spot = emptyIndices.pop()!;
-            nextBubbles[spot] = { char: neededChars[i], isUsed: false };
-        }
-
-        // 4. Fill any remaining empty spots with random distractors
-        emptyIndices.forEach(spot => {
-            nextBubbles[spot] = { char: HINDI_CONSONANTS[Math.floor(Math.random() * HINDI_CONSONANTS.length)], isUsed: false };
+        // 1. Generate Target Bubbles
+        neededChars.forEach(char => {
+            newBubbles.push({
+                id: Math.random().toString(36).substr(2, 9),
+                char: char,
+                x: Math.random() * 80 + 5, y: Math.random() * 80 + 5,
+                vx: (Math.random() - 0.5) * 0.5, vy: (Math.random() - 0.5) * 0.5,
+            });
         });
 
+        // 2. Generate Random Decoy Bubbles
+        for (let i = 0; i < 15; i++) {
+            newBubbles.push({
+                id: Math.random().toString(36).substr(2, 9),
+                char: HINDI_CONSONANTS[Math.floor(Math.random() * HINDI_CONSONANTS.length)],
+                x: Math.random() * 80 + 5, y: Math.random() * 80 + 5,
+                vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6,
+            });
+        }
+
+        physicsBubbles.current = newBubbles;
+        setBubbleList([...physicsBubbles.current]);
         setTargetWord(nextWord);
-        setBubbles(nextBubbles);
         setFoundCount(0);
-        
-        // Reset Hints
+        setMaxWordScore(3);
         setAudioProgress(0);
         setVisualProgress(0);
         setAudioUsed(false);
         setVisualUsed(false);
-        setMaxWordScore(3);
     }, [wordPool]);
 
-    // Initial Load
     useEffect(() => {
-        if (wordPool.length > 0 && !targetWord) {
-            loadNewWord([]);
-        }
+        if (wordPool.length > 0 && !targetWord) loadNewWord();
     }, [wordPool, targetWord, loadNewWord]);
 
-    // --- LIQUID HINT TIMERS ---
+    // --- HINT TIMERS ---
     useEffect(() => {
-        if (!targetWord || foundCount >= targetWord.word.length) return;
-        
+        if (!targetWord || foundCount >= targetChars.length) return;
         const interval = setInterval(() => {
-            // Audio fills first
-            setAudioProgress(p => {
-                if (p < 100) return Math.min(p + (100 / 70), 100); // 70 ticks of 100ms = 7 seconds
-                return 100;
-            });
-
-            // Visual only starts filling AFTER audio has been tapped
-            if (audioUsed) {
-                setVisualProgress(p => {
-                    if (p < 100) return Math.min(p + (100 / 70), 100); // Another 7 seconds
-                    return 100;
-                });
-            }
+            setAudioProgress(p => Math.min(p + (100 / 70), 100)); 
+            if (audioUsed) setVisualProgress(p => Math.min(p + (100 / 70), 100)); 
         }, 100);
-
         return () => clearInterval(interval);
-    }, [targetWord, foundCount, audioUsed]);
+    }, [targetWord, foundCount, audioUsed, targetChars.length]);
 
+    // --- PHYSICS LOOP ---
+    useEffect(() => {
+        if (!targetWord) return;
+        const animate = () => {
+            physicsBubbles.current.forEach(b => {
+                b.x += b.vx;
+                b.y += b.vy;
+                if (b.x <= 0) { b.x = 0; b.vx *= -1; }
+                if (b.x >= 85) { b.x = 85; b.vx *= -1; }
+                if (b.y <= 0) { b.y = 0; b.vy *= -1; }
+                if (b.y >= 85) { b.y = 85; b.vy *= -1; }
+                
+                const el = document.getElementById(`bubble-${playerId}-${b.id}`);
+                if (el) { el.style.left = `${b.x}%`; el.style.top = `${b.y}%`; }
+            });
+            animationRef.current = requestAnimationFrame(animate);
+        };
+        animationRef.current = requestAnimationFrame(animate);
+        return () => { if (animationRef.current) cancelAnimationFrame(animationRef.current); };
+    }, [targetWord, playerId]);
 
-    // --- GAMEPLAY INTERACTIONS ---
-    const handleBubbleClick = (idx: number) => {
-        if (!targetWord || foundCount >= targetWord.word.length || bubbles[idx].isUsed) return;
+    // --- INTERACTION ---
+    const handleBubbleTap = (bubbleId: string, char: string) => {
+        if (!targetWord || foundCount >= targetChars.length) return;
+        
+        const expectedChar = targetChars[foundCount];
 
-        const clickedChar = bubbles[idx].char;
-        const expectedChar = targetWord.word[foundCount];
-
-        if (clickedChar === expectedChar) {
-            // CORRECT!
+        if (char === expectedChar) {
             playSuccessPop();
-            playDictionaryAudio(clickedChar);
+            playDictionaryAudio(char);
             
-            const nextBubbles = [...bubbles];
-            nextBubbles[idx].isUsed = true;
-            setBubbles(nextBubbles);
-            
+            physicsBubbles.current = physicsBubbles.current.filter(b => b.id !== bubbleId);
+            setBubbleList([...physicsBubbles.current]);
+
             const newFoundCount = foundCount + 1;
             setFoundCount(newFoundCount);
 
-            if (newFoundCount === targetWord.word.length) {
-                // WORD COMPLETE!
+            if (newFoundCount === targetChars.length) {
                 playDictionaryAudio(targetWord.word);
-                onScoreUpdate(playerId, maxWordScore);
+                onScoreChange(maxWordScore);
                 setScoreFloat({ val: maxWordScore, id: Date.now() });
                 setTimeout(() => setScoreFloat(null), 1000);
-                
-                setTimeout(() => loadNewWord(nextBubbles), 1500);
+                setTimeout(() => loadNewWord(), 1500); 
             }
         } else {
-            // WRONG! (Mashing Penalty)
             playErrorBuzzer();
-            setWrongBubbleIdx(idx);
-            setTimeout(() => setWrongBubbleIdx(null), 500);
-            
-            onScoreUpdate(playerId, -1);
+            const el = document.getElementById(`bubble-${playerId}-${bubbleId}`);
+            if (el) {
+                el.classList.add('bg-red-500', 'text-white', 'border-red-700');
+                el.classList.remove('bg-white');
+                setTimeout(() => {
+                    el.classList.remove('bg-red-500', 'text-white', 'border-red-700');
+                    el.classList.add('bg-white');
+                }, 400);
+            }
+            onScoreChange(-1);
             setScoreFloat({ val: -1, id: Date.now() });
             setTimeout(() => setScoreFloat(null), 1000);
         }
     };
 
-    const triggerAudioHint = () => {
-        if (audioProgress < 100) return;
-        playDictionaryAudio(targetWord.word);
-        if (!audioUsed) {
-            setAudioUsed(true);
-            setMaxWordScore(prev => Math.min(prev, 2));
-        }
-    };
-
-    const triggerVisualHint = () => {
-        if (visualProgress < 100 || visualUsed) return;
-        setVisualUsed(true);
-        setMaxWordScore(prev => Math.min(prev, 1));
-    };
-
     if (!targetWord) return null;
 
-    const playerColor = playerId === 'p1' ? 'blue' : 'rose';
-    const isWordComplete = foundCount === targetWord.word.length;
-
     return (
-        <div className={`flex flex-col h-full w-full bg-${playerColor}-50 rounded-3xl border-4 border-${playerColor}-100 p-3 md:p-5 relative`}>
+        <div className="flex-1 flex flex-col w-full h-full relative border-2 border-slate-200 rounded-3xl overflow-hidden bg-white shadow-inner">
             
-            {/* FLOATING SCORE ANIMATION */}
-            {scoreFloat && (
-                <div key={scoreFloat.id} className={`absolute top-1/3 left-1/2 -translate-x-1/2 text-5xl font-black z-50 animate-fade-in-up ${scoreFloat.val > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {scoreFloat.val > 0 ? `+${scoreFloat.val}` : scoreFloat.val}
-                </div>
-            )}
-
-            {/* FOCUS ZONE (Image & Slots) */}
-            <div className="shrink-0 flex flex-col items-center mb-6">
-                <div className={`w-32 h-32 md:w-40 md:h-40 bg-white rounded-[2rem] border-4 p-2 shadow-sm mb-4 transition-colors duration-300 ${isWordComplete ? 'border-green-400 bg-green-50 scale-105' : `border-${playerColor}-200`}`}>
-                    <SmartImage wordData={targetWord} className="w-full h-full object-contain border-none shadow-none" />
+            {/* TOP HUD: Image, Slots & Score */}
+            <div className={`w-full bg-white border-b-4 border-${playerColor}-200 p-2 md:p-3 shadow-md flex items-center justify-between gap-2 z-20 transition-transform duration-300 ${isFlipped ? 'rotate-180 lg:rotate-0' : ''}`}>
+                
+                {/* Score */}
+                <div className={`shrink-0 flex flex-col items-center justify-center bg-${playerColor}-50 border-2 border-${playerColor}-200 rounded-xl px-3 py-1 md:px-4 md:py-2`}>
+                    <span className={`text-[10px] md:text-xs font-black text-${playerColor}-400 uppercase`}>P{playerId === 'p1' ? '1' : '2'}</span>
+                    <span className={`text-2xl md:text-3xl font-black text-${playerColor}-600 leading-none`}>{score}</span>
                 </div>
 
-                {/* Empty Box Slots */}
-                <div className="flex gap-2">
-                    {targetWord.word.split('').map((char: string, idx: number) => {
-                        const isFilled = idx < foundCount;
-                        return (
-                            <div key={idx} className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center font-black text-2xl md:text-4xl shadow-sm transition-all duration-300
-                                ${isFilled ? 'bg-green-500 text-white border-4 border-green-600 scale-110 z-10' : 'bg-white text-slate-300 border-4 border-slate-200'}
-                            `}>
-                                {isFilled ? char : (visualUsed ? <span className="opacity-30">{char}</span> : '')}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* SCATTER BOARD (5x4 Grid) */}
-            <div className="flex-1 w-full flex items-center justify-center max-w-lg mx-auto mb-6">
-                <div className="grid grid-cols-5 grid-rows-4 gap-2 w-full h-full">
-                    {bubbles.map((bubble, idx) => (
-                        <button
-                            key={idx}
-                            disabled={bubble.isUsed || isWordComplete}
-                            onClick={() => handleBubbleClick(idx)}
-                            className={`w-full h-full rounded-full flex items-center justify-center font-black text-2xl md:text-3xl shadow-sm transition-all duration-200 
-                                ${bubble.isUsed ? 'opacity-0 scale-50 pointer-events-none' : 
-                                  wrongBubbleIdx === idx ? 'bg-red-500 text-white border-b-4 border-red-700 animate-[shake_0.4s_ease-in-out]' : 
-                                  `bg-white text-slate-700 border-b-4 border-slate-200 hover:bg-sky-50 hover:scale-105 active:scale-95 active:border-b-0`}
-                            `}
-                        >
-                            {bubble.char}
-                        </button>
-                    ))}
+                {/* Target Image & Slots */}
+                <div className="flex-1 flex items-center justify-center gap-2 md:gap-4 pr-12 md:pr-16">
+                    <div className="w-14 h-14 md:w-20 md:h-20 bg-slate-50 rounded-xl border-2 border-slate-200 p-1 shadow-sm shrink-0">
+                        <SmartImage wordData={targetWord} className="w-full h-full object-contain border-none shadow-none bg-transparent" />
+                    </div>
+                    <div className="flex gap-1 md:gap-2">
+                        {targetChars.map((char: string, idx: number) => {
+                            const isFilled = idx < foundCount;
+                            return (
+                                <div key={idx} className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl flex items-center justify-center font-black text-lg sm:text-xl md:text-2xl shadow-inner transition-all duration-300
+                                    ${isFilled ? 'bg-gradient-to-b from-green-400 to-green-500 text-white border-b-4 border-green-600 shadow-md' : 'bg-slate-100 text-slate-300 border-b-2 border-slate-200'}
+                                `}>
+                                    {isFilled ? char : (visualUsed ? <span className="opacity-40 text-slate-500">{char}</span> : '')}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 
-            {/* HINT DASHBOARD (Liquid Fill Timers) */}
-            <div className="shrink-0 flex gap-4 w-full max-w-sm mx-auto mt-auto">
-                {/* AUDIO HINT */}
+            {/* SEPARATE PHYSICS ARENA: Not rotated, isolated bounding box! */}
+            <div className={`flex-1 relative w-full overflow-hidden bg-gradient-to-b from-${playerColor}-50 to-white shadow-[inset_0_0_20px_rgba(0,0,0,0.05)]`}>
+                {scoreFloat && (
+                    <div key={scoreFloat.id} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl md:text-6xl font-black z-50 animate-fade-in-up drop-shadow-lg pointer-events-none ${scoreFloat.val > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {scoreFloat.val > 0 ? `+${scoreFloat.val}` : scoreFloat.val}
+                    </div>
+                )}
+                {bubbleList.map(bubble => (
+                    <button
+                        key={bubble.id}
+                        id={`bubble-${playerId}-${bubble.id}`}
+                        onMouseDown={() => handleBubbleTap(bubble.id, bubble.char)}
+                        onTouchStart={() => handleBubbleTap(bubble.id, bubble.char)}
+                        className="absolute w-12 h-12 md:w-16 md:h-16 bg-white text-slate-800 rounded-full flex items-center justify-center font-black text-2xl md:text-3xl shadow-[0_8px_15px_rgba(0,0,0,0.1)] border-b-4 border-slate-200 transition-colors duration-150 z-10 hover:scale-105 active:scale-95 touch-none"
+                    >
+                        {bubble.char}
+                    </button>
+                ))}
+            </div>
+
+            {/* BOTTOM HUD: Hint Dashboard (Now at the bottom within easy reach!) */}
+            <div className={`w-full bg-white border-t-4 border-${playerColor}-200 p-2 md:p-3 shadow-md flex items-center justify-center gap-3 z-20 transition-transform duration-300 ${isFlipped ? 'rotate-180 lg:rotate-0' : ''}`}>
                 <button 
-                    onClick={triggerAudioHint}
+                    onClick={() => { if(audioProgress >= 100) { playDictionaryAudio(targetWord.word); if(!audioUsed) { setAudioUsed(true); setMaxWordScore(m => Math.min(m, 2)); } } }}
                     disabled={audioProgress < 100}
-                    className={`flex-1 relative overflow-hidden rounded-2xl h-14 border-4 transition-all flex items-center justify-center gap-2 font-bold z-10
-                        ${audioProgress < 100 ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 
-                          audioUsed ? 'bg-blue-100 border-blue-300 text-blue-600 shadow-inner' : 'bg-blue-500 border-blue-600 text-white shadow-md animate-pulse'}
-                    `}
+                    className={`flex-1 relative overflow-hidden rounded-xl md:rounded-2xl h-10 md:h-12 border-2 transition-all flex items-center justify-center gap-2 font-bold text-xs md:text-sm ${audioProgress < 100 ? 'bg-slate-100 border-slate-200 text-slate-400' : audioUsed ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-blue-500 border-blue-600 text-white shadow-md'}`}
                 >
-                    {/* Liquid Fill Background */}
-                    <div className="absolute left-0 bottom-0 top-0 bg-blue-200/40 z-0 transition-all duration-100" style={{ width: `${audioProgress}%` }}></div>
-                    <Volume2 size={20} className="relative z-10" />
-                    <span className="relative z-10 hidden sm:block">सुनें</span>
+                    <div className="absolute left-0 bottom-0 top-0 bg-blue-200/40 z-0 transition-all" style={{ width: `${audioProgress}%` }}></div>
+                    <Volume2 size={18} className="relative z-10" />
+                    <span className="relative z-10 hidden sm:block">सुनें (Hear)</span>
                 </button>
 
-                {/* VISUAL HINT */}
                 <button 
-                    onClick={triggerVisualHint}
+                    onClick={() => { if(visualProgress >= 100 && !visualUsed) { setVisualUsed(true); setMaxWordScore(m => Math.min(m, 1)); } }}
                     disabled={visualProgress < 100 || visualUsed}
-                    className={`flex-1 relative overflow-hidden rounded-2xl h-14 border-4 transition-all flex items-center justify-center gap-2 font-bold z-10
-                        ${visualProgress < 100 ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 
-                          visualUsed ? 'bg-purple-100 border-purple-300 text-purple-600 shadow-inner' : 'bg-purple-500 border-purple-600 text-white shadow-md animate-pulse'}
-                    `}
+                    className={`flex-1 relative overflow-hidden rounded-xl md:rounded-2xl h-10 md:h-12 border-2 transition-all flex items-center justify-center gap-2 font-bold text-xs md:text-sm ${visualProgress < 100 ? 'bg-slate-100 border-slate-200 text-slate-400' : visualUsed ? 'bg-purple-50 border-purple-200 text-purple-600' : 'bg-purple-500 border-purple-600 text-white shadow-md'}`}
                 >
-                    {/* Liquid Fill Background */}
-                    <div className="absolute left-0 bottom-0 top-0 bg-purple-200/40 z-0 transition-all duration-100" style={{ width: `${visualProgress}%` }}></div>
-                    <Eye size={20} className="relative z-10" />
-                    <span className="relative z-10 hidden sm:block">देखें</span>
+                    <div className="absolute left-0 bottom-0 top-0 bg-purple-200/40 z-0 transition-all" style={{ width: `${visualProgress}%` }}></div>
+                    <Eye size={18} className="relative z-10" />
+                    <span className="relative z-10 hidden sm:block">देखें (See)</span>
                 </button>
             </div>
+
         </div>
     );
 };
 
 
 // ============================================================================
-// MAIN GAME WRAPPER (Handles Menu, Timer, and Master State)
+// MAIN WRAPPER 
 // ============================================================================
 export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
     const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover'>('menu');
     const [settings, setSettings] = useState({ length: 2, players: 1 });
-    const [timeLeft, setTimeLeft] = useState(180); // 180 seconds!
+    const [timeLeft, setTimeLeft] = useState(180); 
     const [scores, setScores] = useState({ p1: 0, p2: 0 });
     const [wordPool, setWordPool] = useState<any[]>([]);
+    
+    // Check if the device is mobile to disable Versus mode
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     useEffect(() => {
         if (gameState === 'playing' && timeLeft > 0) {
@@ -369,35 +359,48 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
     // --- MENU RENDER ---
     if (gameState === 'menu') {
         return (
-            <div className="w-full h-full min-h-[500px] flex flex-col items-center justify-center p-6 bg-slate-50 rounded-3xl">
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-24 h-24 bg-indigo-100 rounded-3xl mb-6 border-4 border-indigo-50 shadow-inner transform rotate-3">
-                        <span className="text-5xl font-black text-indigo-500">कख</span>
+            <div className="w-full h-full min-h-[500px] flex flex-col items-center justify-center p-4 md:p-6 bg-slate-50 rounded-3xl overflow-y-auto relative">
+                <div className="absolute -top-10 -left-10 w-40 h-40 bg-blue-200 rounded-full mix-blend-multiply filter blur-2xl opacity-70 animate-blob"></div>
+                <div className="absolute top-10 -right-10 w-40 h-40 bg-purple-200 rounded-full mix-blend-multiply filter blur-2xl opacity-70 animate-blob animation-delay-2000"></div>
+
+                <div className="text-center mb-6 md:mb-10 relative z-10 mt-4 md:mt-0">
+                    <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl mb-4 shadow-md transform rotate-3">
+                        <span className="text-3xl md:text-4xl font-black text-white">कख</span>
                     </div>
-                    <h1 className="text-5xl md:text-6xl font-black text-slate-800 mb-4 tracking-tight">Bubble <span className="text-indigo-500">Spell</span></h1>
-                    <p className="text-xl font-bold text-slate-500">Select your mode to begin the 3-minute challenge!</p>
+                    <h1 className="text-4xl md:text-5xl font-black text-slate-800 mb-2 tracking-tight">Bubble <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">Spell</span></h1>
+                    <p className="text-sm md:text-lg font-bold text-slate-500">Select mode to begin!</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
-                    <div className="bg-white p-8 rounded-[2.5rem] border-4 border-blue-100 shadow-sm flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mb-4"><User size={32}/></div>
-                        <h2 className="text-2xl font-black text-slate-800 mb-6">Solo Play</h2>
-                        <div className="flex flex-col gap-3 w-full">
-                            <button onClick={() => startGame(2, 1)} className="py-4 bg-slate-50 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-400 font-bold text-slate-700 rounded-2xl transition-colors">2-Letter Words</button>
-                            <button onClick={() => startGame(3, 1)} className="py-4 bg-slate-50 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-400 font-bold text-slate-700 rounded-2xl transition-colors">3-Letter Words</button>
-                            <button onClick={() => startGame(4, 1)} className="py-4 bg-slate-50 hover:bg-blue-50 border-2 border-slate-200 hover:border-blue-400 font-bold text-slate-700 rounded-2xl transition-colors">4-Letter Words</button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 w-full max-w-3xl relative z-10 pb-4">
+                    {/* Solo Mode - Always Available */}
+                    <div className="bg-white/80 backdrop-blur-md p-5 md:p-8 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col items-center text-center hover:-translate-y-2 transition-transform duration-300">
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-3 md:mb-4"><User size={24} className="md:w-8 md:h-8"/></div>
+                        <h2 className="text-xl md:text-2xl font-black text-slate-800 mb-4">Solo Play</h2>
+                        <div className="flex flex-col gap-2 md:gap-3 w-full">
+                            <button onClick={() => startGame(2, 1)} className="py-3 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all shadow-sm text-sm md:text-lg">2-Letter Words</button>
+                            <button onClick={() => startGame(3, 1)} className="py-3 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all shadow-sm text-sm md:text-lg">3-Letter Words</button>
+                            <button onClick={() => startGame(4, 1)} className="py-3 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all shadow-sm text-sm md:text-lg">4-Letter Words</button>
                         </div>
                     </div>
 
-                    <div className="bg-white p-8 rounded-[2.5rem] border-4 border-rose-100 shadow-sm flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mb-4"><Users size={32}/></div>
-                        <h2 className="text-2xl font-black text-slate-800 mb-6">Versus Mode</h2>
-                        <div className="flex flex-col gap-3 w-full">
-                            <button onClick={() => startGame(2, 2)} className="py-4 bg-slate-50 hover:bg-rose-50 border-2 border-slate-200 hover:border-rose-400 font-bold text-slate-700 rounded-2xl transition-colors">2-Letter Words</button>
-                            <button onClick={() => startGame(3, 2)} className="py-4 bg-slate-50 hover:bg-rose-50 border-2 border-slate-200 hover:border-rose-400 font-bold text-slate-700 rounded-2xl transition-colors">3-Letter Words</button>
-                            <button onClick={() => startGame(4, 2)} className="py-4 bg-slate-50 hover:bg-rose-50 border-2 border-slate-200 hover:border-rose-400 font-bold text-slate-700 rounded-2xl transition-colors">4-Letter Words</button>
+                    {/* Versus Mode - Locked on Mobile */}
+                    {isMobile ? (
+                        <div className="bg-slate-200/50 backdrop-blur-md p-5 md:p-8 rounded-3xl border-2 border-slate-200 flex flex-col items-center text-center justify-center opacity-80">
+                            <Lock size={48} className="text-slate-400 mb-4" />
+                            <h2 className="text-xl md:text-2xl font-black text-slate-500 mb-2">Versus Mode</h2>
+                            <p className="text-sm font-bold text-slate-400">Available on Tablets & Laptops</p>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="bg-white/80 backdrop-blur-md p-5 md:p-8 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col items-center text-center hover:-translate-y-2 transition-transform duration-300">
+                            <div className="w-12 h-12 md:w-16 md:h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-3 md:mb-4"><Users size={24} className="md:w-8 md:h-8"/></div>
+                            <h2 className="text-xl md:text-2xl font-black text-slate-800 mb-4">Versus Mode</h2>
+                            <div className="flex flex-col gap-2 md:gap-3 w-full">
+                                <button onClick={() => startGame(2, 2)} className="py-3 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all shadow-sm text-sm md:text-lg">2-Letter Words</button>
+                                <button onClick={() => startGame(3, 2)} className="py-3 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all shadow-sm text-sm md:text-lg">3-Letter Words</button>
+                                <button onClick={() => startGame(4, 2)} className="py-3 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all shadow-sm text-sm md:text-lg">4-Letter Words</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -408,28 +411,28 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
         const winner = scores.p1 > scores.p2 ? 'Player 1' : scores.p2 > scores.p1 ? 'Player 2' : 'Tie';
         return (
             <div className="w-full h-full min-h-[500px] flex flex-col items-center justify-center p-6 text-center bg-slate-50 rounded-3xl">
-                <div className="bg-amber-100 p-8 rounded-full mb-6 border-8 border-amber-50 shadow-inner">
-                    <Trophy className="w-20 h-20 text-amber-500" />
+                <div className="bg-amber-100 p-6 md:p-8 rounded-full mb-4 md:mb-6 border-4 md:border-8 border-amber-50 shadow-inner">
+                    <Trophy className="w-16 h-16 md:w-20 md:h-20 text-amber-500 animate-bounce" />
                 </div>
-                <h2 className="text-5xl font-black text-slate-800 mb-2">Time's Up!</h2>
-                {settings.players === 2 && <p className="text-2xl font-bold text-indigo-500 mb-8">{winner === 'Tie' ? "It's a Tie!" : `${winner} Wins!`}</p>}
+                <h2 className="text-4xl md:text-5xl font-black text-slate-800 mb-2">Time's Up!</h2>
+                {settings.players === 2 && <p className="text-xl md:text-2xl font-bold text-indigo-500 mb-6 md:mb-8">{winner === 'Tie' ? "It's a Tie!" : `${winner} Wins!`}</p>}
                 
-                <div className="flex gap-8 mb-12">
-                    <div className="bg-blue-100 px-8 py-6 rounded-3xl border-4 border-blue-200 text-center shadow-sm">
-                        <p className="text-blue-500 font-bold mb-1">Player 1</p>
-                        <p className="text-6xl font-black text-blue-700">{scores.p1}</p>
+                <div className="flex gap-4 md:gap-8 mb-8 md:mb-12">
+                    <div className="bg-white px-6 md:px-10 py-6 md:py-8 rounded-3xl border-2 md:border-4 border-blue-100 text-center shadow-md">
+                        <p className="text-blue-500 font-black uppercase tracking-widest mb-1 md:mb-2 text-xs md:text-sm">Player 1</p>
+                        <p className="text-5xl md:text-7xl font-black text-blue-700">{scores.p1}</p>
                     </div>
                     {settings.players === 2 && (
-                        <div className="bg-rose-100 px-8 py-6 rounded-3xl border-4 border-rose-200 text-center shadow-sm">
-                            <p className="text-rose-500 font-bold mb-1">Player 2</p>
-                            <p className="text-6xl font-black text-rose-700">{scores.p2}</p>
+                        <div className="bg-white px-6 md:px-10 py-6 md:py-8 rounded-3xl border-2 md:border-4 border-rose-100 text-center shadow-md">
+                            <p className="text-rose-500 font-black uppercase tracking-widest mb-1 md:mb-2 text-xs md:text-sm">Player 2</p>
+                            <p className="text-5xl md:text-7xl font-black text-rose-700">{scores.p2}</p>
                         </div>
                     )}
                 </div>
                 
-                <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                    <button onClick={() => setGameState('menu')} className="flex-1 py-4 bg-white border-2 border-slate-200 text-slate-700 font-black rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2"><RotateCcw size={20} /> Play Again</button>
-                    <button onClick={() => onComplete()} className="flex-1 py-4 bg-indigo-500 text-white font-black rounded-2xl shadow-md border-b-4 border-indigo-700 active:border-b-0 transition-all flex items-center justify-center gap-2">Next Lesson <ArrowRight size={20} /></button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+                    <button onClick={() => setGameState('menu')} className="flex-1 py-4 bg-white border-2 border-slate-200 text-slate-700 font-black rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2"><RotateCcw size={18} /> Play Again</button>
+                    <button onClick={() => onComplete()} className="flex-1 py-4 bg-indigo-500 text-white font-black rounded-xl shadow-md border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2">Next Lesson <ArrowRight size={18} /></button>
                 </div>
             </div>
         );
@@ -437,59 +440,38 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
 
     // --- PLAYING RENDER ---
     return (
-        <div className="w-full h-full min-h-[600px] max-h-screen flex flex-col bg-white font-sans overflow-hidden rounded-3xl border-2 border-slate-100">
-            {/* MASTER HEADER */}
-            <div className="shrink-0 p-3 md:p-4 bg-slate-900 flex justify-between items-center z-10 shadow-md">
-                <div className="flex items-center gap-3 w-1/3">
-                    <div className="bg-blue-500/20 border border-blue-500/50 text-blue-400 font-black px-4 py-2 rounded-xl flex items-center gap-2">
-                        <User size={18}/> P1: <span className="text-white text-lg">{scores.p1}</span>
-                    </div>
-                </div>
-                
-                <div className="flex flex-col items-center w-1/3">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Time Remaining</span>
-                    <div className={`text-2xl md:text-3xl font-black flex items-center gap-2 ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-                        <Clock size={24}/> {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-3 w-1/3">
-                    {settings.players === 2 && (
-                        <div className="bg-rose-500/20 border border-rose-500/50 text-rose-400 font-black px-4 py-2 rounded-xl flex items-center gap-2">
-                            P2: <span className="text-white text-lg">{scores.p2}</span> <Users size={18}/>
-                        </div>
-                    )}
-                </div>
+        <div className="w-full h-full min-h-[600px] max-h-[90vh] flex flex-col bg-slate-100 font-sans overflow-hidden rounded-3xl border-2 border-slate-200 shadow-inner relative">
+            
+            {/* MASTER TIMER WATERMARK */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-0 pointer-events-none opacity-5 flex flex-col items-center justify-center">
+                <Clock size={80} className="mb-2" />
+                <span className="text-[8rem] md:text-[15rem] font-black leading-none">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
             </div>
 
-            {/* SPLIT SCREEN BOARDS */}
-            <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-2 md:gap-4 p-2 md:p-4 bg-slate-100">
-                <PlayerBoard 
+            {/* SPLIT SCREENS */}
+            <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 md:gap-4 p-2 md:p-4 z-10 relative">
+                
+                <PlayerEngine 
                     playerId="p1" 
-                    wordLength={settings.length} 
                     wordPool={wordPool} 
-                    onScoreUpdate={handleScoreUpdate} 
+                    score={scores.p1}
+                    onScoreChange={(pts: number) => handleScoreUpdate('p1', pts)}
+                    isFlipped={settings.players === 2} 
                     isMultiplayer={settings.players === 2}
                 />
                 
                 {settings.players === 2 && (
-                    <PlayerBoard 
+                    <PlayerEngine 
                         playerId="p2" 
-                        wordLength={settings.length} 
                         wordPool={wordPool} 
-                        onScoreUpdate={handleScoreUpdate} 
+                        score={scores.p2}
+                        onScoreChange={(pts: number) => handleScoreUpdate('p2', pts)}
+                        isFlipped={false}
                         isMultiplayer={true}
                     />
                 )}
             </div>
             
-            <style dangerouslySetInnerHTML={{__html: `
-                @keyframes shake {
-                  0%, 100% { transform: translateX(0); }
-                  25% { transform: translateX(-5px) rotate(-2deg); }
-                  75% { transform: translateX(5px) rotate(2deg); }
-                }
-            `}} />
         </div>
     );
 }
