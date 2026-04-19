@@ -19,17 +19,22 @@ const SwarVyanjanGame = dynamic(() => import('./SwarVyanjanGame'), {
 });
 
 
-// 3. NEW: The Math Defenders Space Shooter!
+// 2. NEW: The Math Defenders Space Shooter!
 const MathDefenders = dynamic(() => import('../games/MathDefenders'), { 
   ssr: false, 
   loading: () => <GameLoader /> 
 });
 
+// 3. Hindi Words Crush Game!
+const HindiWordCrush = dynamic(() => import('./HindiWordCrush'), { 
+  ssr: false, loading: () => <GameLoader /> 
+});
 
 // --- THE ROUTER SWITCHBOARD ---
 const SPECIFIC_GAMES: any = {
   
   'math-defenders': MathDefenders, // Catches your new arcade game from the CSV
+  'hindi-word-crush': HindiWordCrush,
 };
 
 export default function GameRegistry({ lesson, onComplete }: any) {
