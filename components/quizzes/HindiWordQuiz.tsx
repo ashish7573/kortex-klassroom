@@ -210,14 +210,16 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
         {/* TARGET AREA (Top Half) */}
         <div className={`flex-[0.45] w-full flex items-center justify-center transition-transform duration-300 ${shakeClass}`}>
           {currentQ.mode === 'IMAGE_TO_WORD' ? (
+            // FIX: Forced strict bounding box sizes so laptops can't stretch it.
             <SmartImage 
               wordData={currentQ.target} 
-              className="h-full w-auto max-h-[35vh] aspect-square object-contain bg-white shadow-md p-4" 
-              emojiSize="text-[8rem] md:text-[10rem]" 
+              className="h-[30vh] w-[30vh] md:h-[35vh] md:w-[35vh] object-contain bg-white shadow-md p-4 rounded-[2rem]" 
+              emojiSize="text-[6rem] md:text-[8rem]" 
             />
           ) : (
-            <div className="h-full w-full max-h-[35vh] flex items-center justify-center bg-white rounded-3xl border-4 border-slate-100 shadow-sm">
-              <span className="text-[5rem] md:text-[7rem] font-black text-slate-800 tracking-tight drop-shadow-sm">
+            // FIX: Added whitespace-nowrap and bounded the container so 4-letters fit perfectly.
+            <div className="h-[30vh] md:h-[35vh] w-full max-w-3xl mx-auto flex items-center justify-center bg-white rounded-[2rem] border-4 border-slate-100 shadow-sm px-6">
+              <span className="text-[4rem] md:text-[6rem] lg:text-[7rem] font-black text-slate-800 tracking-tight drop-shadow-sm whitespace-nowrap">
                 {currentQ.target.word}
               </span>
             </div>
@@ -251,17 +253,17 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
                 key={idx}
                 disabled={isAnswerSubmitted}
                 onClick={() => handleOptionClick(opt.word)}
-                className={`w-full h-full flex items-center justify-center rounded-[1.5rem] md:rounded-[2rem] transition-all duration-300 relative overflow-hidden ${buttonStyle}`}
+                className={`w-full h-full flex items-center justify-center rounded-[1.5rem] md:rounded-[2rem] transition-all duration-300 relative overflow-hidden px-4 py-2 ${buttonStyle}`}
               >
                 {currentQ.mode === 'IMAGE_TO_WORD' ? (
-                  // Text Option
-                  <span className="text-4xl md:text-5xl font-black drop-shadow-sm">{opt.word}</span>
+                  // FIX: Added whitespace-nowrap and slightly scaled the text down so it fits perfectly on all devices.
+                  <span className="text-3xl md:text-5xl font-black drop-shadow-sm whitespace-nowrap">{opt.word}</span>
                 ) : (
-                  // Image Option
+                  // FIX: Replaced w-3/4 h-3/4 with strict max-w and max-h values so grid sizing never goes infinite.
                   <SmartImage 
                     wordData={opt} 
-                    className="w-3/4 h-3/4 border-none shadow-none bg-transparent" 
-                    emojiSize="text-6xl md:text-7xl" 
+                    className="w-full h-full max-w-[70%] max-h-[70%] object-contain border-none shadow-none bg-transparent" 
+                    emojiSize="text-5xl md:text-7xl" 
                   />
                 )}
                 
