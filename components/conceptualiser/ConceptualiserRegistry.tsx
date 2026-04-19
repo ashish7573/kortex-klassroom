@@ -14,12 +14,11 @@ const SwarVyanjanConceptualiser = dynamic(() => import('./SwarVyanjanConceptuali
 const HindiWordBuilder = dynamic(() => import('./HindiWordBuilder'), { ssr: false, loading: () => <ConceptLoader /> });
 
 // Unique Tools 
-const PlaceValueDemo = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoConcept), { ssr: false });
+
 const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: false, loading: () => <ConceptLoader /> });
 
 // THE ROUTER: Map the Subtopic IDs from your CSV to the actual React Components
 const SPECIFIC_TOOLS: any = {
-  'place-value-intro': PlaceValueDemo,
   'rounding-mountain': MountainRounding,
   
   // Route all three word builder lessons to the same "Smart" component
