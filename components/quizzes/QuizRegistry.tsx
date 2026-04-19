@@ -9,32 +9,40 @@ const QuizLoader = () => (
   </div>
 );
 
-// The Swar & Vyanjan Engine we built
+// 1. The Swar & Vyanjan Engine
 const SwarVyanjanQuiz = dynamic(() => import('./SwarVyanjanQuiz'), { 
   ssr: false,
   loading: () => <QuizLoader /> 
 });
 
-// Retaining your Place Value Master Demo Quiz!
-const DemoQuiz = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoQuiz), { ssr: false });
+// 2. NEW: The Hindi Word & Picture Match Engine
+const HindiWordQuiz = dynamic(() => import('./HindiWordQuiz'), { 
+  ssr: false,
+  loading: () => <QuizLoader /> 
+});
 
+// --- THE ROUTER SWITCHBOARD ---
 const SPECIFIC_QUIZZES: any = {
-  'quiz': DemoQuiz, // This catches the '/demo/quiz' from your old setup
+  'hindi-word-match': HindiWordQuiz, // Maps the CSV ID to your new game!
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {
-  // Extract the slug (fallback to content_url to support your demo lesson)
+  // Extract the slug
   const slug = lesson.subtopicId || lesson.content_url?.split('/').pop();
 
   if (!slug) return <div className="p-10 text-center text-rose-500 font-bold">Error: Missing Subtopic ID</div>;
 
-  // 1. Check for unique quizzes first (like the Master Demo)
+  // 1. Check for unique quizzes first (like the Word Match)
   const SpecificQuiz = SPECIFIC_QUIZZES[slug];
   if (SpecificQuiz) {
-    return <Suspense fallback={<QuizLoader />}><SpecificQuiz onComplete={onComplete} /></Suspense>;
+    return (
+      <Suspense fallback={<QuizLoader />}>
+        <SpecificQuiz lesson={lesson} onComplete={onComplete} />
+      </Suspense>
+    );
   }
 
-  // 2. Route by Subject
+  // 2. Route by Subject (Fallback logic)
   return (
     <Suspense fallback={<QuizLoader />}>
       {lesson.subject === 'Hindi' ? (

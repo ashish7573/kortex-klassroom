@@ -18,8 +18,6 @@ const SwarVyanjanGame = dynamic(() => import('./SwarVyanjanGame'), {
   loading: () => <GameLoader /> 
 });
 
-// 2. Restore your Place Value Master Demo Game!
-const DemoGame = dynamic(() => import('../demo/PlaceValueDemo').then(mod => mod.DemoGame), { ssr: false });
 
 // 3. NEW: The Math Defenders Space Shooter!
 const MathDefenders = dynamic(() => import('../games/MathDefenders'), { 
@@ -30,7 +28,7 @@ const MathDefenders = dynamic(() => import('../games/MathDefenders'), {
 
 // --- THE ROUTER SWITCHBOARD ---
 const SPECIFIC_GAMES: any = {
-  '/demo/game': DemoGame,          // Catches your old demo URL
+  
   'math-defenders': MathDefenders, // Catches your new arcade game from the CSV
 };
 
