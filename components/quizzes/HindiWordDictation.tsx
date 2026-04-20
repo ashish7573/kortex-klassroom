@@ -33,22 +33,27 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
 
   // 1. Generate 10 Random Words for Dictation
   useEffect(() => {
-    // Extract length from subtopicId (e.g., 'word-builder-3' -> 3)
-    const subtopicId = lesson.subtopicId || 'word-builder-2';
-    const pool = getWordsForSubtopic(subtopicId);
+    // Look at the subtopic name from the database (e.g., "3-Letter Words") to figure out the level
+    let wordLength = 2; // Default
+    if (lesson.subtopic && lesson.subtopic.includes('3')) wordLength = 3;
+    if (lesson.subtopic && lesson.subtopic.includes('4')) wordLength = 4;
+
+    // Fetch from the correct dictionary pool
+    const dictionaryKey = `word-builder-${wordLength}`;
+    const pool = getWordsForSubtopic(dictionaryKey);
     
     if (pool.length === 0) return;
 
     // Shuffle and pick 10 words
     let selected = pool.sort(() => 0.5 - Math.random()).slice(0, 10);
     
-    // Pad the array if the dictionary has fewer than 10 words for this category
+    // Pad the array if the dictionary has fewer than 10 words
     while (selected.length > 0 && selected.length < 10) {
         selected = [...selected, ...selected].slice(0, 10);
     }
     
     setQuestions(selected);
-  }, [lesson.subtopicId]);
+  }, [lesson.subtopic]);
 
   // 2. Audio Handler
   const playDictationAudio = (idx: number, wordText: string) => {
