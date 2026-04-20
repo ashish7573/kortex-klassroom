@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Rocket, Bug, Heart, ChevronLeft, ChevronRight, Play, Users, Trophy, X } from 'lucide-react';
+import { Rocket, Bug, Heart, ChevronLeft, ChevronRight, Play, Users, Trophy, X, Zap, Monitor } from 'lucide-react';
 
 // --- MATH GENERATOR ---
 const generateQuestion = (type: string) => {
@@ -66,10 +66,10 @@ const generateQuestion = (type: string) => {
 
 // --- CONSTANTS & CONFIG ---
 const COLORS = [
-  { ship: 'text-blue-400', glow: 'drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]', bg: 'bg-blue-900/30', border: 'border-blue-500/50' },
-  { ship: 'text-emerald-400', glow: 'drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]', bg: 'bg-emerald-900/30', border: 'border-emerald-500/50' },
-  { ship: 'text-pink-400', glow: 'drop-shadow-[0_0_8px_rgba(244,114,182,0.8)]', bg: 'bg-pink-900/30', border: 'border-pink-500/50' },
-  { ship: 'text-orange-400', glow: 'drop-shadow-[0_0_8px_rgba(251,146,60,0.8)]', bg: 'bg-orange-900/30', border: 'border-orange-500/50' },
+  { ship: 'text-blue-400', glow: 'drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]', bg: 'bg-blue-900/30', border: 'border-blue-500/50', noShadow: 'text-blue-400' },
+  { ship: 'text-emerald-400', glow: 'drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]', bg: 'bg-emerald-900/30', border: 'border-emerald-500/50', noShadow: 'text-emerald-400' },
+  { ship: 'text-pink-400', glow: 'drop-shadow-[0_0_8px_rgba(244,114,182,0.8)]', bg: 'bg-pink-900/30', border: 'border-pink-500/50', noShadow: 'text-pink-400' },
+  { ship: 'text-orange-400', glow: 'drop-shadow-[0_0_8px_rgba(251,146,60,0.8)]', bg: 'bg-orange-900/30', border: 'border-orange-500/50', noShadow: 'text-orange-400' },
 ];
 
 const OPERATIONS = [
@@ -83,7 +83,7 @@ const OPERATIONS = [
 
 export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   const [gameState, setGameState] = useState('menu'); 
-  const [config, setConfig] = useState({ ops: 'mul', players: 4 });
+  const [config, setConfig] = useState({ ops: 'mul', players: 4, isHD: true }); // NEW: Graphics Toggle
   const [players, setPlayers] = useState<any[]>([]);
   
   const stateRef = useRef<any[]>([]);
@@ -216,19 +216,33 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   // --- RENDERERS ---
   if (gameState === 'menu') {
     return (
-      // FIXED: Added overflow-y-auto and adjusted padding for mobile scrolling
       <div className="w-full h-full min-h-[500px] bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-slate-200 rounded-3xl relative overflow-y-auto">
-        
-        {/* FIXED: Made the exit button smaller on mobile so it doesn't overlap text */}
         <button onClick={() => onComplete()} className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white p-2 md:p-3 rounded-full transition-colors z-20">
            <X size={20} className="md:w-6 md:h-6" />
         </button>
 
-        {/* FIXED: Scaled down margins and paddings for mobile (sm: prefix) */}
         <div className="max-w-2xl w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-8 shadow-2xl my-auto">
           <div className="text-center mb-6 sm:mb-10 mt-4 sm:mt-0">
             <h1 className="text-3xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2">Math Defenders</h1>
-            <p className="text-slate-400 font-bold text-sm sm:text-base">SmartBoard & Mobile Edition</p>
+            <p className="text-slate-400 font-bold text-sm sm:text-base">Arcade Engine</p>
+          </div>
+
+          {/* NEW: GRAPHICS TOGGLE */}
+          <div className="mb-6 flex justify-center">
+             <div className="bg-slate-800 p-1.5 rounded-xl inline-flex border border-slate-700 shadow-inner">
+                <button 
+                  onClick={() => setConfig(c => ({...c, isHD: true}))} 
+                  className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all ${config.isHD ? 'bg-blue-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  <Zap size={16} /> HD (Laptops/Phones)
+                </button>
+                <button 
+                  onClick={() => setConfig(c => ({...c, isHD: false}))} 
+                  className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all ${!config.isHD ? 'bg-orange-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  <Monitor size={16} /> Performance (Smartboards)
+                </button>
+             </div>
           </div>
 
           <div className="mb-6 sm:mb-8">
@@ -294,7 +308,6 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
 
   // --- PLAYING STATE ---
   return (
-    // FIXED: min-h reduced to 500px so numpad fits on shorter phone screens
     <div className="h-[80vh] min-h-[500px] w-full bg-slate-950 overflow-x-auto overflow-y-hidden flex select-none touch-none font-sans text-slate-200 rounded-3xl hide-scrollbar">
       {players.map((p, index) => (
         <div 
@@ -311,28 +324,44 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
             <div className="font-mono text-xl font-bold text-white bg-black/50 px-3 py-1 rounded-lg border border-slate-700 backdrop-blur-sm">{p.score.toString().padStart(4, '0')}</div>
             <div className="flex gap-1">
               {[...Array(3)].map((_, i) => (
-                <Heart key={i} className={`w-5 h-5 sm:w-6 sm:h-6 ${i < p.lives ? 'text-red-500 drop-shadow-[0_0_5px_red]' : 'text-slate-800'}`} fill={i < p.lives ? 'currentColor' : 'none'} />
+                <Heart key={i} className={`w-5 h-5 sm:w-6 sm:h-6 ${i < p.lives ? (config.isHD ? 'text-red-500 drop-shadow-[0_0_5px_red]' : 'text-red-500') : 'text-slate-800'}`} fill={i < p.lives ? 'currentColor' : 'none'} />
               ))}
             </div>
           </div>
 
           {/* SPACE CANVAS */}
-          <div className="flex-[5.5] relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black overflow-hidden border-b-4 border-slate-700 shadow-inner">
-            <div className="absolute inset-0 opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')] pointer-events-none"></div>
+          <div className={`flex-[5.5] relative overflow-hidden border-b-4 border-slate-700 ${config.isHD ? "bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black shadow-inner" : "bg-black"}`}>
+            
+            {/* Conditional background star pattern (Disabled in Performance Mode) */}
+            {config.isHD && (
+              <div className="absolute inset-0 opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')] pointer-events-none"></div>
+            )}
             
             {p.missiles.map((m: any) => (
-              <div key={m.id} className="absolute w-2 h-8 bg-yellow-300 rounded-full shadow-[0_0_12px_#fde047] transform -translate-x-1/2 -translate-y-1/2" style={{ left: `${m.x}%`, top: `${m.y}%` }} />
+              <div 
+                 key={m.id} 
+                 className={`absolute w-2 h-8 rounded-full transform -translate-x-1/2 -translate-y-1/2 ${config.isHD ? 'bg-yellow-300 shadow-[0_0_12px_#fde047]' : 'bg-yellow-400 border border-yellow-200'}`} 
+                 style={{ left: `${m.x}%`, top: `${m.y}%`, willChange: 'top, left' }} 
+              />
             ))}
 
             {p.enemies.map((e: any) => (
-              <div key={e.id} className="absolute transform -translate-x-1/2 -translate-y-1/2 text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]" style={{ left: `${e.x}%`, top: `${e.y}%` }}>
+              <div 
+                 key={e.id} 
+                 className={`absolute transform -translate-x-1/2 -translate-y-1/2 ${config.isHD ? 'text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'text-green-500'}`} 
+                 style={{ left: `${e.x}%`, top: `${e.y}%`, willChange: 'top, left' }}
+              >
                 <Bug size={32} className="animate-bounce sm:w-10 sm:h-10" />
               </div>
             ))}
 
-            <div className={`absolute bottom-[5%] transform -translate-x-1/2 transition-transform duration-75 ${p.theme.ship} ${p.theme.glow}`} style={{ left: `${p.shipX}%` }}>
+            <div 
+               className={`absolute bottom-[5%] transform -translate-x-1/2 transition-transform duration-75 ${config.isHD ? `${p.theme.ship} ${p.theme.glow}` : p.theme.noShadow}`} 
+               style={{ left: `${p.shipX}%`, willChange: 'left' }}
+            >
               <Rocket size={40} fill="currentColor" className={`-rotate-45 sm:w-12 sm:h-12 ${p.moving !== 0 ? 'scale-110' : ''}`} />
-              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-4 h-6 bg-orange-500 blur-[4px] rounded-full animate-pulse opacity-80" />
+              {/* Optional engine glow */}
+              {config.isHD && <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-4 h-6 bg-orange-500 blur-[4px] rounded-full animate-pulse opacity-80" />}
             </div>
 
             {p.isDead && (
@@ -344,7 +373,7 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
 
           {/* DASHBOARD / CONTROLS */}
           <div className="flex-[4.5] bg-slate-900 p-2 sm:p-4 flex flex-col gap-2 sm:gap-3">
-            <div className={`flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 rounded-xl border-2 bg-slate-950 shadow-inner ${p.input === p.question.answer ? 'border-green-500 bg-green-950/20' : 'border-slate-700'}`}>
+            <div className={`flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 rounded-xl border-2 bg-slate-950 ${p.input === p.question.answer ? 'border-green-500 bg-green-950/20' : 'border-slate-700'}`}>
               <span className="text-2xl sm:text-3xl font-extrabold text-blue-200 tracking-wide">{p.question.text} = </span>
               <span className={`text-3xl sm:text-4xl font-mono font-bold px-3 sm:px-4 py-1 rounded-lg min-w-[70px] text-right ${p.input === p.question.answer ? 'text-green-400 bg-green-900/30' : 'text-amber-400 bg-amber-900/20'}`}>{p.input || '?'}</span>
             </div>
@@ -386,7 +415,7 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
 
               {/* Fire Button */}
               <div className="w-1/4 min-w-[60px] sm:min-w-[70px] flex">
-                <button onClick={() => handleLaunch(p.id)} disabled={p.input !== p.question.answer || p.isDead} className={`w-full rounded-xl flex flex-col items-center justify-center font-black text-sm sm:text-xl tracking-wider transition-all duration-300 shadow-xl border-b-4 ${p.input === p.question.answer && !p.isDead ? 'bg-green-500 hover:bg-green-400 border-green-700 text-white animate-pulse scale-105' : 'bg-slate-800 border-slate-900 text-slate-600 opacity-60'}`}>
+                <button onClick={() => handleLaunch(p.id)} disabled={p.input !== p.question.answer || p.isDead} className={`w-full rounded-xl flex flex-col items-center justify-center font-black text-sm sm:text-xl tracking-wider transition-all duration-300 shadow-xl border-b-4 ${p.input === p.question.answer && !p.isDead ? 'bg-green-500 hover:bg-green-400 border-green-700 text-white scale-105' : 'bg-slate-800 border-slate-900 text-slate-600 opacity-60'}`}>
                   <Rocket size={24} className={`mb-1 sm:mb-2 sm:w-8 sm:h-8 ${p.input === p.question.answer ? 'animate-bounce' : ''}`} />
                   FIRE
                 </button>
