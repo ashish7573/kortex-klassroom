@@ -21,9 +21,15 @@ const HindiWordQuiz = dynamic(() => import('./HindiWordQuiz'), {
   loading: () => <QuizLoader /> 
 });
 
+// 3. NEW: The Hindi Word Dictation
+const HindiWordDictation = dynamic(() => import('./HindiWordDictation'), { 
+  ssr: false, loading: () => <QuizLoader /> 
+});
+
 // --- THE ROUTER SWITCHBOARD ---
 const SPECIFIC_QUIZZES: any = {
   'hindi-word-match': HindiWordQuiz, // Maps the CSV ID to your new game!
+  'hindi-word-dictation': HindiWordDictation,
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {

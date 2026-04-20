@@ -54,7 +54,7 @@ export const HINDI_WORDS: any = {
   // ==========================================
   'बरगद': { english: 'Banyan Tree', emoji: '🌳', file: 'Bargad' },
   'थरमस': { english: 'Thermos', emoji: '🍶', file: 'Tharmos' },
-  'शलजम': { english: 'Turnip', emoji: '🧅', file: 'Shalgam' },
+  'शलगम': { english: 'Turnip', emoji: '🧅', file: 'Shalgam' },
   'कसरत': { english: 'Exercise', emoji: '🏋️', file: 'Kasrat' },
   'खटमल': { english: 'Bedbug', emoji: '🐛', file: 'Khatmal' },
   'बरतन': { english: 'Utensils', emoji: '🥣', file: 'Bartan' },
