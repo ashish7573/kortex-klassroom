@@ -69,7 +69,7 @@ const playErrorBuzzer = () => {
 
 
 // ============================================================================
-// ISOLATED PLAYER ENGINE
+// ISOLATED PLAYER ENGINE 
 // ============================================================================
 const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isHD, timeLeft }: any) => {
     const [targetWord, setTargetWord] = useState<any>(null);
@@ -118,16 +118,17 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
         const neededChars = segmentWord(nextWord.word);
         
         let newBubbles = [];
-        // SPEED FIX: Dialed down significantly from 1.5/2.5 to 0.7/1.1
-        const speedMult = isHD ? 0.7 : 1.1; 
+        
+        // SPEED FIX: Reduced exactly 10% from 0.3 to 0.27
+        const speedMult = 0.27; 
         
         neededChars.forEach((char, index) => {
             newBubbles.push({
                 id: Math.random().toString(36).substr(2, 9),
                 char: char,
                 x: 10 + (index * 15), y: 10 + (index * 15), 
-                vx: (Math.random() > 0.5 ? 1 : -1) * (0.8 + Math.random() * 0.8) * speedMult,
-                vy: (Math.random() > 0.5 ? 1 : -1) * (0.8 + Math.random() * 0.8) * speedMult,
+                vx: (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5) * speedMult,
+                vy: (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5) * speedMult,
             });
         });
 
@@ -137,8 +138,8 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
                 id: Math.random().toString(36).substr(2, 9),
                 char: HINDI_CONSONANTS[Math.floor(Math.random() * HINDI_CONSONANTS.length)],
                 x: Math.random() * 60 + 10, y: Math.random() * 60 + 10,
-                vx: (Math.random() > 0.5 ? 1 : -1) * (0.8 + Math.random() * 1.0) * speedMult,
-                vy: (Math.random() > 0.5 ? 1 : -1) * (0.8 + Math.random() * 1.0) * speedMult,
+                vx: (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5) * speedMult,
+                vy: (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5) * speedMult,
             });
         }
 
@@ -166,7 +167,7 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
         return () => clearInterval(interval);
     }, [targetWord, foundCount, audioUsed, targetChars.length]);
 
-    // --- COLLISION PHYSICS ENGINE ---
+    // --- ELASTIC COLLISION PHYSICS ENGINE ---
     useEffect(() => {
         if (!targetWord) return;
         
@@ -179,6 +180,7 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
             const deltaTime = time - lastTime;
             
             if (deltaTime < frameInterval) return;
+            
             const dt = deltaTime / 16.66; 
             lastTime = time - (deltaTime % frameInterval);
 
@@ -210,13 +212,26 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
                     if (Math.abs(b1.x - b2.x) < radiusX && Math.abs(b1.y - b2.y) < radiusY) {
                         const dx = b2.x - b1.x;
                         const dy = b2.y - b1.y;
-                        const dvx = b2.vx - b1.vx;
-                        const dvy = b2.vy - b1.vy;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
                         
-                        if (dx * dvx + dy * dvy < 0) {
-                            const tVx = b1.vx; const tVy = b1.vy;
-                            b1.vx = b2.vx; b1.vy = b2.vy;
-                            b2.vx = tVx; b2.vy = tVy;
+                        if (dist < Math.max(radiusX, radiusY)) {
+                            // Separation Push
+                            const overlap = Math.max(radiusX, radiusY) - dist;
+                            const nx = dx / (dist || 1);
+                            const ny = dy / (dist || 1);
+                            
+                            b1.x -= (nx * overlap) / 2;
+                            b1.y -= (ny * overlap) / 2;
+                            b2.x += (nx * overlap) / 2;
+                            b2.y += (ny * overlap) / 2;
+
+                            // Velocity Swap
+                            const tempVx = b1.vx;
+                            const tempVy = b1.vy;
+                            b1.vx = b2.vx;
+                            b1.vy = b2.vy;
+                            b2.vx = tempVx;
+                            b2.vy = tempVy;
                         }
                     }
                 }
@@ -276,18 +291,20 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
         <div className={`flex-1 flex flex-col w-full h-full relative rounded-3xl overflow-hidden shadow-inner touch-none ${isHD ? 'border-2 border-slate-200 bg-white' : 'border-4 border-slate-300 bg-slate-100'}`}>
             
             {/* ROTATED TOP HUD */}
-            <div className={`w-full bg-white border-b-4 border-${playerColor}-200 p-2 md:p-3 flex items-center justify-start gap-2 z-20 transition-transform duration-300 relative ${isHD ? 'shadow-md' : 'shadow-none border-b-8'} ${isFlipped ? 'rotate-180 lg:rotate-0' : ''}`}>
+            <div className={`w-full bg-white border-b-4 border-${playerColor}-200 p-2 md:p-3 flex items-center justify-between gap-2 z-20 transition-transform duration-300 relative ${isHD ? 'shadow-md' : 'shadow-none border-b-8'} ${isFlipped ? 'rotate-180 lg:rotate-0' : ''}`}>
                 
+                {/* Left: Score Badge */}
                 <div className={`shrink-0 flex flex-col items-center justify-center bg-${playerColor}-50 border-2 border-${playerColor}-200 rounded-xl px-3 py-1 md:px-4 md:py-2`}>
                     <span className={`text-[10px] md:text-xs font-black text-${playerColor}-400 uppercase`}>P{playerId === 'p1' ? '1' : '2'}</span>
                     <span className={`text-2xl md:text-3xl font-black text-${playerColor}-600 leading-none`}>{score}</span>
                 </div>
                 
-                <div className="flex-1 flex items-center justify-start gap-2 md:gap-4 pr-16 md:pr-32">
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-50 rounded-xl border-2 border-slate-200 p-1 shadow-sm shrink-0">
+                {/* Center: Image & Slots (Stacked on mobile to increase HUD height and shrink bouncing area) */}
+                <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 pr-16 md:pr-24 py-1 md:py-0">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-20 md:h-20 bg-slate-50 rounded-xl border-2 border-slate-200 p-1 shadow-sm shrink-0">
                         <SmartImage wordData={targetWord} className="w-full h-full object-contain border-none shadow-none bg-transparent" />
                     </div>
-                    <div className="flex flex-wrap gap-1 md:gap-2">
+                    <div className="flex flex-wrap justify-center gap-1 md:gap-2">
                         {targetChars.map((char: string, idx: number) => {
                             const isFilled = idx < foundCount;
                             return (
@@ -301,9 +318,10 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
                     </div>
                 </div>
 
+                {/* Right: Absolute Timer */}
                 <div className={`absolute right-2 top-1/2 -translate-y-1/2 shrink-0 flex flex-col md:flex-row items-center justify-center gap-1 px-2 py-1 md:px-4 md:py-2 rounded-xl border-2 transition-colors z-50 shadow-sm ${timeLeft <= 10 ? 'border-red-500 text-red-600 bg-red-50 animate-pulse' : (isHD ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-white border-slate-300 text-slate-800')}`}>
-                    <Clock size={16} className="md:w-5 md:h-5" />
-                    <span className="text-sm md:text-xl font-black leading-none">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
+                    <Clock size={16} className="md:w-6 md:h-6" />
+                    <span className="text-sm md:text-2xl font-black leading-none">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
                 </div>
             </div>
 
@@ -329,25 +347,25 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
                 ))}
             </div>
 
-            {/* BOTTOM HUD */}
+            {/* BOTTOM HUD: Hint Dashboard */}
             <div className={`w-full bg-white border-t-4 border-${playerColor}-200 p-2 md:p-3 flex items-center justify-center gap-3 z-20 transition-transform duration-300 ${isHD ? 'shadow-md' : 'shadow-none border-t-8'} ${isFlipped ? 'rotate-180 lg:rotate-0' : ''}`}>
                 <button 
                     onClick={() => { if(audioProgress >= 100) { playDictionaryAudio(targetWord.word); if(!audioUsed) { setAudioUsed(true); setMaxWordScore(m => Math.min(m, 2)); } } }}
                     disabled={audioProgress < 100}
-                    className={`flex-1 relative overflow-hidden rounded-xl md:rounded-2xl h-10 border-2 transition-all flex items-center justify-center gap-2 font-bold text-xs md:text-sm touch-none ${audioProgress < 100 ? 'bg-slate-100 border-slate-200 text-slate-400' : audioUsed ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-blue-500 border-blue-600 text-white shadow-md'}`}
+                    className={`flex-1 relative overflow-hidden rounded-xl md:rounded-2xl h-10 md:h-12 border-2 transition-all flex items-center justify-center gap-2 font-bold text-xs md:text-sm touch-none ${audioProgress < 100 ? 'bg-slate-100 border-slate-200 text-slate-400' : audioUsed ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-blue-500 border-blue-600 text-white shadow-md'}`}
                 >
                     <div className="absolute left-0 bottom-0 top-0 bg-blue-200/40 z-0 transition-all" style={{ width: `${audioProgress}%` }}></div>
-                    <Volume2 size={16} className="relative z-10" />
+                    <Volume2 size={18} className="relative z-10" />
                     <span className="relative z-10 hidden sm:block">सुनें (Hear)</span>
                 </button>
 
                 <button 
                     onClick={() => { if(visualProgress >= 100 && !visualUsed) { setVisualUsed(true); setMaxWordScore(m => Math.min(m, 1)); } }}
                     disabled={visualProgress < 100 || visualUsed}
-                    className={`flex-1 relative overflow-hidden rounded-xl md:rounded-2xl h-10 border-2 transition-all flex items-center justify-center gap-2 font-bold text-xs md:text-sm touch-none ${visualProgress < 100 ? 'bg-slate-100 border-slate-200 text-slate-400' : visualUsed ? 'bg-purple-50 border-purple-200 text-purple-600' : 'bg-purple-500 border-purple-600 text-white shadow-md'}`}
+                    className={`flex-1 relative overflow-hidden rounded-xl md:rounded-2xl h-10 md:h-12 border-2 transition-all flex items-center justify-center gap-2 font-bold text-xs md:text-sm touch-none ${visualProgress < 100 ? 'bg-slate-100 border-slate-200 text-slate-400' : visualUsed ? 'bg-purple-50 border-purple-200 text-purple-600' : 'bg-purple-500 border-purple-600 text-white shadow-md'}`}
                 >
                     <div className="absolute left-0 bottom-0 top-0 bg-purple-200/40 z-0 transition-all" style={{ width: `${visualProgress}%` }}></div>
-                    <Eye size={16} className="relative z-10" />
+                    <Eye size={18} className="relative z-10" />
                     <span className="relative z-10 hidden sm:block">देखें (See)</span>
                 </button>
             </div>
@@ -400,7 +418,7 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
         setScores(prev => ({ ...prev, [playerId]: prev[playerId] + points }));
     }, []);
 
-    // COMPACT MENU RENDER (Reduced Height constraints)
+    // COMPACT MENU RENDER
     if (gameState === 'menu') {
         return (
             <div className="w-full h-full min-h-[400px] flex flex-col items-center justify-center p-3 md:p-6 bg-slate-50 rounded-3xl overflow-y-auto relative">
