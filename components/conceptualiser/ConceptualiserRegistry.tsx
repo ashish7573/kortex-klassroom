@@ -12,6 +12,7 @@ const ConceptLoader = () => (
 // Core Modules
 const SwarVyanjanConceptualiser = dynamic(() => import('./SwarVyanjanConceptualiser'), { ssr: false, loading: () => <ConceptLoader /> });
 const HindiWordBuilder = dynamic(() => import('./HindiWordBuilder'), { ssr: false, loading: () => <ConceptLoader /> });
+const MatraBarahkhadi = dynamic(() => import('./MatraBarahkhadi'), { ssr: false, loading: () => <ConceptLoader /> });
 
 // Unique Tools 
 
@@ -25,6 +26,19 @@ const SPECIFIC_TOOLS: any = {
   'word-builder-2': HindiWordBuilder,
   'word-builder-3': HindiWordBuilder,
   'word-builder-4': HindiWordBuilder,
+
+  // Chapter 4: Matra Conceptualisers
+  'matra-aa': MatraBarahkhadi,
+  'matra-i': MatraBarahkhadi,
+  'matra-ee': MatraBarahkhadi,
+  'matra-u': MatraBarahkhadi,
+  'matra-oo': MatraBarahkhadi,
+  'matra-e': MatraBarahkhadi,
+  'matra-ai': MatraBarahkhadi,
+  'matra-o': MatraBarahkhadi,
+  'matra-au': MatraBarahkhadi,
+  'matra-ang': MatraBarahkhadi,
+  'matra-ah': MatraBarahkhadi,
 };
 
 export default function ConceptualiserRegistry({ lesson, onComplete }: any) {
