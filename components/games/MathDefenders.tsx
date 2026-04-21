@@ -83,7 +83,7 @@ const OPERATIONS = [
 
 export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   const [gameState, setGameState] = useState('menu'); 
-  const [config, setConfig] = useState({ ops: 'mul', players: 4, isHD: true }); // NEW: Graphics Toggle
+  const [config, setConfig] = useState({ ops: 'mul', players: 4, isHD: true });
   const [players, setPlayers] = useState<any[]>([]);
   
   const stateRef = useRef<any[]>([]);
@@ -183,11 +183,14 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
 
   const updatePlayerAction = (pId: number, updater: any) => {
     if (gameState !== 'playing') return;
+    
+    // HUGE FIX: We ONLY mutate the stateRef here. 
+    // We DO NOT call setPlayers([...stateRef.current]). 
+    // This stops 4 kids mashing buttons from causing 100+ renders per second!
     stateRef.current = stateRef.current.map(p => {
       if (p.id === pId && !p.isDead) return updater(p);
       return p;
     });
-    setPlayers([...stateRef.current]);
   };
 
   const handleNumpad = (pId: number, key: string) => {
@@ -227,7 +230,6 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
             <p className="text-slate-400 font-bold text-sm sm:text-base">Arcade Engine</p>
           </div>
 
-          {/* NEW: GRAPHICS TOGGLE */}
           <div className="mb-6 flex justify-center">
              <div className="bg-slate-800 p-1.5 rounded-xl inline-flex border border-slate-700 shadow-inner">
                 <button 
@@ -308,7 +310,11 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
 
   // --- PLAYING STATE ---
   return (
-    <div className="h-[80vh] min-h-[500px] w-full bg-slate-950 overflow-x-auto overflow-y-hidden flex select-none touch-none font-sans text-slate-200 rounded-3xl hide-scrollbar">
+    <div 
+      // PREVENT SMARTBOARD GHOST TOUCHES: Added onContextMenu disable
+      onContextMenu={(e) => e.preventDefault()}
+      className="h-[80vh] min-h-[500px] w-full bg-slate-950 overflow-x-auto overflow-y-hidden flex select-none touch-none font-sans text-slate-200 rounded-3xl hide-scrollbar"
+    >
       {players.map((p, index) => (
         <div 
           key={p.id} 
@@ -320,7 +326,7 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
           }`}
         >
           {/* Top HUD */}
-          <div className="absolute top-0 left-0 w-full p-3 z-10 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+          <div className="absolute top-0 left-0 w-full p-3 z-10 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
             <div className="font-mono text-xl font-bold text-white bg-black/50 px-3 py-1 rounded-lg border border-slate-700 backdrop-blur-sm">{p.score.toString().padStart(4, '0')}</div>
             <div className="flex gap-1">
               {[...Array(3)].map((_, i) => (
@@ -330,9 +336,8 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
           </div>
 
           {/* SPACE CANVAS */}
-          <div className={`flex-[5.5] relative overflow-hidden border-b-4 border-slate-700 ${config.isHD ? "bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black shadow-inner" : "bg-black"}`}>
+          <div className={`flex-[5.5] relative overflow-hidden border-b-4 border-slate-700 pointer-events-none ${config.isHD ? "bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black shadow-inner" : "bg-black"}`}>
             
-            {/* Conditional background star pattern (Disabled in Performance Mode) */}
             {config.isHD && (
               <div className="absolute inset-0 opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')] pointer-events-none"></div>
             )}
@@ -360,7 +365,6 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
                style={{ left: `${p.shipX}%`, willChange: 'left' }}
             >
               <Rocket size={40} fill="currentColor" className={`-rotate-45 sm:w-12 sm:h-12 ${p.moving !== 0 ? 'scale-110' : ''}`} />
-              {/* Optional engine glow */}
               {config.isHD && <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-4 h-6 bg-orange-500 blur-[4px] rounded-full animate-pulse opacity-80" />}
             </div>
 
@@ -388,7 +392,7 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
                   onPointerCancel={() => handleMovement(p.id, 0)}
                   className="flex-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl flex items-center justify-center shadow-lg transition-colors touch-none"
                 >
-                  <ChevronLeft size={32} className="text-slate-300 sm:w-10 sm:h-10" />
+                  <ChevronLeft size={32} className="text-slate-300 sm:w-10 sm:h-10 pointer-events-none" />
                 </button>
                 <button 
                   onPointerDown={() => handleMovement(p.id, 1)}
@@ -397,26 +401,30 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
                   onPointerCancel={() => handleMovement(p.id, 0)}
                   className="flex-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-xl flex items-center justify-center shadow-lg transition-colors touch-none"
                 >
-                  <ChevronRight size={32} className="text-slate-300 sm:w-10 sm:h-10" />
+                  <ChevronRight size={32} className="text-slate-300 sm:w-10 sm:h-10 pointer-events-none" />
                 </button>
               </div>
 
-              {/* Number Pad */}
+              {/* Number Pad: Switched entirely to onPointerDown! */}
               <div className="grid grid-cols-3 gap-1 sm:gap-2 flex-1">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                  <button key={num} onClick={() => handleNumpad(p.id, num.toString())} className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 active:scale-95 border border-slate-700 rounded-xl text-xl sm:text-2xl font-bold shadow-md transition-all flex items-center justify-center">
+                  <button key={num} onPointerDown={() => handleNumpad(p.id, num.toString())} className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 active:scale-95 border border-slate-700 rounded-xl text-xl sm:text-2xl font-bold shadow-md transition-all flex items-center justify-center touch-none">
                     {num}
                   </button>
                 ))}
-                <button onClick={() => handleNumpad(p.id, 'clear')} className="bg-red-900/40 hover:bg-red-800/60 active:scale-95 border border-red-900/50 text-red-300 rounded-xl text-sm sm:text-lg font-bold shadow-md transition-all flex items-center justify-center">CLR</button>
-                <button onClick={() => handleNumpad(p.id, '0')} className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 active:scale-95 border border-slate-700 rounded-xl text-xl sm:text-2xl font-bold shadow-md transition-all flex items-center justify-center">0</button>
-                <button onClick={() => handleNumpad(p.id, 'del')} className="bg-orange-900/40 hover:bg-orange-800/60 active:scale-95 border border-orange-900/50 text-orange-300 rounded-xl text-sm sm:text-lg font-bold shadow-md transition-all flex items-center justify-center">DEL</button>
+                <button onPointerDown={() => handleNumpad(p.id, 'clear')} className="bg-red-900/40 hover:bg-red-800/60 active:scale-95 border border-red-900/50 text-red-300 rounded-xl text-sm sm:text-lg font-bold shadow-md transition-all flex items-center justify-center touch-none">CLR</button>
+                <button onPointerDown={() => handleNumpad(p.id, '0')} className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 active:scale-95 border border-slate-700 rounded-xl text-xl sm:text-2xl font-bold shadow-md transition-all flex items-center justify-center touch-none">0</button>
+                <button onPointerDown={() => handleNumpad(p.id, 'del')} className="bg-orange-900/40 hover:bg-orange-800/60 active:scale-95 border border-orange-900/50 text-orange-300 rounded-xl text-sm sm:text-lg font-bold shadow-md transition-all flex items-center justify-center touch-none">DEL</button>
               </div>
 
-              {/* Fire Button */}
+              {/* Fire Button: Switched entirely to onPointerDown! */}
               <div className="w-1/4 min-w-[60px] sm:min-w-[70px] flex">
-                <button onClick={() => handleLaunch(p.id)} disabled={p.input !== p.question.answer || p.isDead} className={`w-full rounded-xl flex flex-col items-center justify-center font-black text-sm sm:text-xl tracking-wider transition-all duration-300 shadow-xl border-b-4 ${p.input === p.question.answer && !p.isDead ? 'bg-green-500 hover:bg-green-400 border-green-700 text-white scale-105' : 'bg-slate-800 border-slate-900 text-slate-600 opacity-60'}`}>
-                  <Rocket size={24} className={`mb-1 sm:mb-2 sm:w-8 sm:h-8 ${p.input === p.question.answer ? 'animate-bounce' : ''}`} />
+                <button 
+                  onPointerDown={() => handleLaunch(p.id)} 
+                  disabled={p.input !== p.question.answer || p.isDead} 
+                  className={`w-full rounded-xl flex flex-col items-center justify-center font-black text-sm sm:text-xl tracking-wider transition-all duration-300 shadow-xl border-b-4 touch-none ${p.input === p.question.answer && !p.isDead ? 'bg-green-500 hover:bg-green-400 border-green-700 text-white scale-105' : 'bg-slate-800 border-slate-900 text-slate-600 opacity-60'}`}
+                >
+                  <Rocket size={24} className={`mb-1 sm:mb-2 sm:w-8 sm:h-8 pointer-events-none ${p.input === p.question.answer ? 'animate-bounce' : ''}`} />
                   FIRE
                 </button>
               </div>

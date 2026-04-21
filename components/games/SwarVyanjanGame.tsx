@@ -1,5 +1,6 @@
+"use client";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Star, Heart, Trophy, Play, RotateCcw, Volume2, VolumeX, Clock, ArrowRight } from 'lucide-react';
+import { Star, Heart, Trophy, Play, RotateCcw, Volume2, VolumeX, Clock, ArrowRight, Zap, Monitor } from 'lucide-react';
 import { HINDI_ASSETS, SUBTOPIC_MAP } from '@/lib/SwarVyanjanDictionary';
 
 // Cumulative Review Order
@@ -82,6 +83,7 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   // --- GAME STATE ---
   const [gameState, setGameState] = useState<'start' | 'playing' | 'gameover'>('start');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [isHD, setIsHD] = useState(true); // NEW: Graphics Toggle
   const [targetLetter, setTargetLetter] = useState<string>('');
   const [targetImageUrl, setTargetImageUrl] = useState<string>(''); 
   const [score, setScore] = useState(0);
@@ -91,9 +93,10 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   const [screenShake, setScreenShake] = useState(false);
   const [floatingTexts, setFloatingTexts] = useState<any[]>([]);
   
+  // React only tracks the initial creation of bubbles to render the HTML nodes.
   const [bubbles, setBubbles] = useState<any[]>([]);
   
-  // Physics Refs
+  // Physics Refs (Source of Truth)
   const containerRef = useRef<HTMLDivElement>(null);
   const physicsBubblesRef = useRef<any[]>([]);
   const bubbleDOMRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
@@ -143,10 +146,9 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   const spawnBubble = useCallback((currentTarget: string, forceTarget = false, currentDiff = difficulty) => {
     if (!containerRef.current || !currentTarget) return null;
     
-    const container = containerRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    const radius = 35; 
+    // Instead of percentages, physics engine runs on raw pixel coordinates for smoother GPU translation
+    const containerWidth = containerRef.current.clientWidth;
+    const containerHeight = containerRef.current.clientHeight;
 
     const isTarget = forceTarget || Math.random() > 0.6;
     let bubbleLetter = currentTarget;
@@ -159,10 +161,11 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
 
     const color = PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
     
-    let speedMult = 0.2; 
-    if (currentDiff === 'easy') speedMult = 0.1 + (Math.random() * 0.1);
-    if (currentDiff === 'medium') speedMult = 0.2 + (Math.random() * 0.15);
-    if (currentDiff === 'hard') speedMult = 0.35 + (Math.random() * 0.2);
+    // Speed tuned for 60fps translation
+    let speedMult = 2; 
+    if (currentDiff === 'easy') speedMult = 1 + (Math.random() * 1);
+    if (currentDiff === 'medium') speedMult = 2 + (Math.random() * 1.5);
+    if (currentDiff === 'hard') speedMult = 3 + (Math.random() * 2);
 
     const imageExamples = HINDI_ASSETS[bubbleLetter]?.examples?.filter((ex: any) => ex.image) || [];
     const hasImage = imageExamples.length > 0;
@@ -176,8 +179,9 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
 
     return {
       id: Math.random().toString(36).substr(2, 9),
-      x: 10 + Math.random() * 70, 
-      y: 10 + Math.random() * 70, 
+      // Random starting position (kept away from extreme edges)
+      x: 50 + Math.random() * (containerWidth - 100), 
+      y: 50 + Math.random() * (containerHeight - 100), 
       vx: (Math.random() > 0.5 ? 1 : -1) * speedMult,
       vy: (Math.random() > 0.5 ? 1 : -1) * speedMult,
       letter: bubbleLetter,
@@ -189,23 +193,28 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   }, [activeLetters, difficulty]);
 
   const spawnInitialBubbles = useCallback((initialTarget: string, currentDiff: string) => {
-    const initialCount = currentDiff === 'hard' ? 12 : 8;
+    // Reduced bubble count slightly for performance mode
+    const isPerfMode = !isHD;
+    const initialCount = currentDiff === 'hard' ? (isPerfMode ? 10 : 12) : (isPerfMode ? 6 : 8);
     const newBubbles = [];
     for (let i = 0; i < initialCount; i++) {
       const b = spawnBubble(initialTarget, i < 3, currentDiff as any); 
       if (b) newBubbles.push(b);
     }
     physicsBubblesRef.current = newBubbles;
+    // We update React state ONCE to mount the HTML buttons.
     setBubbles([...physicsBubblesRef.current]);
-  }, [spawnBubble]);
+  }, [spawnBubble, isHD]);
 
-  // --- PHYSICS ENGINE ---
+  // --- HIGH PERFORMANCE PHYSICS ENGINE ---
   useEffect(() => {
     if (gameState !== 'playing') return;
 
+    // Spawner: Safely adds a new bubble to React state every few seconds
     const spawnInterval = setInterval(() => {
       setBubbles(prev => {
-        if (physicsBubblesRef.current.length >= (difficulty === 'hard' ? 12 : 8)) return prev;
+        const maxBubbles = difficulty === 'hard' ? (!isHD ? 10 : 12) : (!isHD ? 6 : 8);
+        if (physicsBubblesRef.current.length >= maxBubbles) return prev;
         
         const newB = spawnBubble(targetLetter, false);
         if (newB) {
@@ -217,26 +226,34 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
     }, difficulty === 'hard' ? 800 : 1500);
 
     let lastTime = performance.now();
+    
+    // Vanilla JS Loop: Modifies GPU Transform directly, completely bypassing React.
     const tick = (time: number) => {
-      const dt = (time - lastTime) / 16;
+      if (!containerRef.current) return;
+      const dt = (time - lastTime) / 16; // Normalizes speed to 60fps
       lastTime = time;
 
+      const containerWidth = containerRef.current.clientWidth;
+      const containerHeight = containerRef.current.clientHeight;
+      const bubbleSize = 90; // Approx max width of a bubble
+
       physicsBubblesRef.current.forEach(b => {
+        // Pop-in animation
         if (b.scale < 1) b.scale += 0.05 * dt;
 
         b.x += b.vx * dt;
         b.y += b.vy * dt;
 
-        if (b.x <= 2) { b.x = 2; b.vx *= -1; }
-        if (b.x >= 85) { b.x = 85; b.vx *= -1; }
-        if (b.y <= 2) { b.y = 2; b.vy *= -1; }
-        if (b.y >= 80) { b.y = 80; b.vy *= -1; }
+        // Perfect bounds checking using pixels
+        if (b.x <= 0) { b.x = 0; b.vx *= -1; }
+        if (b.x >= containerWidth - bubbleSize) { b.x = containerWidth - bubbleSize; b.vx *= -1; }
+        if (b.y <= 0) { b.y = 0; b.vy *= -1; }
+        if (b.y >= containerHeight - bubbleSize) { b.y = containerHeight - bubbleSize; b.vy *= -1; }
 
         const domNode = bubbleDOMRefs.current[b.id];
         if (domNode) {
-          domNode.style.left = `${b.x}%`;
-          domNode.style.top = `${b.y}%`;
-          domNode.style.transform = `scale(${Math.min(b.scale, 1)})`;
+          // HUGE FIX: Using translate3d forces the browser to use Hardware Acceleration!
+          domNode.style.transform = `translate3d(${b.x}px, ${b.y}px, 0) scale(${Math.min(b.scale, 1)})`;
         }
       });
 
@@ -249,7 +266,7 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
       clearInterval(spawnInterval);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState, difficulty, targetLetter, spawnBubble]);
+  }, [gameState, difficulty, targetLetter, spawnBubble, isHD]);
 
   // --- TIMER ---
   useEffect(() => {
@@ -263,7 +280,8 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   }, [gameState, timeLeft, endGame]);
 
   // --- INTERACTIONS ---
-  const handleBubbleClick = (id: string) => {
+  // Using onPointerDown for Arcade-level responsiveness (No waiting for click release)
+  const handleBubbleClick = (id: string, clickX: number, clickY: number) => {
     if (gameState !== 'playing') return;
 
     const bubbleIndex = physicsBubblesRef.current.findIndex(b => b.id === id);
@@ -275,7 +293,7 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
     if (bubble.letter === targetLetter) {
       playSound('correct', isMuted);
       setScore(s => s + 10);
-      setFloatingTexts(prev => [...prev, { id: textId, x: bubble.x, y: bubble.y, text: '+10', type: 'good' }]);
+      setFloatingTexts(prev => [...prev, { id: textId, x: clickX, y: clickY, text: '+10', type: 'good' }]);
     } else {
       playSound('incorrect', isMuted);
       setScore(s => Math.max(0, s - 5));
@@ -286,15 +304,17 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
       });
       setScreenShake(true);
       setTimeout(() => setScreenShake(false), 300);
-      setFloatingTexts(prev => [...prev, { id: textId, x: bubble.x, y: bubble.y, text: '-5', type: 'bad' }]);
+      setFloatingTexts(prev => [...prev, { id: textId, x: clickX, y: clickY, text: '-5', type: 'bad' }]);
     }
 
     setTimeout(() => {
       setFloatingTexts(prev => prev.filter(t => t.id !== textId));
     }, 1000);
 
+    // Physically remove the bubble from the array
     physicsBubblesRef.current.splice(bubbleIndex, 1);
     
+    // Check if we need to force a correct target to spawn
     const currentTargetsCount = physicsBubblesRef.current.filter(b => b.letter === targetLetter).length;
     const forceTarget = currentTargetsCount < 2; 
     
@@ -306,6 +326,7 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
       if (newB2) physicsBubblesRef.current.push(newB2);
     }
 
+    // Force ONE React render to unmount the popped bubble and mount the new ones
     setBubbles([...physicsBubblesRef.current]);
   };
 
@@ -327,11 +348,28 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900 p-4 md:p-6 text-center overflow-y-auto">
           <div className="w-full max-w-2xl bg-slate-800 p-6 md:p-12 rounded-3xl md:rounded-[2.5rem] border-4 border-slate-700 shadow-2xl my-auto">
             <h1 className="text-3xl md:text-5xl font-black text-white mb-2 md:mb-4">{lesson.title}</h1>
-            <p className="text-slate-400 font-bold text-sm md:text-xl mb-4 md:mb-8 leading-snug">
-              Pop the balloons that match the Target!<br/>
-              <span className="text-lime-400">+10 for correct</span> | <span className="text-rose-400">-5 for wrong</span><br/>
-              You have 30 seconds and 3 lives.
+            <p className="text-slate-400 font-bold text-sm md:text-xl mb-4 md:mb-6 leading-snug">
+              Arcade Engine <br/>
+              <span className="text-lime-400">+10 for correct</span> | <span className="text-rose-400">-5 for wrong</span>
             </p>
+
+            {/* GRAPHICS TOGGLE */}
+            <div className="mb-6 md:mb-8 flex justify-center">
+               <div className="bg-slate-900 p-1.5 rounded-xl inline-flex border border-slate-700 shadow-inner">
+                  <button 
+                    onClick={() => setIsHD(true)} 
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all ${isHD ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <Zap size={16} /> HD Mode
+                  </button>
+                  <button 
+                    onClick={() => setIsHD(false)} 
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all ${!isHD ? 'bg-amber-500 text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <Monitor size={16} /> Performance Mode
+                  </button>
+               </div>
+            </div>
 
             <div className="mb-6 md:mb-10 bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl inline-block border-2 border-slate-700 shadow-inner">
                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs md:text-sm mb-2">Target to Find:</p>
@@ -386,67 +424,76 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
       )}
 
       {/* PLAYING HUD */}
-      <div className="relative z-10 bg-slate-800/90 backdrop-blur-md p-2 md:p-5 border-b border-slate-700 flex flex-col md:flex-row justify-between items-center shrink-0 gap-2 md:gap-0 shadow-md">
+      <div className={`relative z-20 p-2 md:p-5 flex flex-col md:flex-row justify-between items-center shrink-0 gap-2 md:gap-0 shadow-md ${isHD ? 'bg-slate-800/90 backdrop-blur-md border-b border-slate-700' : 'bg-slate-900 border-b-2 border-slate-800'}`}>
         
         {/* Top Row on Mobile: Score, Lives, Timer */}
         <div className="flex w-full md:w-auto justify-between md:justify-start items-center gap-2 md:gap-4">
-           <div className="flex items-center gap-1.5 md:gap-2 bg-slate-900 px-2 py-1.5 md:px-3 md:py-2 rounded-lg md:rounded-xl border border-slate-700">
+           <div className={`flex items-center gap-1.5 md:gap-2 px-2 py-1.5 md:px-3 md:py-2 rounded-lg md:rounded-xl border ${isHD ? 'bg-slate-900 border-slate-700' : 'bg-black border-slate-800'}`}>
              <Star className="w-4 h-4 md:w-5 md:h-5 text-sky-500 fill-sky-500" /> <span className="font-black text-white text-sm md:text-xl leading-none">{score}</span>
            </div>
-           <div className="flex items-center gap-0.5 md:gap-1 bg-slate-900 px-2 py-1.5 md:px-3 md:py-2 rounded-lg md:rounded-xl border border-slate-700">
+           <div className={`flex items-center gap-0.5 md:gap-1 px-2 py-1.5 md:px-3 md:py-2 rounded-lg md:rounded-xl border ${isHD ? 'bg-slate-900 border-slate-700' : 'bg-black border-slate-800'}`}>
              {[...Array(3)].map((_, i) => (
                 <Heart key={i} className={`w-3 h-3 md:w-5 md:h-5 ${i < lives ? 'text-rose-500 fill-rose-500' : 'text-slate-700 fill-slate-800'}`} />
              ))}
            </div>
            
            {/* Mobile Timer */}
-           <div className={`md:hidden flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-lg border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'}`}>
+           <div className={`md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'} ${isHD ? 'bg-slate-900' : 'bg-black'}`}>
              <Clock className="w-4 h-4" /> <span className="font-black text-sm leading-none">0:{timeLeft.toString().padStart(2, '0')}</span>
            </div>
         </div>
 
         {/* Center Target Box - Relative on mobile (stacks below stats), Absolute on Desktop */}
-        <div className="relative md:absolute md:left-1/2 md:-translate-x-1/2 md:top-3 bg-indigo-600 px-4 md:px-6 py-1.5 md:py-2 rounded-full border-2 md:border-4 border-indigo-400 flex items-center justify-center gap-2 md:gap-4 shadow-sm w-fit mx-auto">
+        <div className={`relative md:absolute md:left-1/2 md:-translate-x-1/2 md:top-3 px-4 md:px-6 py-1.5 md:py-2 rounded-full border-2 md:border-4 flex items-center justify-center gap-2 md:gap-4 shadow-sm w-fit mx-auto ${isHD ? 'bg-indigo-600 border-indigo-400' : 'bg-indigo-700 border-indigo-500'}`}>
           <span className="text-indigo-200 font-bold uppercase hidden sm:block text-xs md:text-base">Find:</span>
           {mode === 'AUDIO_TO_LETTER' ? (
              <button onClick={playTargetAudioBtn} className="w-8 h-8 md:w-10 md:h-10 bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all"><Volume2 className="text-indigo-600 w-4 h-4 md:w-6 md:h-6"/></button>
           ) : mode === 'IMAGE_TO_LETTER' && targetImageUrl ? (
-             <img src={targetImageUrl} className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-md bg-white/20 rounded-full p-1" alt="Target" />
+             <img src={targetImageUrl} className={`w-8 h-8 md:w-10 md:h-10 object-contain rounded-full p-1 ${isHD ? 'drop-shadow-md bg-white/20' : 'bg-white/10'}`} alt="Target" />
           ) : (
              <span className="text-xl md:text-3xl font-black text-white leading-none">{targetLetter}</span>
           )}
         </div>
 
         {/* Desktop Timer */}
-        <div className={`hidden md:flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-xl border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'}`}>
+        <div className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-xl border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'} ${isHD ? 'bg-slate-900' : 'bg-black'}`}>
            <Clock className="w-5 h-5" /> <span className="font-black text-xl leading-none">0:{timeLeft.toString().padStart(2, '0')}</span>
         </div>
       </div>
 
       {/* PHYSICS PLAY AREA */}
-      <div ref={containerRef} className="flex-1 relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-800 to-slate-900 overflow-hidden touch-none">
+      <div ref={containerRef} className={`flex-1 relative overflow-hidden touch-none ${isHD ? 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-800 to-slate-900' : 'bg-slate-900'}`}>
+        
+        {/* Render Bubbles - Hardware Accelerated via translate3d */}
         {gameState === 'playing' && bubbles.map((bubble) => (
           <button
             key={bubble.id}
             ref={(el) => { bubbleDOMRefs.current[bubble.id] = el; }}
-            onPointerDown={() => handleBubbleClick(bubble.id)}
-            className={`absolute w-[70px] h-[70px] md:w-[90px] md:h-[90px] ${bubble.color} rounded-full shadow-lg flex items-center justify-center cursor-pointer select-none border-4 border-white/40 active:brightness-90 hover:scale-105 origin-center pointer-events-auto`}
-            style={{ willChange: 'transform' }} // No left/top here to prevent React fights!
+            onPointerDown={(e) => {
+              // Extract coordinates relative to the container for accurate text spawning
+              const rect = containerRef.current?.getBoundingClientRect();
+              const x = rect ? ((e.clientX - rect.left) / rect.width) * 100 : 50;
+              const y = rect ? ((e.clientY - rect.top) / rect.height) * 100 : 50;
+              handleBubbleClick(bubble.id, x, y);
+            }}
+            className={`absolute top-0 left-0 w-[70px] h-[70px] md:w-[90px] md:h-[90px] ${bubble.color} rounded-full flex items-center justify-center cursor-pointer select-none active:brightness-90 pointer-events-auto touch-none ${isHD ? 'shadow-lg border-4 border-white/40' : 'border-2 border-white/20'}`}
+            style={{ willChange: 'transform' }} // Absolute positioning is 0,0. Transformation moves it!
           >
-            <div className="absolute top-1 left-2 w-4 h-4 bg-white/40 rounded-full blur-[1px]"></div>
+            {isHD && <div className="absolute top-1 left-2 w-4 h-4 bg-white/40 rounded-full blur-[1px]"></div>}
             
             {bubble.displayType === 'image' && bubble.imageUrl ? (
-               <img src={bubble.imageUrl} className="w-10 h-10 md:w-14 md:h-14 object-contain pointer-events-none drop-shadow-md bg-white/30 rounded-full p-2" alt="bubble" />
+               <img src={bubble.imageUrl} className={`w-10 h-10 md:w-14 md:h-14 object-contain pointer-events-none rounded-full p-2 ${isHD ? 'drop-shadow-md bg-white/30' : 'bg-white/20'}`} alt="bubble" />
             ) : (
-               <span className="text-4xl font-black text-white drop-shadow-sm pointer-events-none">{bubble.letter}</span>
+               <span className={`text-4xl font-black text-white pointer-events-none ${isHD ? 'drop-shadow-sm' : ''}`}>{bubble.letter}</span>
             )}
           </button>
         ))}
 
+        {/* Floating Text - Bypasses React updates on the bubbles! */}
         {floatingTexts.map(ft => (
           <div
             key={ft.id}
-            className={`absolute pointer-events-none font-black text-3xl animate-out fade-out slide-out-to-top-8 duration-1000 ${
+            className={`absolute pointer-events-none font-black text-3xl animate-out fade-out slide-out-to-top-8 duration-1000 z-50 ${
               ft.type === 'good' ? 'text-lime-400 drop-shadow-lg' : 'text-rose-500 drop-shadow-lg'
             }`}
             style={{ left: `${ft.x}%`, top: `calc(${ft.y}% - 20px)`, transform: 'translate(-50%, -50%)' }}
