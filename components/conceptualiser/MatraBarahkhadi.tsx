@@ -83,7 +83,6 @@ export default function MatraBarahkhadi({ lesson }: any) {
   const [dropVyanjan, setDropVyanjan] = useState<string | null>(null);
   const [dropSwar, setDropSwar] = useState<any | null>(null);
   
-  // FIX: Added 'replaying' to the allowed TypeScript types
   const [combineState, setCombineState] = useState<'idle' | 'v_audio' | 's_audio' | 'combined' | 'ready' | 'flying' | 'replaying'>('idle');
   const [flyingBead, setFlyingBead] = useState<{char: string, startX: number, startY: number, targetX: number, targetY: number, bg: string, border: string, text: string} | null>(null);
 
@@ -253,23 +252,195 @@ export default function MatraBarahkhadi({ lesson }: any) {
 
   const combinedDisplay = (dropVyanjan && dropSwar) ? (dropVyanjan + dropSwar.matra) : '';
 
-  // --- HARDWARE BLOCKER FOR PHONES ---
+  // ============================================================================
+  // MOBILE RENDER (Stacked Vertical Layout based on new designs)
+  // ============================================================================
   if (isMobile) {
       return (
-          <div className="w-full h-[90vh] min-h-[500px] flex flex-col items-center justify-center p-6 bg-slate-50 text-center rounded-3xl border-4 border-slate-200">
-              <div className="relative mb-6">
-                  <Monitor size={80} className="text-slate-300" />
-                  <Smartphone size={32} className="text-rose-400 absolute -bottom-2 -right-2 bg-white rounded-md p-1 shadow-sm" />
-              </div>
-              <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-3">Screen Too Small</h2>
-              <p className="text-slate-500 font-bold text-base max-w-sm leading-snug">
-                  The Conceptualiser requires a larger workspace. Please open this lesson on a <span className="text-sky-500">Tablet</span>, <span className="text-sky-500">Laptop</span>, or <span className="text-sky-500">Smartboard</span>.
-              </p>
-          </div>
+        <div className="w-full h-[100dvh] flex flex-col p-2 bg-slate-50 font-sans select-none touch-none overflow-hidden pb-6">
+            
+            {/* DRAG LAYER (Mobile Scaled) */}
+            {dragItem && (
+                <div 
+                    className={`fixed z-50 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 w-12 h-14 rounded-lg shadow-2xl flex flex-col items-center justify-center font-black text-2xl opacity-90 leading-none border-2
+                        ${dragItem.type === 'swar' ? `${dragItem.value.bg} ${dragItem.value.border} ${dragItem.value.text}` : 'bg-white border-sky-400 text-slate-800'}
+                    `}
+                    style={{ left: dragItem.x, top: dragItem.y }}
+                >
+                    {dragItem.type === 'swar' ? (dragItem.value.id === 'a' ? dragItem.value.char : dragItem.value.matra) : dragItem.value}
+                </div>
+            )}
+
+            {/* FLYING BEAD LAYER (Mobile Scaled) */}
+            {flyingBead && (
+                <div 
+                    className={`fixed z-50 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border shadow-xl flex items-center justify-center font-black text-sm transition-all duration-700 ease-in-out leading-none ${flyingBead.bg} ${flyingBead.border} ${flyingBead.text}`}
+                    style={{ 
+                        left: flyingBead.targetX, 
+                        top: flyingBead.targetY,
+                        transform: `translate(calc(${flyingBead.startX - flyingBead.targetX}px - 50%), calc(${flyingBead.startY - flyingBead.targetY}px - 50%))` 
+                    }}
+                    ref={el => { if(el) setTimeout(() => el.style.transform = 'translate(-50%, -50%)', 50) }}
+                >
+                    {flyingBead.char}
+                </div>
+            )}
+
+            {/* 1. UPPER: BARAHKHADI VISUALISER (Mobile Compact Strip) */}
+            <div className="h-[20%] max-h-[140px] bg-white rounded-2xl border-2 border-pink-400 shadow-sm p-2 overflow-auto hide-scrollbar relative shrink-0 mb-2">
+                <div className="min-w-max">
+                    {/* Top Header Row (Vyanjans) */}
+                    <div className="flex gap-1 mb-1 sticky top-0 bg-white z-20 py-1 border-b border-slate-100">
+                        <div className="w-10 h-6 shrink-0 sticky left-0 bg-white z-30"></div> 
+                        {ACTIVE_VYANJANS.map(v => (
+                            <button key={`m-head-${v}`} onClick={() => playTTS(v)} className="w-8 h-6 bg-slate-100 text-slate-600 rounded flex items-center justify-center font-black text-xs shadow-inner shrink-0 leading-none hover:bg-slate-200 active:scale-95 transition-all">
+                                {v}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Swar Rows (Y-Axis) */}
+                    <div className="flex flex-col gap-1">
+                        {SWARS.map(s => (
+                            <div key={`m-row-${s.id}`} className="flex gap-1 relative">
+                                {/* Row Header (Swar/Matra) */}
+                                <button onClick={() => playTTS(s.char)} className={`w-10 h-8 ${s.bg} ${s.text} rounded flex flex-col items-center justify-center font-black shadow-sm shrink-0 sticky left-0 z-10 active:scale-95 transition-all`}>
+                                    <span className="text-[10px] leading-none">{s.char}</span>
+                                    <span className="text-[8px] opacity-75 leading-none mt-0.5">{s.matra || '-'}</span>
+                                </button>
+                                
+                                {/* Bead Columns */}
+                                {ACTIVE_VYANJANS.map(v => {
+                                    const cellId = `${v}-${s.id}`;
+                                    const isFilled = gridData[v]?.includes(v + s.matra);
+                                    return (
+                                        <div key={`m-cell-${v}`} className="relative w-8 h-8 flex items-center justify-center shrink-0">
+                                            <div className="absolute top-[-100vh] bottom-0 left-1/2 w-px bg-slate-100 -z-10 -translate-x-1/2"></div>
+                                            <div ref={el => { cellRefs.current[cellId] = el; }} className="absolute inset-0"></div>
+
+                                            {isFilled && (
+                                                <button 
+                                                    onClick={() => handleBeadClick(v, s)}
+                                                    disabled={combineState === 'replaying' || combineState === 'flying'}
+                                                    className={`w-6 h-6 ${s.bg} rounded-full flex items-center justify-center font-black text-[10px] ${s.text} shadow-sm border ${s.border} animate-in zoom-in duration-300 leading-none active:scale-90 transition-transform`}
+                                                >
+                                                    {v + s.matra}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* 2. VYANJANS (Mobile 2-Column Format) */}
+            <div className="shrink-0 h-[28%] max-h-[200px] bg-slate-100/50 rounded-2xl border-2 border-sky-200 p-2 flex flex-col hide-scrollbar overflow-hidden mb-2">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-2 w-full content-start overflow-y-auto pb-2 pr-1 h-full hide-scrollbar">
+                    {VYANJAN_GROUPS.map((group, gIdx) => (
+                        <div key={`m-grp-${gIdx}`} className="flex flex-col gap-1 col-span-1">
+                            <span className="text-[8px] text-slate-400 font-bold uppercase border-b border-slate-200 pb-0.5">{group.group}</span>
+                            <div className="flex flex-wrap gap-1">
+                                {group.letters.map(letter => {
+                                    const isDisabled = DISABLED_VYANJANS.includes(letter);
+                                    return (
+                                        <button 
+                                            key={`m-v-${letter}`}
+                                            onPointerDown={(e) => handlePointerDown(e, 'vyanjan', letter)}
+                                            className={`w-8 h-8 rounded border flex items-center justify-center font-black text-[14px] transition-all leading-none shrink-0
+                                                ${isDisabled 
+                                                    ? 'bg-slate-200 border-slate-300 text-slate-400 opacity-50' 
+                                                    : 'bg-white border-sky-200 text-slate-700 active:scale-95 touch-none'}
+                                            `}
+                                        >
+                                            {letter}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* 3. COMBINER (Mobile Centered) */}
+            <div className="flex-1 bg-white rounded-2xl border-2 border-slate-300 p-2 flex flex-col items-center justify-center shadow-sm relative z-10 shrink-0 mb-2">
+                <div className="w-full flex items-center justify-center gap-2">
+                    <div 
+                        ref={vDropRef}
+                        className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all duration-300 shadow-inner shrink-0
+                            ${combineState === 'v_audio' ? 'border-sky-400 bg-sky-50 scale-110' : 'border-slate-200 bg-slate-50'}
+                        `}
+                    >
+                        {dropVyanjan ? <span className="text-2xl font-black text-slate-800 leading-none">{dropVyanjan}</span> : <span className="text-slate-300 font-bold text-[8px] text-center leading-tight">Drop<br/>Vyanjan</span>}
+                    </div>
+
+                    <span className="text-2xl font-black text-sky-400">+</span>
+
+                    <div 
+                        ref={sDropRef}
+                        className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all duration-300 shadow-inner shrink-0
+                            ${!dropSwar ? 'border-slate-200 bg-slate-50' : `${dropSwar.border} ${dropSwar.bg}`}
+                            ${combineState === 's_audio' ? 'scale-110' : ''}
+                        `}
+                    >
+                        {dropSwar ? <span className={`text-3xl font-black leading-none ${dropSwar.text}`}>{dropSwar.id === 'a' ? dropSwar.char : dropSwar.matra}</span> : <span className="text-slate-300 font-bold text-[8px] text-center leading-tight">Drop<br/>Matra</span>}
+                    </div>
+                </div>
+
+                <button 
+                    ref={resultBoxRef}
+                    onClick={handleResultClick}
+                    disabled={combineState !== 'ready'}
+                    className={`w-[80%] max-w-[200px] h-16 rounded-xl border-2 flex items-center justify-center transition-all duration-500 my-2
+                        ${(combineState === 'combined' || combineState === 'ready') ? `${dropSwar.bg} ${dropSwar.border} shadow-sm cursor-pointer active:scale-95` : 'border-slate-200 bg-slate-50 opacity-50 cursor-default'}
+                        ${combineState === 'flying' ? 'opacity-0 scale-50' : ''}
+                    `}
+                >
+                    <span className={`text-4xl font-black leading-none ${(combineState === 'combined' || combineState === 'ready') ? dropSwar.text : 'text-slate-800'} ${combineState === 'combined' ? 'animate-pulse' : ''}`}>
+                        {(combineState === 'combined' || combineState === 'ready') ? combinedDisplay : ''}
+                    </span>
+                </button>
+
+                <button 
+                    disabled={combineState !== 'ready'}
+                    onClick={sendToBarahkhadi}
+                    className={`w-[80%] max-w-[200px] py-2 rounded-lg font-black text-xs flex items-center justify-center gap-1 transition-all duration-300 border-b-[3px] shrink-0
+                        ${combineState === 'ready' 
+                            ? 'bg-emerald-500 text-white border-emerald-700 active:border-b-0 active:translate-y-px shadow-sm' 
+                            : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed'}
+                    `}
+                >
+                    <ArrowUpCircle size={14} /> बारहखड़ी में भेजें
+                </button>
+            </div>
+
+            {/* 4. SWARS & MATRAS (Mobile 6x2 Grid) */}
+            <div className="shrink-0 bg-slate-100/50 rounded-2xl border-2 border-slate-200 p-2 flex flex-col items-center justify-center hide-scrollbar">
+                <span className="text-[8px] text-slate-400 font-bold uppercase mb-1">स्वर और मात्रा</span>
+                <div className="grid grid-cols-6 gap-1.5 w-full max-w-[340px] mx-auto">
+                    {SWARS.map(swar => (
+                        <button
+                            key={`m-s-${swar.id}`}
+                            onPointerDown={(e) => handlePointerDown(e, 'swar', swar)}
+                            className={`w-full aspect-square rounded-lg border ${swar.bg} ${swar.border} ${swar.text} shadow-sm flex flex-col items-center justify-center active:scale-95 touch-none`}
+                        >
+                            <span className="text-[10px] leading-none opacity-80 pointer-events-none">{swar.char}</span>
+                            <span className="text-base font-black leading-none pointer-events-none mt-0.5">{swar.matra || '-'}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+            
+        </div>
       );
   }
 
-  // --- MAIN RENDER (Tablets / Laptops / Smartboards) ---
+  // ============================================================================
+  // DESKTOP/TABLET RENDER (Unchanged)
+  // ============================================================================
   return (
     <div className="w-full h-[90vh] min-h-[650px] flex flex-col gap-3 p-3 bg-slate-50 font-sans select-none touch-none overflow-hidden">
         

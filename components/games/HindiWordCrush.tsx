@@ -119,8 +119,8 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
         
         let newBubbles = [];
         
-        // SPEED FIX: Reduced exactly 10% from 0.3 to 0.27
-        const speedMult = 0.27; 
+        // SPEED FIX: Reduced exactly 10% from 0.3 to 0.25
+        const speedMult = 0.25; 
         
         neededChars.forEach((char, index) => {
             newBubbles.push({
