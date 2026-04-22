@@ -31,31 +31,71 @@ const VYANJAN_GROUPS = [
 
 const DISABLED_VYANJANS = ['ङ', 'ञ']; 
 
-// --- TEMPORARY PROCEDURAL AUDIO ---
+// ============================================================================
+// MOBILE AUDIO UNLOCKER & ENGINE FIXES
+// ============================================================================
+let globalAudioCtx: any = null;
+let isAudioUnlocked = false;
+
+const unlockMobileAudio = () => {
+    if (isAudioUnlocked || typeof window === 'undefined') return;
+    
+    // 1. Force unlock iOS/Android Web Audio API (For the jingle)
+    try {
+        globalAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const emptySource = globalAudioCtx.createBufferSource();
+        emptySource.buffer = globalAudioCtx.createBuffer(1, 1, 22050);
+        emptySource.connect(globalAudioCtx.destination);
+        emptySource.start();
+        if (globalAudioCtx.state === 'suspended') globalAudioCtx.resume();
+    } catch (e) {}
+
+    // 2. Force unlock iOS Speech Synthesis 
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance('');
+        utterance.volume = 0; // Silent warmup
+        window.speechSynthesis.speak(utterance);
+    }
+    
+    isAudioUnlocked = true;
+};
+
 const playTTS = (text: string) => {
     if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'hi-IN';
-        utterance.rate = 0.8;
-        window.speechSynthesis.speak(utterance);
+        window.speechSynthesis.cancel(); 
+        
+        // Android Fix: A microscopic delay prevents the cancel() function from killing the new speech command
+        setTimeout(() => {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'hi-IN';
+            utterance.rate = 0.8;
+            window.speechSynthesis.speak(utterance);
+        }, 50); 
     }
 };
 
 const playJingle = () => {
     try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
+        if (!globalAudioCtx) globalAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (globalAudioCtx.state === 'suspended') globalAudioCtx.resume();
+
+        const osc = globalAudioCtx.createOscillator();
+        const gain = globalAudioCtx.createGain();
+        osc.connect(gain); 
+        gain.connect(globalAudioCtx.destination);
+        
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, ctx.currentTime); 
-        osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.2); 
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-        osc.start(); osc.stop(ctx.currentTime + 0.3);
+        osc.frequency.setValueAtTime(523.25, globalAudioCtx.currentTime); 
+        osc.frequency.exponentialRampToValueAtTime(1046.50, globalAudioCtx.currentTime + 0.2); 
+        
+        gain.gain.setValueAtTime(0.3, globalAudioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, globalAudioCtx.currentTime + 0.3);
+        
+        osc.start(); 
+        osc.stop(globalAudioCtx.currentTime + 0.3);
     } catch (e) {}
 };
+
 
 export default function MatraBarahkhadi({ lesson }: any) {
   
@@ -253,11 +293,14 @@ export default function MatraBarahkhadi({ lesson }: any) {
   const combinedDisplay = (dropVyanjan && dropSwar) ? (dropVyanjan + dropSwar.matra) : '';
 
   // ============================================================================
-  // MOBILE RENDER (Stacked Vertical Layout based on new designs)
+  // MOBILE RENDER (Stacked Vertical Layout)
   // ============================================================================
   if (isMobile) {
       return (
-        <div className="w-full h-[100dvh] flex flex-col p-2 bg-slate-50 font-sans select-none touch-none overflow-hidden pb-6">
+        <div 
+            className="w-full h-[100dvh] flex flex-col p-2 bg-slate-50 font-sans select-none touch-none overflow-hidden pb-6"
+            onPointerDownCapture={unlockMobileAudio} // INSTANT AUDIO UNLOCK ON FIRST TOUCH
+        >
             
             {/* DRAG LAYER (Mobile Scaled) */}
             {dragItem && (
@@ -442,7 +485,10 @@ export default function MatraBarahkhadi({ lesson }: any) {
   // DESKTOP/TABLET RENDER (Unchanged)
   // ============================================================================
   return (
-    <div className="w-full h-[90vh] min-h-[650px] flex flex-col gap-3 p-3 bg-slate-50 font-sans select-none touch-none overflow-hidden">
+    <div 
+        className="w-full h-[90vh] min-h-[650px] flex flex-col gap-3 p-3 bg-slate-50 font-sans select-none touch-none overflow-hidden"
+        onPointerDownCapture={unlockMobileAudio} // INSTANT AUDIO UNLOCK ON FIRST TOUCH
+    >
         
         {/* DRAG LAYER */}
         {dragItem && (
