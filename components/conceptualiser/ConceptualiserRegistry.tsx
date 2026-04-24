@@ -15,19 +15,37 @@ const HindiWordBuilder = dynamic(() => import('./HindiWordBuilder'), { ssr: fals
 const MatraBarahkhadi = dynamic(() => import('./MatraBarahkhadi'), { ssr: false, loading: () => <ConceptLoader /> });
 
 // Unique Tools 
-
 const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: false, loading: () => <ConceptLoader /> });
 
 // THE ROUTER: Map the Subtopic IDs from your CSV to the actual React Components
 const SPECIFIC_TOOLS: any = {
   'rounding-mountain': MountainRounding,
   
-  // Route all three word builder lessons to the same "Smart" component
+  // ==========================================
+  // HINDI WORD BUILDER ROUTING
+  // ==========================================
+  // Chapter 3: Amatrik Word Builders
   'word-builder-2': HindiWordBuilder,
   'word-builder-3': HindiWordBuilder,
   'word-builder-4': HindiWordBuilder,
 
-  // Chapter 4: Matra Conceptualisers
+  // Chapter 4: Matra Word Builders (Listens for the 'wb-' prefix!)
+  'wb-matra-aa': HindiWordBuilder,
+  'wb-matra-i': HindiWordBuilder,
+  'wb-matra-ee': HindiWordBuilder,
+  'wb-matra-u': HindiWordBuilder,
+  'wb-matra-oo': HindiWordBuilder,
+  'wb-matra-e': HindiWordBuilder,
+  'wb-matra-ai': HindiWordBuilder,
+  'wb-matra-o': HindiWordBuilder,
+  'wb-matra-au': HindiWordBuilder,
+  'wb-matra-ang': HindiWordBuilder,
+  'wb-matra-ah': HindiWordBuilder,
+
+  // ==========================================
+  // MATRA BARAHKHADI ROUTING
+  // ==========================================
+  // Chapter 4: Matra Conceptualisers (The Combiner tool)
   'matra-aa': MatraBarahkhadi,
   'matra-i': MatraBarahkhadi,
   'matra-ee': MatraBarahkhadi,
