@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Trophy, ArrowRight, Volume2, RotateCcw, FileEdit, CheckCircle, Star } from 'lucide-react';
-import { getWordsForSubtopic, getWordData } from '@/lib/HindiWordDictionary';
+// NEW: Imported HINDI_WORDS to access the entire library directly
+import { getWordsForSubtopic, getWordData, HINDI_WORDS } from '@/lib/HindiWordDictionary';
 
 // --- HELPER: Smart Image Fallback ---
 const SmartImage = ({ wordData, className, emojiSize }: { wordData: any, className: string, emojiSize: string }) => {
@@ -34,21 +35,30 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
   // 1. Generate 10 Random Words for Dictation
   useEffect(() => {
     const subtopicId = lesson?.subtopicId || lesson?.routePath?.split('/').pop() || '';
-    let dictionaryKey = 'word-builder-2'; // Default Fallback
+    let pool: any[] = [];
 
-    // SMART ROUTER: Checks if it's a Matra Lesson or a Legacy Chapter 3 Lesson
-    if (subtopicId.includes('matra')) {
-        // Converts "dictation-matra-aa" to "wb-matra-aa" to pull the correct words!
-        dictionaryKey = subtopicId.replace('dictation-', 'wb-');
-    } else {
+    // ==========================================
+    // SMART ROUTER ENGINE
+    // ==========================================
+    
+    // NEW: Chapter 5 (Barahkhadi) - Pulls every single word from the dictionary
+    if (subtopicId.includes('barahkhadi')) {
+        pool = Object.keys(HINDI_WORDS).map(w => getWordData(w)).filter(Boolean);
+    } 
+    // EXISTING: Chapter 4 (Matra) - Pulls specific matra words
+    else if (subtopicId.includes('matra')) {
+        const dictionaryKey = subtopicId.replace('dictation-', 'wb-');
+        pool = getWordsForSubtopic(dictionaryKey);
+    } 
+    // EXISTING: Chapter 3 (Amatrik) - Pulls based on word length
+    else {
         let wordLength = 2; 
         if (lesson?.subtopic && lesson.subtopic.includes('3')) wordLength = 3;
         if (lesson?.subtopic && lesson.subtopic.includes('4')) wordLength = 4;
-        dictionaryKey = `word-builder-${wordLength}`;
+        const dictionaryKey = `word-builder-${wordLength}`;
+        pool = getWordsForSubtopic(dictionaryKey);
     }
 
-    const pool = getWordsForSubtopic(dictionaryKey);
-    
     if (pool.length === 0) return;
 
     // Shuffle and pick 10 words

@@ -52,6 +52,7 @@ const SPECIFIC_QUIZZES: any = {
   'dictation-matra-au': HindiWordDictation,
   'dictation-matra-ang': HindiWordDictation,
   'dictation-matra-ah': HindiWordDictation,
+  'barahkhadi-dictation': HindiWordDictation,
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {
