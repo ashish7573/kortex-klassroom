@@ -1,6 +1,7 @@
 "use client";
 import dynamic from 'next/dynamic';
 import React, { Suspense } from 'react';
+import BarahkhadiVisualiser from './Barahkhadi';
 
 const ConceptLoader = () => (
   <div className="w-full h-[60vh] flex flex-col items-center justify-center bg-slate-50 rounded-[3xl] border-4 border-dashed border-slate-200">
@@ -20,6 +21,7 @@ const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: fals
 // THE ROUTER: Map the Subtopic IDs from your CSV to the actual React Components
 const SPECIFIC_TOOLS: any = {
   'rounding-mountain': MountainRounding,
+  'full-barahkhadi': BarahkhadiVisualiser,
   
   // ==========================================
   // HINDI WORD BUILDER ROUTING

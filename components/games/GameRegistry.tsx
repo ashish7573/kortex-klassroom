@@ -1,6 +1,7 @@
 "use client";
 import dynamic from 'next/dynamic';
 import React, { Suspense } from 'react';
+import BarahkhadiWordConnect from './BarahkhadiWordConnect';
 
 // Loading Shell
 const GameLoader = () => (
@@ -32,7 +33,7 @@ const HindiWordCrush = dynamic(() => import('./HindiWordCrush'), {
 
 // --- THE ROUTER SWITCHBOARD ---
 const SPECIFIC_GAMES: any = {
-  
+  'barahkhadi-word-connect': BarahkhadiWordConnect,
   'math-defenders': MathDefenders, // Catches your new arcade game from the CSV
   'hindi-word-crush': HindiWordCrush,
   'game-matra-aa': HindiWordCrush,
