@@ -26,10 +26,21 @@ const HindiWordDictation = dynamic(() => import('./HindiWordDictation'), {
   ssr: false, loading: () => <QuizLoader /> 
 });
 
-// --- THE ROUTER SWITCHBOARD ---
+// --- THE ROUTER SWITCHBOARD (subtopic id are matched here from csv)---
 const SPECIFIC_QUIZZES: any = {
-  'hindi-word-match': HindiWordQuiz, // Maps the CSV ID to your new game!
+  'hindi-word-match': HindiWordQuiz, 
   'hindi-word-dictation': HindiWordDictation,
+  'quiz-matra-aa': HindiWordQuiz,
+  'quiz-matra-i': HindiWordQuiz,
+  'quiz-matra-ee': HindiWordQuiz,
+  'quiz-matra-u': HindiWordQuiz,
+  'quiz-matra-oo': HindiWordQuiz,
+  'quiz-matra-e': HindiWordQuiz,
+  'quiz-matra-ai': HindiWordQuiz,
+  'quiz-matra-o': HindiWordQuiz,
+  'quiz-matra-au': HindiWordQuiz,
+  'quiz-matra-ang': HindiWordQuiz,
+  'quiz-matra-ah': HindiWordQuiz,
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {

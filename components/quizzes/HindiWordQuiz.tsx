@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useCallback, useRef } from 'react';
 import { Play, Trophy, Star, ArrowRight, CheckCircle, RotateCcw, Image as ImageIcon, Type } from 'lucide-react';
-// IMPORT FIX: Added getWordData to fetch the audio!
 import { getWordsForSubtopic, getWordData } from '@/lib/HindiWordDictionary';
 
 // --- HELPER: Smart Image Fallback ---
@@ -38,7 +37,7 @@ const playErrorBuzzer = () => {
         osc.connect(gainNode);
         gainNode.connect(ctx.destination);
         
-        osc.type = 'sawtooth'; // Harsh sound for error
+        osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(150, ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
         
@@ -53,9 +52,15 @@ const playErrorBuzzer = () => {
 };
 
 export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
+  const subtopicId = lesson?.subtopicId || lesson?.routePath?.split('/').pop() || 'word-builder-2';
+  
+  // --- MODE DETECTION ---
+  const isMatraQuiz = subtopicId.includes('matra');
+  // Alias the ID so it pulls from the exact same dictionary arrays we built for the Word Builder!
+  const fetchId = subtopicId.replace('quiz-', 'wb-');
+
   // --- STATE ---
   const [gameState, setGameState] = useState<'start' | 'playing' | 'completed'>('start');
-  const [currentLevel, setCurrentLevel] = useState<number>(2);
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -68,9 +73,8 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // --- QUESTION GENERATOR ---
-  const generateQuestions = useCallback((level: number) => {
-    const subtopicId = `word-builder-${level}`;
-    const wordPool = getWordsForSubtopic(subtopicId);
+  const generateQuestions = useCallback((targetFetchId: string) => {
+    const wordPool = getWordsForSubtopic(targetFetchId);
     
     if (wordPool.length === 0) return [];
 
@@ -88,14 +92,13 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
     });
   }, []);
 
-  const startGame = (level: number) => {
-    const generated = generateQuestions(level);
+  const startGame = (targetFetchId: string) => {
+    const generated = generateQuestions(targetFetchId);
     if (generated.length === 0) {
       alert("Error: No words found in dictionary for this level.");
       return;
     }
     setQuestions(generated);
-    setCurrentLevel(level);
     setCurrentIndex(0);
     setScore(0);
     setGameState('playing');
@@ -132,19 +135,17 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
 
     if (isCorrect) {
       setScore(prev => prev + 1);
-      playWordAudio(currentQ.target.word); // Play correct sound immediately
-      setTimeout(handleNextQuestion, 1500); // Short delay, then next
+      playWordAudio(currentQ.target.word);
+      setTimeout(handleNextQuestion, 1500);
     } else {
       setShakeClass('animate-[shake_0.5s_ease-in-out]');
-      playErrorBuzzer(); // Buzz immediately
+      playErrorBuzzer();
       
-      // Wait for buzz to finish, then speak the correct word while it's highlighted green
       setTimeout(() => {
           setShakeClass('');
           playWordAudio(currentQ.target.word);
       }, 500);
       
-      // Give them more time to hear the audio and see the correct answer
       setTimeout(handleNextQuestion, 2500);
     }
   };
@@ -166,27 +167,39 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-sky-100 rounded-full mb-6 border-4 border-sky-50 shadow-inner">
             <ImageIcon className="w-10 h-10 text-sky-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-800 mb-4">शब्द और चित्र</h1>
+          <h1 className="text-4xl md:text-5xl font-black text-slate-800 mb-4">{lesson?.title || 'शब्द और चित्र'}</h1>
           <p className="text-lg md:text-xl font-bold text-slate-500">अपना लेवल चुनें और खेलना शुरू करें!</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl px-4">
-          <button onClick={() => startGame(2)} className="group flex flex-col items-center bg-white p-8 rounded-[2rem] border-4 border-emerald-100 hover:border-emerald-400 hover:-translate-y-2 transition-all shadow-sm hover:shadow-xl">
-            <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🍎</div>
-            <h2 className="text-2xl font-black text-slate-800 mb-2">लेवल 1</h2>
-            <p className="text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded-full">दो अक्षर (2-Letter)</p>
-          </button>
-          <button onClick={() => startGame(3)} className="group flex flex-col items-center bg-white p-8 rounded-[2rem] border-4 border-amber-100 hover:border-amber-400 hover:-translate-y-2 transition-all shadow-sm hover:shadow-xl">
-            <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🦆</div>
-            <h2 className="text-2xl font-black text-slate-800 mb-2">लेवल 2</h2>
-            <p className="text-amber-600 font-bold bg-amber-50 px-4 py-2 rounded-full">तीन अक्षर (3-Letter)</p>
-          </button>
-          <button onClick={() => startGame(4)} className="group flex flex-col items-center bg-white p-8 rounded-[2rem] border-4 border-purple-100 hover:border-purple-400 hover:-translate-y-2 transition-all shadow-sm hover:shadow-xl">
-            <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🌳</div>
-            <h2 className="text-2xl font-black text-slate-800 mb-2">लेवल 3</h2>
-            <p className="text-purple-600 font-bold bg-purple-50 px-4 py-2 rounded-full">चार अक्षर (4-Letter)</p>
-          </button>
-        </div>
+        {isMatraQuiz ? (
+          // NEW: Dedicated Single Start Button for Specific Matras
+          <div className="flex justify-center w-full max-w-md px-4">
+            <button onClick={() => startGame(fetchId)} className="w-full group flex flex-col items-center bg-white p-8 rounded-[2rem] border-4 border-sky-100 hover:border-sky-400 hover:-translate-y-2 transition-all shadow-sm hover:shadow-xl">
+              <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🎯</div>
+              <h2 className="text-2xl font-black text-slate-800 mb-2">शुरू करें</h2>
+              <p className="text-sky-600 font-bold bg-sky-50 px-6 py-2 rounded-full uppercase tracking-widest text-sm">Start Quiz</p>
+            </button>
+          </div>
+        ) : (
+          // ORIGINAL: 3-Button Layout for Chapter 3
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl px-4">
+            <button onClick={() => startGame('word-builder-2')} className="group flex flex-col items-center bg-white p-8 rounded-[2rem] border-4 border-emerald-100 hover:border-emerald-400 hover:-translate-y-2 transition-all shadow-sm hover:shadow-xl">
+              <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🍎</div>
+              <h2 className="text-2xl font-black text-slate-800 mb-2">लेवल 1</h2>
+              <p className="text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded-full">दो अक्षर (2-Letter)</p>
+            </button>
+            <button onClick={() => startGame('word-builder-3')} className="group flex flex-col items-center bg-white p-8 rounded-[2rem] border-4 border-amber-100 hover:border-amber-400 hover:-translate-y-2 transition-all shadow-sm hover:shadow-xl">
+              <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🦆</div>
+              <h2 className="text-2xl font-black text-slate-800 mb-2">लेवल 2</h2>
+              <p className="text-amber-600 font-bold bg-amber-50 px-4 py-2 rounded-full">तीन अक्षर (3-Letter)</p>
+            </button>
+            <button onClick={() => startGame('word-builder-4')} className="group flex flex-col items-center bg-white p-8 rounded-[2rem] border-4 border-purple-100 hover:border-purple-400 hover:-translate-y-2 transition-all shadow-sm hover:shadow-xl">
+              <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🌳</div>
+              <h2 className="text-2xl font-black text-slate-800 mb-2">लेवल 3</h2>
+              <p className="text-purple-600 font-bold bg-purple-50 px-4 py-2 rounded-full">चार अक्षर (4-Letter)</p>
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -228,7 +241,7 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
       <div className="shrink-0 p-4 md:p-6 bg-white border-b-2 border-slate-100 flex justify-between items-center z-10 shadow-sm">
         <div className="flex items-center gap-3">
            <div className="bg-sky-100 text-sky-700 font-black px-4 py-1.5 rounded-full text-xs md:text-sm tracking-wider uppercase">
-             {currentLevel}-Letter Match
+             {isMatraQuiz ? 'मात्रा ज्ञान' : 'Word Match'}
            </div>
         </div>
         <div className="w-1/3 max-w-[200px] hidden sm:block">
@@ -243,8 +256,6 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
 
       {/* CORE GAMEPLAY ZONE */}
       <div className="flex-1 min-h-0 flex flex-col p-4 md:p-6 gap-6 relative">
-        
-        {/* TARGET AREA (Top Half) */}
         <div className={`flex-[0.45] min-h-0 w-full flex items-center justify-center transition-transform duration-300 ${shakeClass}`}>
           {currentQ.mode === 'IMAGE_TO_WORD' ? (
             <SmartImage 
@@ -261,7 +272,6 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
           )}
         </div>
 
-        {/* OPTIONS AREA (Bottom Half - 2x2 Grid) */}
         <div className="flex-[0.55] min-h-0 w-full max-w-4xl mx-auto grid grid-cols-2 grid-rows-2 gap-3 md:gap-6 pb-2">
           {currentQ.options.map((opt: any, idx: number) => {
             const isSelected = selectedOption === opt.word;
@@ -271,13 +281,10 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
             
             if (isAnswerSubmitted) {
               if (isCorrect) {
-                // Correct answer always turns green
                 buttonStyle = "bg-green-100 border-4 border-green-500 text-green-700 scale-105 shadow-lg z-10";
               } else if (isSelected && !isCorrect) {
-                // Clicked wrong answer turns red
                 buttonStyle = "bg-rose-100 border-4 border-rose-500 text-rose-700 opacity-80 scale-95";
               } else {
-                // Others fade out
                 buttonStyle = "bg-slate-50 border-4 border-slate-100 text-slate-400 opacity-40";
               }
             }
@@ -287,16 +294,13 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
                 key={idx}
                 disabled={isAnswerSubmitted}
                 onClick={() => handleOptionClick(opt.word)}
-                // SIZING FIX: Added min-h-0 min-w-0 to prevent flex blowout
                 className={`min-h-0 min-w-0 w-full h-full rounded-[1.5rem] md:rounded-[2rem] transition-all duration-300 relative overflow-hidden ${buttonStyle}`}
               >
                 {currentQ.mode === 'IMAGE_TO_WORD' ? (
-                  // TEXT WRAPPER FIX: Absolute positioning traps the text perfectly in the center
                   <div className="absolute inset-0 flex items-center justify-center p-2">
                     <span className="text-3xl md:text-5xl font-black drop-shadow-sm whitespace-nowrap">{opt.word}</span>
                   </div>
                 ) : (
-                  // IMAGE WRAPPER FIX: Absolute positioning ensures images can NEVER stretch the grid
                   <div className="absolute inset-3 md:inset-6 flex items-center justify-center pointer-events-none">
                     <SmartImage 
                       wordData={opt} 

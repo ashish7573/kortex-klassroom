@@ -7,7 +7,7 @@ import { getWordsForSubtopic, getWordData } from '@/lib/HindiWordDictionary';
 import { HINDI_ASSETS } from '@/lib/SwarVyanjanDictionary';
 
 const swars = ["अ", "आ", "इ", "ई", "उ", "ऊ", "ऋ", "ए", "ऐ", "ओ", "औ", "अं", "अः"];
-const HINDI_MATRAS = ["ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "ं", "ः"];
+const HINDI_MATRAS = ["", "ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "ं", "ः"];
 
 const vargs = [
     { label: "क-वर्ग", chars: ["क", "ख", "ग", "घ", "ङ"] }, { label: "च-वर्ग", chars: ["च", "छ", "ज", "झ", "ञ"] },
@@ -297,7 +297,7 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
             let tBase = char;
             let tMatra = "";
             for (let m of HINDI_MATRAS) {
-                if (char.endsWith(m)) {
+                if (m !== "" && char.endsWith(m)) {
                     tBase = char.replace(m, '');
                     tMatra = m;
                     break;
@@ -401,7 +401,8 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
             if (isMatraMode) {
                 state.headers.push({ text: "मात्रा (Signs)", x: paletteX, y: curY });
                 curY += 20;
-                HINDI_MATRAS.filter(m => m !== "").forEach((matra, i) => {
+                HINDI_MATRAS.forEach((matra, i) => {
+                    if (matra === "") return; // Skip rendering, but keep the spacing index!
                     const x = paletteX + (i * (boxSize + 4));
                     state.items.push({ char: "◌" + matra, value: matra, x, y: curY, size: boxSize, color: '#f59e0b', isMatra: true });
                 });
@@ -532,7 +533,8 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         if (Date.now() - state.clickStart.time < 250 && dist < 10) {
             if (di.isMatra) {
                 const mIdx = HINDI_MATRAS.indexOf(di.value);
-                if (mIdx > -1) playTTS(swars[mIdx] + " की मात्रा");
+                // Matra index perfectly matches Swar index, so play Swar audio!
+                if (mIdx > -1) playLocalAudio(swars[mIdx]); 
             } else {
                 playLocalAudio(di.char);
             }
