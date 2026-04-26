@@ -1,63 +1,77 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Rocket, Bug, Heart, ChevronLeft, ChevronRight, Play, Users, Trophy, X, Zap, Monitor } from 'lucide-react';
+import { Rocket, Bug, Heart, ChevronLeft, ChevronRight, Play, Users, Trophy, X, Zap, Monitor, Hash } from 'lucide-react';
 
-// --- MATH GENERATOR ---
-const generateQuestion = (type: string) => {
-  let a, b, answer, text;
+// --- DYNAMIC MATH GENERATOR ---
+const generateQuestion = (type: string, digits: number) => {
+  let a = 0, b = 0, answer = 0, text = "";
+  
+  // Helper to get min/max based on digit count
+  const getMinMax = (d: number) => ({
+    min: d === 1 ? 1 : Math.pow(10, d - 1),
+    max: Math.pow(10, d) - 1
+  });
+  
+  const { min, max } = getMinMax(digits);
+  const rand = (mn: number, mx: number) => Math.floor(Math.random() * (mx - mn + 1)) + mn;
+
   switch (type) {
-    case 'add_no_carry':
-      a = Math.floor(Math.random() * 80) + 10;
-      const a1 = a % 10;
-      const a10 = Math.floor(a / 10);
-      const b1 = Math.floor(Math.random() * (9 - a1));
-      const b10 = Math.floor(Math.random() * (9 - a10));
-      b = b10 * 10 + b1;
+    case 'add_no_carry': {
+      // Builds numbers digit-by-digit to mathematically guarantee NO carries
+      let aStr = "", bStr = "";
+      for (let i = 0; i < digits; i++) {
+        aStr += rand(1, 4);
+        bStr += rand(1, 4);
+      }
+      a = parseInt(aStr); b = parseInt(bStr);
       answer = a + b;
       text = `${a} + ${b}`;
       break;
-    case 'add_carry':
-      const ac1 = Math.floor(Math.random() * 8) + 2; 
-      const bc1 = Math.floor(Math.random() * (9 - (10 - ac1))) + (10 - ac1); 
-      const ac10 = Math.floor(Math.random() * 8) + 1;
-      const bc10 = Math.floor(Math.random() * (8 - ac10)) + 1;
-      a = ac10 * 10 + ac1;
-      b = bc10 * 10 + bc1;
+    }
+    case 'add_carry': {
+      a = rand(min, max);
+      b = rand(min, max);
       answer = a + b;
       text = `${a} + ${b}`;
       break;
-    case 'sub_no_carry':
-      const s1 = Math.floor(Math.random() * 9) + 1;
-      const s10 = Math.floor(Math.random() * 8) + 2;
-      const sb1 = Math.floor(Math.random() * (s1 + 1));
-      const sb10 = Math.floor(Math.random() * s10) + 1;
-      a = s10 * 10 + s1;
-      b = sb10 * 10 + sb1;
+    }
+    case 'sub_no_carry': {
+       // Builds numbers digit-by-digit to mathematically guarantee NO borrowing
+      let aStr = "", bStr = "";
+      for (let i = 0; i < digits; i++) {
+        aStr += rand(5, 9);
+        bStr += rand(1, 4);
+      }
+      a = parseInt(aStr); b = parseInt(bStr);
       answer = a - b;
       text = `${a} - ${b}`;
       break;
-    case 'sub_carry':
-      const sc1 = Math.floor(Math.random() * 8); 
-      const sbc1 = Math.floor(Math.random() * (9 - sc1)) + sc1 + 1; 
-      const sc10 = Math.floor(Math.random() * 8) + 2; 
-      const sbc10 = Math.floor(Math.random() * (sc10 - 1)) + 1; 
-      a = sc10 * 10 + sc1;
-      b = sbc10 * 10 + sbc1;
+    }
+    case 'sub_carry': {
+      a = rand(min, max);
+      b = rand(min, max);
+      // Ensure 'a' is always bigger so we don't get negative numbers
+      if (a < b) { const temp = a; a = b; b = temp; }
       answer = a - b;
       text = `${a} - ${b}`;
       break;
-    case 'mul':
-      a = Math.floor(Math.random() * 10) + 1;
-      b = Math.floor(Math.random() * 10) + 1;
+    }
+    case 'mul': {
+      a = rand(min, max);
+      // Keep the multiplier to 1 digit if they select 1, otherwise match digits
+      b = digits === 1 ? rand(2, 9) : rand(min, max);
       answer = a * b;
       text = `${a} × ${b}`;
       break;
-    case 'div':
-      b = Math.floor(Math.random() * 10) + 1;
-      answer = Math.floor(Math.random() * 10) + 1;
+    }
+    case 'div': {
+      b = rand(min, max);
+      // Keep division mental-math friendly by making the answer 1-digit
+      answer = rand(2, 9); 
       a = b * answer;
       text = `${a} ÷ ${b}`;
       break;
+    }
     default:
       a = 1; b = 1; answer = 1; text = "1x1";
   }
@@ -83,7 +97,8 @@ const OPERATIONS = [
 
 export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   const [gameState, setGameState] = useState('menu'); 
-  const [config, setConfig] = useState({ ops: 'mul', players: 4, isHD: true });
+  // NEW: Added 'digits' to the configuration state
+  const [config, setConfig] = useState({ ops: 'mul', digits: 2, players: 4, isHD: true });
   const [players, setPlayers] = useState<any[]>([]);
   
   const stateRef = useRef<any[]>([]);
@@ -173,7 +188,7 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   // --- ACTIONS ---
   const startGame = () => {
     const initPlayers = Array.from({ length: config.players }, (_, i) => ({
-      id: i, lives: 3, score: 0, question: generateQuestion(config.ops), input: "",
+      id: i, lives: 3, score: 0, question: generateQuestion(config.ops, config.digits), input: "",
       shipX: 50, moving: 0, missiles: [], enemies: [], isDead: false, theme: COLORS[i]
     }));
     stateRef.current = initPlayers;
@@ -184,9 +199,6 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   const updatePlayerAction = (pId: number, updater: any) => {
     if (gameState !== 'playing') return;
     
-    // HUGE FIX: We ONLY mutate the stateRef here. 
-    // We DO NOT call setPlayers([...stateRef.current]). 
-    // This stops 4 kids mashing buttons from causing 100+ renders per second!
     stateRef.current = stateRef.current.map(p => {
       if (p.id === pId && !p.isDead) return updater(p);
       return p;
@@ -198,7 +210,7 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
       let newInput = p.input;
       if (key === 'del') newInput = newInput.slice(0, -1);
       else if (key === 'clear') newInput = "";
-      else if (newInput.length < 4) newInput += key;
+      else if (newInput.length < 5) newInput += key; // Bumped to 5 to handle bigger answers
       return { ...p, input: newInput };
     });
   };
@@ -210,7 +222,7 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   const handleLaunch = (pId: number) => {
     updatePlayerAction(pId, (p: any) => {
       if (p.input === p.question.answer) {
-        return { ...p, input: "", question: generateQuestion(config.ops), missiles: [...p.missiles, { id: Math.random().toString(), x: p.shipX, y: 85 }] };
+        return { ...p, input: "", question: generateQuestion(config.ops, config.digits), missiles: [...p.missiles, { id: Math.random().toString(), x: p.shipX, y: 85 }] };
       }
       return p;
     });
@@ -261,13 +273,28 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
             </div>
           </div>
 
+          {/* NEW: SELECT DIGITS SECTION */}
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 flex items-center gap-2"><Hash className="text-yellow-400 w-5 h-5 sm:w-6 sm:h-6"/> Select Digits</h2>
+            <div className="flex gap-2 sm:gap-4">
+              {[1, 2, 3, 4, 5].map(num => (
+                <button
+                  key={num} onClick={() => setConfig(c => ({...c, digits: num}))}
+                  className={`flex-1 py-2 sm:py-3 rounded-xl border-2 text-lg sm:text-xl font-bold transition-all ${config.digits === num ? 'bg-yellow-600/20 border-yellow-500 text-yellow-400' : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-400'}`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mb-6 sm:mb-10">
             <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 flex items-center gap-2"><Users className="text-green-400 w-5 h-5 sm:w-6 sm:h-6"/> Select Players</h2>
             <div className="flex gap-2 sm:gap-4">
               {[1, 2, 3, 4].map(num => (
                 <button
                   key={num} onClick={() => setConfig(c => ({...c, players: num}))}
-                  className={`flex-1 py-2 sm:py-4 rounded-xl border-2 text-lg sm:text-2xl font-bold transition-all ${config.players === num ? 'bg-green-600/20 border-green-500 text-green-400' : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-400'}`}
+                  className={`flex-1 py-2 sm:py-4 rounded-xl border-2 text-lg sm:text-xl font-bold transition-all ${config.players === num ? 'bg-green-600/20 border-green-500 text-green-400' : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-400'}`}
                 >
                   {num}P
                 </button>

@@ -35,6 +35,17 @@ const SPECIFIC_GAMES: any = {
   
   'math-defenders': MathDefenders, // Catches your new arcade game from the CSV
   'hindi-word-crush': HindiWordCrush,
+  'game-matra-aa': HindiWordCrush,
+  'game-matra-i': HindiWordCrush,
+  'game-matra-ee': HindiWordCrush,
+  'game-matra-u': HindiWordCrush,
+  'game-matra-oo': HindiWordCrush,
+  'game-matra-e': HindiWordCrush,
+  'game-matra-ai': HindiWordCrush,
+  'game-matra-o': HindiWordCrush,
+  'game-matra-au': HindiWordCrush,
+  'game-matra-ang': HindiWordCrush,
+  'game-matra-ah': HindiWordCrush,
 };
 
 export default function GameRegistry({ lesson, onComplete }: any) {

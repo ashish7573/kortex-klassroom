@@ -33,19 +33,26 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
 
   // 1. Generate 10 Random Words for Dictation
   useEffect(() => {
-    // Look at the subtopic name from the database (e.g., "3-Letter Words") to figure out the level
-    let wordLength = 2; // Default
-    if (lesson.subtopic && lesson.subtopic.includes('3')) wordLength = 3;
-    if (lesson.subtopic && lesson.subtopic.includes('4')) wordLength = 4;
+    const subtopicId = lesson?.subtopicId || lesson?.routePath?.split('/').pop() || '';
+    let dictionaryKey = 'word-builder-2'; // Default Fallback
 
-    // Fetch from the correct dictionary pool
-    const dictionaryKey = `word-builder-${wordLength}`;
+    // SMART ROUTER: Checks if it's a Matra Lesson or a Legacy Chapter 3 Lesson
+    if (subtopicId.includes('matra')) {
+        // Converts "dictation-matra-aa" to "wb-matra-aa" to pull the correct words!
+        dictionaryKey = subtopicId.replace('dictation-', 'wb-');
+    } else {
+        let wordLength = 2; 
+        if (lesson?.subtopic && lesson.subtopic.includes('3')) wordLength = 3;
+        if (lesson?.subtopic && lesson.subtopic.includes('4')) wordLength = 4;
+        dictionaryKey = `word-builder-${wordLength}`;
+    }
+
     const pool = getWordsForSubtopic(dictionaryKey);
     
     if (pool.length === 0) return;
 
     // Shuffle and pick 10 words
-    let selected = pool.sort(() => 0.5 - Math.random()).slice(0, 10);
+    let selected = [...pool].sort(() => 0.5 - Math.random()).slice(0, 10);
     
     // Pad the array if the dictionary has fewer than 10 words
     while (selected.length > 0 && selected.length < 10) {
@@ -53,7 +60,7 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
     }
     
     setQuestions(selected);
-  }, [lesson.subtopic]);
+  }, [lesson]);
 
   // 2. Audio Handler
   const playDictationAudio = (idx: number, wordText: string) => {
@@ -77,7 +84,6 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
     setGameState('start');
     setPlayedCards([]);
     setIsRevealed(false);
-    // Reshuffle for replay value
     setQuestions(prev => [...prev].sort(() => 0.5 - Math.random()));
   };
 

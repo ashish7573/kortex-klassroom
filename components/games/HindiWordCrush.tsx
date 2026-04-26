@@ -114,12 +114,11 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
     };
 
     const loadNewWord = useCallback(() => {
+        if (wordPool.length === 0) return;
         const nextWord = wordPool[Math.floor(Math.random() * wordPool.length)];
         const neededChars = segmentWord(nextWord.word);
         
         let newBubbles = [];
-        
-        // SPEED FIX: Reduced exactly 10% from 0.3 to 0.25
         const speedMult = 0.25; 
         
         neededChars.forEach((char, index) => {
@@ -299,7 +298,7 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
                     <span className={`text-2xl md:text-3xl font-black text-${playerColor}-600 leading-none`}>{score}</span>
                 </div>
                 
-                {/* Center: Image & Slots (Stacked on mobile to increase HUD height and shrink bouncing area) */}
+                {/* Center: Image & Slots */}
                 <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 pr-16 md:pr-24 py-1 md:py-0">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-20 md:h-20 bg-slate-50 rounded-xl border-2 border-slate-200 p-1 shadow-sm shrink-0">
                         <SmartImage wordData={targetWord} className="w-full h-full object-contain border-none shadow-none bg-transparent" />
@@ -378,6 +377,12 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
 // MAIN WRAPPER 
 // ============================================================================
 export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
+    const subtopicId = lesson?.subtopicId || lesson?.routePath?.split('/').pop() || 'word-builder-2';
+    
+    // --- MODE DETECTOR ---
+    const isMatraMode = subtopicId.includes('matra');
+    const fetchId = subtopicId.replace('game-', 'wb-');
+
     const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover'>('menu');
     const [config, setConfig] = useState({ length: 2, players: 1, isHD: false }); 
     const [timeLeft, setTimeLeft] = useState(180); 
@@ -401,14 +406,15 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
         }
     }, [timeLeft, gameState]);
 
-    const startGame = (length: number, players: number) => {
-        const pool = getWordsForSubtopic(`word-builder-${length}`);
+    // NEW: Accepts a string ID instead of just a length number
+    const startGame = (targetId: string, players: number) => {
+        const pool = getWordsForSubtopic(targetId);
         if (pool.length < 5) {
             alert("Not enough words in the dictionary to play this level!");
             return;
         }
         setWordPool(pool);
-        setConfig(c => ({ ...c, length, players }));
+        setConfig(c => ({ ...c, players })); // Keep current HD setting
         setScores({ p1: 0, p2: 0 });
         setTimeLeft(180);
         setGameState('playing');
@@ -451,11 +457,18 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
                     <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col items-center text-center">
                         <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-2 md:mb-3"><User size={20} /></div>
                         <h2 className="text-lg md:text-xl font-black text-slate-800 mb-3">Solo Play</h2>
-                        <div className="flex flex-col gap-2 w-full">
-                            <button onClick={() => startGame(2, 1)} className="py-2.5 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">2-Letter Words</button>
-                            <button onClick={() => startGame(3, 1)} className="py-2.5 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">3-Letter Words</button>
-                            <button onClick={() => startGame(4, 1)} className="py-2.5 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">4-Letter Words</button>
-                        </div>
+                        
+                        {isMatraMode ? (
+                            <button onClick={() => startGame(fetchId, 1)} className="w-full py-3 bg-blue-500 text-white border-b-4 border-blue-700 hover:bg-blue-400 font-black rounded-xl transition-all text-sm md:text-base uppercase tracking-widest shadow-md">
+                                Start Mission
+                            </button>
+                        ) : (
+                            <div className="flex flex-col gap-2 w-full">
+                                <button onClick={() => startGame('word-builder-2', 1)} className="py-2.5 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">2-Letter Words</button>
+                                <button onClick={() => startGame('word-builder-3', 1)} className="py-2.5 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">3-Letter Words</button>
+                                <button onClick={() => startGame('word-builder-4', 1)} className="py-2.5 bg-white hover:bg-blue-50 border-b-4 border-slate-200 hover:border-blue-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">4-Letter Words</button>
+                            </div>
+                        )}
                     </div>
 
                     {isMobile ? (
@@ -468,11 +481,18 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
                         <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col items-center text-center">
                             <div className="w-10 h-10 md:w-12 md:h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-2 md:mb-3"><Users size={20}/></div>
                             <h2 className="text-lg md:text-xl font-black text-slate-800 mb-3">Versus Mode</h2>
-                            <div className="flex flex-col gap-2 w-full">
-                                <button onClick={() => startGame(2, 2)} className="py-2.5 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">2-Letter Words</button>
-                                <button onClick={() => startGame(3, 2)} className="py-2.5 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">3-Letter Words</button>
-                                <button onClick={() => startGame(4, 2)} className="py-2.5 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">4-Letter Words</button>
-                            </div>
+                            
+                            {isMatraMode ? (
+                                <button onClick={() => startGame(fetchId, 2)} className="w-full py-3 bg-rose-500 text-white border-b-4 border-rose-700 hover:bg-rose-400 font-black rounded-xl transition-all text-sm md:text-base uppercase tracking-widest shadow-md">
+                                    Start Versus
+                                </button>
+                            ) : (
+                                <div className="flex flex-col gap-2 w-full">
+                                    <button onClick={() => startGame('word-builder-2', 2)} className="py-2.5 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">2-Letter Words</button>
+                                    <button onClick={() => startGame('word-builder-3', 2)} className="py-2.5 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">3-Letter Words</button>
+                                    <button onClick={() => startGame('word-builder-4', 2)} className="py-2.5 bg-white hover:bg-rose-50 border-b-4 border-slate-200 hover:border-rose-400 font-black text-slate-700 rounded-xl transition-all text-sm md:text-base">4-Letter Words</button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

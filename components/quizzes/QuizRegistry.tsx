@@ -41,6 +41,17 @@ const SPECIFIC_QUIZZES: any = {
   'quiz-matra-au': HindiWordQuiz,
   'quiz-matra-ang': HindiWordQuiz,
   'quiz-matra-ah': HindiWordQuiz,
+  'dictation-matra-aa': HindiWordDictation,
+  'dictation-matra-i': HindiWordDictation,
+  'dictation-matra-ee': HindiWordDictation,
+  'dictation-matra-u': HindiWordDictation,
+  'dictation-matra-oo': HindiWordDictation,
+  'dictation-matra-e': HindiWordDictation,
+  'dictation-matra-ai': HindiWordDictation,
+  'dictation-matra-o': HindiWordDictation,
+  'dictation-matra-au': HindiWordDictation,
+  'dictation-matra-ang': HindiWordDictation,
+  'dictation-matra-ah': HindiWordDictation,
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {
