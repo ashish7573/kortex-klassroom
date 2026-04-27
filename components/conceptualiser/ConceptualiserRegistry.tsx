@@ -2,6 +2,7 @@
 import dynamic from 'next/dynamic';
 import React, { Suspense } from 'react';
 import BarahkhadiVisualiser from './Barahkhadi';
+import StoryConceptualiser from './FLNStoriesConceptualiser';
 
 const ConceptLoader = () => (
   <div className="w-full h-[60vh] flex flex-col items-center justify-center bg-slate-50 rounded-[3xl] border-4 border-dashed border-slate-200">
@@ -59,6 +60,16 @@ const SPECIFIC_TOOLS: any = {
   'matra-au': MatraBarahkhadi,
   'matra-ang': MatraBarahkhadi,
   'matra-ah': MatraBarahkhadi,
+  // ==========================================
+  // CHAPTER 7: STORIES (READING PHASE)
+  // ==========================================
+  'story-1-read': StoryConceptualiser,
+  'story-2-read': StoryConceptualiser,
+  'story-3-read': StoryConceptualiser,
+  'story-4-read': StoryConceptualiser,
+  'story-5-read': StoryConceptualiser,
+  'story-6-read': StoryConceptualiser,
+  'story-7-read': StoryConceptualiser,
 };
 
 export default function ConceptualiserRegistry({ lesson, onComplete }: any) {

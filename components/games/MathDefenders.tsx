@@ -89,8 +89,8 @@ const COLORS = [
 const OPERATIONS = [
   { id: 'add_no_carry', label: 'Addition (No Carry)' },
   { id: 'add_carry', label: 'Addition (With Carry)' },
-  { id: 'sub_no_carry', label: 'Subtraction (No Carry)' },
-  { id: 'sub_carry', label: 'Subtraction (With Carry)' },
+  { id: 'sub_no_carry', label: 'Subtraction (No Borrow)' },
+  { id: 'sub_carry', label: 'Subtraction (With Borrow)' },
   { id: 'mul', label: 'Multiplication' },
   { id: 'div', label: 'Division' },
 ];

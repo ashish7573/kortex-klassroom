@@ -1,6 +1,7 @@
 "use client";
 import dynamic from 'next/dynamic';
 import React, { Suspense } from 'react';
+import FLNStoryQuiz from './FLNStoryQuiz';
 
 const QuizLoader = () => (
   <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100">
@@ -53,6 +54,17 @@ const SPECIFIC_QUIZZES: any = {
   'dictation-matra-ang': HindiWordDictation,
   'dictation-matra-ah': HindiWordDictation,
   'barahkhadi-dictation': HindiWordDictation,
+
+  // ==========================================
+  // CHAPTER 7: STORIES (QUIZ PHASE)
+  // ==========================================
+  'story-1-quiz': FLNStoryQuiz,
+  'story-2-quiz': FLNStoryQuiz,
+  'story-3-quiz': FLNStoryQuiz,
+  'story-4-quiz': FLNStoryQuiz,
+  'story-5-quiz': FLNStoryQuiz,
+  'story-6-quiz': FLNStoryQuiz,
+  'story-7-quiz': FLNStoryQuiz,
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {
