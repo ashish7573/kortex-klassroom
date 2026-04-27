@@ -38,7 +38,7 @@ const splitHindiSyllables = (word: string) => {
 };
 
 // ============================================================================
-// FLAWLESS GRID COLLISION ALGORITHM
+// OPTIMIZED FAST-GRID COLLISION ALGORITHM (Smartboard Lag Patched)
 // ============================================================================
 const isValidPlacement = (candidateChars: string[], startRow: number, startCol: number, dir: string, gridMap: Map<string, string>) => {
     if (dir === 'across') {
@@ -69,7 +69,7 @@ const generateRandomLevel = () => {
     let bestLevel: any = null;
     let maxWordCount = 0;
 
-    for (let attempt = 0; attempt < 250; attempt++) {
+    for (let attempt = 0; attempt < 60; attempt++) {
         const rootWord = HINDI_WORDS[Math.floor(Math.random() * HINDI_WORDS.length)];
         const rootSyllables = splitHindiSyllables(rootWord);
         
@@ -77,9 +77,12 @@ const generateRandomLevel = () => {
         const gridMap = new Map<string, string>();
         rootSyllables.forEach((char, i) => gridMap.set(`20,${20+i}`, char));
         
-        const shuffledDict = [...HINDI_WORDS].sort(() => Math.random() - 0.5);
+        const candidateSubset = [];
+        for (let k = 0; k < 80; k++) {
+            candidateSubset.push(HINDI_WORDS[Math.floor(Math.random() * HINDI_WORDS.length)]);
+        }
 
-        for (const candidate of shuffledDict) {
+        for (const candidate of candidateSubset) {
             if (words.length >= 8) break;
             if (words.some(w => w.word === candidate)) continue;
             
@@ -141,14 +144,16 @@ const generateRandomLevel = () => {
         }
     }
     
-    const minRow = Math.min(...bestLevel.words.map((w: any) => w.row));
-    const minCol = Math.min(...bestLevel.words.map((w: any) => w.col));
-    bestLevel.words.forEach((w: any) => { w.row -= minRow; w.col -= minCol; });
+    if (bestLevel) {
+        const minRow = Math.min(...bestLevel.words.map((w: any) => w.row));
+        const minCol = Math.min(...bestLevel.words.map((w: any) => w.col));
+        bestLevel.words.forEach((w: any) => { w.row -= minRow; w.col -= minCol; });
+    }
     
     return bestLevel;
 };
 
-// --- SMART TTS ENGINE ---
+// --- AUDIO ENGINES ---
 const playTTS = (text: string) => {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel(); 
@@ -160,6 +165,26 @@ const playTTS = (text: string) => {
             window.speechSynthesis.speak(utterance);
         }, 50); 
     }
+};
+
+// Success Sound Chime
+const playSuccessSound = () => {
+    try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); 
+        osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.1); 
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+    } catch(e) { console.log("Audio skipped"); }
 };
 
 // ============================================================================
@@ -175,7 +200,7 @@ const PLAYER_THEMES = [
 // ============================================================================
 // COMPONENT: INDIVIDUAL PLAYER BOARD 
 // ============================================================================
-const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any) => {
+const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, onFinish, onHome }: any) => {
     const [foundWords, setFoundWords] = useState<string[]>([]);
     const [bonusWords, setBonusWords] = useState<string[]>([]);
     const [revealedHints, setRevealedHints] = useState<{r: number, c: number, char: string}[]>([]);
@@ -188,8 +213,13 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
     const [currentWord, setCurrentWord] = useState<string>('');
     const [isDrawing, setIsDrawing] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
+    
+    const [isBoardLocked, setIsBoardLocked] = useState(false);
 
     const wheelRef = useRef<HTMLDivElement>(null);
+
+    const rankIndex = finishOrder.indexOf(theme.id);
+    const playerRank = rankIndex !== -1 ? rankIndex + 1 : 0;
 
     useEffect(() => {
         if (levelData) {
@@ -197,22 +227,27 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
             setFoundWords([]);
             setBonusWords([]);
             setRevealedHints([]);
+            setIsBoardLocked(false);
         }
     }, [levelData]);
 
     useEffect(() => {
-        if (levelData && foundWords.length === levelData.words.length && levelData.words.length > 0) {
-            const timer = setTimeout(() => {
-                onFinish(theme.id);
-            }, 1200);
-            return () => clearTimeout(timer);
+        if (levelData && foundWords.length === levelData.words.length && levelData.words.length > 0 && !isBoardLocked) {
+            setIsBoardLocked(true); 
+            playSuccessSound();
+            playTTS('बहुत बढ़िया'); 
+            
+            onFinish(theme.id);
         }
-    }, [foundWords.length, levelData, theme.id, onFinish]);
+    }, [foundWords.length, levelData, theme.id, onFinish, isBoardLocked]);
 
-    const handleShuffle = () => setNodeOrder(prev => [...prev].sort(() => Math.random() - 0.5));
+    const handleShuffle = () => {
+        if (isBoardLocked) return;
+        setNodeOrder(prev => [...prev].sort(() => Math.random() - 0.5));
+    };
 
     const handleHint = () => {
-        if (coins < 25 || !levelData) return;
+        if (coins < 25 || !levelData || isBoardLocked) return;
         const emptyCells: {r: number, c: number, char: string}[] = [];
         
         levelData.words.forEach((w: any) => {
@@ -220,9 +255,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
                 w.chars.forEach((char: string, idx: number) => {
                     const r = w.dir === 'down' ? w.row + idx : w.row;
                     const c = w.dir === 'across' ? w.col + idx : w.col;
-                    
                     const alreadyHinted = revealedHints.some(h => h.r === r && h.c === c);
-                    
                     let alreadyRevealed = false;
                     levelData.words.forEach((chk: any) => {
                         if (foundWords.includes(chk.word)) {
@@ -249,11 +282,12 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
 
     const getNodePosition = (index: number, total: number) => {
         const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
-        const radius = isMultiplayer ? 30 : 35; 
+        const radius = isMultiplayer ? 42 : 46; 
         return { x: 50 + radius * Math.cos(angle), y: 50 + radius * Math.sin(angle) };
     };
 
     const handlePointerDown = (e: React.PointerEvent, actualNodeIndex: number) => {
+        if (isBoardLocked) return;
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
         setIsDrawing(true);
         setSelectedNodes([actualNodeIndex]);
@@ -272,7 +306,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
-        if (!isDrawing || !levelData) return;
+        if (!isDrawing || !levelData || isBoardLocked) return;
         updateMousePos(e);
 
         const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -289,7 +323,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
     };
 
     const handlePointerUp = () => {
-        if (!isDrawing || !levelData) return;
+        if (!isDrawing || !levelData || isBoardLocked) return;
         setIsDrawing(false);
         
         const matchedPuzzleWord = levelData.words.find((w: any) => w.word === currentWord);
@@ -325,7 +359,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
         }, 400);
     };
 
-    if (!levelData) return null;
+    if (!levelData) return <div className="w-full h-full flex items-center justify-center"><Sparkles className="animate-spin text-sky-500 w-8 h-8" /></div>;
 
     // --- GRID MATH ---
     const maxRow = Math.max(...levelData.words.map((w: any) => w.dir === 'down' ? w.row + w.chars.length - 1 : w.row));
@@ -357,7 +391,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
 
             if (isPartOfPuzzle) {
                 gridCells.push(
-                    <div key={`${r}-${c}`} className={`w-full h-full flex items-center justify-center rounded-md md:rounded-lg lg:rounded-xl text-lg sm:text-2xl lg:text-3xl font-black shadow-md transition-all duration-500 border-b-2 sm:border-b-4
+                    <div key={`${r}-${c}`} className={`w-full h-full flex items-center justify-center rounded-sm sm:rounded-md text-base sm:text-2xl lg:text-3xl font-black shadow-md transition-all duration-500 border-b-2 sm:border-b-4
                         ${isRevealed ? 'bg-amber-400 border-amber-600 text-amber-950 scale-100' : 
                           isHinted ? 'bg-sky-100 border-sky-300 text-sky-600 scale-100' : 'bg-white/20 border-white/30 text-transparent scale-100'}
                     `}>
@@ -376,62 +410,77 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
                         feedback === 'invalid' ? 'bg-red-500 text-white border-red-600 animate-shake' : 
                         feedback === 'exists' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-sky-600 border-sky-200';
 
-    return (
-        <div 
-            className={`relative flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden touch-none ${theme.base} ${isMultiplayer ? 'border-r last:border-r-0' : ''}`}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-        >
-            {/* FULL HUD */}
-            <div className="flex justify-between items-center p-3 lg:p-6 shrink-0 relative z-20 w-full">
-                <div className="bg-black/40 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-white/10 flex items-center gap-2 shadow-lg">
-                    <Trophy size={16} className="text-amber-400" />
-                    <span className="text-white font-black text-sm sm:text-lg">{score}</span>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    {isMultiplayer && <span className={`font-black text-sm sm:text-xl uppercase ${theme.accent}`}>P{theme.id}</span>}
-                    {bonusWords.length > 0 && (
-                        <div className="bg-purple-900/50 backdrop-blur-md px-3 sm:px-4 py-1 sm:py-1.5 rounded-full border border-purple-400/50 flex items-center gap-1 shadow-lg animate-in fade-in">
-                            <Sparkles size={14} className="text-purple-300" />
-                            <span className="text-purple-200 font-bold text-xs sm:text-sm">+{bonusWords.length}</span>
-                        </div>
-                    )}
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    <div className="bg-black/40 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-white/10 flex items-center gap-2 shadow-lg">
-                        <span className="text-white font-black text-sm sm:text-lg">{coins}</span>
-                        <Coins size={16} className="text-yellow-400" />
+    // ============================================================================
+    // STRICT VERTICAL/MULTIPLAYER LAYOUT (10 / 50 / 30 / 10)
+    // ============================================================================
+    if (isMultiplayer || isMobile) {
+        return (
+            <div 
+                className={`relative flex-1 flex flex-col w-full h-full overflow-hidden touch-none ${theme.base} ${isMultiplayer ? 'border-r border-white/10 last:border-r-0' : ''}`}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onPointerLeave={handlePointerUp} 
+            >
+                {/* WINNER RANKING OVERLAY FOR MULTIPLAYER */}
+                {playerRank > 0 && (
+                    <div className="absolute inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-500">
+                        <Trophy className="w-20 h-20 sm:w-24 sm:h-24 text-amber-400 mb-4 animate-bounce drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
+                        <span className="text-3xl sm:text-4xl font-black text-white">
+                            {playerRank}{playerRank === 1 ? 'st' : playerRank === 2 ? 'nd' : playerRank === 3 ? 'rd' : 'th'}
+                        </span>
+                        <span className="text-slate-300 font-bold uppercase tracking-widest mt-1">Finished</span>
                     </div>
-                    {!isMultiplayer && (
-                        <button onClick={onHome} className="bg-slate-800/80 hover:bg-red-500 text-slate-300 hover:text-white p-1.5 sm:p-2 rounded-xl border border-slate-700 shadow-lg transition-colors ml-1 z-50">
-                            <Home size={18} />
-                        </button>
-                    )}
-                </div>
-            </div>
+                )}
 
-            {/* GAME AREA */}
-            <div className={`flex-1 flex ${isMultiplayer ? 'flex-col' : 'flex-col lg:flex-row'} w-full min-h-0 pb-16`}>
-                
-                {/* GRID SECTION */}
-                <div className={`flex-1 lg:flex-[1.2] flex flex-col items-center justify-center p-2 sm:p-4 w-full h-full relative z-10 min-h-0 ${!isMultiplayer && 'lg:p-8'}`}>
+                {/* 1. HUD (10%) */}
+                <div className="h-[10%] w-full flex justify-between items-center px-2 sm:px-4 shrink-0">
+                    <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1 shadow-lg">
+                        <Trophy size={14} className="text-amber-400" />
+                        <span className="text-white font-black text-xs sm:text-sm">{score}</span>
+                    </div>
                     
-                    <div className={`h-12 shrink-0 flex items-center justify-center relative z-20 mb-2 ${!isMultiplayer && 'lg:mb-6 lg:h-16'}`}>
-                        <div className={`px-6 py-1.5 lg:py-3 rounded-full border-b-4 shadow-xl flex items-center justify-center min-w-[100px] lg:min-w-[140px] transition-all duration-300 ${currentWord ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} ${bubbleClass}`}>
-                            <span className="text-xl lg:text-3xl font-black tracking-widest">{currentWord}</span>
+                    <div className="flex items-center gap-1">
+                        {isMultiplayer && <span className={`font-black text-xs sm:text-sm uppercase ${theme.accent}`}>P{theme.id}</span>}
+                        {bonusWords.length > 0 && (
+                            <div className="bg-purple-900/50 backdrop-blur-md px-2 py-1 rounded-full border border-purple-400/50 flex items-center gap-1 shadow-lg">
+                                <Sparkles size={12} className="text-purple-300" />
+                                <span className="text-purple-200 font-bold text-[10px] sm:text-xs">+{bonusWords.length}</span>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                        <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1 shadow-lg">
+                            <span className="text-white font-black text-xs sm:text-sm">{coins}</span>
+                            <Coins size={14} className="text-yellow-400" />
+                        </div>
+                        {!isMultiplayer && (
+                            <button onClick={onHome} className="bg-slate-800/80 hover:bg-red-500 text-slate-300 hover:text-white p-1 rounded-lg border border-slate-700 shadow-lg ml-1">
+                                <Home size={14} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* 2. PUZZLE AREA (50%) */}
+                <div className="h-[50%] w-full flex flex-col items-center justify-start shrink-0 relative">
+                    <div className="h-[20%] w-full flex items-center justify-center shrink-0">
+                        <div className={`px-4 py-1.5 rounded-full border-b-2 shadow-xl flex items-center justify-center min-w-[80px] sm:min-w-[100px] transition-all duration-300 ${currentWord ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} ${bubbleClass}`}>
+                            <span className="text-lg sm:text-xl font-black tracking-widest">{currentWord}</span>
                         </div>
                     </div>
-
-                    <div className="flex-1 w-full max-h-[40vh] lg:max-h-[55vh] flex items-center justify-center overflow-hidden">
+                    <div className="h-[80%] w-full flex items-center justify-center p-2 overflow-visible">
                         <div 
-                            className="grid gap-1 sm:gap-1.5 w-full h-full max-w-[85%] sm:max-w-md lg:max-w-lg mx-auto" 
+                            className="grid gap-1 sm:gap-1.5 mx-auto" 
                             style={{ 
                                 gridTemplateColumns: `repeat(${maxCol + 1}, minmax(0, 1fr))`,
                                 gridTemplateRows: `repeat(${maxRow + 1}, minmax(0, 1fr))`,
-                                aspectRatio: `${maxCol + 1} / ${maxRow + 1}` 
+                                aspectRatio: `${maxCol + 1} / ${maxRow + 1}`,
+                                width: '100%', 
+                                height: '100%', 
+                                maxHeight: '100%',
+                                maxWidth: '100%'
                             }}
                         >
                             {gridCells}
@@ -439,11 +488,135 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
                     </div>
                 </div>
 
-                {/* WHEEL SECTION */}
-                <div className={`flex-1 w-full ${isMultiplayer ? 'max-w-[220px] sm:max-w-[280px] lg:max-w-[320px]' : 'max-w-[280px] sm:max-w-[340px] lg:max-w-[420px] lg:p-8'} mx-auto relative flex flex-col items-center justify-center min-h-0`}>
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[85%] lg:w-[80%] aspect-square bg-black/30 backdrop-blur-sm rounded-full border border-white/10 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)] z-0"></div>
+                {/* 3. DIAL AREA (30%) */}
+                <div className="h-[30%] w-full flex items-center justify-center shrink-0 relative p-2 sm:p-4">
+                    <div className="h-full aspect-square max-w-full relative flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 z-0 m-1 sm:m-2"></div>
+                        <div className="absolute inset-1 sm:inset-2 z-10" ref={wheelRef}>
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
+                                {selectedNodes.map((nodeIdx, i) => {
+                                    if (i === selectedNodes.length - 1) return null;
+                                    const nextIdx = selectedNodes[i + 1];
+                                    const pos1 = getNodePosition(nodeOrder.indexOf(nodeIdx), nodeOrder.length);
+                                    const pos2 = getNodePosition(nodeOrder.indexOf(nextIdx), nodeOrder.length);
+                                    return (
+                                        <line 
+                                            key={`line-${i}`}
+                                            x1={`${pos1.x}%`} y1={`${pos1.y}%`} 
+                                            x2={`${pos2.x}%`} y2={`${pos2.y}%`} 
+                                            stroke={strokeColor} strokeWidth="8" strokeLinecap="round" opacity="0.8"
+                                            className="transition-colors duration-200"
+                                        />
+                                    );
+                                })}
+                                {isDrawing && selectedNodes.length > 0 && (
+                                    <line 
+                                        x1={`${getNodePosition(nodeOrder.indexOf(selectedNodes[selectedNodes.length - 1]), nodeOrder.length).x}%`} 
+                                        y1={`${getNodePosition(nodeOrder.indexOf(selectedNodes[selectedNodes.length - 1]), nodeOrder.length).y}%`} 
+                                        x2={`${mousePos.x}%`} y2={`${mousePos.y}%`} 
+                                        stroke={strokeColor} strokeWidth="8" strokeLinecap="round" opacity="0.8"
+                                    />
+                                )}
+                            </svg>
 
-                    <div className="w-[85%] lg:w-[80%] aspect-square relative z-10" ref={wheelRef}>
+                            {nodeOrder.map((actualNodeIndex, renderIndex) => {
+                                const pos = getNodePosition(renderIndex, nodeOrder.length);
+                                const isSelected = selectedNodes.includes(actualNodeIndex);
+                                return (
+                                    <div 
+                                        key={actualNodeIndex}
+                                        data-node-id={actualNodeIndex}
+                                        onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
+                                        className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-12 sm:h-12 text-sm sm:text-xl
+                                            ${isSelected 
+                                                ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
+                                                : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
+                                        `}
+                                        style={{ left: `${pos.x}%`, top: `${pos.y}%`, transition: isDrawing ? 'transform 0.1s' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                                    >
+                                        <span className="pointer-events-none">{levelData.nodes[actualNodeIndex]}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* 4. CONTROLS AREA (10%) */}
+                <div className="h-[10%] w-full flex justify-between items-center px-4 sm:px-6 shrink-0 pb-2">
+                    <button onClick={handleShuffle} className="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm text-white p-2.5 sm:p-3 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center z-40 relative">
+                        <Shuffle size={16} />
+                    </button>
+                    <button onClick={handleHint} className="bg-amber-500 hover:bg-amber-400 text-amber-950 p-2.5 sm:p-3 rounded-full border border-amber-600 shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center z-40 relative">
+                        <Lightbulb size={16} />
+                        <span className="text-[9px] font-black mt-0.5 bg-amber-950 text-amber-400 px-1 rounded-full leading-none">25</span>
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
+    // DESKTOP SINGLE PLAYER LAYOUT (Landscape Side-by-Side)
+    // ============================================================================
+    return (
+        <div 
+            className={`relative flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden touch-none p-3 ${theme.base}`}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onPointerLeave={handlePointerUp} 
+        >
+            <div className="flex justify-between items-center px-2 py-3 lg:p-6 shrink-0 relative w-full mt-2 lg:mt-0">
+                <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 shadow-lg">
+                    <Trophy size={16} className="text-amber-400" />
+                    <span className="text-white font-black text-lg">{score}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    {bonusWords.length > 0 && (
+                        <div className="bg-purple-900/50 backdrop-blur-md px-4 py-1.5 rounded-full border border-purple-400/50 flex items-center gap-1 shadow-lg animate-in fade-in">
+                            <Sparkles size={14} className="text-purple-300" />
+                            <span className="text-purple-200 font-bold text-sm">+{bonusWords.length}</span>
+                        </div>
+                    )}
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 shadow-lg">
+                        <span className="text-white font-black text-lg">{coins}</span>
+                        <Coins size={16} className="text-yellow-400" />
+                    </div>
+                    <button onClick={onHome} className="bg-slate-800/80 hover:bg-red-500 text-slate-300 hover:text-white p-2 rounded-xl border border-slate-700 shadow-lg transition-colors ml-1 z-50">
+                        <Home size={18} />
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex-1 flex flex-row w-full min-h-0">
+                <div className="flex-[1.5] flex flex-col items-center justify-center p-8 w-full h-full relative z-10 min-h-0">
+                    <div className="h-16 shrink-0 flex items-center justify-center relative mb-6">
+                        <div className={`px-6 py-3 rounded-full border-b-4 shadow-xl flex items-center justify-center min-w-[140px] transition-all duration-300 ${currentWord ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} ${bubbleClass}`}>
+                            <span className="text-3xl font-black tracking-widest">{currentWord}</span>
+                        </div>
+                    </div>
+                    <div className="flex-1 w-full max-h-[60vh] flex items-center justify-center overflow-visible p-2">
+                        <div 
+                            className="grid gap-1.5 mx-auto" 
+                            style={{ 
+                                gridTemplateColumns: `repeat(${maxCol + 1}, minmax(0, 1fr))`,
+                                gridTemplateRows: `repeat(${maxRow + 1}, minmax(0, 1fr))`,
+                                aspectRatio: `${maxCol + 1} / ${maxRow + 1}`,
+                                width: '100%', height: '100%', maxHeight: '100%' 
+                            }}
+                        >
+                            {gridCells}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex-1 max-w-[420px] p-8 mx-auto relative flex flex-col items-center justify-center min-h-0">
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[80%] aspect-square bg-black/30 backdrop-blur-sm rounded-full border border-white/10 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)] z-0"></div>
+
+                    <div className="w-[80%] aspect-square relative z-10" ref={wheelRef}>
                         <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
                             {selectedNodes.map((nodeIdx, i) => {
                                 if (i === selectedNodes.length - 1) return null;
@@ -455,8 +628,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
                                         key={`line-${i}`}
                                         x1={`${pos1.x}%`} y1={`${pos1.y}%`} 
                                         x2={`${pos2.x}%`} y2={`${pos2.y}%`} 
-                                        stroke={strokeColor} strokeWidth={isMultiplayer ? "10" : "14"} strokeLinecap="round" opacity="0.8"
-                                        className="transition-colors duration-200"
+                                        stroke={strokeColor} strokeWidth="14" strokeLinecap="round" opacity="0.8"
                                     />
                                 );
                             })}
@@ -465,7 +637,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
                                     x1={`${getNodePosition(nodeOrder.indexOf(selectedNodes[selectedNodes.length - 1]), nodeOrder.length).x}%`} 
                                     y1={`${getNodePosition(nodeOrder.indexOf(selectedNodes[selectedNodes.length - 1]), nodeOrder.length).y}%`} 
                                     x2={`${mousePos.x}%`} y2={`${mousePos.y}%`} 
-                                    stroke={strokeColor} strokeWidth={isMultiplayer ? "10" : "14"} strokeLinecap="round" opacity="0.8"
+                                    stroke={strokeColor} strokeWidth="14" strokeLinecap="round" opacity="0.8"
                                 />
                             )}
                         </svg>
@@ -478,9 +650,10 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
                                     key={actualNodeIndex}
                                     data-node-id={actualNodeIndex}
                                     onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
-                                    className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 border-b-4
-                                        ${isMultiplayer ? 'w-10 h-10 sm:w-12 sm:h-12 text-lg sm:text-xl' : 'w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 text-xl lg:text-3xl'}
-                                        ${isSelected ? `bg-white border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` : 'bg-white border-slate-300 text-slate-800 shadow-xl hover:scale-105'}
+                                    className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-4xl
+                                        ${isSelected 
+                                            ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
+                                            : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
                                     `}
                                     style={{ left: `${pos.x}%`, top: `${pos.y}%`, transition: isDrawing ? 'transform 0.1s' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
                                 >
@@ -492,16 +665,15 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, onFinish, onHome }: any)
                 </div>
             </div>
 
-            {/* ACTION BUTTONS: Moved to the EXTREME bottom corners of the PlayerBoard */}
-            <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 z-40">
-                <button onClick={handleShuffle} className="bg-slate-800 hover:bg-slate-700 text-white p-3 lg:p-4 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center">
-                    <Shuffle size={18} className="lg:w-6 lg:h-6" />
+            <div className="absolute bottom-4 left-4 z-50 pointer-events-auto">
+                <button onClick={handleShuffle} className="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm text-white p-4 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center">
+                    <Shuffle size={18} className="w-6 h-6" />
                 </button>
             </div>
             
-            <div className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 z-40">
-                <button onClick={handleHint} className="bg-amber-500 hover:bg-amber-400 text-amber-950 p-3 lg:p-4 rounded-full border border-amber-600 shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center">
-                    <Lightbulb size={18} className="lg:w-6 lg:h-6" />
+            <div className="absolute bottom-4 right-4 z-50 pointer-events-auto">
+                <button onClick={handleHint} className="bg-amber-500 hover:bg-amber-400 text-amber-950 p-4 rounded-full border border-amber-600 shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center">
+                    <Lightbulb size={18} className="w-6 h-6" />
                     <span className="text-[10px] font-black mt-1 bg-amber-950 text-amber-400 px-1.5 rounded-full leading-none">25</span>
                 </button>
             </div>
@@ -516,7 +688,7 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover'>('menu');
   const [numPlayers, setNumPlayers] = useState(1);
   const [levelsData, setLevelsData] = useState<any[]>([]); 
-  const [winner, setWinner] = useState<number | null>(null);
+  const [finishOrder, setFinishOrder] = useState<number[]>([]);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -533,16 +705,25 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   const startGame = () => {
       const newLevels = [];
       for (let i = 0; i < numPlayers; i++) {
-          newLevels.push(generateRandomLevel());
+          const level = generateRandomLevel();
+          if (level) newLevels.push(level);
       }
       setLevelsData(newLevels);
-      setWinner(null);
+      setFinishOrder([]);
       setGameState('playing');
   };
 
   const handlePlayerFinish = (playerId: number) => {
-      setWinner(playerId);
-      setGameState('gameover');
+      if (!finishOrder.includes(playerId)) {
+          const newOrder = [...finishOrder, playerId];
+          setFinishOrder(newOrder);
+
+          if (numPlayers === 1) {
+              setTimeout(() => setGameState('gameover'), 800);
+          } else if (newOrder.length === numPlayers) {
+              setTimeout(() => setGameState('gameover'), 1500);
+          }
+      }
   };
 
   if (gameState === 'menu') {
@@ -592,14 +773,32 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   if (gameState === 'gameover') {
     return (
       <div className="w-full h-full min-h-[600px] bg-slate-900 flex flex-col items-center justify-center p-4 rounded-3xl relative overflow-hidden">
-        <div className="bg-amber-400 p-8 rounded-full mb-6 border-8 border-amber-200 shadow-[0_0_50px_rgba(251,191,36,0.5)]">
+        {/* FIXED: Standard React inline style to avoid dangerouslySetInnerHTML crashes */}
+        <style>{`
+            @keyframes confettiDrop { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+            .animate-confetti { animation: confettiDrop linear infinite; }
+        `}</style>
+        
+        <div className="absolute inset-0 pointer-events-none z-0">
+            {[...Array(60)].map((_, i) => (
+                <div key={i} className="absolute animate-confetti" style={{
+                    left: `${Math.random() * 100}%`, top: `-10%`,
+                    backgroundColor: ['#f59e0b', '#10b981', '#0ea5e9', '#ec4899', '#a855f7'][Math.floor(Math.random() * 5)],
+                    width: `${Math.random() * 10 + 5}px`, height: `${Math.random() * 20 + 10}px`,
+                    animationDelay: `${Math.random() * 3}s`, animationDuration: `${Math.random() * 2 + 2}s`
+                }} />
+            ))}
+        </div>
+
+        <div className="bg-amber-400 p-8 rounded-full mb-6 border-8 border-amber-200 shadow-[0_0_50px_rgba(251,191,36,0.5)] z-10 relative">
           <Trophy className="w-24 h-24 text-amber-900" />
         </div>
-        <h1 className="text-4xl md:text-6xl font-black text-white mb-2 tracking-wide uppercase text-center">
-            {winner && numPlayers > 1 ? `PLAYER ${winner} WINS!` : 'PUZZLE CLEARED!'}
+        
+        <h1 className="text-4xl md:text-6xl font-black text-white mb-2 tracking-wide uppercase text-center z-10 relative drop-shadow-md">
+            {numPlayers > 1 ? `PLAYER ${finishOrder[0]} WON THE RACE!` : 'PUZZLE CLEARED!'}
         </h1>
         
-        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md mt-10">
+        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md mt-10 z-10 relative">
           <button onClick={() => setGameState('menu')} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xl py-4 rounded-2xl transition-colors flex items-center justify-center gap-2">
             Main Menu
           </button>
@@ -613,25 +812,18 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
 
   return (
     <div className="w-full h-[90vh] min-h-[650px] flex flex-row bg-slate-950 font-sans select-none overflow-hidden rounded-3xl shadow-2xl relative">
-        
-        {/* GLOBAL HOME BUTTON */}
         {numPlayers > 1 && (
-            <button
-                onClick={() => setGameState('menu')}
-                className="absolute top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors"
-            >
+            <button onClick={() => setGameState('menu')} className="absolute top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors">
                 <Home size={14} /> <span className="font-bold text-xs uppercase tracking-widest">Menu</span>
             </button>
         )}
-
         {PLAYER_THEMES.slice(0, numPlayers).map((theme, index) => (
             <PlayerBoard 
-                key={theme.id} 
-                theme={theme} 
+                key={theme.id} theme={theme} 
                 levelData={levelsData.length > 0 ? levelsData[index] : null} 
-                isMultiplayer={numPlayers > 1}
-                onFinish={handlePlayerFinish} 
-                onHome={() => setGameState('menu')}
+                isMultiplayer={numPlayers > 1} isMobile={isMobile}
+                finishOrder={finishOrder} 
+                onFinish={handlePlayerFinish} onHome={() => setGameState('menu')}
             />
         ))}
     </div>
