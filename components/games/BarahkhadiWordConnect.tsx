@@ -153,6 +153,7 @@ const generateRandomLevel = () => {
     return bestLevel;
 };
 
+// --- SMART TTS ENGINE ---
 const playTTS = (text: string) => {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel(); 
@@ -166,25 +167,9 @@ const playTTS = (text: string) => {
     }
 };
 
-const playSuccessSound = () => {
-    try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, ctx.currentTime); 
-        osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.1); 
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
-    } catch(e) { console.log("Audio skipped"); }
-};
-
+// ============================================================================
+// PLAYER THEMES 
+// ============================================================================
 const PLAYER_THEMES = [
     { id: 1, base: 'bg-gradient-to-br from-indigo-950 via-slate-900 to-sky-950', border: 'border-sky-500/30', line: '#0ea5e9', bubble: 'bg-sky-500 text-white', accent: 'text-sky-400' },
     { id: 2, base: 'bg-emerald-950/40', border: 'border-emerald-500/30', line: '#10b981', bubble: 'bg-emerald-500 text-white', accent: 'text-emerald-400' },
@@ -195,7 +180,7 @@ const PLAYER_THEMES = [
 // ============================================================================
 // COMPONENT: INDIVIDUAL PLAYER BOARD 
 // ============================================================================
-const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, onFinish, onHome }: any) => {
+const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, onFinish, onHome }: any) => {
     const [foundWords, setFoundWords] = useState<string[]>([]);
     const [bonusWords, setBonusWords] = useState<string[]>([]);
     const [revealedHints, setRevealedHints] = useState<{r: number, c: number, char: string}[]>([]);
@@ -208,14 +193,8 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     const [currentWord, setCurrentWord] = useState<string>('');
     const [isDrawing, setIsDrawing] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
-    
-    // Lock prevents endless re-renders and lets the level end properly
-    const [isBoardLocked, setIsBoardLocked] = useState(false);
 
     const wheelRef = useRef<HTMLDivElement>(null);
-
-    const rankIndex = finishOrder.indexOf(theme.id);
-    const playerRank = rankIndex !== -1 ? rankIndex + 1 : 0;
 
     useEffect(() => {
         if (levelData) {
@@ -223,26 +202,22 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
             setFoundWords([]);
             setBonusWords([]);
             setRevealedHints([]);
-            setIsBoardLocked(false);
         }
     }, [levelData]);
 
     useEffect(() => {
-        if (levelData && foundWords.length === levelData.words.length && levelData.words.length > 0 && !isBoardLocked) {
-            setIsBoardLocked(true); 
-            playSuccessSound();
-            playTTS('बहुत बढ़िया'); 
-            onFinish(theme.id);
+        if (levelData && foundWords.length === levelData.words.length && levelData.words.length > 0) {
+            const timer = setTimeout(() => {
+                onFinish(theme.id);
+            }, 1000);
+            return () => clearTimeout(timer);
         }
-    }, [foundWords.length, levelData, theme.id, onFinish, isBoardLocked]);
+    }, [foundWords.length, levelData, theme.id, onFinish]);
 
-    const handleShuffle = () => {
-        if (isBoardLocked) return;
-        setNodeOrder(prev => [...prev].sort(() => Math.random() - 0.5));
-    };
+    const handleShuffle = () => setNodeOrder(prev => [...prev].sort(() => Math.random() - 0.5));
 
     const handleHint = () => {
-        if (coins < 25 || !levelData || isBoardLocked) return;
+        if (coins < 25 || !levelData) return;
         const emptyCells: {r: number, c: number, char: string}[] = [];
         
         levelData.words.forEach((w: any) => {
@@ -258,7 +233,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                             if (chk.dir === 'down' && c === chk.col && r >= chk.row && r < chk.row + chk.chars.length) alreadyRevealed = true;
                         }
                     });
-
                     if (!alreadyHinted && !alreadyRevealed) {
                         if (!emptyCells.some(cell => cell.r === r && cell.c === c)) {
                             emptyCells.push({ r, c, char });
@@ -281,12 +255,10 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         return { x: 50 + radius * Math.cos(angle), y: 50 + radius * Math.sin(angle) };
     };
 
-    // ============================================================================
-    // RESTORED EXACT NATIVE DRAG HANDLERS
-    // ============================================================================
+    // NATIVE DRAG: Start
     const handlePointerDown = (e: React.PointerEvent, actualNodeIndex: number) => {
-        if (isBoardLocked) return;
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        // FIX: Purposely DO NOT releasePointerCapture here. 
+        // Releasing capture on touchdown drops all pointermove events in iOS Safari.
         setIsDrawing(true);
         setSelectedNodes([actualNodeIndex]);
         setCurrentWord(levelData.nodes[actualNodeIndex]);
@@ -303,12 +275,17 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         setMousePos({ x: xPct, y: yPct });
     };
 
+    // NATIVE DRAG: Move
     const handlePointerMove = (e: React.PointerEvent) => {
-        if (!isDrawing || !levelData || isBoardLocked) return;
+        if (!isDrawing || !levelData) return;
         updateMousePos(e);
 
         const el = document.elementFromPoint(e.clientX, e.clientY);
-        const nodeIdStr = el?.getAttribute('data-node-id');
+        
+        // FIX: Safari Node Piercing. Sometimes elementFromPoint hits the text node.
+        // `closest` ensures we climb up to find the actual container with the ID.
+        const targetNode = el?.closest('[data-node-id]');
+        const nodeIdStr = targetNode?.getAttribute('data-node-id');
         
         if (nodeIdStr) {
             const actualNodeIndex = parseInt(nodeIdStr);
@@ -320,8 +297,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         }
     };
 
+    // NATIVE DRAG: End
     const handlePointerUp = () => {
-        if (!isDrawing || !levelData || isBoardLocked) return;
+        if (!isDrawing || !levelData) return;
         setIsDrawing(false);
         
         const matchedPuzzleWord = levelData.words.find((w: any) => w.word === currentWord);
@@ -420,17 +398,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                 onPointerCancel={handlePointerUp}
                 onPointerLeave={handlePointerUp} 
             >
-                {/* WINNER RANKING OVERLAY FOR MULTIPLAYER */}
-                {playerRank > 0 && (
-                    <div className="absolute inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-500">
-                        <Trophy className="w-20 h-20 sm:w-24 sm:h-24 text-amber-400 mb-4 animate-bounce drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
-                        <span className="text-3xl sm:text-4xl font-black text-white">
-                            {playerRank}{playerRank === 1 ? 'st' : playerRank === 2 ? 'nd' : playerRank === 3 ? 'rd' : 'th'}
-                        </span>
-                        <span className="text-slate-300 font-bold uppercase tracking-widest mt-1">Finished</span>
-                    </div>
-                )}
-
                 <div className="h-[10%] w-full flex justify-between items-center px-2 sm:px-4 shrink-0">
                     <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1 shadow-lg">
                         <Trophy size={14} className="text-amber-400" />
@@ -453,7 +420,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                             <Coins size={14} className="text-yellow-400" />
                         </div>
                         {!isMultiplayer && (
-                            <button onClick={onHome} className="bg-slate-800/80 hover:bg-red-500 text-slate-300 hover:text-white p-1 rounded-lg border border-slate-700 shadow-lg ml-1 z-50 relative">
+                            <button onClick={onHome} className="bg-slate-800/80 hover:bg-red-500 text-slate-300 hover:text-white p-1 rounded-lg border border-slate-700 shadow-lg ml-1">
                                 <Home size={14} />
                             </button>
                         )}
@@ -529,7 +496,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                         `}
                                         style={{ left: `${pos.x}%`, top: `${pos.y}%`, transition: isDrawing ? 'transform 0.1s' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
                                     >
-                                        <span className="pointer-events-none text-xl sm:text-3xl">{levelData.nodes[actualNodeIndex]}</span>
+                                        <span className="pointer-events-none text-2xl sm:text-4xl">{levelData.nodes[actualNodeIndex]}</span>
                                     </div>
                                 );
                             })}
@@ -537,7 +504,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 </div>
 
-                <div className="h-[10%] w-full flex justify-between items-center px-4 sm:px-6 shrink-0 pb-2 z-40 relative">
+                <div className="h-[10%] w-full flex justify-between items-center px-4 sm:px-6 shrink-0 pb-2">
                     <button onClick={handleShuffle} className="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm text-white p-2.5 sm:p-3 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center">
                         <Shuffle size={16} />
                     </button>
@@ -561,7 +528,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
             onPointerCancel={handlePointerUp}
             onPointerLeave={handlePointerUp} 
         >
-            <div className="flex justify-between items-center px-2 py-3 lg:p-6 shrink-0 relative w-full mt-2 lg:mt-0 z-40">
+            <div className="flex justify-between items-center px-2 py-3 lg:p-6 shrink-0 relative w-full mt-2 lg:mt-0">
                 <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 shadow-lg">
                     <Trophy size={16} className="text-amber-400" />
                     <span className="text-white font-black text-lg">{score}</span>
@@ -650,14 +617,14 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                     key={actualNodeIndex}
                                     data-node-id={actualNodeIndex}
                                     onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
-                                    className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16
+                                    className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2
                                         ${isSelected 
                                             ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
                                             : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
                                     `}
                                     style={{ left: `${pos.x}%`, top: `${pos.y}%`, transition: isDrawing ? 'transform 0.1s' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
                                 >
-                                    <span className="pointer-events-none text-4xl sm:text-5xl">{levelData.nodes[actualNodeIndex]}</span>
+                                    <span className="pointer-events-none text-5xl">{levelData.nodes[actualNodeIndex]}</span>
                                 </div>
                             );
                         })}
@@ -681,11 +648,14 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     );
 };
 
+// ============================================================================
+// MAIN COMPONENT & MENU
+// ============================================================================
 export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }: any) {
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover'>('menu');
   const [numPlayers, setNumPlayers] = useState(1);
   const [levelsData, setLevelsData] = useState<any[]>([]); 
-  const [finishOrder, setFinishOrder] = useState<number[]>([]);
+  const [winner, setWinner] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -706,21 +676,13 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
           if (level) newLevels.push(level);
       }
       setLevelsData(newLevels);
-      setFinishOrder([]);
+      setWinner(null);
       setGameState('playing');
   };
 
   const handlePlayerFinish = (playerId: number) => {
-      if (!finishOrder.includes(playerId)) {
-          const newOrder = [...finishOrder, playerId];
-          setFinishOrder(newOrder);
-
-          if (numPlayers === 1) {
-              setTimeout(() => setGameState('gameover'), 800);
-          } else if (newOrder.length === numPlayers) {
-              setTimeout(() => setGameState('gameover'), 1500);
-          }
-      }
+      setWinner(playerId);
+      setGameState('gameover');
   };
 
   if (gameState === 'menu') {
@@ -770,31 +732,14 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   if (gameState === 'gameover') {
     return (
       <div className="w-full h-full min-h-[600px] bg-slate-900 flex flex-col items-center justify-center p-4 rounded-3xl relative overflow-hidden">
-        <style>{`
-            @keyframes confettiDrop { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
-            .animate-confetti { animation: confettiDrop linear infinite; }
-        `}</style>
-        
-        <div className="absolute inset-0 pointer-events-none z-0">
-            {[...Array(60)].map((_, i) => (
-                <div key={i} className="absolute animate-confetti" style={{
-                    left: `${Math.random() * 100}%`, top: `-10%`,
-                    backgroundColor: ['#f59e0b', '#10b981', '#0ea5e9', '#ec4899', '#a855f7'][Math.floor(Math.random() * 5)],
-                    width: `${Math.random() * 10 + 5}px`, height: `${Math.random() * 20 + 10}px`,
-                    animationDelay: `${Math.random() * 3}s`, animationDuration: `${Math.random() * 2 + 2}s`
-                }} />
-            ))}
-        </div>
-
-        <div className="bg-amber-400 p-8 rounded-full mb-6 border-8 border-amber-200 shadow-[0_0_50px_rgba(251,191,36,0.5)] z-10 relative">
+        <div className="bg-amber-400 p-8 rounded-full mb-6 border-8 border-amber-200 shadow-[0_0_50px_rgba(251,191,36,0.5)]">
           <Trophy className="w-24 h-24 text-amber-900" />
         </div>
-        
-        <h1 className="text-4xl md:text-6xl font-black text-white mb-2 tracking-wide uppercase text-center z-10 relative drop-shadow-md">
-            {numPlayers > 1 ? `PLAYER ${finishOrder[0]} WON THE RACE!` : 'PUZZLE CLEARED!'}
+        <h1 className="text-4xl md:text-6xl font-black text-white mb-2 tracking-wide uppercase text-center">
+            {winner && numPlayers > 1 ? `PLAYER ${winner} WINS!` : 'PUZZLE CLEARED!'}
         </h1>
         
-        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md mt-10 z-10 relative">
+        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md mt-10">
           <button onClick={() => setGameState('menu')} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xl py-4 rounded-2xl transition-colors flex items-center justify-center gap-2">
             Main Menu
           </button>
@@ -825,7 +770,6 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
                 levelData={levelsData.length > 0 ? levelsData[index] : null} 
                 isMultiplayer={numPlayers > 1}
                 isMobile={isMobile}
-                finishOrder={finishOrder} 
                 onFinish={handlePlayerFinish} 
                 onHome={() => setGameState('menu')}
             />
