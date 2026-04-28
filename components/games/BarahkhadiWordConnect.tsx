@@ -287,11 +287,10 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     // RESTORED: Your exact original function (with lock check)
     const handlePointerDown = (e: React.PointerEvent | React.TouchEvent, actualNodeIndex: number) => {
         if (isBoardLocked) return;
-        try {
-            if ('pointerId' in e) {
-                (e.target as HTMLElement).releasePointerCapture((e as React.PointerEvent).pointerId);
-            }
-        } catch (err) {} 
+        
+        // FIX: Completely removed releasePointerCapture. 
+        // This forces iOS to maintain a continuous event stream.
+        
         setIsDrawing(true);
         setSelectedNodes([actualNodeIndex]);
         setCurrentWord(levelData.nodes[actualNodeIndex]);
@@ -338,6 +337,12 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     // NEW: iOS specific fallback (Bypasses the pointer capture bug entirely)
     const handleTouchMove = (e: React.TouchEvent) => {
         if (!isDrawing || !levelData || isBoardLocked) return;
+        
+        // FIX: Explicitly prevents the iPhone from stealing the swipe to scroll
+        if (e.cancelable) {
+            e.preventDefault(); 
+        }
+        
         updateMousePos(e);
         processMoveCollision(e.touches[0].clientX, e.touches[0].clientY);
     };
