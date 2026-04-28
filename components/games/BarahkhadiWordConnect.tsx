@@ -209,7 +209,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     const [isDrawing, setIsDrawing] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
     
-    // Lock prevents endless re-renders and lets the level end properly
     const [isBoardLocked, setIsBoardLocked] = useState(false);
 
     const wheelRef = useRef<HTMLDivElement>(null);
@@ -282,11 +281,15 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     };
 
     // ============================================================================
-    // RESTORED EXACT NATIVE DRAG HANDLERS
+    // RESTORED NATIVE DRAG + iOS FALLBACK FIX
     // ============================================================================
+    
+    // RESTORED: Your exact original function (with lock check)
     const handlePointerDown = (e: React.PointerEvent, actualNodeIndex: number) => {
         if (isBoardLocked) return;
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        try {
+            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch (err) {} // Fails silently on iOS Safari, which is fine!
         setIsDrawing(true);
         setSelectedNodes([actualNodeIndex]);
         setCurrentWord(levelData.nodes[actualNodeIndex]);
@@ -295,20 +298,23 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         updateMousePos(e);
     };
 
-    const updateMousePos = (e: React.PointerEvent) => {
+    // Shared position updater
+    const updateMousePos = (e: React.PointerEvent | React.TouchEvent) => {
         if (!wheelRef.current) return;
         const rect = wheelRef.current.getBoundingClientRect();
-        const xPct = ((e.clientX - rect.left) / rect.width) * 100;
-        const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.PointerEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.PointerEvent).clientY;
+        const xPct = ((clientX - rect.left) / rect.width) * 100;
+        const yPct = ((clientY - rect.top) / rect.height) * 100;
         setMousePos({ x: xPct, y: yPct });
     };
 
-    const handlePointerMove = (e: React.PointerEvent) => {
-        if (!isDrawing || !levelData || isBoardLocked) return;
-        updateMousePos(e);
-
-        const el = document.elementFromPoint(e.clientX, e.clientY);
-        const nodeIdStr = el?.getAttribute('data-node-id');
+    // Shared collision logic (Your exact elementFromPoint approach)
+    const processMoveCollision = (clientX: number, clientY: number) => {
+        const el = document.elementFromPoint(clientX, clientY);
+        // Added .closest() so it works even if the finger hits the text span inside the node
+        const targetNode = el?.closest ? el.closest('[data-node-id]') : el;
+        const nodeIdStr = targetNode?.getAttribute ? targetNode.getAttribute('data-node-id') : null;
         
         if (nodeIdStr) {
             const actualNodeIndex = parseInt(nodeIdStr);
@@ -320,6 +326,21 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         }
     };
 
+    // RESTORED: Your exact original Pointer Move
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!isDrawing || !levelData || isBoardLocked) return;
+        updateMousePos(e);
+        processMoveCollision(e.clientX, e.clientY);
+    };
+
+    // NEW: iOS specific fallback (Bypasses the pointer capture bug entirely)
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!isDrawing || !levelData || isBoardLocked) return;
+        updateMousePos(e);
+        processMoveCollision(e.touches[0].clientX, e.touches[0].clientY);
+    };
+
+    // RESTORED: Your exact original Pointer Up
     const handlePointerUp = () => {
         if (!isDrawing || !levelData || isBoardLocked) return;
         setIsDrawing(false);
@@ -416,11 +437,13 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
             <div 
                 className={`relative flex-1 flex flex-col w-full h-full overflow-hidden touch-none ${theme.base} ${isMultiplayer ? 'border-r border-white/10 last:border-r-0' : ''}`}
                 onPointerMove={handlePointerMove}
+                onTouchMove={handleTouchMove}     // iOS Fallback hook
                 onPointerUp={handlePointerUp}
+                onTouchEnd={handlePointerUp}      // iOS Fallback hook
                 onPointerCancel={handlePointerUp}
+                onTouchCancel={handlePointerUp}   // iOS Fallback hook
                 onPointerLeave={handlePointerUp} 
             >
-                {/* WINNER RANKING OVERLAY FOR MULTIPLAYER */}
                 {playerRank > 0 && (
                     <div className="absolute inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-500">
                         <Trophy className="w-20 h-20 sm:w-24 sm:h-24 text-amber-400 mb-4 animate-bounce drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
@@ -431,7 +454,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 )}
 
-                <div className="h-[10%] w-full flex justify-between items-center px-2 sm:px-4 shrink-0">
+                <div className="h-[10%] w-full flex justify-between items-center px-2 sm:px-4 shrink-0 pointer-events-auto">
                     <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1 shadow-lg">
                         <Trophy size={14} className="text-amber-400" />
                         <span className="text-white font-black text-xs sm:text-sm">{score}</span>
@@ -453,7 +476,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                             <Coins size={14} className="text-yellow-400" />
                         </div>
                         {!isMultiplayer && (
-                            <button onClick={onHome} className="bg-slate-800/80 hover:bg-red-500 text-slate-300 hover:text-white p-1 rounded-lg border border-slate-700 shadow-lg ml-1 z-50 relative">
+                            <button onClick={onHome} className="bg-slate-800/80 hover:bg-red-500 text-slate-300 hover:text-white p-1 rounded-lg border border-slate-700 shadow-lg ml-1">
                                 <Home size={14} />
                             </button>
                         )}
@@ -473,10 +496,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                 gridTemplateColumns: `repeat(${maxCol + 1}, minmax(0, 1fr))`,
                                 gridTemplateRows: `repeat(${maxRow + 1}, minmax(0, 1fr))`,
                                 aspectRatio: `${maxCol + 1} / ${maxRow + 1}`,
-                                width: '100%', 
-                                height: '100%', 
-                                maxHeight: '100%',
-                                maxWidth: '100%'
+                                width: '100%', height: '100%', maxHeight: '100%', maxWidth: '100%'
                             }}
                         >
                             {gridCells}
@@ -529,7 +549,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                         `}
                                         style={{ left: `${pos.x}%`, top: `${pos.y}%`, transition: isDrawing ? 'transform 0.1s' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
                                     >
-                                        <span className="pointer-events-none text-xl sm:text-3xl">{levelData.nodes[actualNodeIndex]}</span>
+                                        <span className="pointer-events-none text-2xl sm:text-4xl">{levelData.nodes[actualNodeIndex]}</span>
                                     </div>
                                 );
                             })}
@@ -537,7 +557,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 </div>
 
-                <div className="h-[10%] w-full flex justify-between items-center px-4 sm:px-6 shrink-0 pb-2 z-40 relative">
+                <div className="h-[10%] w-full flex justify-between items-center px-4 sm:px-6 shrink-0 pb-2 pointer-events-auto">
                     <button onClick={handleShuffle} className="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm text-white p-2.5 sm:p-3 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center">
                         <Shuffle size={16} />
                     </button>
@@ -551,22 +571,24 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     }
 
     // ============================================================================
-    // DESKTOP SINGLE PLAYER LAYOUT 
+    // DESKTOP SINGLE PLAYER LAYOUT
     // ============================================================================
     return (
         <div 
             className={`relative flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden touch-none p-3 ${theme.base}`}
             onPointerMove={handlePointerMove}
+            onTouchMove={handleTouchMove}     // iOS Fallback hook
             onPointerUp={handlePointerUp}
+            onTouchEnd={handlePointerUp}      // iOS Fallback hook
             onPointerCancel={handlePointerUp}
+            onTouchCancel={handlePointerUp}   // iOS Fallback hook
             onPointerLeave={handlePointerUp} 
         >
-            <div className="flex justify-between items-center px-2 py-3 lg:p-6 shrink-0 relative w-full mt-2 lg:mt-0 z-40">
+            <div className="flex justify-between items-center px-2 py-3 lg:p-6 shrink-0 relative w-full mt-2 lg:mt-0 pointer-events-auto">
                 <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 shadow-lg">
                     <Trophy size={16} className="text-amber-400" />
                     <span className="text-white font-black text-lg">{score}</span>
                 </div>
-                
                 <div className="flex items-center gap-2">
                     {bonusWords.length > 0 && (
                         <div className="bg-purple-900/50 backdrop-blur-md px-4 py-1.5 rounded-full border border-purple-400/50 flex items-center gap-1 shadow-lg animate-in fade-in">
@@ -575,7 +597,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                         </div>
                     )}
                 </div>
-                
                 <div className="flex items-center gap-2">
                     <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 shadow-lg">
                         <span className="text-white font-black text-lg">{coins}</span>
@@ -594,7 +615,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                             <span className="text-3xl font-black tracking-widest">{currentWord}</span>
                         </div>
                     </div>
-
                     <div className="flex-1 w-full max-h-[60vh] flex items-center justify-center overflow-visible p-2">
                         <div 
                             className="grid gap-1.5 mx-auto" 
@@ -602,9 +622,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                 gridTemplateColumns: `repeat(${maxCol + 1}, minmax(0, 1fr))`,
                                 gridTemplateRows: `repeat(${maxRow + 1}, minmax(0, 1fr))`,
                                 aspectRatio: `${maxCol + 1} / ${maxRow + 1}`,
-                                width: '100%', 
-                                height: '100%', 
-                                maxHeight: '100%' 
+                                width: '100%', height: '100%', maxHeight: '100%' 
                             }}
                         >
                             {gridCells}
@@ -628,7 +646,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                         x1={`${pos1.x}%`} y1={`${pos1.y}%`} 
                                         x2={`${pos2.x}%`} y2={`${pos2.y}%`} 
                                         stroke={strokeColor} strokeWidth="14" strokeLinecap="round" opacity="0.8"
-                                        className="transition-colors duration-200"
                                     />
                                 );
                             })}
@@ -657,7 +674,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                     `}
                                     style={{ left: `${pos.x}%`, top: `${pos.y}%`, transition: isDrawing ? 'transform 0.1s' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
                                 >
-                                    <span className="pointer-events-none text-4xl sm:text-5xl">{levelData.nodes[actualNodeIndex]}</span>
+                                    <span className="pointer-events-none text-5xl">{levelData.nodes[actualNodeIndex]}</span>
                                 </div>
                             );
                         })}
@@ -681,6 +698,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     );
 };
 
+// ============================================================================
+// MAIN COMPONENT & MENU
+// ============================================================================
 export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }: any) {
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover'>('menu');
   const [numPlayers, setNumPlayers] = useState(1);
@@ -808,26 +828,18 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
 
   return (
     <div className="w-full h-[90vh] min-h-[650px] flex flex-row bg-slate-950 font-sans select-none overflow-hidden rounded-3xl shadow-2xl relative">
-        
         {numPlayers > 1 && (
-            <button
-                onClick={() => setGameState('menu')}
-                className="absolute top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors"
-            >
+            <button onClick={() => setGameState('menu')} className="absolute top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors">
                 <Home size={14} /> <span className="font-bold text-xs uppercase tracking-widest">Menu</span>
             </button>
         )}
-
         {PLAYER_THEMES.slice(0, numPlayers).map((theme, index) => (
             <PlayerBoard 
-                key={theme.id} 
-                theme={theme} 
+                key={theme.id} theme={theme} 
                 levelData={levelsData.length > 0 ? levelsData[index] : null} 
-                isMultiplayer={numPlayers > 1}
-                isMobile={isMobile}
+                isMultiplayer={numPlayers > 1} isMobile={isMobile}
                 finishOrder={finishOrder} 
-                onFinish={handlePlayerFinish} 
-                onHome={() => setGameState('menu')}
+                onFinish={handlePlayerFinish} onHome={() => setGameState('menu')}
             />
         ))}
     </div>
