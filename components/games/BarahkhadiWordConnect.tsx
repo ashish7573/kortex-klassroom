@@ -205,6 +205,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
 
     const [nodeOrder, setNodeOrder] = useState<number[]>([]);
     const [selectedNodes, setSelectedNodes] = useState<number[]>([]);
+    const selectedNodesRef = useRef<number[]>([]); // FIX: Synchronous tracker
     const [currentWord, setCurrentWord] = useState<string>('');
     const [isDrawing, setIsDrawing] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
@@ -223,6 +224,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
             setBonusWords([]);
             setRevealedHints([]);
             setIsBoardLocked(false);
+            selectedNodesRef.current = []; // FIX: Clear tracker on new level
         }
     }, [levelData]);
 
@@ -292,6 +294,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         // This forces iOS to maintain a continuous event stream.
         
         setIsDrawing(true);
+        selectedNodesRef.current = [actualNodeIndex]; // FIX: Log instantly
         setSelectedNodes([actualNodeIndex]);
         setCurrentWord(levelData.nodes[actualNodeIndex]);
         setFeedback(null);
@@ -319,8 +322,10 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         
         if (nodeIdStr) {
             const actualNodeIndex = parseInt(nodeIdStr);
-            if (!selectedNodes.includes(actualNodeIndex)) {
-                setSelectedNodes(prev => [...prev, actualNodeIndex]);
+            // FIX: Check the real-time Ref instead of the delayed React state
+            if (!selectedNodesRef.current.includes(actualNodeIndex)) {
+                selectedNodesRef.current.push(actualNodeIndex);
+                setSelectedNodes([...selectedNodesRef.current]);
                 setCurrentWord(prev => prev + levelData.nodes[actualNodeIndex]);
                 playTTS(levelData.nodes[actualNodeIndex]);
             }
@@ -379,6 +384,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         }
 
         setTimeout(() => {
+            selectedNodesRef.current = []; // FIX: Clear on finger lift
             setSelectedNodes([]);
             setCurrentWord('');
             setFeedback(null);
