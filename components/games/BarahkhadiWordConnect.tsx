@@ -37,6 +37,9 @@ const splitHindiSyllables = (word: string) => {
     return syllables;
 };
 
+// ============================================================================
+// FLAWLESS GRID COLLISION ALGORITHM
+// ============================================================================
 const isValidPlacement = (candidateChars: string[], startRow: number, startCol: number, dir: string, gridMap: Map<string, string>) => {
     if (dir === 'across') {
         if (gridMap.has(`${startRow},${startCol - 1}`) || gridMap.has(`${startRow},${startCol + candidateChars.length}`)) return false;
@@ -206,12 +209,11 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     const [isDrawing, setIsDrawing] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
     
-    // FIX: Lock prevents endless re-renders and lets the level end properly
+    // Lock prevents endless re-renders and lets the level end properly
     const [isBoardLocked, setIsBoardLocked] = useState(false);
 
     const wheelRef = useRef<HTMLDivElement>(null);
-    
-    // Calculates rank (1, 2, 3) for multiplayer
+
     const rankIndex = finishOrder.indexOf(theme.id);
     const playerRank = rankIndex !== -1 ? rankIndex + 1 : 0;
 
@@ -227,9 +229,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
 
     useEffect(() => {
         if (levelData && foundWords.length === levelData.words.length && levelData.words.length > 0 && !isBoardLocked) {
-            setIsBoardLocked(true);
+            setIsBoardLocked(true); 
             playSuccessSound();
-            playTTS('बहुत बढ़िया');
+            playTTS('बहुत बढ़िया'); 
             onFinish(theme.id);
         }
     }, [foundWords.length, levelData, theme.id, onFinish, isBoardLocked]);
@@ -256,6 +258,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                             if (chk.dir === 'down' && c === chk.col && r >= chk.row && r < chk.row + chk.chars.length) alreadyRevealed = true;
                         }
                     });
+
                     if (!alreadyHinted && !alreadyRevealed) {
                         if (!emptyCells.some(cell => cell.r === r && cell.c === c)) {
                             emptyCells.push({ r, c, char });
@@ -278,6 +281,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         return { x: 50 + radius * Math.cos(angle), y: 50 + radius * Math.sin(angle) };
     };
 
+    // ============================================================================
+    // RESTORED EXACT NATIVE DRAG HANDLERS
+    // ============================================================================
     const handlePointerDown = (e: React.PointerEvent, actualNodeIndex: number) => {
         if (isBoardLocked) return;
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -353,6 +359,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
 
     if (!levelData) return <div className="w-full h-full flex items-center justify-center"><Sparkles className="animate-spin text-sky-500 w-8 h-8" /></div>;
 
+    // --- GRID MATH ---
     const maxRow = Math.max(...levelData.words.map((w: any) => w.dir === 'down' ? w.row + w.chars.length - 1 : w.row));
     const maxCol = Math.max(...levelData.words.map((w: any) => w.dir === 'across' ? w.col + w.chars.length - 1 : w.col));
 
@@ -401,6 +408,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                         feedback === 'invalid' ? 'bg-red-500 text-white border-red-600 animate-shake' : 
                         feedback === 'exists' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-sky-600 border-sky-200';
 
+    // ============================================================================
+    // STRICT VERTICAL/MULTIPLAYER LAYOUT
+    // ============================================================================
     if (isMultiplayer || isMobile) {
         return (
             <div 
@@ -410,7 +420,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                 onPointerCancel={handlePointerUp}
                 onPointerLeave={handlePointerUp} 
             >
-                {/* FIX: Display rank and lock the section so others can keep playing */}
+                {/* WINNER RANKING OVERLAY FOR MULTIPLAYER */}
                 {playerRank > 0 && (
                     <div className="absolute inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-500">
                         <Trophy className="w-20 h-20 sm:w-24 sm:h-24 text-amber-400 mb-4 animate-bounce drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
@@ -512,15 +522,14 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                         key={actualNodeIndex}
                                         data-node-id={actualNodeIndex}
                                         onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
-                                        className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 sm:w-14 sm:h-14
+                                        className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2
                                             ${isSelected 
                                                 ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
                                                 : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
                                         `}
                                         style={{ left: `${pos.x}%`, top: `${pos.y}%`, transition: isDrawing ? 'transform 0.1s' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
                                     >
-                                        {/* FIX: Reduced text size for multiplayer to prevent crowding */}
-                                        <span className="pointer-events-none text-lg sm:text-2xl">{levelData.nodes[actualNodeIndex]}</span>
+                                        <span className="pointer-events-none text-xl sm:text-3xl">{levelData.nodes[actualNodeIndex]}</span>
                                     </div>
                                 );
                             })}
@@ -541,6 +550,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         );
     }
 
+    // ============================================================================
+    // DESKTOP SINGLE PLAYER LAYOUT 
+    // ============================================================================
     return (
         <div 
             className={`relative flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden touch-none p-3 ${theme.base}`}
@@ -796,18 +808,26 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
 
   return (
     <div className="w-full h-[90vh] min-h-[650px] flex flex-row bg-slate-950 font-sans select-none overflow-hidden rounded-3xl shadow-2xl relative">
+        
         {numPlayers > 1 && (
-            <button onClick={() => setGameState('menu')} className="absolute top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors">
+            <button
+                onClick={() => setGameState('menu')}
+                className="absolute top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors"
+            >
                 <Home size={14} /> <span className="font-bold text-xs uppercase tracking-widest">Menu</span>
             </button>
         )}
+
         {PLAYER_THEMES.slice(0, numPlayers).map((theme, index) => (
             <PlayerBoard 
-                key={theme.id} theme={theme} 
+                key={theme.id} 
+                theme={theme} 
                 levelData={levelsData.length > 0 ? levelsData[index] : null} 
-                isMultiplayer={numPlayers > 1} isMobile={isMobile}
+                isMultiplayer={numPlayers > 1}
+                isMobile={isMobile}
                 finishOrder={finishOrder} 
-                onFinish={handlePlayerFinish} onHome={() => setGameState('menu')}
+                onFinish={handlePlayerFinish} 
+                onHome={() => setGameState('menu')}
             />
         ))}
     </div>
