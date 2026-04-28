@@ -10,7 +10,7 @@ const HINDI_WORDS = [
   'कमल', 'मटर', 'बतख', 'सड़क', 'कलम', 'नयन', 'भवन', 'शहद', 'कलश', 'बटन', 'रबड़', 'नमक', 'मगर', 'लहर', 'महल', 'शहर', 'डगर', 'गगन', 'नहर', 'नखत', 'पवन', 'चमन', 'रतन', 'वजन', 'नकल', 'अमर', 'सफर', 'जहर', 'नगर',
   'बरगद', 'थरमस', 'शलगम', 'कसरत', 'खटमल', 'बरतन', 'पनघट', 'अचकन', 'दमकल', 'अदरक', 'अजगर', 'बचपन', 'उपवन', 'शरबत', 'झटपट', 'नटखट', 'सरकस', 'हलचल', 'मखमल', 'अकबर',
   'आम', 'कार', 'कान', 'नाक', 'हाथ', 'तारा', 'ताला', 'छाता', 'माला', 'गाजर', 'टमाटर', 'जाल', 'आग', 'घास', 'बाजा', 'नाव', 'राजा', 'गाय', 'बादल', 'बाण', 'बाल', 'गाल', 'दाल', 'लाल', 'काला', 'पीला', 'हरा', 'बाघ', 'पापा', 'चाचा', 'मामा', 'नाना', 'दादा', 'आटा', 'बाजार', 'चादर', 'कागज', 'चावल', 'गमला', 'कमरा', 'मकान',
-  'चिड़िया', 'किताब', 'गिलास', 'विमान', 'हिरन', 'सितार', 'किसान', 'पहिया', 'तकिया', 'नारियल', 'पिन', 'दिल', 'लिफाफा', 'गिटार', 'छिलका', 'टिकट', 'चिमटा', 'किला', 'दिन', 'मिठाई', 'कवि', 'छवि', 'रवि', 'शनि', 'पति', 'निशान', 'मिलन', 'किरण', 'मिर्च', 'सितारा', 'कविता', 'सरिता', 'बगिया', 'खटिया', 'बिटिया',
+  'चिड़िया', 'किताब', 'गिलास', 'विमान', 'हिरन', 'सितार', 'किसान', 'पहिया', 'तकिया', 'न नारियल', 'पिन', 'दिल', 'लिफाफा', 'गिटार', 'छिलका', 'टिकट', 'चिमटा', 'किला', 'दिन', 'मिठाई', 'कवि', 'छवि', 'रवि', 'शनि', 'पति', 'निशान', 'मिलन', 'किरण', 'मिर्च', 'सितारा', 'कविता', 'सरिता', 'बगिया', 'खटिया', 'बिटिया',
   'मछली', 'हाथी', 'बकरी', 'घड़ी', 'छतरी', 'सीढ़ी', 'पपीता', 'पानी', 'तीर', 'जीभ', 'चाबी', 'दीपक', 'लकड़ी', 'चीता', 'तितली', 'ककड़ी', 'नाशपाती', 'लीची', 'परी', 'मकड़ी', 'नानी', 'दादी', 'चाची', 'मामी', 'दीदी', 'पीला', 'नीला', 'गीला', 'चील', 'झील', 'सीटी', 'लड़की', 'लड़की', 'मशीन', 'पसीना', 'दीवार', 'बीमारी',
   'गुलाब', 'कछुआ', 'गुड़िया', 'कुर्सी', 'साबुन', 'मुकुट', 'धनुष', 'बुलबुल', 'सुराही', 'कुटिया', 'तुलसी', 'जामुन', 'सुई', 'पुल', 'कुर्ता', 'झुनझुना', 'जुराब', 'दुकान', 'पुलाव', 'चुहिया', 'चुप', 'छुप', 'सुन', 'बुन', 'धुन', 'कुछ', 'सुख', 'दुख', 'मुख', 'सुबह', 'कुकुर', 'पुजारी', 'चुटकुला', 'गुमसुम', 'बटुआ', 'मुनिया',
   'सूरज', 'भालू', 'आलू', 'मूली', 'तरबूज', 'कबूतर', 'चूहा', 'फूल', 'जूता', 'झूला', 'झाड़ू', 'खजूर', 'तराजू', 'दूध', 'डमरू', 'पूड़ी', 'चूड़ी', 'कूलर', 'नाखून', 'कूदना', 'दूर', 'धूल', 'मूल', 'शूल', 'सूई', 'चूना', 'सूखा', 'रूठा', 'झूठा', 'मूरत', 'सूरत', 'पूरब', 'खूबसूरत', 'तरबूजा', 'खरबूजा', 'जादूगर',
@@ -167,7 +167,6 @@ const playTTS = (text: string) => {
     }
 };
 
-// Success Sound Chime
 const playSuccessSound = () => {
     try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -235,8 +234,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         if (levelData && foundWords.length === levelData.words.length && levelData.words.length > 0 && !isBoardLocked) {
             setIsBoardLocked(true); 
             playSuccessSound();
-            playTTS('बहुत बढ़िया'); 
-            
+            playTTS('बहुत बढ़िया'); 
             onFinish(theme.id);
         }
     }, [foundWords.length, levelData, theme.id, onFinish, isBoardLocked]);
@@ -286,30 +284,20 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         return { x: 50 + radius * Math.cos(angle), y: 50 + radius * Math.sin(angle) };
     };
 
-    const handlePointerDown = (e: React.PointerEvent, actualNodeIndex: number) => {
-        if (isBoardLocked) return;
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-        setIsDrawing(true);
-        setSelectedNodes([actualNodeIndex]);
-        setCurrentWord(levelData.nodes[actualNodeIndex]);
-        setFeedback(null);
-        playTTS(levelData.nodes[actualNodeIndex]);
-        updateMousePos(e);
-    };
-
-    const updateMousePos = (e: React.PointerEvent) => {
-        if (!wheelRef.current) return;
-        const rect = wheelRef.current.getBoundingClientRect();
-        const xPct = ((e.clientX - rect.left) / rect.width) * 100;
-        const yPct = ((e.clientY - rect.top) / rect.height) * 100;
-        setMousePos({ x: xPct, y: yPct });
-    };
-
-    const handlePointerMove = (e: React.PointerEvent) => {
+    // ==========================================
+    // CORE FIX: ROBUST MOBILE TOUCH ROUTING
+    // ==========================================
+    const handleMoveRaw = (clientX: number, clientY: number) => {
         if (!isDrawing || !levelData || isBoardLocked) return;
-        updateMousePos(e);
 
-        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (wheelRef.current) {
+            const rect = wheelRef.current.getBoundingClientRect();
+            const xPct = ((clientX - rect.left) / rect.width) * 100;
+            const yPct = ((clientY - rect.top) / rect.height) * 100;
+            setMousePos({ x: xPct, y: yPct });
+        }
+
+        const el = document.elementFromPoint(clientX, clientY);
         const nodeIdStr = el?.getAttribute('data-node-id');
         
         if (nodeIdStr) {
@@ -321,6 +309,26 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
             }
         }
     };
+
+    const handlePointerDown = (e: React.PointerEvent, actualNodeIndex: number) => {
+        if (isBoardLocked) return;
+        try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch(err) {}
+        setIsDrawing(true);
+        setSelectedNodes([actualNodeIndex]);
+        setCurrentWord(levelData.nodes[actualNodeIndex]);
+        setFeedback(null);
+        playTTS(levelData.nodes[actualNodeIndex]);
+        
+        if (wheelRef.current) {
+            const rect = wheelRef.current.getBoundingClientRect();
+            const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+            const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+            setMousePos({ x: xPct, y: yPct });
+        }
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => handleMoveRaw(e.clientX, e.clientY);
+    const handleTouchMove = (e: React.TouchEvent) => handleMoveRaw(e.touches[0].clientX, e.touches[0].clientY);
 
     const handlePointerUp = () => {
         if (!isDrawing || !levelData || isBoardLocked) return;
@@ -418,11 +426,13 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
             <div 
                 className={`relative flex-1 flex flex-col w-full h-full overflow-hidden touch-none ${theme.base} ${isMultiplayer ? 'border-r border-white/10 last:border-r-0' : ''}`}
                 onPointerMove={handlePointerMove}
+                onTouchMove={handleTouchMove}
                 onPointerUp={handlePointerUp}
+                onTouchEnd={handlePointerUp}
                 onPointerCancel={handlePointerUp}
+                onTouchCancel={handlePointerUp}
                 onPointerLeave={handlePointerUp} 
             >
-                {/* WINNER RANKING OVERLAY FOR MULTIPLAYER */}
                 {playerRank > 0 && (
                     <div className="absolute inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-500">
                         <Trophy className="w-20 h-20 sm:w-24 sm:h-24 text-amber-400 mb-4 animate-bounce drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
@@ -433,13 +443,11 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 )}
 
-                {/* 1. HUD (10%) */}
-                <div className="h-[10%] w-full flex justify-between items-center px-2 sm:px-4 shrink-0">
+                <div className="h-[10%] w-full flex justify-between items-center px-2 sm:px-4 shrink-0 pointer-events-auto">
                     <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1 shadow-lg">
                         <Trophy size={14} className="text-amber-400" />
                         <span className="text-white font-black text-xs sm:text-sm">{score}</span>
                     </div>
-                    
                     <div className="flex items-center gap-1">
                         {isMultiplayer && <span className={`font-black text-xs sm:text-sm uppercase ${theme.accent}`}>P{theme.id}</span>}
                         {bonusWords.length > 0 && (
@@ -449,7 +457,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                             </div>
                         )}
                     </div>
-                    
                     <div className="flex items-center gap-1">
                         <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1 shadow-lg">
                             <span className="text-white font-black text-xs sm:text-sm">{coins}</span>
@@ -463,7 +470,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 </div>
 
-                {/* 2. PUZZLE AREA (50%) */}
                 <div className="h-[50%] w-full flex flex-col items-center justify-start shrink-0 relative">
                     <div className="h-[20%] w-full flex items-center justify-center shrink-0">
                         <div className={`px-4 py-1.5 rounded-full border-b-2 shadow-xl flex items-center justify-center min-w-[80px] sm:min-w-[100px] transition-all duration-300 ${currentWord ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} ${bubbleClass}`}>
@@ -477,10 +483,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                 gridTemplateColumns: `repeat(${maxCol + 1}, minmax(0, 1fr))`,
                                 gridTemplateRows: `repeat(${maxRow + 1}, minmax(0, 1fr))`,
                                 aspectRatio: `${maxCol + 1} / ${maxRow + 1}`,
-                                width: '100%', 
-                                height: '100%', 
-                                maxHeight: '100%',
-                                maxWidth: '100%'
+                                width: '100%', height: '100%', maxHeight: '100%', maxWidth: '100%'
                             }}
                         >
                             {gridCells}
@@ -488,7 +491,6 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 </div>
 
-                {/* 3. DIAL AREA (30%) */}
                 <div className="h-[30%] w-full flex items-center justify-center shrink-0 relative p-2 sm:p-4">
                     <div className="h-full aspect-square max-w-full relative flex items-center justify-center">
                         <div className="absolute inset-0 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 z-0 m-1 sm:m-2"></div>
@@ -527,7 +529,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                         key={actualNodeIndex}
                                         data-node-id={actualNodeIndex}
                                         onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
-                                        className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-12 sm:h-12 text-sm sm:text-xl
+                                        className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-12 sm:h-12 text-xl sm:text-3xl
                                             ${isSelected 
                                                 ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
                                                 : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
@@ -542,12 +544,11 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 </div>
 
-                {/* 4. CONTROLS AREA (10%) */}
-                <div className="h-[10%] w-full flex justify-between items-center px-4 sm:px-6 shrink-0 pb-2">
-                    <button onClick={handleShuffle} className="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm text-white p-2.5 sm:p-3 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center z-40 relative">
+                <div className="h-[10%] w-full flex justify-between items-center px-4 sm:px-6 shrink-0 pb-2 pointer-events-auto">
+                    <button onClick={handleShuffle} className="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm text-white p-2.5 sm:p-3 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center">
                         <Shuffle size={16} />
                     </button>
-                    <button onClick={handleHint} className="bg-amber-500 hover:bg-amber-400 text-amber-950 p-2.5 sm:p-3 rounded-full border border-amber-600 shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center z-40 relative">
+                    <button onClick={handleHint} className="bg-amber-500 hover:bg-amber-400 text-amber-950 p-2.5 sm:p-3 rounded-full border border-amber-600 shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center">
                         <Lightbulb size={16} />
                         <span className="text-[9px] font-black mt-0.5 bg-amber-950 text-amber-400 px-1 rounded-full leading-none">25</span>
                     </button>
@@ -563,11 +564,14 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         <div 
             className={`relative flex-1 flex flex-col w-full h-full min-h-0 overflow-hidden touch-none p-3 ${theme.base}`}
             onPointerMove={handlePointerMove}
+            onTouchMove={handleTouchMove}
             onPointerUp={handlePointerUp}
+            onTouchEnd={handlePointerUp}
             onPointerCancel={handlePointerUp}
+            onTouchCancel={handlePointerUp}
             onPointerLeave={handlePointerUp} 
         >
-            <div className="flex justify-between items-center px-2 py-3 lg:p-6 shrink-0 relative w-full mt-2 lg:mt-0">
+            <div className="flex justify-between items-center px-2 py-3 lg:p-6 shrink-0 relative w-full mt-2 lg:mt-0 pointer-events-auto">
                 <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 shadow-lg">
                     <Trophy size={16} className="text-amber-400" />
                     <span className="text-white font-black text-lg">{score}</span>
@@ -650,7 +654,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                     key={actualNodeIndex}
                                     data-node-id={actualNodeIndex}
                                     onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
-                                    className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-4xl
+                                    className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-5xl
                                         ${isSelected 
                                             ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
                                             : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
@@ -773,7 +777,6 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   if (gameState === 'gameover') {
     return (
       <div className="w-full h-full min-h-[600px] bg-slate-900 flex flex-col items-center justify-center p-4 rounded-3xl relative overflow-hidden">
-        {/* FIXED: Standard React inline style to avoid dangerouslySetInnerHTML crashes */}
         <style>{`
             @keyframes confettiDrop { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
             .animate-confetti { animation: confettiDrop linear infinite; }
