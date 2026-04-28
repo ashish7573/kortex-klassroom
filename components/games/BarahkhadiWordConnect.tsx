@@ -10,7 +10,7 @@ const HINDI_WORDS = [
   'कमल', 'मटर', 'बतख', 'सड़क', 'कलम', 'नयन', 'भवन', 'शहद', 'कलश', 'बटन', 'रबड़', 'नमक', 'मगर', 'लहर', 'महल', 'शहर', 'डगर', 'गगन', 'नहर', 'नखत', 'पवन', 'चमन', 'रतन', 'वजन', 'नकल', 'अमर', 'सफर', 'जहर', 'नगर',
   'बरगद', 'थरमस', 'शलगम', 'कसरत', 'खटमल', 'बरतन', 'पनघट', 'अचकन', 'दमकल', 'अदरक', 'अजगर', 'बचपन', 'उपवन', 'शरबत', 'झटपट', 'नटखट', 'सरकस', 'हलचल', 'मखमल', 'अकबर',
   'आम', 'कार', 'कान', 'नाक', 'हाथ', 'तारा', 'ताला', 'छाता', 'माला', 'गाजर', 'टमाटर', 'जाल', 'आग', 'घास', 'बाजा', 'नाव', 'राजा', 'गाय', 'बादल', 'बाण', 'बाल', 'गाल', 'दाल', 'लाल', 'काला', 'पीला', 'हरा', 'बाघ', 'पापा', 'चाचा', 'मामा', 'नाना', 'दादा', 'आटा', 'बाजार', 'चादर', 'कागज', 'चावल', 'गमला', 'कमरा', 'मकान',
-  'चिड़िया', 'किताब', 'गिलास', 'विमान', 'हिरन', 'सितार', 'किसान', 'पहिया', 'तकिया', 'न नारियल', 'पिन', 'दिल', 'लिफाफा', 'गिटार', 'छिलका', 'टिकट', 'चिमटा', 'किला', 'दिन', 'मिठाई', 'कवि', 'छवि', 'रवि', 'शनि', 'पति', 'निशान', 'मिलन', 'किरण', 'मिर्च', 'सितारा', 'कविता', 'सरिता', 'बगिया', 'खटिया', 'बिटिया',
+  'चिड़िया', 'किताब', 'गिलास', 'विमान', 'हिरन', 'सितार', 'किसान', 'पहिया', 'तकिया', 'नारियल', 'पिन', 'दिल', 'लिफाफा', 'गिटार', 'छिलका', 'टिकट', 'चिमटा', 'किला', 'दिन', 'मिठाई', 'कवि', 'छवि', 'रवि', 'शनि', 'पति', 'निशान', 'मिलन', 'किरण', 'मिर्च', 'सितारा', 'कविता', 'सरिता', 'बगिया', 'खटिया', 'बिटिया',
   'मछली', 'हाथी', 'बकरी', 'घड़ी', 'छतरी', 'सीढ़ी', 'पपीता', 'पानी', 'तीर', 'जीभ', 'चाबी', 'दीपक', 'लकड़ी', 'चीता', 'तितली', 'ककड़ी', 'नाशपाती', 'लीची', 'परी', 'मकड़ी', 'नानी', 'दादी', 'चाची', 'मामी', 'दीदी', 'पीला', 'नीला', 'गीला', 'चील', 'झील', 'सीटी', 'लड़की', 'लड़की', 'मशीन', 'पसीना', 'दीवार', 'बीमारी',
   'गुलाब', 'कछुआ', 'गुड़िया', 'कुर्सी', 'साबुन', 'मुकुट', 'धनुष', 'बुलबुल', 'सुराही', 'कुटिया', 'तुलसी', 'जामुन', 'सुई', 'पुल', 'कुर्ता', 'झुनझुना', 'जुराब', 'दुकान', 'पुलाव', 'चुहिया', 'चुप', 'छुप', 'सुन', 'बुन', 'धुन', 'कुछ', 'सुख', 'दुख', 'मुख', 'सुबह', 'कुकुर', 'पुजारी', 'चुटकुला', 'गुमसुम', 'बटुआ', 'मुनिया',
   'सूरज', 'भालू', 'आलू', 'मूली', 'तरबूज', 'कबूतर', 'चूहा', 'फूल', 'जूता', 'झूला', 'झाड़ू', 'खजूर', 'तराजू', 'दूध', 'डमरू', 'पूड़ी', 'चूड़ी', 'कूलर', 'नाखून', 'कूदना', 'दूर', 'धूल', 'मूल', 'शूल', 'सूई', 'चूना', 'सूखा', 'रूठा', 'झूठा', 'मूरत', 'सूरत', 'पूरब', 'खूबसूरत', 'तरबूजा', 'खरबूजा', 'जादूगर',
@@ -38,7 +38,7 @@ const splitHindiSyllables = (word: string) => {
 };
 
 // ============================================================================
-// OPTIMIZED FAST-GRID COLLISION ALGORITHM (Smartboard Lag Patched)
+// OPTIMIZED FAST-GRID COLLISION ALGORITHM
 // ============================================================================
 const isValidPlacement = (candidateChars: string[], startRow: number, startCol: number, dir: string, gridMap: Map<string, string>) => {
     if (dir === 'across') {
@@ -284,35 +284,54 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         return { x: 50 + radius * Math.cos(angle), y: 50 + radius * Math.sin(angle) };
     };
 
-    // ==========================================
-    // CORE FIX: ROBUST MOBILE TOUCH ROUTING
-    // ==========================================
+    // ============================================================================
+    // THE FIX: PURE MATHEMATICAL COLLISION FOR iOS SAFARI
+    // ============================================================================
+    const findNodeAtPosition = (xPct: number, yPct: number) => {
+        // Defines the "hitbox" radius mathematically (approx 12% of the wheel size)
+        const HIT_THRESHOLD = 12; 
+
+        for (let i = 0; i < nodeOrder.length; i++) {
+            const actualNodeIndex = nodeOrder[i];
+            const pos = getNodePosition(i, nodeOrder.length);
+            
+            // Pythagorean theorem to find distance from touch to node center
+            const dist = Math.sqrt(Math.pow(xPct - pos.x, 2) + Math.pow(yPct - pos.y, 2));
+            
+            if (dist < HIT_THRESHOLD) {
+                return actualNodeIndex;
+            }
+        }
+        return null;
+    };
+
     const handleMoveRaw = (clientX: number, clientY: number) => {
         if (!isDrawing || !levelData || isBoardLocked) return;
 
         if (wheelRef.current) {
             const rect = wheelRef.current.getBoundingClientRect();
+            // Convert exact pixel touch coordinates to percentage relative to the wheel
             const xPct = ((clientX - rect.left) / rect.width) * 100;
             const yPct = ((clientY - rect.top) / rect.height) * 100;
             setMousePos({ x: xPct, y: yPct });
-        }
 
-        const el = document.elementFromPoint(clientX, clientY);
-        const nodeIdStr = el?.getAttribute('data-node-id');
-        
-        if (nodeIdStr) {
-            const actualNodeIndex = parseInt(nodeIdStr);
-            if (!selectedNodes.includes(actualNodeIndex)) {
-                setSelectedNodes(prev => [...prev, actualNodeIndex]);
-                setCurrentWord(prev => prev + levelData.nodes[actualNodeIndex]);
-                playTTS(levelData.nodes[actualNodeIndex]);
+            // Mathematical calculation instead of DOM lookup!
+            const hoveredNodeIndex = findNodeAtPosition(xPct, yPct);
+            
+            if (hoveredNodeIndex !== null && !selectedNodes.includes(hoveredNodeIndex)) {
+                setSelectedNodes(prev => [...prev, hoveredNodeIndex]);
+                setCurrentWord(prev => prev + levelData.nodes[hoveredNodeIndex]);
+                playTTS(levelData.nodes[hoveredNodeIndex]);
             }
         }
     };
 
-    const handlePointerDown = (e: React.PointerEvent, actualNodeIndex: number) => {
+    const handlePointerDown = (e: React.PointerEvent | React.TouchEvent, actualNodeIndex: number) => {
         if (isBoardLocked) return;
-        try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch(err) {}
+        
+        // Prevent Safari from grabbing the swipe
+        try { if ('pointerId' in e) (e.target as HTMLElement).releasePointerCapture((e as React.PointerEvent).pointerId); } catch(err) {}
+        
         setIsDrawing(true);
         setSelectedNodes([actualNodeIndex]);
         setCurrentWord(levelData.nodes[actualNodeIndex]);
@@ -321,14 +340,22 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         
         if (wheelRef.current) {
             const rect = wheelRef.current.getBoundingClientRect();
-            const xPct = ((e.clientX - rect.left) / rect.width) * 100;
-            const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+            const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.PointerEvent).clientX;
+            const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.PointerEvent).clientY;
+            
+            const xPct = ((clientX - rect.left) / rect.width) * 100;
+            const yPct = ((clientY - rect.top) / rect.height) * 100;
             setMousePos({ x: xPct, y: yPct });
         }
     };
 
     const handlePointerMove = (e: React.PointerEvent) => handleMoveRaw(e.clientX, e.clientY);
-    const handleTouchMove = (e: React.TouchEvent) => handleMoveRaw(e.touches[0].clientX, e.touches[0].clientY);
+    
+    // Explicit Touch Move override for iOS
+    const handleTouchMove = (e: React.TouchEvent) => {
+        e.preventDefault(); // Prevents iOS scroll-bounce during game
+        handleMoveRaw(e.touches[0].clientX, e.touches[0].clientY);
+    };
 
     const handlePointerUp = () => {
         if (!isDrawing || !levelData || isBoardLocked) return;
@@ -419,7 +446,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                         feedback === 'exists' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-sky-600 border-sky-200';
 
     // ============================================================================
-    // STRICT VERTICAL/MULTIPLAYER LAYOUT (10 / 50 / 30 / 10)
+    // STRICT VERTICAL/MULTIPLAYER LAYOUT
     // ============================================================================
     if (isMultiplayer || isMobile) {
         return (
@@ -529,7 +556,8 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                         key={actualNodeIndex}
                                         data-node-id={actualNodeIndex}
                                         onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
-                                        className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-12 sm:h-12 text-xl sm:text-3xl
+                                        onTouchStart={(e) => handlePointerDown(e, actualNodeIndex)} // iOS specific touch start
+                                        className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 sm:w-14 sm:h-14 text-xl sm:text-3xl
                                             ${isSelected 
                                                 ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
                                                 : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
@@ -558,7 +586,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     }
 
     // ============================================================================
-    // DESKTOP SINGLE PLAYER LAYOUT (Landscape Side-by-Side)
+    // DESKTOP SINGLE PLAYER LAYOUT
     // ============================================================================
     return (
         <div 
@@ -654,6 +682,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                     key={actualNodeIndex}
                                     data-node-id={actualNodeIndex}
                                     onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
+                                    onTouchStart={(e) => handlePointerDown(e, actualNodeIndex)}
                                     className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-5xl
                                         ${isSelected 
                                             ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
