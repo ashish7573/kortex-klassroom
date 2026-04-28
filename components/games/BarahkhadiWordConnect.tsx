@@ -285,11 +285,13 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     // ============================================================================
     
     // RESTORED: Your exact original function (with lock check)
-    const handlePointerDown = (e: React.PointerEvent, actualNodeIndex: number) => {
+    const handlePointerDown = (e: React.PointerEvent | React.TouchEvent, actualNodeIndex: number) => {
         if (isBoardLocked) return;
         try {
-            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch (err) {} // Fails silently on iOS Safari, which is fine!
+            if ('pointerId' in e) {
+                (e.target as HTMLElement).releasePointerCapture((e as React.PointerEvent).pointerId);
+            }
+        } catch (err) {} 
         setIsDrawing(true);
         setSelectedNodes([actualNodeIndex]);
         setCurrentWord(levelData.nodes[actualNodeIndex]);
@@ -542,8 +544,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                         key={actualNodeIndex}
                                         data-node-id={actualNodeIndex}
                                         onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
+                                        onTouchStart={(e) => handlePointerDown(e, actualNodeIndex)}
                                         className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2
-                                            ${isSelected 
+                                            ${isSelected
                                                 ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
                                                 : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
                                         `}
