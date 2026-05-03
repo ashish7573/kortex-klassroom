@@ -4,7 +4,8 @@ import { RotateCcw, Home, CheckCircle } from 'lucide-react';
 
 // Import dictionaries
 import { getWordsForSubtopic, getWordData } from '@/lib/HindiWordDictionary';
-import { HINDI_ASSETS } from '@/lib/SwarVyanjanDictionary';
+// Note: Ensure this path matches the file where you just pasted the new maps!
+import { HINDI_ASSETS, getBarahkhadiAudio } from '@/lib/SwarVyanjanDictionary';
 
 const swars = ["अ", "आ", "इ", "ई", "उ", "ऊ", "ऋ", "ए", "ऐ", "ओ", "औ", "अं", "अः"];
 const HINDI_MATRAS = ["", "ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "ं", "ः"];
@@ -17,18 +18,7 @@ const vargs = [
     { label: "अतिरिक्त", chars: ["ड़", "ढ़"] } 
 ];
 
-// --- DYNAMIC TTS (Saves you from needing 400+ barahkhadi audio files) ---
-const playTTS = (text: string) => {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        setTimeout(() => {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'hi-IN';
-            utterance.rate = 0.8;
-            window.speechSynthesis.speak(utterance);
-        }, 50);
-    }
-};
+// Removed playTTS. We now handle Barahkhadi via real audio files from the dictionary.
 
 const playSuccessChime = () => {
     try {
@@ -92,12 +82,12 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         if (!text) return;
         try {
             let audioPath = '';
-            if (text.length > 1) {
-                const wordData = getWordData(text);
-                if (wordData) audioPath = wordData.audioUrl;
-            } else {
-                const letterData = HINDI_ASSETS[text];
-                if (letterData) audioPath = letterData.audio;
+            
+            const wordData = getWordData(text);
+            if (wordData && wordData.audioUrl) {
+                audioPath = wordData.audioUrl;
+            } else if (HINDI_ASSETS[text]) {
+                audioPath = HINDI_ASSETS[text].audio;
             }
 
             if (audioPath) {
@@ -107,8 +97,20 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
                 }
                 const audio = new Audio(audioPath);
                 activeAudioRef.current = audio;
+                
+                // FIX: The Bulletproof Fallback! If it's the wrong extension, it swaps it instantly.
+                audio.onerror = () => {
+                    const fallbackPath = audioPath.endsWith('.m4a') 
+                        ? audioPath.replace('.m4a', '.mp3') 
+                        : audioPath.replace('.mp3', '.m4a');
+                        
+                    const fallbackAudio = new Audio(fallbackPath);
+                    activeAudioRef.current = fallbackAudio;
+                    fallbackAudio.play().catch(e => console.warn("Audio missing in both formats for:", text));
+                };
+
                 audio.play().catch(e => {
-                    console.warn(`Missing audio file at: ${audioPath}`, e);
+                    console.warn(`Browser blocked audio or missing file: ${audioPath}`, e);
                 });
             }
         } catch (error) {
@@ -285,7 +287,8 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         const blockStartX = (puzzleW / 2) - (totalBlockWidth / 2);
         const blockY = imageY + imageSize + (isMobile ? 15 : 30);
 
-        state.audioBtn = { x: blockStartX, y: blockY + (slotSize/2) - (audioBtnSize/2), size: audioBtnSize, word: currentWord.word };
+        // FIX: Removed 'word' from cache. We will look it up live on click.
+        state.audioBtn = { x: blockStartX, y: blockY + (slotSize/2) - (audioBtnSize/2), size: audioBtnSize };
 
         const slotStartX = blockStartX + audioBtnSize + audioGap;
         
@@ -489,18 +492,7 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         const state = stateRef.current;
         state.clickStart = { x: pos.x, y: pos.y, time: Date.now() };
 
-        if (isHit(pos, state.audioBtn)) { playLocalAudio(state.audioBtn.word); return; }
-        
-        if (isHit(pos, state.prevBtn) && currentIndex > 0) {
-            state.isWordComplete = false;
-            setCurrentIndex(prev => prev - 1); return;
-        }
-        if (isHit(pos, state.nextBtn) && currentIndex < wordList.length - 1) {
-            state.isWordComplete = false;
-            setCurrentIndex(prev => prev + 1); return;
-        }
-        
-        if (isHit(pos, state.imageBox)) { playLocalAudio(wordList[currentIndex].word); return; }
+        // FIX: Removed button hit-tests from here. iOS blocks audio on pointerdown.
 
         for (let item of state.items) {
             if (isHit(pos, item)) {
@@ -523,10 +515,25 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
     // --- NEW: TWO-STEP DROP & TTS LOGIC ---
     const handlePointerUp = (e: any) => {
         const state = stateRef.current;
-        if (!state.draggingItem) return;
-
         const pos = getPos(e);
         const dist = Math.hypot(pos.x - state.clickStart.x, pos.y - state.clickStart.y);
+
+        // FIX: Process button clicks on pointerup to bypass iOS Audio blocking
+        if (!state.draggingItem && Date.now() - state.clickStart.time < 300 && dist < 10) {
+            // FIX: Fetch the live word from the current index, not the cached button state
+            if (isHit(pos, state.audioBtn)) { playLocalAudio(wordList[currentIndex].word); return; }
+            if (isHit(pos, state.imageBox)) { playLocalAudio(wordList[currentIndex].word); return; }
+            if (isHit(pos, state.prevBtn) && currentIndex > 0) {
+                state.isWordComplete = false; setCurrentIndex(prev => prev - 1); return;
+            }
+            if (isHit(pos, state.nextBtn) && currentIndex < wordList.length - 1) {
+                state.isWordComplete = false; setCurrentIndex(prev => prev + 1); return;
+            }
+            return;
+        }
+
+        if (!state.draggingItem) return;
+
         const di = state.draggingItem;
 
         // Quick Click Audio
@@ -564,7 +571,28 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
                         slot.currentMatra = di.value;
                         slot.isComplete = true;
                         
-                        playTTS(slot.currentBase + slot.currentMatra); // Dynamic Barahkhadi voice!
+                        const completedSyllable = slot.currentBase + slot.currentMatra;
+                        const barahkhadiPath = getBarahkhadiAudio(completedSyllable);
+                        
+                        if (barahkhadiPath) {
+                            if (activeAudioRef.current) {
+                                activeAudioRef.current.pause();
+                                activeAudioRef.current.currentTime = 0;
+                            }
+                            
+                            const bAudio = new Audio(barahkhadiPath);
+                            activeAudioRef.current = bAudio;
+                            
+                            // Fallback to .m4a just in case you saved some as m4a
+                            bAudio.onerror = () => {
+                                const fallback = new Audio(barahkhadiPath.replace('.mp3', '.m4a'));
+                                activeAudioRef.current = fallback;
+                                fallback.play().catch(e => console.warn("Barahkhadi missing for:", completedSyllable));
+                            };
+                            
+                            bAudio.play().catch(e => console.warn("Browser blocked audio for:", completedSyllable));
+                        }
+
                         checkWinCondition(state);
                         break;
                     }

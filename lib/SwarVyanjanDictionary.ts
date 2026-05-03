@@ -469,3 +469,58 @@ export const getSubtopicData = (slug: string) => {
     ...HINDI_ASSETS[char]
   }));
 };
+
+// ==========================================
+// BARAHKHADI (BASE + MATRA) AUDIO SYSTEM
+// ==========================================
+
+export const VYANJAN_MAP: Record<string, string> = {
+    "क": "k", "ख": "kh", "ग": "g", "घ": "gh", "ङ": "ng",
+    "च": "ch", "छ": "chh", "ज": "j", "झ": "jh", "ञ": "ny",
+    "ट": "tt", "ठ": "tth", "ड": "dd", "ढ": "ddh", "ण": "nn",
+    "त": "t", "थ": "th", "द": "d", "ध": "dh", "न": "n",
+    "प": "p", "फ": "ph", "ब": "b", "भ": "bh", "म": "m",
+    "य": "y", "र": "r", "ल": "l", "व": "v",
+    "श": "sh", "ष": "ssh", "स": "s", "ह": "h",
+    "क्ष": "ksh", "त्र": "tr", "ज्ञ": "gy",
+    "ड़": "rrr", "ढ़": "rh" 
+};
+
+export const MATRA_MAP: Record<string, string> = {
+    "": "a", "ा": "aa", "ि": "i", "ी": "ee", "ु": "u", "ू": "oo",
+    "ृ": "ri", "े": "e", "ै": "ai", "ो": "o", "ौ": "au", "ं": "ang", "ः": "aha"
+};
+
+const HINDI_MATRAS = ["", "ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "ं", "ः"];
+
+/**
+ * Universal function to get the correct audio path for ANY Barahkhadi syllable.
+ * Usage: getBarahkhadiAudio("का") returns "/assets/hindi/audio/barahkhadi/k_aa.mp3"
+ */
+export const getBarahkhadiAudio = (syllable: string): string | null => {
+    if (!syllable) return null;
+
+    let base = syllable;
+    let matra = "";
+
+    // 1. Separate the Base Consonant from the Matra
+    for (let m of HINDI_MATRAS) {
+        if (m !== "" && syllable.endsWith(m)) {
+            base = syllable.replace(m, '');
+            matra = m;
+            break;
+        }
+    }
+
+    // 2. Translate to English filenames
+    const engBase = VYANJAN_MAP[base];
+    const engMatra = MATRA_MAP[matra];
+
+    // If it's a valid consonant + matra combination, return the safe path
+    // NOTE: Path updated to match the new folder location!
+    if (engBase && engMatra) {
+        return `/assets/hindi/audio/barahkhadi/${engBase}_${engMatra}.mp3`;
+    }
+
+    return null; // Not a valid barahkhadi syllable
+};

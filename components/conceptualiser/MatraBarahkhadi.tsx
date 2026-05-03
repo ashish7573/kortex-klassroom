@@ -2,6 +2,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowUpCircle, Volume2, Monitor, Smartphone } from 'lucide-react';
 
+// Import central audio engine
+import { HINDI_ASSETS, getBarahkhadiAudio } from '@/lib/SwarVyanjanDictionary';
+
 // --- DATA MAPPING & COLOR COORDINATION ---
 const SWARS = [
   { id: 'a', char: 'अ', matra: '', bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' },
@@ -60,17 +63,47 @@ const unlockMobileAudio = () => {
     isAudioUnlocked = true;
 };
 
-const playTTS = (text: string) => {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); 
-        
-        // Android Fix: A microscopic delay prevents the cancel() function from killing the new speech command
-        setTimeout(() => {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'hi-IN';
-            utterance.rate = 0.8;
-            window.speechSynthesis.speak(utterance);
-        }, 50); 
+// --- CUSTOM AUDIO ENGINE (Replaces TTS) ---
+let activeLocalAudio: HTMLAudioElement | null = null;
+
+const playAudio = (text: string) => {
+    if (!text || typeof window === 'undefined') return;
+    try {
+        let audioPath = '';
+
+        // 1. Is it a base Swar or Vyanjan? (e.g., "क" or "आ")
+        if (HINDI_ASSETS[text]) {
+            audioPath = HINDI_ASSETS[text].audio;
+        } 
+        // 2. Is it a combined Barahkhadi syllable? (e.g., "का" or "कि")
+        else {
+            const bPath = getBarahkhadiAudio(text);
+            if (bPath) audioPath = bPath;
+        }
+
+        if (audioPath) {
+            if (activeLocalAudio) {
+                activeLocalAudio.pause();
+                activeLocalAudio.currentTime = 0;
+            }
+            const audio = new Audio(audioPath);
+            activeLocalAudio = audio;
+            
+            // Bulletproof Fallback just in case of extension mismatch
+            audio.onerror = () => {
+                const fallbackPath = audioPath.endsWith('.m4a') 
+                    ? audioPath.replace('.m4a', '.mp3') 
+                    : audioPath.replace('.mp3', '.m4a');
+                    
+                const fallbackAudio = new Audio(fallbackPath);
+                activeLocalAudio = fallbackAudio;
+                fallbackAudio.play().catch(e => console.warn("Audio missing in both formats for:", text));
+            };
+
+            audio.play().catch(e => console.warn("Browser blocked audio for:", text));
+        }
+    } catch (error) {
+        console.error("Audio playback error:", error);
     }
 };
 
@@ -158,8 +191,8 @@ export default function MatraBarahkhadi({ lesson }: any) {
     if (combineState !== 'idle' && combineState !== 'ready') return;
     if (type === 'vyanjan' && DISABLED_VYANJANS.includes(value)) return;
     
-    if (type === 'vyanjan') playTTS(value);
-    if (type === 'swar') playTTS(value.char);
+    if (type === 'vyanjan') playAudio(value);
+    if (type === 'swar') playAudio(value.char);
 
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     setDragItem({ type, value, x: e.clientX, y: e.clientY });
@@ -208,11 +241,11 @@ export default function MatraBarahkhadi({ lesson }: any) {
     if (dropVyanjan && dropSwar && combineState === 'idle') {
         const sequence = async () => {
             setCombineState('v_audio');
-            playTTS(dropVyanjan);
+            playAudio(dropVyanjan);
             await new Promise(r => setTimeout(r, 800));
             
             setCombineState('s_audio');
-            playTTS(dropSwar.char);
+            playAudio(dropSwar.char);
             await new Promise(r => setTimeout(r, 800));
             
             setCombineState('combined');
@@ -220,7 +253,7 @@ export default function MatraBarahkhadi({ lesson }: any) {
             await new Promise(r => setTimeout(r, 300));
             
             const combinedChar = dropVyanjan + dropSwar.matra;
-            playTTS(combinedChar);
+            playAudio(combinedChar);
             await new Promise(r => setTimeout(r, 800));
             
             setCombineState('ready');
@@ -234,7 +267,7 @@ export default function MatraBarahkhadi({ lesson }: any) {
     if (combineState !== 'idle' && combineState !== 'ready') return;
     
     setCombineState('replaying');
-    playTTS(vyanjan + swarObj.matra);
+    playAudio(vyanjan + swarObj.matra);
     
     setTimeout(() => {
         setDropVyanjan(vyanjan);
@@ -336,7 +369,7 @@ export default function MatraBarahkhadi({ lesson }: any) {
                     <div className="flex gap-1 mb-1 sticky top-0 bg-white z-20 py-1 border-b border-slate-100">
                         <div className="w-10 h-6 shrink-0 sticky left-0 bg-white z-30"></div> 
                         {ACTIVE_VYANJANS.map(v => (
-                            <button key={`m-head-${v}`} onClick={() => playTTS(v)} className="w-8 h-6 bg-slate-100 text-slate-600 rounded flex items-center justify-center font-black text-xs shadow-inner shrink-0 leading-none hover:bg-slate-200 active:scale-95 transition-all">
+                            <button key={`m-head-${v}`} onClick={() => playAudio(v)} className="w-8 h-6 bg-slate-100 text-slate-600 rounded flex items-center justify-center font-black text-xs shadow-inner shrink-0 leading-none hover:bg-slate-200 active:scale-95 transition-all">
                                 {v}
                             </button>
                         ))}
@@ -347,7 +380,7 @@ export default function MatraBarahkhadi({ lesson }: any) {
                         {SWARS.map(s => (
                             <div key={`m-row-${s.id}`} className="flex gap-1 relative">
                                 {/* Row Header (Swar/Matra) */}
-                                <button onClick={() => playTTS(s.char)} className={`w-10 h-8 ${s.bg} ${s.text} rounded flex flex-col items-center justify-center font-black shadow-sm shrink-0 sticky left-0 z-10 active:scale-95 transition-all`}>
+                                <button onClick={() => playAudio(s.char)} className={`w-10 h-8 ${s.bg} ${s.text} rounded flex flex-col items-center justify-center font-black shadow-sm shrink-0 sticky left-0 z-10 active:scale-95 transition-all`}>
                                     <span className="text-[10px] leading-none">{s.char}</span>
                                     <span className="text-[8px] opacity-75 leading-none mt-0.5">{s.matra || '-'}</span>
                                 </button>
@@ -527,7 +560,7 @@ export default function MatraBarahkhadi({ lesson }: any) {
                     {ACTIVE_VYANJANS.map(v => (
                         <button 
                             key={v} 
-                            onClick={() => playTTS(v)}
+                            onClick={() => playAudio(v)}
                             className="w-10 h-10 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center font-black text-xl shadow-inner shrink-0 leading-none hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
                         >
                             {v}
@@ -541,7 +574,7 @@ export default function MatraBarahkhadi({ lesson }: any) {
                         <div key={s.id} className="flex gap-2 relative">
                             {/* Row Header (Swar/Matra) */}
                             <button 
-                                onClick={() => playTTS(s.char)}
+                                onClick={() => playAudio(s.char)}
                                 className={`w-14 h-10 ${s.bg} ${s.text} rounded-lg flex flex-col items-center justify-center font-black shadow-sm shrink-0 sticky left-0 z-10 hover:brightness-110 active:scale-95 transition-all cursor-pointer`}
                             >
                                 <span className="text-base leading-none">{s.char}</span>
