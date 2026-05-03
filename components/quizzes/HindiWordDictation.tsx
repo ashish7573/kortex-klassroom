@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Trophy, ArrowRight, Volume2, RotateCcw, FileEdit, CheckCircle, Star } from 'lucide-react';
-// NEW: Imported HINDI_WORDS to access the entire library directly
 import { getWordsForSubtopic, getWordData, HINDI_WORDS } from '@/lib/HindiWordDictionary';
+// Import central audio engine
+import { HINDI_ASSETS, getBarahkhadiAudio } from '@/lib/SwarVyanjanDictionary';
 
 // --- HELPER: Smart Image Fallback ---
 const SmartImage = ({ wordData, className, emojiSize }: { wordData: any, className: string, emojiSize: string }) => {
@@ -72,19 +73,59 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
     setQuestions(selected);
   }, [lesson]);
 
-  // 2. Audio Handler
+  // 2. Audio Handler (Universal Bulletproof Engine)
   const playDictationAudio = (idx: number, wordText: string) => {
-    const wordData = getWordData(wordText);
-    if (wordData && wordData.audioUrl) {
-      if (activeAudioRef.current) {
-        activeAudioRef.current.pause();
-        activeAudioRef.current.currentTime = 0;
-      }
-      const audio = new Audio(wordData.audioUrl);
-      activeAudioRef.current = audio;
-      audio.play().catch(e => console.warn("Audio play failed:", e));
+    if (!wordText) return;
+    
+    try {
+        let audioPath = '';
+
+        // 1. Is it a base Swar or Vyanjan?
+        if (HINDI_ASSETS[wordText]) {
+            audioPath = HINDI_ASSETS[wordText].audio;
+        } 
+        // 2. Is it a Barahkhadi syllable?
+        else {
+            const bPath = getBarahkhadiAudio(wordText);
+            if (bPath) {
+                audioPath = bPath;
+            } else {
+                // 3. Fallback for full words
+                const wordData = getWordData(wordText);
+                if (wordData && wordData.audioUrl) {
+                    audioPath = wordData.audioUrl;
+                }
+            }
+        }
+
+        if (audioPath) {
+            if (activeAudioRef.current) {
+                activeAudioRef.current.pause();
+                activeAudioRef.current.currentTime = 0;
+            }
+            const audio = new Audio(audioPath);
+            activeAudioRef.current = audio;
+            
+            // Bulletproof Fallback just in case of extension mismatch
+            audio.onerror = () => {
+                const fallbackPath = audioPath.endsWith('.m4a') 
+                    ? audioPath.replace('.m4a', '.mp3') 
+                    : audioPath.replace('.mp3', '.m4a');
+                    
+                const fallbackAudio = new Audio(fallbackPath);
+                activeAudioRef.current = fallbackAudio;
+                fallbackAudio.play().catch(e => console.warn("Audio missing in both formats for:", wordText));
+            };
+
+            audio.play().catch(e => console.warn("Browser blocked audio for:", wordText));
+        } else {
+            console.warn("No audio found in any dictionary for:", wordText);
+        }
+    } catch (error) {
+        console.error("Audio playback error:", error);
     }
     
+    // Mark card as played
     if (!playedCards.includes(idx)) {
       setPlayedCards(prev => [...prev, idx]);
     }

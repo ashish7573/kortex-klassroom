@@ -2,6 +2,9 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Volume2, X } from 'lucide-react';
 
+// Import central audio engine
+import { HINDI_ASSETS, getBarahkhadiAudio } from '@/lib/SwarVyanjanDictionary';
+
 // --- DATA MAPPING & COLOR COORDINATION ---
 const SWARS = [
   { id: 'a', char: 'अ', matra: '', bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' },
@@ -32,35 +35,60 @@ const VYANJAN_GROUPS = [
 const DISABLED_VYANJANS = ['ङ', 'ञ']; 
 
 // ============================================================================
-// MOBILE AUDIO UNLOCKER & SMART TTS ENGINE
+// CUSTOM LOCAL AUDIO ENGINE
 // ============================================================================
+let activeLocalAudio: HTMLAudioElement | null = null;
 let isAudioUnlocked = false;
 
+// We keep a lightweight unlocker to satisfy iOS Safari requirements
 const unlockMobileAudio = () => {
     if (isAudioUnlocked || typeof window === 'undefined') return;
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance('');
-        utterance.volume = 0; // Silent warmup
-        window.speechSynthesis.speak(utterance);
-    }
+    try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContext();
+        ctx.resume();
+    } catch (e) {}
     isAudioUnlocked = true;
 };
 
-const playTTS = (text: string) => {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); 
-        
-        // BUG FIX: Appending a Hindi Danda (।) stops the TTS engine from treating single letters like "डा" as abbreviations (Doctor).
-        let phoneticText = text + '।';
-        // Extreme override just in case the Danda fails for "डा" on certain Android models
-        if (text === 'डा') phoneticText = 'डाऽ'; 
+const playAudio = (text: string) => {
+    if (!text || typeof window === 'undefined') return;
+    try {
+        let audioPath = '';
 
-        setTimeout(() => {
-            const utterance = new SpeechSynthesisUtterance(phoneticText);
-            utterance.lang = 'hi-IN';
-            utterance.rate = 0.8;
-            window.speechSynthesis.speak(utterance);
-        }, 50); 
+        // 1. Is it a base Swar or Vyanjan? (e.g., "क" or "आ")
+        if (HINDI_ASSETS[text]) {
+            audioPath = HINDI_ASSETS[text].audio;
+        } 
+        // 2. Is it a combined Barahkhadi syllable? (e.g., "का" or "कि")
+        else {
+            const bPath = getBarahkhadiAudio(text);
+            if (bPath) audioPath = bPath;
+        }
+
+        if (audioPath) {
+            if (activeLocalAudio) {
+                activeLocalAudio.pause();
+                activeLocalAudio.currentTime = 0;
+            }
+            const audio = new Audio(audioPath);
+            activeLocalAudio = audio;
+            
+            // Bulletproof Fallback just in case of extension mismatch
+            audio.onerror = () => {
+                const fallbackPath = audioPath.endsWith('.m4a') 
+                    ? audioPath.replace('.m4a', '.mp3') 
+                    : audioPath.replace('.mp3', '.m4a');
+                    
+                const fallbackAudio = new Audio(fallbackPath);
+                activeLocalAudio = fallbackAudio;
+                fallbackAudio.play().catch(e => console.warn("Audio missing in both formats for:", text));
+            };
+
+            audio.play().catch(e => console.warn("Browser blocked audio for:", text));
+        }
+    } catch (error) {
+        console.error("Audio playback error:", error);
     }
 };
 
@@ -74,7 +102,7 @@ export default function BarahkhadiVisualiser() {
 
   const handleBeadClick = (vyanjan: string, swarObj: any) => {
       const combined = vyanjan + swarObj.matra;
-      playTTS(combined);
+      playAudio(combined);
       setPopup({ vyanjan, swar: swarObj, combined });
 
       // Auto-dismiss popup after 3 seconds
@@ -119,7 +147,7 @@ export default function BarahkhadiVisualiser() {
                     </div>
 
                     <button 
-                        onClick={() => playTTS(popup.combined)}
+                        onClick={() => playAudio(popup.combined)}
                         className="flex items-center gap-2 bg-sky-100 hover:bg-sky-200 text-sky-600 px-6 py-3 rounded-full font-bold text-lg md:text-xl transition-colors mt-2 active:scale-95"
                     >
                         <Volume2 size={24} /> सुनें
@@ -138,7 +166,7 @@ export default function BarahkhadiVisualiser() {
                     {ACTIVE_VYANJANS.map(v => (
                         <button 
                             key={`header-${v}`} 
-                            onClick={() => playTTS(v)}
+                            onClick={() => playAudio(v)}
                             className="w-10 h-10 md:w-12 md:h-12 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center font-black text-lg md:text-xl shadow-inner shrink-0 leading-none hover:bg-slate-200 active:scale-95 transition-all cursor-pointer border border-slate-200"
                         >
                             {v}
@@ -152,7 +180,7 @@ export default function BarahkhadiVisualiser() {
                         <div key={s.id} className="flex gap-1.5 md:gap-2 relative group">
                             {/* Row Header (Swar/Matra) */}
                             <button 
-                                onClick={() => playTTS(s.char)}
+                                onClick={() => playAudio(s.char)}
                                 className={`w-12 h-12 md:w-16 md:h-14 ${s.bg} ${s.text} rounded-lg flex flex-col items-center justify-center font-black shadow-md shrink-0 sticky left-0 z-10 hover:brightness-110 active:scale-95 transition-all cursor-pointer border border-black/10`}
                             >
                                 <span className="text-base md:text-xl leading-none">{s.char}</span>

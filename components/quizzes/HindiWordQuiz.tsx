@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Play, Trophy, Star, ArrowRight, CheckCircle, RotateCcw, Image as ImageIcon, Type } from 'lucide-react';
 import { getWordsForSubtopic, getWordData } from '@/lib/HindiWordDictionary';
+import { HINDI_ASSETS, getBarahkhadiAudio } from '@/lib/SwarVyanjanDictionary';
 
 // --- HELPER: Smart Image Fallback ---
 const SmartImage = ({ wordData, className, emojiSize }: { wordData: any, className: string, emojiSize: string }) => {
@@ -111,17 +112,54 @@ export default function HindiWordQuiz({ lesson, onComplete = () => {} }: any) {
     setShakeClass('');
   };
 
+  // --- UNIVERSAL AUDIO ENGINE ---
   const playWordAudio = (wordText: string) => {
-      const wordData = getWordData(wordText);
-      if (wordData && wordData.audioUrl) {
-          if (activeAudioRef.current) {
-              activeAudioRef.current.pause();
-              activeAudioRef.current.currentTime = 0;
-          }
-          const audio = new Audio(wordData.audioUrl);
-          activeAudioRef.current = audio;
-          audio.play().catch(e => console.warn("Audio play failed:", e));
-      }
+    if (!wordText) return;
+    try {
+        let audioPath = '';
+
+        // 1. Base Swar/Vyanjan
+        if (HINDI_ASSETS[wordText]) {
+            audioPath = HINDI_ASSETS[wordText].audio;
+        } 
+        // 2. Barahkhadi Syllable
+        else {
+            const bPath = getBarahkhadiAudio(wordText);
+            if (bPath) {
+                audioPath = bPath;
+            } else {
+                // 3. Full Word
+                const wordData = getWordData(wordText);
+                if (wordData && wordData.audioUrl) {
+                    audioPath = wordData.audioUrl;
+                }
+            }
+        }
+
+        if (audioPath) {
+            if (activeAudioRef.current) {
+                activeAudioRef.current.pause();
+                activeAudioRef.current.currentTime = 0;
+            }
+            const audio = new Audio(audioPath);
+            activeAudioRef.current = audio;
+            
+            // Bulletproof Fallback
+            audio.onerror = () => {
+                const fallbackPath = audioPath.endsWith('.m4a') 
+                    ? audioPath.replace('.m4a', '.mp3') 
+                    : audioPath.replace('.mp3', '.m4a');
+                    
+                const fallbackAudio = new Audio(fallbackPath);
+                activeAudioRef.current = fallbackAudio;
+                fallbackAudio.play().catch(e => console.warn("Audio missing in both formats for:", wordText));
+            };
+
+            audio.play().catch(e => console.warn("Browser blocked audio for:", wordText));
+        }
+    } catch (error) {
+        console.error("Audio playback error:", error);
+    }
   };
 
   const handleOptionClick = (optionWord: string) => {

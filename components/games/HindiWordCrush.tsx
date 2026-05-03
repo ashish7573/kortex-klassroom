@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Play, Trophy, Users, User, Clock, CheckCircle, RotateCcw, ArrowRight, Volume2, Eye, Lock, Zap, Monitor } from 'lucide-react';
 import { getWordsForSubtopic, getWordData } from '@/lib/HindiWordDictionary';
-import { HINDI_ASSETS } from '@/lib/SwarVyanjanDictionary';
+import { HINDI_ASSETS, getBarahkhadiAudio } from '@/lib/SwarVyanjanDictionary';
 
 // --- HELPER: Grapheme Segmenter ---
 const segmentWord = (word: string) => {
@@ -90,17 +90,30 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
     const playerColor = playerId === 'p1' ? 'blue' : 'rose';
     const targetChars = targetWord ? segmentWord(targetWord.word) : [];
 
+    // --- UNIVERSAL AUDIO ENGINE ---
     const playDictionaryAudio = (text: string) => {
         if (!text) return;
         try {
             let audioPath = '';
-            if (text.length > 1) {
-                const wordData = getWordData(text);
-                if (wordData) audioPath = wordData.audioUrl;
-            } else {
-                const letterData = HINDI_ASSETS[text];
-                if (letterData) audioPath = letterData.audio;
+
+            // 1. Base Swar/Vyanjan
+            if (HINDI_ASSETS[text]) {
+                audioPath = HINDI_ASSETS[text].audio;
+            } 
+            // 2. Barahkhadi Syllable
+            else {
+                const bPath = getBarahkhadiAudio(text);
+                if (bPath) {
+                    audioPath = bPath;
+                } else {
+                    // 3. Full Word
+                    const wordData = getWordData(text);
+                    if (wordData && wordData.audioUrl) {
+                        audioPath = wordData.audioUrl;
+                    }
+                }
             }
+
             if (audioPath) {
                 if (activeAudioRef.current) {
                     activeAudioRef.current.pause();
@@ -108,9 +121,23 @@ const PlayerEngine = ({ playerId, wordPool, score, onScoreChange, isFlipped, isH
                 }
                 const audio = new Audio(audioPath);
                 activeAudioRef.current = audio;
-                audio.play().catch(e => console.warn(e));
+                
+                // Bulletproof Fallback
+                audio.onerror = () => {
+                    const fallbackPath = audioPath.endsWith('.m4a') 
+                        ? audioPath.replace('.m4a', '.mp3') 
+                        : audioPath.replace('.mp3', '.m4a');
+                        
+                    const fallbackAudio = new Audio(fallbackPath);
+                    activeAudioRef.current = fallbackAudio;
+                    fallbackAudio.play().catch(e => console.warn("Audio missing in both formats for:", text));
+                };
+
+                audio.play().catch(e => console.warn("Browser blocked audio for:", text));
             }
-        } catch (e) { console.error(e); }
+        } catch (error) {
+            console.error("Audio playback error:", error);
+        }
     };
 
     const loadNewWord = useCallback(() => {
