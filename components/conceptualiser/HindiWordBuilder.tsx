@@ -1,10 +1,9 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RotateCcw, Home, CheckCircle } from 'lucide-react';
 
 // Import dictionaries
 import { getWordsForSubtopic, getWordData } from '@/lib/HindiWordDictionary';
-// Note: Ensure this path matches the file where you just pasted the new maps!
 import { HINDI_ASSETS, getBarahkhadiAudio } from '@/lib/SwarVyanjanDictionary';
 
 const swars = ["अ", "आ", "इ", "ई", "उ", "ऊ", "ऋ", "ए", "ऐ", "ओ", "औ", "अं", "अः"];
@@ -17,8 +16,6 @@ const vargs = [
     { label: "ऊष्म", chars: ["श", "ष", "स", "ह"] }, { label: "संयुक्त", chars: ["क्ष", "त्र", "ज्ञ"] },
     { label: "अतिरिक्त", chars: ["ड़", "ढ़"] } 
 ];
-
-// Removed playTTS. We now handle Barahkhadi via real audio files from the dictionary.
 
 const playSuccessChime = () => {
     try {
@@ -50,45 +47,58 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     
+    // --- MODE & CONFIG ---
     const subtopicId = lesson?.subtopicId || lesson?.routePath?.split('/').pop() || 'word-builder-2';
+    const isMatraMode = subtopicId.includes('matra');
     const titleStr = lesson?.title?.toLowerCase() || '';
     const selectedLength = titleStr.includes('3') ? 3 : titleStr.includes('4') ? 4 : 2;
     
-    // --- MODE DETECTOR ---
-    const isMatraMode = subtopicId.includes('matra');
+    let headerLabel = `${selectedLength}-Letter Words`;
+    if (isMatraMode) headerLabel = `Matra Words`;
 
+    // --- STATE ---
+    const [isMobile, setIsMobile] = useState(false);
     const [feedback, setFeedback] = useState({ text: '', type: '' });
     const [wordList, setWordList] = useState<any[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [gameKey, setGameKey] = useState(0);
     
+    // Core Engine State
     const stateRef = useRef({
-        items: [] as any[], targetSlots: [] as any[],
-        headers: [] as any[],
+        items: [] as any[],          // Desktop static palette items
+        targetSlots: [] as any[],    // The word drop zones
+        headers: [] as any[],        // Desktop headers
         imageCache: {} as Record<string, { img: HTMLImageElement, emoji: string }>, 
-        scale: 1, draggingItem: null as any | null, dragOffset: { x: 0, y: 0 }, clickStart: { x: 0, y: 0, time: 0 },
+        scale: 1, 
+        draggingItem: null as any | null, 
+        dragOffset: { x: 0, y: 0 }, 
+        clickStart: { x: 0, y: 0, time: 0 },
         audioBtn: null as any,
         prevBtn: null as any,
         nextBtn: null as any,
         imageBox: null as any,
         isWordComplete: false,
-        shuffledBases: [] as string[],
-        shuffledMatras: [] as string[]
     });
 
     const activeAudioRef = useRef<HTMLAudioElement | null>(null);
 
+    // --- MOBILE DETECTION ---
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // --- AUDIO SYSTEM ---
     const playLocalAudio = (text: string) => {
         if (!text) return;
         try {
             let audioPath = '';
-            
             const wordData = getWordData(text);
-            if (wordData && wordData.audioUrl) {
-                audioPath = wordData.audioUrl;
-            } else if (HINDI_ASSETS[text]) {
-                audioPath = HINDI_ASSETS[text].audio;
-            }
+            
+            if (wordData && wordData.audioUrl) audioPath = wordData.audioUrl;
+            else if (HINDI_ASSETS[text]) audioPath = HINDI_ASSETS[text].audio;
 
             if (audioPath) {
                 if (activeAudioRef.current) {
@@ -98,24 +108,16 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
                 const audio = new Audio(audioPath);
                 activeAudioRef.current = audio;
                 
-                // FIX: The Bulletproof Fallback! If it's the wrong extension, it swaps it instantly.
                 audio.onerror = () => {
-                    const fallbackPath = audioPath.endsWith('.m4a') 
-                        ? audioPath.replace('.m4a', '.mp3') 
-                        : audioPath.replace('.mp3', '.m4a');
-                        
+                    const fallbackPath = audioPath.endsWith('.m4a') ? audioPath.replace('.m4a', '.mp3') : audioPath.replace('.mp3', '.m4a');
                     const fallbackAudio = new Audio(fallbackPath);
                     activeAudioRef.current = fallbackAudio;
-                    fallbackAudio.play().catch(e => console.warn("Audio missing in both formats for:", text));
+                    fallbackAudio.play().catch(e => console.warn("Fallback audio missing:", text));
                 };
 
-                audio.play().catch(e => {
-                    console.warn(`Browser blocked audio or missing file: ${audioPath}`, e);
-                });
+                audio.play().catch(e => console.warn("Audio blocked:", e));
             }
-        } catch (error) {
-            console.error("Audio playback error:", error);
-        }
+        } catch (error) { console.error("Audio error:", error); }
     };
 
     const showTempFeedback = (text: string, type: 'success' | 'info' = 'success') => {
@@ -123,6 +125,7 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         setTimeout(() => setFeedback({ text: '', type: '' }), 1500);
     };
 
+    // --- CANVAS DRAWING (Handles Stage & Desktop Palette) ---
     const drawRoundedRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
         ctx.beginPath(); ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
         ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h); ctx.lineTo(x+r, y+h);
@@ -136,25 +139,24 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         if (!ctx) return;
         
         const state = stateRef.current;
-        const isMobile = canvas.width < 768;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        ctx.setLineDash([8, 4]); ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); 
-        if (isMobile) { ctx.moveTo(0, canvas.height * 0.50); ctx.lineTo(canvas.width, canvas.height * 0.50); } 
-        else { ctx.moveTo(canvas.width * 0.45, 0); ctx.lineTo(canvas.width * 0.45, canvas.height); }
-        ctx.stroke(); ctx.setLineDash([]);
+        // Draw Desktop Divider Line
+        if (!isMobile) {
+            ctx.setLineDash([8, 4]); ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(canvas.width * 0.45, 0); ctx.lineTo(canvas.width * 0.45, canvas.height);
+            ctx.stroke(); ctx.setLineDash([]);
+        }
 
+        // Draw Image Box
         if (state.imageBox) {
             const currentWord = wordList[currentIndex];
             const cached = state.imageCache[currentWord.word];
             
             ctx.fillStyle = '#f8fafc';
-            ctx.shadowColor = 'rgba(56, 189, 248, 0.2)';
-            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(56, 189, 248, 0.2)'; ctx.shadowBlur = 20;
             drawRoundedRect(ctx, state.imageBox.x, state.imageBox.y, state.imageBox.size, state.imageBox.size, 24);
-            ctx.fill();
-            ctx.shadowBlur = 0; 
+            ctx.fill(); ctx.shadowBlur = 0; 
             
             if (cached && cached.img.complete && cached.img.naturalWidth > 0) {
                 const pad = state.imageBox.size * 0.1;
@@ -166,6 +168,7 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
             }
         }
 
+        // Draw Audio Button
         if (state.audioBtn) {
             const btn = state.audioBtn;
             ctx.fillStyle = '#eff6ff'; ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3;
@@ -176,15 +179,12 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
             ctx.fillText("🔊", btn.x + btn.size/2, btn.y + btn.size/2 + 2);
         }
 
-        // --- NEW: 2-STEP SLOT RENDERING ---
+        // Draw Target Slots
         state.targetSlots.forEach(slot => {
-            if (slot.isComplete) { 
-                ctx.fillStyle = '#f0fdf4'; ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 4; 
-            } else if (slot.isBaseFilled) {
-                ctx.fillStyle = '#eff6ff'; ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3;
-            } else { 
-                ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 3; 
-            }
+            if (slot.isComplete) { ctx.fillStyle = '#f0fdf4'; ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 4; } 
+            else if (slot.isBaseFilled) { ctx.fillStyle = '#eff6ff'; ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3; } 
+            else { ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 3; }
+            
             drawRoundedRect(ctx, slot.x, slot.y, slot.size, slot.size, 16);
             ctx.fill(); ctx.stroke();
             
@@ -201,6 +201,7 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
             }
         });
 
+        // Draw Navigation Buttons
         if (state.prevBtn && currentIndex > 0) {
             ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2;
             drawRoundedRect(ctx, state.prevBtn.x, state.prevBtn.y, state.prevBtn.size, state.prevBtn.size, 12);
@@ -211,24 +212,26 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         if (state.nextBtn && currentIndex < wordList.length - 1) {
             if (state.isWordComplete) { ctx.fillStyle = '#dcfce3'; ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3; } 
             else { ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; }
-            
             drawRoundedRect(ctx, state.nextBtn.x, state.nextBtn.y, state.nextBtn.size, state.nextBtn.size, 12);
             ctx.fill(); ctx.stroke();
             ctx.fillStyle = state.isWordComplete ? '#16a34a' : '#64748b'; ctx.font = `bold ${state.nextBtn.size * 0.6}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText("▶", state.nextBtn.x + state.nextBtn.size/2, state.nextBtn.y + state.nextBtn.size/2 + 2);
         }
 
-        state.headers.forEach(h => {
-            ctx.fillStyle = '#475569'; ctx.font = `bold ${12 * state.scale}px sans-serif`; ctx.textAlign = 'left'; ctx.fillText(h.text, h.x, h.y);
-        });
+        // Draw Desktop Static Palette (Only if not mobile)
+        if (!isMobile) {
+            state.headers.forEach(h => {
+                ctx.fillStyle = '#475569'; ctx.font = `bold ${12 * state.scale}px sans-serif`; ctx.textAlign = 'left'; ctx.fillText(h.text, h.x, h.y);
+            });
+            state.items.forEach(item => {
+                ctx.fillStyle = '#ffffff'; ctx.strokeStyle = item.color; ctx.lineWidth = 2;
+                drawRoundedRect(ctx, item.x, item.y, item.size, item.size, 8); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#1e293b'; ctx.font = `bold ${item.size * 0.55}px 'Noto Sans Devanagari', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(item.char, item.x + item.size / 2, item.y + item.size / 2 + 3);
+            });
+        }
 
-        state.items.forEach(item => {
-            ctx.fillStyle = '#ffffff'; ctx.strokeStyle = item.color; ctx.lineWidth = 2;
-            drawRoundedRect(ctx, item.x, item.y, item.size, item.size, 8); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = '#1e293b'; ctx.font = `bold ${item.size * 0.55}px 'Noto Sans Devanagari', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(item.char, item.x + item.size / 2, item.y + item.size / 2 + 3);
-        });
-
+        // Draw the Actively Dragged Item (Works for Mobile AND Desktop)
         if (state.draggingItem) {
             const di = state.draggingItem;
             ctx.save(); ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(0,0,0,0.2)';
@@ -238,48 +241,54 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
             ctx.fillText(di.char, di.x + di.size / 2, di.y + di.size / 2 + 5);
             ctx.restore();
         }
-    }, [wordList, currentIndex]);
+    }, [wordList, currentIndex, isMobile]);
 
+    // --- LAYOUT ENGINE ---
     const resizeAndLayout = useCallback(() => {
         const canvas = canvasRef.current;
         const container = containerRef.current;
         if (!canvas || !container || wordList.length === 0) return;
 
+        // The container height is already managed by Tailwind (h-1/2 on mobile)
         canvas.width = container.clientWidth;
         canvas.height = container.clientHeight;
         
         const state = stateRef.current;
         const w = canvas.width;
         const h = canvas.height;
-        const isMobile = w < 768; 
         
         state.scale = isMobile ? 0.8 : 1;
-        
         const oldSlots = [...state.targetSlots];
         
         state.targetSlots = []; state.items = []; state.headers = []; 
         state.audioBtn = null; state.imageBox = null; state.prevBtn = null; state.nextBtn = null;
 
+        // The "Stage" sizing is consistent now. On mobile it uses the full canvas width.
         const puzzleW = isMobile ? w : w * 0.45;
-        const puzzleH = isMobile ? h * 0.50 : h;
+        const puzzleH = h;
         
         const imageSize = isMobile 
-            ? Math.min(puzzleW * 0.6, puzzleH * 0.45, 240)  
+            ? Math.min(puzzleW * 0.5, puzzleH * 0.4, 200)  
             : Math.min(puzzleW * 0.6, puzzleH * 0.55, 320); 
 
         const imageX = (puzzleW / 2) - (imageSize / 2);
-        const imageY = isMobile ? 15 : (puzzleH * 0.10);
+        const imageY = isMobile ? 10 : (puzzleH * 0.10);
         state.imageBox = { x: imageX, y: imageY, size: imageSize };
 
-        // --- NEW: MATRA & GRAPHEME PARSER ---
+        // Parse Target Word
         const currentWord = wordList[currentIndex];
-        const segmenter = new Intl.Segmenter('hi-IN', { granularity: 'grapheme' });
-        const charArray = Array.from(segmenter.segment(currentWord.word)).map(s => s.segment);
+        let charArray: string[] = [];
+        try {
+            const segmenter = new Intl.Segmenter('hi-IN', { granularity: 'grapheme' });
+            charArray = Array.from(segmenter.segment(currentWord.word)).map(s => s.segment);
+        } catch (e) {
+            charArray = currentWord.word.match(/[\u0900-\u097F][\u093E-\u094D\u0951-\u0954\u0962\u0963]*/g) || currentWord.word.split('');
+        }
         const actualLength = charArray.length;
 
-        const slotSize = Math.min(puzzleW / (actualLength + 2), isMobile ? 60 : 75);
+        // Layout Slots
+        const slotSize = Math.min(puzzleW / (actualLength + 2), isMobile ? 55 : 75);
         const totalSlotsWidth = actualLength * slotSize + ((actualLength - 1) * 10);
-        
         const audioBtnSize = slotSize * 0.8;
         const audioGap = 15;
         const totalBlockWidth = audioBtnSize + audioGap + totalSlotsWidth;
@@ -287,24 +296,16 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         const blockStartX = (puzzleW / 2) - (totalBlockWidth / 2);
         const blockY = imageY + imageSize + (isMobile ? 15 : 30);
 
-        // FIX: Removed 'word' from cache. We will look it up live on click.
         state.audioBtn = { x: blockStartX, y: blockY + (slotSize/2) - (audioBtnSize/2), size: audioBtnSize };
-
         const slotStartX = blockStartX + audioBtnSize + audioGap;
         
-        charArray.forEach((char: string, charIdx: number) => {
+        charArray.forEach((charStr: string, charIdx: number) => {
             const xSlot = slotStartX + (charIdx * (slotSize + 10));
             const previousProgress = oldSlots.find(s => s.wordIdx === currentIndex && s.charIdx === charIdx);
             
-            // Engine logically separates bases and matras
-            let tBase = char;
-            let tMatra = "";
+            let tBase = charStr, tMatra = "";
             for (let m of HINDI_MATRAS) {
-                if (m !== "" && char.endsWith(m)) {
-                    tBase = char.replace(m, '');
-                    tMatra = m;
-                    break;
-                }
+                if (m !== "" && charStr.endsWith(m)) { tBase = charStr.replace(m, ''); tMatra = m; break; }
             }
 
             state.targetSlots.push({
@@ -318,96 +319,34 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
             });
         });
 
+        // Navigation Arrows
         const arrowSize = isMobile ? 35 : 45;
         const arrowY = imageY + (imageSize/2) - (arrowSize/2);
         state.prevBtn = { x: 10, y: arrowY, size: arrowSize };
         state.nextBtn = { x: puzzleW - arrowSize - 10, y: arrowY, size: arrowSize };
 
-        const paletteX = isMobile ? 0 : puzzleW + 20; 
-        const paletteY = isMobile ? puzzleH + 15 : 20;
-        const paletteW = isMobile ? w : w - paletteX - 20;
-        let curY = paletteY;
-
-        // =====================================
-        // THE RESPONSIVE MATRA PALETTE RENDERER
-        // =====================================
-        if (isMobile) {
-            const cols = 5;
-            const mobileBoxSize = Math.min(paletteW / 6, 52); 
-            const rowWidth = (cols * mobileBoxSize) + ((cols - 1) * 8);
-            const startX = (w - rowWidth) / 2; 
-
-            // Shuffle required characters to fit mobile screens
-            if (state.shuffledBases.length === 0) {
-                const reqBases = new Set<string>();
-                const reqMatras = new Set<string>();
-                wordList.forEach(wData => {
-                    Array.from(segmenter.segment(wData.word)).forEach((s: any) => {
-                        let b = s.segment, m = "";
-                        for (let mat of HINDI_MATRAS) {
-                            if (s.segment.endsWith(mat)) { b = s.segment.replace(mat, ''); m = mat; break; }
-                        }
-                        reqBases.add(b);
-                        if (m) reqMatras.add(m);
-                    });
-                });
-
-                const allBases = [...swars, ...vargs.flatMap(v => v.chars)];
-                while(reqBases.size < (isMatraMode ? 10 : 15)) reqBases.add(allBases[Math.floor(Math.random() * allBases.length)]);
-                state.shuffledBases = Array.from(reqBases).slice(0, isMatraMode ? 10 : 15).sort(() => 0.5 - Math.random());
-
-                if (isMatraMode) {
-                    while(reqMatras.size < 5) {
-                        const rMatra = HINDI_MATRAS[Math.floor(Math.random() * HINDI_MATRAS.length)];
-                        if(rMatra !== "") reqMatras.add(rMatra);
-                    }
-                    state.shuffledMatras = Array.from(reqMatras).slice(0, 5).sort(() => 0.5 - Math.random());
-                }
-            }
-
-            state.headers.push({ text: "अक्षर (Letters)", x: startX, y: curY });
-            curY += 25;
-            let bCol = 0;
-            state.shuffledBases.forEach((base: string) => {
-                if(bCol >= cols) { bCol = 0; curY += mobileBoxSize + 8; }
-                const x = startX + (bCol * (mobileBoxSize + 8));
-                state.items.push({ char: base, value: base, x, y: curY, size: mobileBoxSize, color: '#10b981', isMatra: false });
-                bCol++;
-            });
-
-            if (isMatraMode) {
-                curY += mobileBoxSize + 15;
-                state.headers.push({ text: "मात्रा (Signs)", x: startX, y: curY });
-                curY += 25;
-                bCol = 0;
-                state.shuffledMatras.forEach((matra: string) => {
-                    if(bCol >= cols) { bCol = 0; curY += mobileBoxSize + 8; }
-                    const x = startX + (bCol * (mobileBoxSize + 8));
-                    state.items.push({ char: "◌" + matra, value: matra, x, y: curY, size: mobileBoxSize, color: '#f59e0b', isMatra: true });
-                    bCol++;
-                });
-            }
-
-        } else {
-            // DESKTOP: Full fixed grids
+        // --- DESKTOP PALETTE ONLY ---
+        // (Mobile palette is handled via standard HTML below)
+        if (!isMobile) {
+            const paletteX = puzzleW + 20; 
+            const paletteY = 20;
+            const paletteW = w - paletteX - 20;
+            let curY = paletteY;
             const boxSize = Math.min(paletteW / (swars.length + 1), 40);
             
             state.headers.push({ text: "स्वर (Vowels)", x: paletteX, y: curY });
             curY += 20;
             swars.forEach((swar, i) => {
-                const x = paletteX + (i * (boxSize + 4));
-                state.items.push({ char: swar, value: swar, x, y: curY, size: boxSize, color: '#3b82f6', isMatra: false });
+                state.items.push({ char: swar, value: swar, x: paletteX + (i * (boxSize + 4)), y: curY, size: boxSize, color: '#3b82f6', isMatra: false });
             });
             curY += boxSize + 20;
 
-            // Conditional Matra Row (Chapter 4+)
             if (isMatraMode) {
                 state.headers.push({ text: "मात्रा (Signs)", x: paletteX, y: curY });
                 curY += 20;
                 HINDI_MATRAS.forEach((matra, i) => {
-                    if (matra === "") return; // Skip rendering, but keep the spacing index!
-                    const x = paletteX + (i * (boxSize + 4));
-                    state.items.push({ char: "◌" + matra, value: matra, x, y: curY, size: boxSize, color: '#f59e0b', isMatra: true });
+                    if (matra === "") return; 
+                    state.items.push({ char: "◌" + matra, value: matra, x: paletteX + (i * (boxSize + 4)), y: curY, size: boxSize, color: '#f59e0b', isMatra: true });
                 });
                 curY += boxSize + 20;
             }
@@ -433,18 +372,15 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         }
         
         draw();
-    }, [draw, wordList, currentIndex, selectedLength, isMatraMode]);
+    }, [draw, wordList, currentIndex, selectedLength, isMatraMode, isMobile]);
 
+    // --- GAME DATA LOAD ---
     useEffect(() => {
         let availableWords = getWordsForSubtopic(subtopicId);
         if (availableWords.length === 0) return;
-
         const shuffled = [...availableWords].sort(() => 0.5 - Math.random());
         setWordList(shuffled);
         setCurrentIndex(0);
-        
-        stateRef.current.shuffledBases = []; 
-        stateRef.current.shuffledMatras = [];
         stateRef.current.isWordComplete = false;
 
         shuffled.forEach(wordData => {
@@ -461,25 +397,26 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         if (wordList.length > 0) {
             setTimeout(resizeAndLayout, 50);
         }
-    }, [currentIndex, wordList, resizeAndLayout]);
+    }, [currentIndex, wordList, resizeAndLayout, isMobile]);
 
+    // Prevent default scroll on Canvas
     useEffect(() => {
         const canvas = canvasRef.current;
-        const preventScroll = (e: TouchEvent) => {
-            if (stateRef.current.draggingItem) e.preventDefault();
-        };
+        const preventScroll = (e: TouchEvent) => { if (stateRef.current.draggingItem) e.preventDefault(); };
         canvas?.addEventListener('touchmove', preventScroll, { passive: false });
-        window.addEventListener('resize', resizeAndLayout);
-        return () => {
-            canvas?.removeEventListener('touchmove', preventScroll);
-            window.removeEventListener('resize', resizeAndLayout);
-        };
-    }, [resizeAndLayout]);
+        return () => canvas?.removeEventListener('touchmove', preventScroll);
+    }, []);
 
-    const getPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // --- INTERACTION HANDLERS ---
+    const getPos = (e: any) => {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return { x: 0, y: 0 };
-        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        
+        // Use true touch coordinates if available to prevent scroll drift
+        const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+        
+        return { x: clientX - rect.left, y: clientY - rect.top };
     };
 
     const isHit = (pos: any, box: any) => {
@@ -487,40 +424,77 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         return pos.x >= box.x && pos.x <= box.x + box.size && pos.y >= box.y && pos.y <= box.y + box.size;
     };
 
+    // This handles Desktop drag start inside the Canvas
     const handlePointerDown = (e: any) => {
         const pos = getPos(e);
         const state = stateRef.current;
         state.clickStart = { x: pos.x, y: pos.y, time: Date.now() };
 
-        // FIX: Removed button hit-tests from here. iOS blocks audio on pointerdown.
-
-        for (let item of state.items) {
-            if (isHit(pos, item)) {
-                state.draggingItem = { ...item, x: pos.x - item.size/2, y: pos.y - item.size/2 };
-                state.dragOffset = { x: item.size/2, y: item.size/2 };
-                draw(); break;
+        if (!isMobile) {
+            for (let item of state.items) {
+                if (isHit(pos, item)) {
+                    state.draggingItem = { ...item, x: pos.x - item.size/2, y: pos.y - item.size/2 };
+                    state.dragOffset = { x: item.size/2, y: item.size/2 };
+                    draw(); break;
+                }
             }
         }
     };
 
+    const startMobileDrag = (e: React.PointerEvent<HTMLButtonElement>, char: string, value: string, isMatra: boolean, color: string) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        
+        // Accurate finger position tracking
+        const posX = e.clientX - rect.left;
+        const posY = e.clientY - rect.top;
+        
+        const state = stateRef.current;
+        state.clickStart = { x: posX, y: posY, time: Date.now() };
+        
+        // The size of the dragged item
+        const size = 52; 
+        
+        // Position the dragging item exactly centered on the finger's initial touch point
+        state.draggingItem = { 
+            char, 
+            value, 
+            x: posX - size / 2, 
+            y: posY - size / 2, 
+            size, 
+            color, 
+            isMatra 
+        };
+        // The offset ensures it stays snapped to the finger during the move
+        state.dragOffset = { x: size / 2, y: size / 2 };
+        draw();
+
+        // Pass pointer events directly to the canvas window
+        canvas.setPointerCapture(e.pointerId);
+    };
+
+    // Capture both pointer and touch moves for maximum fidelity
     const handlePointerMove = (e: any) => {
         const state = stateRef.current;
         if (!state.draggingItem) return;
+        
+        // Prevent browser scroll if we are actively dragging
+        if (e.cancelable) e.preventDefault();
+        
         const pos = getPos(e);
         state.draggingItem.x = pos.x - state.dragOffset.x;
         state.draggingItem.y = pos.y - state.dragOffset.y;
         draw();
     };
 
-    // --- NEW: TWO-STEP DROP & TTS LOGIC ---
     const handlePointerUp = (e: any) => {
         const state = stateRef.current;
         const pos = getPos(e);
         const dist = Math.hypot(pos.x - state.clickStart.x, pos.y - state.clickStart.y);
 
-        // FIX: Process button clicks on pointerup to bypass iOS Audio blocking
+        // Click Logic (Audio & Nav)
         if (!state.draggingItem && Date.now() - state.clickStart.time < 300 && dist < 10) {
-            // FIX: Fetch the live word from the current index, not the cached button state
             if (isHit(pos, state.audioBtn)) { playLocalAudio(wordList[currentIndex].word); return; }
             if (isHit(pos, state.imageBox)) { playLocalAudio(wordList[currentIndex].word); return; }
             if (isHit(pos, state.prevBtn) && currentIndex > 0) {
@@ -536,37 +510,34 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
 
         const di = state.draggingItem;
 
-        // Quick Click Audio
+        // Quick Tap Audio for Palette Item
         if (Date.now() - state.clickStart.time < 250 && dist < 10) {
             if (di.isMatra) {
                 const mIdx = HINDI_MATRAS.indexOf(di.value);
-                // Matra index perfectly matches Swar index, so play Swar audio!
                 if (mIdx > -1) playLocalAudio(swars[mIdx]); 
             } else {
                 playLocalAudio(di.char);
             }
         } else {
-            // Drag and Drop Snapping
+            // Drop Snapping Logic
             for (let slot of state.targetSlots) {
                 if (slot.isComplete) continue;
                 const d = Math.hypot((di.x + di.size/2) - (slot.x + slot.size/2), (di.y + di.size/2) - (slot.y + slot.size/2));
                 
                 if (d < slot.size * 1.2) {
-                    
-                    // STEP 1: Dropping the Base Letter
+                    // Base Drop
                     if (!slot.isBaseFilled && !di.isMatra && di.value === slot.targetBase) {
                         slot.isBaseFilled = true;
                         slot.currentBase = di.value;
                         
-                        if (slot.targetMatra === "") {
-                            slot.isComplete = true; // Auto-complete if no matra needed
-                        }
+                        let audioToPlay = HINDI_ASSETS[di.value]?.audio; 
+                        if (slot.targetMatra === "") slot.isComplete = true; 
                         
-                        playLocalAudio(di.value);
-                        checkWinCondition(state);
+                        if (state.targetSlots.every((s: any) => s.isComplete)) checkWinCondition(state, audioToPlay);
+                        else { playLocalAudio(di.value); checkWinCondition(state); }
                         break;
                     } 
-                    // STEP 2: Dropping the Matra on a filled base
+                    // Matra Drop
                     else if (slot.isBaseFilled && !slot.isComplete && di.isMatra && di.value === slot.targetMatra) {
                         slot.currentMatra = di.value;
                         slot.isComplete = true;
@@ -574,26 +545,21 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
                         const completedSyllable = slot.currentBase + slot.currentMatra;
                         const barahkhadiPath = getBarahkhadiAudio(completedSyllable);
                         
-                        if (barahkhadiPath) {
-                            if (activeAudioRef.current) {
-                                activeAudioRef.current.pause();
-                                activeAudioRef.current.currentTime = 0;
+                        if (state.targetSlots.every((s: any) => s.isComplete)) checkWinCondition(state, barahkhadiPath || undefined);
+                        else {
+                            if (barahkhadiPath) {
+                                if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current.currentTime = 0; }
+                                const bAudio = new Audio(barahkhadiPath);
+                                activeAudioRef.current = bAudio;
+                                bAudio.onerror = () => {
+                                    const fallback = new Audio(barahkhadiPath.replace('.mp3', '.m4a'));
+                                    activeAudioRef.current = fallback;
+                                    fallback.play().catch(e => console.warn("Barahkhadi missing"));
+                                };
+                                bAudio.play().catch(e => console.warn("Audio blocked"));
                             }
-                            
-                            const bAudio = new Audio(barahkhadiPath);
-                            activeAudioRef.current = bAudio;
-                            
-                            // Fallback to .m4a just in case you saved some as m4a
-                            bAudio.onerror = () => {
-                                const fallback = new Audio(barahkhadiPath.replace('.mp3', '.m4a'));
-                                activeAudioRef.current = fallback;
-                                fallback.play().catch(e => console.warn("Barahkhadi missing for:", completedSyllable));
-                            };
-                            
-                            bAudio.play().catch(e => console.warn("Browser blocked audio for:", completedSyllable));
+                            checkWinCondition(state);
                         }
-
-                        checkWinCondition(state);
                         break;
                     }
                 }
@@ -604,21 +570,43 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
         draw();
     };
 
-    const checkWinCondition = (state: any) => {
+    const checkWinCondition = (state: any, finalAudioPath?: string) => {
         if (state.targetSlots.every((s: any) => s.isComplete)) {
             state.isWordComplete = true; 
-            playSuccessChime(); 
-            showTempFeedback("बहुत बढ़िया! (Excellent!)");
-            setTimeout(() => { playLocalAudio(wordList[currentIndex].word); }, 500);
+            
+            let delay = 0;
+            if (finalAudioPath) {
+                if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current.currentTime = 0; }
+                const bAudio = new Audio(finalAudioPath);
+                activeAudioRef.current = bAudio;
+                bAudio.onerror = () => {
+                    const fallback = new Audio(finalAudioPath.replace('.mp3', '.m4a'));
+                    activeAudioRef.current = fallback;
+                    fallback.play().catch(e => console.warn("Fallback missing"));
+                };
+                bAudio.play().catch(e => console.warn("Audio blocked"));
+                delay = 800;
+            }
+
+            setTimeout(() => {
+                playSuccessChime();
+                showTempFeedback("बहुत बढ़िया! (Excellent!)");
+                setTimeout(() => playLocalAudio(wordList[currentIndex].word), 1200); 
+            }, delay);
         }
     };
 
+    // ==========================================
+    // RENDER 
+    // ==========================================
     return (
         <div className="flex flex-col w-full h-full bg-slate-50 rounded-xl md:rounded-3xl overflow-hidden font-sans relative">
+            
+            {/* GLOBAL HEADER */}
             <div className="flex items-center justify-between bg-white px-4 md:px-6 py-3 border-b-2 border-blue-100 shadow-sm shrink-0 z-10">
                 <div className="flex items-center gap-3">
                     <div className="bg-blue-600 text-white px-3 md:px-4 py-1.5 rounded-full font-black tracking-wider text-xs md:text-sm shadow-sm">
-                        {selectedLength}-Letter Words
+                        {headerLabel}
                     </div>
                     <div className="text-xs font-bold text-slate-400">
                         {wordList.length > 0 ? `${currentIndex + 1} of ${wordList.length}` : ''}
@@ -637,17 +625,90 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
                 </div>
             </div>
 
-            <div className="flex-1 relative w-full h-full cursor-pointer" ref={containerRef}>
-                <canvas 
-                    ref={canvasRef}
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onPointerCancel={handlePointerUp}
-                    onPointerOut={handlePointerUp}
-                    className="absolute inset-0 w-full h-full touch-none select-none"
-                />
+            {/* RESPONSIVE LAYOUT CONTAINER */}
+            <div className={`flex-1 flex ${isMobile ? 'flex-col' : 'flex-row'} w-full h-full`}>
+                
+                {/* CANVAS STAGE (Full on Desktop, Top Half on Mobile) */}
+                <div className={`relative w-full ${isMobile ? 'h-[30%] border-b-2 border-slate-200 shrink-0' : 'h-full flex-1'}`} ref={containerRef}>
+                    <canvas 
+                        ref={canvasRef}
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        onPointerCancel={handlePointerUp}
+                        onPointerOut={handlePointerUp}
+                        className="absolute inset-0 w-full h-full touch-none select-none z-10"
+                    />
+                </div>
+
+                {/* MOBILE ONLY: HTML DOM NATIVE SCROLL PALETTE */}
+                {isMobile && (
+                    <div className="flex-1 flex flex-col bg-slate-100/50 w-full overflow-hidden py-2 px-1 relative z-0 shadow-[inset_0_5px_15px_rgba(0,0,0,0.05)]">
+                        
+                        {/* Section 1: Swars (Horizontal Swipe) */}
+                        <div className="shrink-0 mb-2 w-full">
+                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2 mb-1">स्वर (Vowels)</h3>
+                            <div className="flex overflow-x-auto gap-2 px-2 pb-2 hide-scrollbar w-full">
+                                {swars.map(swar => (
+                                    <button 
+                                        key={`m-s-${swar}`}
+                                        onPointerDown={(e) => startMobileDrag(e, swar, swar, false, '#3b82f6')}
+                                        style={{ touchAction: 'none' }} // Stops browser scroll fighting
+                                        className="w-12 h-12 shrink-0 bg-white border-2 border-blue-400 rounded-xl shadow-sm text-slate-800 font-black text-xl flex items-center justify-center active:scale-90 active:bg-blue-50 touch-none select-none"
+                                    >
+                                        {swar}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Section 2: Matras (Horizontal Swipe - Only if Matra Mode) */}
+                        {isMatraMode && (
+                            <div className="shrink-0 mb-2 w-full">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2 mb-1">मात्रा (Signs)</h3>
+                                <div className="flex overflow-x-auto gap-2 px-2 pb-2 hide-scrollbar w-full">
+                                    {HINDI_MATRAS.map((matra, i) => {
+                                        if (matra === "") return null;
+                                        return (
+                                            <button 
+                                                key={`m-m-${i}`}
+                                                onPointerDown={(e) => startMobileDrag(e, "◌" + matra, matra, true, '#f59e0b')}
+                                                style={{ touchAction: 'none' }} // Stops browser scroll fighting
+                                                className="w-12 h-12 shrink-0 bg-white border-2 border-amber-400 rounded-xl shadow-sm text-amber-600 font-black text-2xl flex items-center justify-center active:scale-90 active:bg-amber-50 touch-none select-none"
+                                            >
+                                                {"◌" + matra}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Section 3: Vyanjans (Vertical Scroll - Grouped by Varg) */}
+                        <div className="flex-1 overflow-y-auto w-full px-2 hide-scrollbar pb-6 relative z-0">
+                            {vargs.map((vargGrp, vIdx) => (
+                                <div key={`m-vgrp-${vIdx}`} className="mb-3 w-full">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 border-b border-slate-200 pb-0.5">{vargGrp.label}</h3>
+                                    <div className="flex flex-wrap gap-2 w-full">
+                                        {vargGrp.chars.map(char => (
+                                            <button 
+                                                key={`m-v-${char}`}
+                                                onPointerDown={(e) => startMobileDrag(e, char, char, false, '#10b981')}
+                                                style={{ touchAction: 'none' }} // Stops browser scroll fighting
+                                                className="w-12 h-12 bg-white border-2 border-emerald-400 rounded-xl shadow-sm text-slate-800 font-black text-xl flex items-center justify-center active:scale-90 active:bg-emerald-50 touch-none select-none"
+                                            >
+                                                {char}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                    </div>
+                )}
             </div>
+
         </div>
     );
 }

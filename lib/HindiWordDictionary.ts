@@ -309,15 +309,18 @@ export const getWordData = (word: string) => {
   const data = HINDI_WORDS[word];
   if (!data) return null;
 
+  const wordCategory = word.length === word.replace(/[ािीुूेैोौंः]/g, '').length ? 'amatrik' : 'matrik';
+  const audioExtension = wordCategory === 'amatrik' ? '.m4a' : '.mp3';
+
   return {
     word: word,
     english: data.english,
     emoji: data.emoji,
     length: word.length,
-    category: word.length === word.replace(/[ािीुूेैोौंः]/g, '').length ? 'amatrik' : 'matrik', 
+    category: wordCategory, 
     
-    // Auto-generates paths: Images and Audio use the 'file' property (English names for new words)
-    audioUrl: `/assets/hindi/words/audio/${data.file}.m4a`,
+    // Auto-generates paths: Images and Audio use the 'file' property (Dynamic extension)
+    audioUrl: `/assets/hindi/words/audio/${data.file}${audioExtension}`,
     imageUrl: `/assets/hindi/words/images/${data.file}.png`
   };
 };
