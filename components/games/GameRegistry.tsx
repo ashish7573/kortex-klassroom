@@ -31,11 +31,17 @@ const HindiWordCrush = dynamic(() => import('./HindiWordCrush'), {
   ssr: false, loading: () => <GameLoader /> 
 });
 
+// 4. Math Archer Game!
+const MathArcher = dynamic(() => import('./MathArcher'), { 
+  ssr: false, loading: () => <GameLoader /> 
+});
+
 // --- THE ROUTER SWITCHBOARD ---
 const SPECIFIC_GAMES: any = {
   'barahkhadi-word-connect': BarahkhadiWordConnect,
   'math-defenders': MathDefenders, // Catches your new arcade game from the CSV
   'hindi-word-crush': HindiWordCrush,
+  'math-archer': MathArcher,
   'game-matra-aa': HindiWordCrush,
   'game-matra-i': HindiWordCrush,
   'game-matra-ee': HindiWordCrush,
