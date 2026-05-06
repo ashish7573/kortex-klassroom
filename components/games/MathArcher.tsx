@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, RotateCcw, Trophy, Settings, Users, Target, Heart } from 'lucide-react';
 
+// ==========================================
+// 🛠️ DEVELOPER CONTROLS - ADJUST HEIGHT HERE
+// ==========================================
+const SMARTBOARD_BOW_OFFSET = 320; // Increase this to push bows higher on Smartboards
+const MOBILE_BOW_OFFSET = 180;     // Increase this to push bows higher on Mobile phones
+// ==========================================
+
 // Kortex Klassroom Player Palette
 const PLAYER_COLORS = [
   { main: '#ef4444', light: '#fca5a5', name: 'Red' },    // Player 1
@@ -18,7 +25,7 @@ const OPERATIONS = [
   { id: 'div', label: 'Divide' }
 ];
 
-export default function MathDefendersMultiplayer() {
+export default function MathArcher() {
   // --- DOM UI STATE ---
   const [uiState, setUiState] = useState<'menu' | 'playing' | 'gameover'>('menu');
   const [equation, setEquation] = useState('');
@@ -41,7 +48,7 @@ export default function MathDefendersMultiplayer() {
     balloons: [] as any[],
     particles: [] as any[],
     clouds: [] as any[],
-    activeTouches: {} as Record<number, number> // touch.identifier -> player.id
+    activeTouches: {} as Record<number, number> 
   });
 
   // --- MATH ENGINE ---
@@ -114,9 +121,11 @@ export default function MathDefendersMultiplayer() {
     gameRef.current.problem = { text, answer };
     setEquation(text);
 
-    // Generate Balloons (1 correct, 4 distractors)
+    const isMobile = window.innerWidth < 768;
+    const targetBalloons = isMobile ? 5 : 8;
+
     const answers = [answer];
-    while (answers.length < 5) {
+    while (answers.length < targetBalloons) {
       let offset = Math.floor(Math.random() * 20) - 10;
       if (offset === 0) offset = 1;
       let distractor = answer + offset;
@@ -134,22 +143,21 @@ export default function MathDefendersMultiplayer() {
     }
     answers.sort(() => Math.random() - 0.5); 
 
-    const isMobile = window.innerWidth < 768;
     const balloonRadius = isMobile ? 35 : 45;
     const minY = 120;
-    const maxY = gameRef.current.height - (isMobile ? 380 : 450);
+    const maxY = gameRef.current.height - (isMobile ? MOBILE_BOW_OFFSET + 100 : SMARTBOARD_BOW_OFFSET + 100);
 
     gameRef.current.balloons = answers.map((num, i) => {
       const isRightToLeft = Math.random() > 0.5;
       return {
         id: Math.random(),
         number: num,
-        x: isRightToLeft ? gameRef.current.width + Math.random() * 200 : -Math.random() * 200,
+        x: Math.random() * gameRef.current.width,
         y: Math.random() * (maxY - minY) + minY,
         baseY: Math.random() * (maxY - minY) + minY,
         radius: balloonRadius,
-        color: PLAYER_COLORS[i % 4].main, // Reuse palette for balloons
-        speed: (Math.random() * 1.5 + 0.8) * (isRightToLeft ? -1 : 1),
+        color: PLAYER_COLORS[i % 4].main, 
+        speed: (Math.random() * 2.5 + 1.5) * (isRightToLeft ? -1 : 1),
         wobblePhase: Math.random() * Math.PI * 2,
         wobbleSpeed: Math.random() * 0.05 + 0.02
       };
@@ -160,15 +168,14 @@ export default function MathDefendersMultiplayer() {
   const startGame = () => {
     gameRef.current.state = 'playing';
     
-    // Initialize Players
     const sectionWidth = window.innerWidth / settings.playerCount;
     gameRef.current.players = Array.from({ length: settings.playerCount }).map((_, i) => ({
       id: i,
       color: PLAYER_COLORS[i],
       score: 0,
-      lives: 3,
+      lives: 5, // INCREASED TO 5 LIVES
       bowX: (sectionWidth * i) + (sectionWidth / 2),
-      bowY: window.innerHeight - (window.innerWidth < 768 ? 180 : 250),
+      bowY: window.innerHeight - (window.innerWidth < 768 ? MOBILE_BOW_OFFSET : SMARTBOARD_BOW_OFFSET),
       bowAngle: -Math.PI / 2,
       charge: 0,
       maxCharge: 50,
@@ -182,14 +189,12 @@ export default function MathDefendersMultiplayer() {
   };
 
   const syncUI = () => {
-    // Clone array to trigger React re-render
     setPlayerStats([...gameRef.current.players]);
   };
 
   const handleGameOver = () => {
     gameRef.current.state = 'gameover';
     
-    // Determine winner
     let maxScore = -1;
     let winners: string[] = [];
     gameRef.current.players.forEach(p => {
@@ -224,7 +229,6 @@ export default function MathDefendersMultiplayer() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    // Init clouds
     if (gameRef.current.clouds.length === 0) {
       for(let i=0; i<6; i++){
         gameRef.current.clouds.push({
@@ -242,12 +246,11 @@ export default function MathDefendersMultiplayer() {
       gameRef.current.width = canvas.width;
       gameRef.current.height = canvas.height;
       
-      // Re-adjust bow positions on resize
       if (gameRef.current.players.length > 0) {
         const sectionWidth = canvas.width / gameRef.current.players.length;
         gameRef.current.players.forEach((p, i) => {
           p.bowX = (sectionWidth * i) + (sectionWidth / 2);
-          p.bowY = canvas.height - (window.innerWidth < 768 ? 180 : 250);
+          p.bowY = canvas.height - (window.innerWidth < 768 ? MOBILE_BOW_OFFSET : SMARTBOARD_BOW_OFFSET);
         });
       }
     };
@@ -258,11 +261,9 @@ export default function MathDefendersMultiplayer() {
       if (!ctx) return;
       const { state, width, height, players, balloons, particles, clouds, problem } = gameRef.current;
 
-      // 1. Background
-      ctx.fillStyle = '#bae6fd'; // sky-200
+      ctx.fillStyle = '#bae6fd'; 
       ctx.fillRect(0, 0, width, height);
 
-      // 2. Draw Clouds
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       clouds.forEach(c => {
         c.x += c.speed;
@@ -277,14 +278,12 @@ export default function MathDefendersMultiplayer() {
       if (state === 'playing') {
         let activePlayers = 0;
 
-        // 3. Process Players (Input, Physics, Drawing)
         players.forEach(p => {
-          if (p.lives <= 0) return; // Player is out
+          if (p.lives <= 0) return; 
           activePlayers++;
 
           const { interaction, arrow } = p;
 
-          // Mechanics: Pull-back
           if (interaction.isDown && arrow.state !== 'flying') {
             let dx = interaction.startX - interaction.currentX;
             let dy = interaction.startY - interaction.currentY;
@@ -298,21 +297,20 @@ export default function MathDefendersMultiplayer() {
               p.charge = Math.min(dist * 0.4, p.maxCharge);
             }
           } else if (!interaction.isDown && arrow.state === 'nocked') {
-            if (p.charge > 10) { // Reduced threshold for snappier release
+            // FIX 1: Lowered release threshold from 10 to 5 to eliminate delay
+            if (p.charge > 5) { 
               arrow.state = 'flying';
-              // Lock in starting coordinates instantly to eliminate perceived frame lag
               arrow.x = p.bowX - Math.cos(p.bowAngle) * p.charge;
               arrow.y = p.bowY - Math.sin(p.bowAngle) * p.charge;
-              // Increased initial exit velocity (* 0.6 + 18) for a punchier shot
-              arrow.vx = Math.cos(p.bowAngle) * (p.charge * 0.6 + 18);
-              arrow.vy = Math.sin(p.bowAngle) * (p.charge * 0.6 + 18);
+              // FIX 1: Increased base launch velocity significantly (+25) for snappier shots
+              arrow.vx = Math.cos(p.bowAngle) * (p.charge * 0.8 + 25);
+              arrow.vy = Math.sin(p.bowAngle) * (p.charge * 0.8 + 25);
             } else {
               arrow.state = 'idle'; 
             }
             p.charge = 0;
           }
 
-          // Mechanics: Arrow Physics
           if (arrow.state === 'idle') {
             arrow.x = p.bowX; arrow.y = p.bowY; arrow.angle = p.bowAngle;
           } else if (arrow.state === 'nocked') {
@@ -320,7 +318,7 @@ export default function MathDefendersMultiplayer() {
             arrow.y = p.bowY - Math.sin(p.bowAngle) * p.charge;
             arrow.angle = p.bowAngle;
           } else if (arrow.state === 'flying') {
-            arrow.vy += 0.2; // Gravity
+            arrow.vy += 0.2; 
             arrow.x += arrow.vx;
             arrow.y += arrow.vy;
             arrow.angle = Math.atan2(arrow.vy, arrow.vx);
@@ -332,7 +330,6 @@ export default function MathDefendersMultiplayer() {
             }
           }
 
-          // Draw Drag Guide
           if (interaction.isDown && arrow.state === 'nocked') {
             ctx.save();
             ctx.beginPath();
@@ -345,30 +342,27 @@ export default function MathDefendersMultiplayer() {
             
             ctx.beginPath();
             ctx.arc(interaction.startX, interaction.startY, 25, 0, Math.PI * 2);
-            ctx.fillStyle = p.color.main + '40'; // 25% opacity
+            ctx.fillStyle = p.color.main + '40'; 
             ctx.fill();
             ctx.restore();
           }
 
-          // Draw Bow
           ctx.save();
           ctx.translate(p.bowX, p.bowY);
           ctx.rotate(p.bowAngle);
 
-          // Bow String
           ctx.beginPath();
           ctx.moveTo(0, -60);
           ctx.lineTo(-p.charge, 0); 
           ctx.lineTo(0, 60);
-          ctx.strokeStyle = '#f8fafc'; // slate-50
+          ctx.strokeStyle = '#f8fafc'; 
           ctx.lineWidth = 3;
           ctx.stroke();
 
-          // Bow Wood
           ctx.beginPath();
           ctx.moveTo(0, -65);
           ctx.quadraticCurveTo(35, 0, 0, 65);
-          ctx.strokeStyle = p.color.main; // Personalized Bow Color
+          ctx.strokeStyle = p.color.main; 
           ctx.lineWidth = 14;
           ctx.lineCap = 'round';
           ctx.stroke();
@@ -377,7 +371,6 @@ export default function MathDefendersMultiplayer() {
           ctx.stroke();
           ctx.restore();
 
-          // Draw Arrow
           ctx.save();
           if (arrow.state === 'idle' || arrow.state === 'nocked') {
             ctx.translate(p.bowX, p.bowY);
@@ -388,27 +381,32 @@ export default function MathDefendersMultiplayer() {
             ctx.rotate(arrow.angle);
           }
           
-          // Shaft
-          ctx.beginPath(); ctx.moveTo(-35, 0); ctx.lineTo(35, 0);
-          ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 4; ctx.stroke();
+          // FIX 2: Completely Redesigned Round-Back Arrow
           
-          // Fletching
+          // 1. The Shaft (Now distinctly rounded lineCap)
+          ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(35, 0);
+          ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.stroke();
+          
+          // 2. The Fletching (Flat vertical back, sloping forward to shaft)
           ctx.fillStyle = p.color.main;
-          ctx.beginPath(); ctx.moveTo(-35, 0); ctx.lineTo(-25, -8); ctx.lineTo(-15, 0); ctx.fill();
-          ctx.beginPath(); ctx.moveTo(-35, 0); ctx.lineTo(-25, 8); ctx.lineTo(-15, 0); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(-30, -6); ctx.lineTo(-15, 0); ctx.lineTo(-30, 0); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(-30, 6); ctx.lineTo(-15, 0); ctx.lineTo(-30, 0); ctx.fill();
 
-          // Arrowhead
+          // 3. The Nock (Round circle right at the tail end)
+          ctx.beginPath(); ctx.arc(-30, 0, 4, 0, Math.PI * 2);
+          ctx.fillStyle = p.color.main; ctx.fill();
+
+          // 4. The Arrowhead
           ctx.fillStyle = '#475569'; 
           ctx.beginPath(); ctx.moveTo(35, -6); ctx.lineTo(48, 0); ctx.lineTo(35, 6); ctx.fill();
+          
           ctx.restore();
         });
 
-        // Check End Condition
         if (activePlayers === 0) {
           handleGameOver();
         }
 
-        // 4. Process Balloons
         let collisionDetected = false;
         for (let i = balloons.length - 1; i >= 0; i--) {
           let b = balloons[i];
@@ -419,7 +417,6 @@ export default function MathDefendersMultiplayer() {
           if (b.speed > 0 && b.x > width + b.radius) b.x = -b.radius;
           if (b.speed < 0 && b.x < -b.radius) b.x = width + b.radius;
 
-          // Collision Check against ALL flying arrows
           players.forEach(p => {
             if (p.arrow.state === 'flying' && !collisionDetected) {
               const tipX = p.arrow.x + Math.cos(p.arrow.angle) * 40;
@@ -427,13 +424,13 @@ export default function MathDefendersMultiplayer() {
               const dist = Math.hypot(tipX - b.x, tipY - b.y);
 
               if (dist < b.radius + 8) {
-                collisionDetected = true; // Prevent multiple arrows hitting simultaneously
+                collisionDetected = true; 
                 if (b.number === problem.answer) {
                   spawnParticles(b.x, b.y, b.color);
                   p.score += 10;
                   p.arrow.state = 'idle';
                   syncUI();
-                  generateProblem(); // New problem
+                  generateProblem(); 
                 } else {
                   spawnParticles(b.x, b.y, '#64748b');
                   balloons.splice(i, 1); 
@@ -445,28 +442,22 @@ export default function MathDefendersMultiplayer() {
             }
           });
           
-          // Draw Balloon
           if (balloons[i]) {
             ctx.save();
             ctx.translate(b.x, b.y);
             
-            // String
             ctx.beginPath(); ctx.moveTo(0, b.radius);
             ctx.quadraticCurveTo(15, b.radius + 25, -10, b.radius + 50);
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
 
-            // Body
             ctx.fillStyle = b.color;
             ctx.beginPath(); ctx.ellipse(0, 0, b.radius, b.radius * 1.25, 0, 0, Math.PI * 2); ctx.fill();
             
-            // Tie
             ctx.beginPath(); ctx.moveTo(-6, b.radius * 1.2); ctx.lineTo(6, b.radius * 1.2); ctx.lineTo(0, b.radius * 1.4); ctx.fill();
 
-            // Highlight
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
             ctx.beginPath(); ctx.ellipse(-b.radius * 0.35, -b.radius * 0.6, b.radius * 0.25, b.radius * 0.45, Math.PI/5, 0, Math.PI * 2); ctx.fill();
 
-            // Text
             let fontSize = b.radius * 0.85;
             let numStr = String(b.number);
             if (numStr.length > 3) fontSize = b.radius * 0.65;
@@ -482,7 +473,6 @@ export default function MathDefendersMultiplayer() {
           }
         }
 
-        // 5. Particles
         for (let i = particles.length - 1; i >= 0; i--) {
           let p = particles[i];
           p.x += p.vx; p.y += p.vy; p.vy += 0.4; p.life -= 0.02;
@@ -505,7 +495,6 @@ export default function MathDefendersMultiplayer() {
     };
   }, []);
 
-  // --- MULTI-TOUCH / MOUSE INPUT HANDLERS ---
   const getPlayerZone = (clientX: number) => {
     const sectionWidth = window.innerWidth / settings.playerCount;
     const index = Math.floor(clientX / sectionWidth);
@@ -515,11 +504,9 @@ export default function MathDefendersMultiplayer() {
   const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
     if (gameRef.current.state !== 'playing') return;
     
-    // Prevent default scrolling on touch
     if ('touches' in e && e.cancelable) e.preventDefault();
 
     if ('changedTouches' in e) {
-      // Touch Devices (Smartboard / Mobile)
       Array.from(e.changedTouches).forEach(touch => {
         const pIndex = getPlayerZone(touch.clientX);
         const player = gameRef.current.players[pIndex];
@@ -529,7 +516,6 @@ export default function MathDefendersMultiplayer() {
         }
       });
     } else {
-      // Mouse (Desktop fallback)
       const mouseEvent = e as React.MouseEvent;
       const pIndex = getPlayerZone(mouseEvent.clientX);
       const player = gameRef.current.players[pIndex];
@@ -581,7 +567,6 @@ export default function MathDefendersMultiplayer() {
     }
   };
 
-  // --- COMPONENT RENDER ---
   return (
     <div 
       className="relative w-full h-[100dvh] overflow-hidden select-none bg-sky-200 font-sans touch-none flex flex-col"
@@ -594,10 +579,9 @@ export default function MathDefendersMultiplayer() {
       onTouchEnd={handlePointerUp}
       onTouchCancel={handlePointerUp}
     >
-      {/* Visual Stage Layer */}
       <canvas ref={canvasRef} className="absolute inset-0 z-0 cursor-crosshair block" />
 
-      {/* --- IN-GAME DOM HUD (Kortex Standards) --- */}
+      {/* --- IN-GAME DOM HUD --- */}
       {uiState === 'playing' && (
         <div className="absolute inset-0 z-10 pointer-events-none">
           
@@ -615,7 +599,8 @@ export default function MathDefendersMultiplayer() {
                   <div className="flex flex-col">
                     <span className="text-[10px] md:text-sm font-black uppercase tracking-wider" style={{ color: p.color.main }}>{p.color.name}</span>
                     <div className="flex gap-0.5 mt-0.5">
-                      {[...Array(3)].map((_, i) => (
+                      {/* FIX 3: Increased from Array(3) to Array(5) */}
+                      {[...Array(5)].map((_, i) => (
                         <Heart key={i} className={`w-3 h-3 md:w-4 md:h-4 transition-all ${i < p.lives ? 'fill-red-500 text-red-500' : 'fill-slate-200 text-slate-200'}`} />
                       ))}
                     </div>
@@ -639,7 +624,8 @@ export default function MathDefendersMultiplayer() {
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] md:text-sm font-black uppercase tracking-wider" style={{ color: p.color.main }}>{p.color.name}</span>
                     <div className="flex gap-0.5 mt-0.5 flex-row-reverse">
-                      {[...Array(3)].map((_, i) => (
+                      {/* FIX 3: Increased from Array(3) to Array(5) */}
+                      {[...Array(5)].map((_, i) => (
                         <Heart key={i} className={`w-3 h-3 md:w-4 md:h-4 transition-all ${i < p.lives ? 'fill-red-500 text-red-500' : 'fill-slate-200 text-slate-200'}`} />
                       ))}
                     </div>
@@ -728,7 +714,6 @@ export default function MathDefendersMultiplayer() {
                   {window.innerWidth < 768 ? 'Mobile devices support up to 2 players.' : 'For Smartboards, select 2-4 and stand side-by-side!'}
                 </p>
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Dynamically filter options based on screen size */}
                   {(window.innerWidth < 768 ? [1, 2] : [1, 2, 3, 4]).map(num => (
                     <button
                       key={num}
@@ -758,51 +743,52 @@ export default function MathDefendersMultiplayer() {
         </div>
       )}
 
-     {/* --- GAME OVER OVERLAY --- */}
+      {/* --- GAME OVER OVERLAY --- */}
       {uiState === 'gameover' && (
-        <div className="absolute inset-0 z-30 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2rem] p-6 md:p-10 shadow-2xl text-center max-w-lg w-full border-4 border-slate-200">
-            <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-2">Round Over!</h2>
+        <div className="absolute inset-0 z-30 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 md:p-4">
+          <div className="bg-white rounded-[2rem] p-4 md:p-8 shadow-2xl text-center max-w-2xl w-full border-4 border-slate-200 max-h-[95vh] flex flex-col">
+            <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-2 shrink-0">Round Over!</h2>
             
-            <div className="bg-amber-100 rounded-3xl p-4 md:p-6 my-6 border-2 border-amber-200 shadow-inner">
-              <Trophy className="w-12 h-12 md:w-16 md:h-16 text-amber-500 mx-auto mb-2 md:mb-4" />
+            <div className="bg-amber-100 rounded-3xl p-3 md:p-4 my-2 md:my-4 border-2 border-amber-200 shadow-inner shrink-0">
+              <Trophy className="w-10 h-10 md:w-12 md:h-12 text-amber-500 mx-auto mb-1 md:mb-2" />
               <p className="text-2xl md:text-4xl font-black text-amber-600 drop-shadow-sm">{winnerMessage}</p>
             </div>
 
-            {/* NEW: Multi-Player Leaderboard */}
-            <div className="mb-6 space-y-2 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
+            <div className="mb-4 text-left bg-slate-50 p-3 md:p-4 rounded-2xl border border-slate-100 shadow-inner overflow-y-auto">
               <h3 className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-3 text-center">Final Scores</h3>
-              {[...playerStats].sort((a, b) => b.score - a.score).map((p, index) => (
-                <div key={p.id} className="flex justify-between items-center bg-white p-2 md:p-3 rounded-xl shadow-sm border-l-4" style={{ borderColor: p.color.main }}>
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <span className="text-slate-300 font-black text-sm md:text-base w-4">#{index + 1}</span>
-                    <span className="font-black uppercase tracking-wider text-xs md:text-sm" style={{ color: p.color.main }}>{p.color.name}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
+                {[...playerStats].sort((a, b) => b.score - a.score).map((p, index) => (
+                  <div key={p.id} className="flex justify-between items-center bg-white p-2 md:p-3 rounded-xl shadow-sm border-l-4" style={{ borderColor: p.color.main }}>
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <span className="text-slate-300 font-black text-sm md:text-base w-4">#{index + 1}</span>
+                      <span className="font-black uppercase tracking-wider text-xs md:text-sm" style={{ color: p.color.main }}>{p.color.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-slate-700 text-lg md:text-xl">{p.score}</span>
+                      <span className="text-slate-400 text-[10px] font-bold uppercase">pts</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-slate-700 text-lg md:text-xl">{p.score}</span>
-                    <span className="text-slate-400 text-[10px] font-bold uppercase">pts</span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex gap-3 md:gap-4 shrink-0">
               <button 
                 onClick={startGame}
-                className="flex-1 inline-flex items-center justify-center px-4 py-4 font-black text-white bg-sky-500 rounded-xl hover:bg-sky-600 shadow-lg shadow-sky-500/30 transition-transform active:scale-95"
+                className="flex-1 inline-flex items-center justify-center px-3 py-3 md:px-4 md:py-4 font-black text-white bg-sky-500 rounded-xl hover:bg-sky-600 shadow-lg shadow-sky-500/30 transition-transform active:scale-95"
               >
-                <RotateCcw className="w-6 h-6 mr-2" /> Play Again
+                <RotateCcw className="w-5 h-5 md:w-6 md:h-6 mr-1 md:mr-2" /> Play Again
               </button>
               <button 
                 onClick={() => setUiState('menu')}
-                className="flex-1 inline-flex items-center justify-center px-4 py-4 font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 border-2 border-slate-200 transition-transform active:scale-95"
+                className="flex-1 inline-flex items-center justify-center px-3 py-3 md:px-4 md:py-4 font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 border-2 border-slate-200 transition-transform active:scale-95"
               >
-                <Settings className="w-6 h-6 mr-2" /> Menu
+                <Settings className="w-5 h-5 md:w-6 md:h-6 mr-1 md:mr-2" /> Menu
               </button>
             </div>
           </div>
         </div>
       )}
-      </div>
+    </div>
   );
 }
