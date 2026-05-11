@@ -1,428 +1,578 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, RotateCcw, Trophy, Target, Heart, MousePointer2, Users, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { RefreshCcw, Play } from 'lucide-react';
 
-// ==========================================
-// 🛠️ ARCHITECTURAL CONSTANTS
-// ==========================================
-const SMARTBOARD_BOW_OFFSET = 280; 
-const MOBILE_BOW_OFFSET = 160;     
-const TARGET_COUNT = 10;
+// --- Types & Interfaces ---
+interface Balloon {
+  id: number;
+  number: number;
+  x: number;
+  y: number;
+  baseY: number;
+  radius: number;
+  vx: number;
+  color: string;
+  floatOffset: number;
+  isPopped: boolean;
+}
 
-const PLAYER_COLORS = [
-  { main: '#ef4444', light: '#fca5a5', name: 'Red' },    
-  { main: '#3b82f6', light: '#93c5fd', name: 'Blue' },   
-  { main: '#10b981', light: '#6ee7b7', name: 'Green' },  
-  { main: '#f59e0b', light: '#fcd34d', name: 'Yellow' }  
+interface Arrow {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  angle: number;
+  active: boolean;
+}
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  color: string;
+}
+
+interface Cloud {
+  x: number;
+  y: number;
+  scale: number;
+  speed: number;
+  opacity: number;
+}
+
+const COLORS = [
+  '#FF595E', '#FFCA3A', '#8AC926', '#1982C4', '#6A4C93',
+  '#FF9F1C', '#2EC4B6', '#E71D36', '#F15BB5', '#00BBF9'
 ];
 
 export default function SeriationArcher({ lesson, onComplete }: any) {
-  // --- DOM UI STATE ---
-  const [uiState, setUiState] = useState<'menu' | 'playing' | 'gameover'>('menu');
+  // --- React State ---
+  const [isStarted, setIsStarted] = useState(false);
   const [currentTarget, setCurrentTarget] = useState(1);
-  const [playerStats, setPlayerStats] = useState<any[]>([]);
-  const [settings, setSettings] = useState({ playerCount: 1 });
+  const [collectedNumbers, setCollectedNumbers] = useState<number[]>([]);
+  const [isGameOver, setIsGameOver] = useState(false);
   const [errorFlash, setErrorFlash] = useState(false);
 
+  // --- Refs for Canvas & Game State Engine ---
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>(0);
-
-  // --- CORE GAME ENGINE ---
-  const gameRef = useRef({
-    state: 'menu',
+  const requestRef = useRef<number>();
+  
+  const gameState = useRef({
+    balloons: [] as Balloon[],
+    arrows: [] as Arrow[],
+    particles: [] as Particle[],
+    clouds: [] as Cloud[],
+    targetNumber: 1, 
+    audioCtx: null as AudioContext | null,
     width: 0,
     height: 0,
-    balloons: [] as any[],
-    particles: [] as any[],
-    clouds: [] as any[],
-    players: [] as any[],
-    activeTouches: {} as Record<number, number>,
-    targetNum: 1,
-    time: 0
+    time: 0,
+    isAiming: false,
+    pullStartX: 0,
+    pullStartY: 0,
+    pointerX: 0,
+    pointerY: 0,
   });
 
-  // --- AUDIO & SPEECH ---
+  // --- Audio Synthesis Engine (Fixed for SSR) ---
+  const initAudio = () => {
+    if (typeof window === 'undefined') return;
+    if (!gameState.current.audioCtx) {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) gameState.current.audioCtx = new AudioCtx();
+    }
+    if (gameState.current.audioCtx && gameState.current.audioCtx.state === 'suspended') {
+      gameState.current.audioCtx.resume();
+    }
+  };
+
+  const playShootSound = () => {
+    const ctx = gameState.current.audioCtx;
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(120, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.15);
+    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  };
+
+  const playDing = () => {
+    const ctx = gameState.current.audioCtx;
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime); 
+    osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1);
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  };
+
+  const playBuzzer = () => {
+    const ctx = gameState.current.audioCtx;
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, ctx.currentTime); 
+    osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3);
+    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  };
+
   const speakNumber = (num: number) => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(num.toString());
-      utterance.lang = 'en-IN';
-      utterance.rate = 1.1;
+      utterance.lang = 'en-IN'; 
+      utterance.rate = 0.9;
+      utterance.pitch = 1.2;
       window.speechSynthesis.speak(utterance);
     }
   };
 
-  // --- MATH ENGINE: BALLOON GENERATOR ---
-  const spawnBalloons = () => {
-    const isMobile = window.innerWidth < 768;
-    const radius = isMobile ? 35 : 50;
-    const width = gameRef.current.width;
-    const height = gameRef.current.height;
-    const bowOffset = isMobile ? MOBILE_BOW_OFFSET : SMARTBOARD_BOW_OFFSET;
+  // --- Game Logic ---
+  const initializeGame = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
-    const balloons = [];
-    for (let i = 1; i <= TARGET_COUNT; i++) {
-      balloons.push({
+    gameState.current.width = width;
+    gameState.current.height = height;
+    gameState.current.targetNumber = 1;
+    gameState.current.isAiming = false;
+    
+    setCurrentTarget(1);
+    setCollectedNumbers([]);
+    setIsGameOver(false);
+
+    const newBalloons: Balloon[] = [];
+    const radius = Math.min(width, height) * 0.08; 
+
+    for (let i = 1; i <= 10; i++) {
+      const isMovingRight = Math.random() > 0.5;
+      newBalloons.push({
         id: i,
         number: i,
-        x: Math.random() * (width - radius * 2) + radius,
+        radius: Math.max(30, radius), 
+        x: Math.random() * width,
         y: 0, 
-        baseY: height * 0.15 + (Math.random() * (height * 0.4)),
-        radius: radius,
-        vx: (Math.random() - 0.5) * (isMobile ? 1.5 : 2.5),
-        color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+        baseY: height * 0.15 + (Math.random() * height * 0.3), 
+        vx: (isMovingRight ? 1 : -1) * (0.225 + Math.random() * 0.45), 
+        color: COLORS[(i - 1) % COLORS.length],
         floatOffset: Math.random() * Math.PI * 2,
         isPopped: false
       });
     }
-    gameRef.current.balloons = balloons;
-  };
 
-  // --- GAME LIFECYCLE ---
-  const startGame = () => {
-    const isMobile = window.innerWidth < 768;
-    const sectionWidth = window.innerWidth / settings.playerCount;
-    
-    gameRef.current.targetNum = 1;
-    gameRef.current.players = Array.from({ length: settings.playerCount }).map((_, i) => ({
-      id: i,
-      color: PLAYER_COLORS[i],
-      score: 0,
-      bowX: (sectionWidth * i) + (sectionWidth / 2),
-      bowY: window.innerHeight - (isMobile ? MOBILE_BOW_OFFSET : SMARTBOARD_BOW_OFFSET),
-      interaction: { isDown: false, startX: 0, startY: 0, currentX: 0, currentY: 0 },
-      arrow: { state: 'idle', x: 0, y: 0, vx: 0, vy: 0, angle: 0 }
-    }));
+    const newClouds: Cloud[] = [];
+    for (let i = 0; i < 6; i++) {
+      newClouds.push({
+        x: Math.random() * width,
+        y: Math.random() * (height * 0.4),
+        scale: 0.5 + Math.random() * 1.5,
+        speed: 0.2 + Math.random() * 0.6,
+        opacity: 0.2 + Math.random() * 0.3
+      });
+    }
 
-    setCurrentTarget(1);
-    spawnBalloons();
-    setPlayerStats([...gameRef.current.players]);
-    setUiState('playing');
-    gameRef.current.state = 'playing';
-  };
+    gameState.current.balloons = newBalloons;
+    gameState.current.arrows = [];
+    gameState.current.particles = [];
+    gameState.current.clouds = newClouds;
+  }, []);
 
   const createPopParticles = (x: number, y: number, color: string) => {
-    for (let i = 0; i < 15; i++) {
-      gameRef.current.particles.push({
+    for (let i = 0; i < 20; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 5 + 2;
+      gameState.current.particles.push({
         x, y,
-        vx: (Math.random() - 0.5) * 10,
-        vy: (Math.random() - 0.5) * 10,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
         life: 1.0,
-        color: color
+        maxLife: 1.0,
+        color
       });
     }
   };
 
-  // --- RENDER LOOP ---
-  useEffect(() => {
+  const triggerError = () => {
+    playBuzzer();
+    setErrorFlash(true);
+    setTimeout(() => setErrorFlash(false), 300);
+  };
+
+  const handleCorrectHit = useCallback((num: number, x: number, y: number, color: string) => {
+    playDing();
+    speakNumber(num);
+    createPopParticles(x, y, color);
+    
+    setCollectedNumbers(prev => {
+      const next = [...prev, num];
+      if (next.length === 10) {
+        setIsGameOver(true);
+      }
+      return next;
+    });
+    
+    setCurrentTarget(prev => {
+      const nextNum = prev + 1;
+      gameState.current.targetNumber = nextNum; 
+      return nextNum;
+    });
+  }, []);
+
+  const drawArrow = (ctx: CanvasRenderingContext2D, tipX: number, tipY: number, angle: number) => {
+    ctx.save();
+    ctx.translate(tipX, tipY);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, 0); 
+    ctx.lineTo(-80, 0); 
+    ctx.strokeStyle = '#D4A373';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(2, 0); 
+    ctx.lineTo(-12, -7);
+    ctx.lineTo(-12, 7);
+    ctx.fillStyle = '#4A4E69';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-75, 0); ctx.lineTo(-82, -6);
+    ctx.moveTo(-68, 0); ctx.lineTo(-75, -6);
+    ctx.moveTo(-75, 0); ctx.lineTo(-82, 6);
+    ctx.moveTo(-68, 0); ctx.lineTo(-75, 6);
+    ctx.strokeStyle = '#F2E9E4';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      gameRef.current.width = canvas.width;
-      gameRef.current.height = canvas.height;
+    const state = gameState.current;
+    state.time += 0.05;
+
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
+    
+    if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+      state.width = displayWidth;
+      state.height = displayHeight;
+    }
+
+    ctx.clearRect(0, 0, state.width, state.height);
+
+    const drawMountain = (peakX: number, peakY: number, baseWidth: number, color: string) => {
+       ctx.fillStyle = color;
+       ctx.beginPath();
+       ctx.moveTo(peakX - baseWidth/2, state.height);
+       ctx.lineTo(peakX, peakY);
+       ctx.lineTo(peakX + baseWidth/2, state.height);
+       ctx.fill();
     };
-    window.addEventListener('resize', resize);
-    resize();
+    drawMountain(state.width * 0.2, state.height - 350, 800, '#4A4E69');
+    drawMountain(state.width * 0.8, state.height - 280, 700, '#3A3E59');
+    drawMountain(state.width * 0.5, state.height - 450, 1000, '#22223B');
 
-    const drawArrow = (pCtx: any, tipX: number, tipY: number, angle: number, color: string) => {
-      pCtx.save();
-      pCtx.translate(tipX, tipY);
-      pCtx.rotate(angle);
-      // Shaft
-      pCtx.beginPath();
-      pCtx.moveTo(0, 0); pCtx.lineTo(-60, 0);
-      pCtx.strokeStyle = '#94a3b8'; pCtx.lineWidth = 4; pCtx.lineCap = 'round';
-      pCtx.stroke();
-      // Rounded back (Nock)
-      pCtx.beginPath();
-      pCtx.arc(-60, 0, 4, 0, Math.PI * 2);
-      pCtx.fillStyle = color; pCtx.fill();
-      // Tip
-      pCtx.fillStyle = '#475569';
-      pCtx.beginPath();
-      pCtx.moveTo(0, 0); pCtx.lineTo(-12, -6); pCtx.lineTo(-12, 6);
-      pCtx.fill();
-      pCtx.restore();
-    };
+    state.clouds.forEach(cloud => {
+      cloud.x += cloud.speed;
+      if (cloud.x > state.width + 100) {
+         cloud.x = -100;
+         cloud.y = Math.random() * (state.height * 0.4);
+      }
+      ctx.save();
+      ctx.translate(cloud.x, cloud.y);
+      ctx.scale(cloud.scale, cloud.scale);
+      ctx.fillStyle = `rgba(255, 255, 255, ${cloud.opacity})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, 30, 0, Math.PI * 2);
+      ctx.arc(25, -15, 35, 0, Math.PI * 2);
+      ctx.arc(50, 0, 30, 0, Math.PI * 2);
+      ctx.arc(25, 10, 30, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
 
-    const update = () => {
-      if (gameRef.current.state !== 'playing') return;
-      const { width, height, balloons, players, particles } = gameRef.current;
-      gameRef.current.time += 0.05;
+    state.balloons.forEach(balloon => {
+      if (balloon.isPopped) return;
+      balloon.x += balloon.vx;
+      balloon.y = balloon.baseY + Math.sin(state.time * 0.6 + balloon.floatOffset) * 15;
+      if (balloon.vx > 0 && balloon.x > state.width + balloon.radius) balloon.x = -balloon.radius;
+      if (balloon.vx < 0 && balloon.x < -balloon.radius) balloon.x = state.width + balloon.radius;
 
-      ctx.fillStyle = '#f0f9ff'; // sky-50
-      ctx.fillRect(0, 0, width, height);
+      ctx.beginPath();
+      ctx.arc(balloon.x, balloon.y, balloon.radius, 0, Math.PI * 2);
+      ctx.fillStyle = balloon.color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(balloon.x - balloon.radius * 0.3, balloon.y - balloon.radius * 0.3, balloon.radius * 0.2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(balloon.x, balloon.y + balloon.radius);
+      ctx.lineTo(balloon.x - 6, balloon.y + balloon.radius + 8);
+      ctx.lineTo(balloon.x + 6, balloon.y + balloon.radius + 8);
+      ctx.fillStyle = balloon.color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(balloon.x, balloon.y + balloon.radius + 8);
+      ctx.lineTo(balloon.x, balloon.y + balloon.radius + 25);
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${balloon.radius * 0.8}px 'Nunito', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(balloon.number.toString(), balloon.x, balloon.y);
+    });
 
-      // Balloons
-      balloons.forEach(b => {
-        if (b.isPopped) return;
-        b.x += b.vx;
-        b.y = b.baseY + Math.sin(gameRef.current.time * 0.8 + b.floatOffset) * 20;
-        if (b.x > width + b.radius) b.x = -b.radius;
-        if (b.x < -b.radius) b.x = width + b.radius;
-
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-        ctx.fillStyle = b.color; ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${b.radius * 0.8}px Nunito`;
-        ctx.textAlign = 'center'; 
-        ctx.textBaseline = 'middle';
-        ctx.fillText(b.number.toString(), b.x, b.y + (b.radius * 0.1));
-      });
-
-      // Players & Arrows
-      players.forEach(p => {
-        const { interaction, arrow } = p;
-        if (interaction.isDown && arrow.state !== 'flying') {
-          const dx = interaction.startX - interaction.currentX;
-          const dy = interaction.startY - interaction.currentY;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 5) {
-            arrow.state = 'nocked';
-            arrow.angle = Math.atan2(dy, dx);
-            const charge = Math.min(dist * 0.4, 50);
-            const pullX = p.bowX - Math.cos(arrow.angle) * charge;
-            const pullY = p.bowY - Math.sin(arrow.angle) * charge;
-            drawArrow(ctx, pullX + Math.cos(arrow.angle) * 60, pullY + Math.sin(arrow.angle) * 60, arrow.angle, p.color.main);
+    for (let i = state.arrows.length - 1; i >= 0; i--) {
+      const arrow = state.arrows[i];
+      if (!arrow.active) continue;
+      arrow.x += arrow.vx;
+      arrow.vy += 0.15; 
+      arrow.y += arrow.vy;
+      arrow.angle = Math.atan2(arrow.vy, arrow.vx);
+      if (arrow.x < -100 || arrow.x > state.width + 100 || arrow.y > state.height + 100) {
+        arrow.active = false;
+        continue;
+      }
+      drawArrow(ctx, arrow.x, arrow.y, arrow.angle);
+      state.balloons.forEach(balloon => {
+        if (balloon.isPopped || !arrow.active) return;
+        const dx = arrow.x - balloon.x;
+        const dy = arrow.y - balloon.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < balloon.radius + 5) {
+          arrow.active = false; 
+          if (balloon.number === state.targetNumber) {
+            balloon.isPopped = true;
+            handleCorrectHit(balloon.number, balloon.x, balloon.y, balloon.color);
+          } else {
+            triggerError();
+            arrow.active = true;
+            arrow.vx = -arrow.vx * 0.3;
+            arrow.vy = Math.abs(arrow.vy) * 0.5 + 2; 
           }
         }
-
-        if (arrow.state === 'flying') {
-          arrow.x += arrow.vx; arrow.vy += 0.2; arrow.y += arrow.vy;
-          arrow.angle = Math.atan2(arrow.vy, arrow.vx);
-          drawArrow(ctx, arrow.x, arrow.y, arrow.angle, p.color.main);
-
-          // Collision
-          balloons.forEach(b => {
-            if (b.isPopped) return;
-            const dist = Math.hypot(arrow.x - b.x, arrow.y - b.y);
-            if (dist < b.radius + 10) {
-              if (b.number === gameRef.current.targetNum) {
-                b.isPopped = true;
-                createPopParticles(b.x, b.y, b.color);
-                speakNumber(b.number);
-                p.score += 10;
-                gameRef.current.targetNum++;
-                setCurrentTarget(gameRef.current.targetNum);
-                arrow.state = 'idle';
-                setPlayerStats([...gameRef.current.players]);
-                if (gameRef.current.targetNum > TARGET_COUNT) {
-                  setUiState('gameover');
-                  gameRef.current.state = 'gameover';
-                }
-              } else {
-                setErrorFlash(true); setTimeout(() => setErrorFlash(false), 200);
-                arrow.vx *= -0.3; arrow.vy = 5;
-              }
-            }
-          });
-
-          if (arrow.y > height || arrow.x < 0 || arrow.x > width) arrow.state = 'idle';
-        }
-
-        // Static Bow
-        ctx.beginPath();
-        ctx.arc(p.bowX, p.bowY, 40, 0, Math.PI * 2);
-        ctx.strokeStyle = p.color.main; ctx.lineWidth = 2; ctx.setLineDash([5,5]);
-        ctx.stroke(); ctx.setLineDash([]);
       });
+    }
 
-      // Particles
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= 0.02;
-        if (p.life <= 0) particles.splice(i, 1);
-        else {
-          ctx.globalAlpha = p.life;
-          ctx.fillStyle = p.color;
-          ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
-        }
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+      const p = state.particles[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= 0.02;
+      if (p.life <= 0) { state.particles.splice(i, 1); continue; }
+      ctx.globalAlpha = p.life;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+    }
+
+    const bowX = state.width / 2;
+    const bowY = state.height - 120; 
+
+    ctx.beginPath();
+    ctx.moveTo(bowX - 80, bowY + 20);
+    ctx.quadraticCurveTo(bowX, bowY - 60, bowX + 80, bowY + 20);
+    ctx.strokeStyle = '#7F4F24';
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    const bowLeftX = bowX - 80;
+    const bowLeftY = bowY + 20;
+    const bowRightX = bowX + 80;
+    const bowRightY = bowY + 20;
+
+    if (state.isAiming) {
+      const dx = state.pullStartX - state.pointerX;
+      const dy = state.pullStartY - state.pointerY;
+      const pullDist = Math.hypot(dx, dy);
+      const angle = Math.atan2(dy, dx);
+      const speed = Math.min(pullDist * 0.15, 22);
+      const visualPullDist = Math.min(pullDist, 70); 
+      const pullX = bowX - Math.cos(angle) * visualPullDist;
+      const pullY = bowY - Math.sin(angle) * visualPullDist;
+      ctx.beginPath();
+      ctx.moveTo(bowLeftX, bowLeftY);
+      ctx.lineTo(pullX, pullY);
+      ctx.lineTo(bowRightX, bowRightY);
+      ctx.strokeStyle = '#E0E0E0';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      const tipX = pullX + Math.cos(angle) * 80;
+      const tipY = pullY + Math.sin(angle) * 80;
+      ctx.beginPath();
+      ctx.setLineDash([8, 8]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 2;
+      let simX = tipX; let simY = tipY;
+      let simVx = Math.cos(angle) * speed; let simVy = Math.sin(angle) * speed;
+      ctx.moveTo(simX, simY);
+      for (let i = 0; i < 45; i++) { 
+          simVy += 0.15; simX += simVx; simY += simVy;
+          if (i % 3 === 0) ctx.lineTo(simX, simY); 
       }
-      ctx.globalAlpha = 1;
-      animationRef.current = requestAnimationFrame(update);
-    };
+      ctx.stroke();
+      ctx.setLineDash([]); 
+      drawArrow(ctx, tipX, tipY, angle);
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(bowLeftX, bowLeftY);
+      ctx.lineTo(bowRightX, bowRightY);
+      ctx.strokeStyle = '#E0E0E0';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      drawArrow(ctx, bowX, bowY - 60, -Math.PI / 2);
+    }
+    requestRef.current = requestAnimationFrame(render);
+  }, [handleCorrectHit]); 
 
-    animationRef.current = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(animationRef.current);
-  }, [settings.playerCount]);
-
-  // --- INPUT HANDLERS ---
-  const handlePointerDown = (e: any) => {
-    if (uiState !== 'playing') return;
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    initAudio(); 
+    if (!isStarted || isGameOver) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
-    const sectionWidth = window.innerWidth / settings.playerCount;
-    const pIdx = Math.min(Math.floor(x / sectionWidth), settings.playerCount - 1);
-    const player = gameRef.current.players[pIdx];
+    canvas.setPointerCapture(e.pointerId);
+    const state = gameState.current;
+    state.isAiming = true;
+    state.pullStartX = x; state.pullStartY = y;
+    state.pointerX = x; state.pointerY = y;
+  };
 
-    if (player && player.arrow.state !== 'flying') {
-      gameRef.current.activeTouches[e.pointerId] = pIdx;
-      player.interaction = { isDown: true, startX: x, startY: y, currentX: x, currentY: y };
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const state = gameState.current;
+    if (!state.isAiming) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    state.pointerX = e.clientX - rect.left;
+    state.pointerY = e.clientY - rect.top;
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const state = gameState.current;
+    if (!state.isAiming) return;
+    state.isAiming = false;
+    const canvas = canvasRef.current;
+    if (canvas) canvas.releasePointerCapture(e.pointerId);
+    const dx = state.pullStartX - state.pointerX;
+    const dy = state.pullStartY - state.pointerY;
+    const pullDist = Math.hypot(dx, dy);
+    if (pullDist > 15) {
+      const angle = Math.atan2(dy, dx);
+      const speed = Math.min(pullDist * 0.15, 22); 
+      const bowX = state.width / 2;
+      const bowY = state.height - 120; 
+      const visualPullDist = Math.min(pullDist, 70); 
+      const pullX = bowX - Math.cos(angle) * visualPullDist;
+      const pullY = bowY - Math.sin(angle) * visualPullDist;
+      const tipX = pullX + Math.cos(angle) * 80;
+      const tipY = pullY + Math.sin(angle) * 80;
+      playShootSound();
+      state.arrows.push({
+        id: Date.now(), x: tipX, y: tipY,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        angle: angle, active: true
+      });
     }
   };
 
-  const handlePointerMove = (e: any) => {
-    const pIdx = gameRef.current.activeTouches[e.pointerId];
-    const player = gameRef.current.players[pIdx];
-    if (player && player.interaction.isDown) {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      player.interaction.currentX = e.clientX - rect.left;
-      player.interaction.currentY = e.clientY - rect.top;
+  useEffect(() => {
+    if (isStarted) {
+      initializeGame();
+      requestRef.current = requestAnimationFrame(render);
     }
-  };
-
-  const handlePointerUp = (e: any) => {
-    const pIdx = gameRef.current.activeTouches[e.pointerId];
-    const player = gameRef.current.players[pIdx];
-    if (player && player.interaction.isDown) {
-      const dx = player.interaction.startX - player.interaction.currentX;
-      const dy = player.interaction.startY - player.interaction.currentY;
-      const dist = Math.hypot(dx, dy);
-      
-      if (dist > 15) {
-        const angle = Math.atan2(dy, dx);
-        const speed = Math.min(dist * 0.6, 28);
-        player.arrow = {
-          state: 'flying',
-          x: player.bowX,
-          y: player.bowY,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          angle: angle
-        };
-      }
-      player.interaction.isDown = false;
-      delete gameRef.current.activeTouches[e.pointerId];
-    }
-  };
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [isStarted, initializeGame, render]);
 
   return (
-    <div className={`relative w-full h-[100dvh] overflow-hidden select-none font-sans touch-none bg-sky-50 ${errorFlash ? 'bg-red-200' : ''}`}>
-      
-      {/* KORTEX HEADER */}
-      <div className="absolute top-0 inset-x-0 h-20 bg-white/80 backdrop-blur-md border-b-4 border-sky-100 flex items-center justify-between px-6 z-30">
-        <div className="flex items-center gap-4">
-          <div className="bg-sky-500 p-2 rounded-2xl shadow-lg shadow-sky-200">
-            <Target className="text-white w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-sky-900 font-black text-lg leading-tight uppercase tracking-tight">Number Archery</h1>
-            <p className="text-sky-500 text-xs font-bold uppercase tracking-widest">Collaborative Mission</p>
-          </div>
+    <div className={`relative w-full h-screen overflow-hidden bg-gradient-to-b from-blue-400 to-indigo-900 transition-colors duration-200 ${errorFlash ? 'bg-red-900' : ''}`}>
+      <div className="absolute top-0 left-0 w-full p-4 z-10 flex flex-col items-center justify-start pointer-events-none">
+        <h1 className="text-white text-xl md:text-3xl font-black tracking-wider mb-2 drop-shadow-md">
+          PULL BACK & SHOOT IN ORDER!
+        </h1>
+        <div className="flex flex-wrap gap-2 md:gap-4 justify-center max-w-4xl">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+            const isCollected = collectedNumbers.includes(num);
+            const isCurrentTarget = num === currentTarget;
+            return (
+              <div 
+                key={num}
+                className={`
+                  w-10 h-10 md:w-16 md:h-16 rounded-full flex items-center justify-center text-xl md:text-3xl font-bold shadow-lg transition-all duration-300
+                  ${isCollected ? 'bg-green-400 text-green-900 scale-100 opacity-100' : 
+                    isCurrentTarget ? 'bg-yellow-400 text-yellow-900 scale-110 animate-pulse border-4 border-white' : 
+                    'bg-white/20 text-white/50 scale-90 border-2 border-white/20'}
+                `}
+              >
+                {num}
+              </div>
+            );
+          })}
         </div>
-
-        {/* PROGRESS HUD */}
-        <div className="hidden md:flex gap-2">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div 
-              key={i} 
-              className={`w-10 h-10 rounded-xl flex items-center justify-center font-black transition-all border-b-4 ${
-                i + 1 < currentTarget ? 'bg-emerald-500 border-emerald-700 text-white' : 
-                i + 1 === currentTarget ? 'bg-amber-400 border-amber-600 text-amber-900 animate-bounce' : 
-                'bg-slate-100 border-slate-200 text-slate-400'
-              }`}
-            >
-              {i + 1}
-            </div>
-          ))}
-        </div>
-
-        <button onClick={() => setUiState('menu')} className="bg-slate-100 hover:bg-slate-200 p-3 rounded-2xl border-b-4 border-slate-300 transition-all active:translate-y-1">
-          <RotateCcw className="w-6 h-6 text-slate-600" />
-        </button>
       </div>
 
-      <canvas 
-        ref={canvasRef} 
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        className="block w-full h-full cursor-crosshair"
-      />
+      <canvas ref={canvasRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} className="block w-full h-full touch-none cursor-crosshair" style={{ touchAction: 'none' }} />
 
-      {/* COLLAB SCOREBAR (Bottom) */}
-      {uiState === 'playing' && (
-        <div className="absolute bottom-6 inset-x-0 flex justify-center gap-4 px-4 z-20 pointer-events-none">
-          {playerStats.map((p, i) => (
-            <div key={i} className="bg-white/90 backdrop-blur px-4 py-2 rounded-2xl border-b-4 shadow-xl flex items-center gap-3" style={{ borderColor: p.color.main }}>
-              <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: p.color.main }} />
-              <span className="font-black text-slate-700">{p.score}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* START MENU */}
-      {uiState === 'menu' && (
-        <div className="absolute inset-0 bg-sky-900/60 backdrop-blur-xl z-50 flex items-center justify-center p-6">
-          <div className="bg-white rounded-[3rem] p-8 max-w-lg w-full border-8 border-white/50 shadow-2xl text-center">
-             <div className="w-24 h-24 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Users className="w-12 h-12 text-sky-500" />
-             </div>
-             <h2 className="text-4xl font-black text-slate-800 mb-2">Team Up!</h2>
-             <p className="text-slate-500 font-bold mb-8 italic text-sm">Collaborate with your classmates to shoot balloons 1 to 10 in order!</p>
-             
-             <div className="grid grid-cols-2 gap-4 mb-8">
-                {[1, 2, 3, 4].map(n => (
-                  <button 
-                    key={n}
-                    onClick={() => setSettings({ playerCount: n })}
-                    className={`p-4 rounded-3xl border-b-8 font-black text-2xl transition-all ${
-                      settings.playerCount === n ? 'bg-sky-500 border-sky-700 text-white scale-105 shadow-xl' : 'bg-slate-100 border-slate-300 text-slate-500'
-                    }`}
-                  >
-                    {n} {n === 1 ? 'Hero' : 'Heroes'}
-                  </button>
-                ))}
-             </div>
-
-             <button onClick={startGame} className="w-full py-5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-2xl rounded-3xl shadow-xl shadow-emerald-200 border-b-8 border-emerald-700 transition-all active:translate-y-2">
-                LAUNCH MISSION
-             </button>
+      {!isStarted && (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-md w-[90%] border-8 border-yellow-400">
+            <h2 className="text-3xl font-black text-indigo-900 mb-4">Number Archery</h2>
+            <p className="text-gray-600 mb-8 font-medium">Tap anywhere, <span className="font-bold text-indigo-600">drag backwards</span> to aim, and release to shoot! Pop the balloons in order from 1 to 10.</p>
+            <button onClick={() => setIsStarted(true)} className="w-full py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-2xl text-xl transition-transform active:scale-95 flex items-center justify-center gap-2">
+              <Play fill="white" /> Start Playing
+            </button>
           </div>
         </div>
       )}
 
-      {/* GAME OVER MISSION SUCCESS */}
-      {uiState === 'gameover' && (
-        <div className="absolute inset-0 bg-emerald-600/90 backdrop-blur-xl z-50 flex items-center justify-center p-6">
-           <div className="bg-white rounded-[3rem] p-10 max-w-xl w-full border-8 border-white/50 shadow-2xl text-center">
-              <div className="relative mb-6">
-                <Trophy className="w-24 h-24 text-amber-500 mx-auto" />
-                <CheckCircle2 className="w-10 h-10 text-emerald-500 absolute bottom-0 right-1/3 bg-white rounded-full" />
-              </div>
-              <h2 className="text-5xl font-black text-slate-800 mb-2 tracking-tight">Mission Success!</h2>
-              <p className="text-emerald-600 font-black uppercase tracking-widest text-sm mb-8">Numbers 1-10 Mastered</p>
-              
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                 {playerStats.map((p, i) => (
-                    <div key={i} className="bg-slate-50 p-4 rounded-3xl border-l-8" style={{ borderLeftColor: p.color.main }}>
-                       <p className="text-[10px] font-black uppercase text-slate-400">{p.color.name}</p>
-                       <p className="text-2xl font-black text-slate-700">{p.score} pts</p>
-                    </div>
-                 ))}
-              </div>
-
-              <div className="flex gap-4">
-                 <button onClick={() => setUiState('menu')} className="flex-1 py-4 bg-slate-100 text-slate-600 font-black rounded-2xl border-b-4 border-slate-300 hover:bg-slate-200 transition-all">
-                    RESTART
-                 </button>
-                 <button onClick={() => onComplete?.(playerStats)} className="flex-1 py-4 bg-sky-500 text-white font-black rounded-2xl border-b-4 border-sky-700 hover:bg-sky-600 transition-all shadow-lg shadow-sky-200">
-                    NEXT LESSON
-                 </button>
-              </div>
-           </div>
+      {isGameOver && (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20 backdrop-blur-sm animate-in fade-in duration-500">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-md w-[90%] border-8 border-green-400 animate-in zoom-in duration-500 delay-150">
+            <h2 className="text-4xl font-black text-green-600 mb-2">You Did It!</h2>
+            <p className="text-gray-600 mb-8 font-bold">You counted all the way to 10!</p>
+            <button onClick={() => { initializeGame(); setIsStarted(false); }} className="w-full py-4 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-2xl text-xl transition-transform active:scale-95 flex items-center justify-center gap-2">
+              <RefreshCcw /> Play Again
+            </button>
+          </div>
         </div>
       )}
     </div>
