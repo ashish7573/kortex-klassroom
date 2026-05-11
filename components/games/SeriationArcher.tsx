@@ -60,7 +60,7 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
 
   // --- Refs for Canvas & Game State Engine ---
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number | null>(null);
   
   const gameState = useRef({
     balloons: [] as Balloon[],
