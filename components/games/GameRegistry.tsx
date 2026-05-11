@@ -42,6 +42,12 @@ const SeriationArcher = dynamic(() => import('./SeriationArcher'), {
   loading: () => <GameLoader /> 
 });
 
+// 6, Memory Seriation Game!
+const MemorySeriation = dynamic(() => import('./MemorySeriation'), { 
+  ssr: false, 
+  loading: () => <GameLoader /> 
+});
+
 // --- THE ROUTER SWITCHBOARD ---
 const SPECIFIC_GAMES: any = {
   'barahkhadi-word-connect': BarahkhadiWordConnect,
@@ -49,6 +55,7 @@ const SPECIFIC_GAMES: any = {
   'hindi-word-crush': HindiWordCrush,
   'math-archer': MathArcher,
   'seriation-archer': SeriationArcher,
+  'memory-seriation': MemorySeriation,
   'game-matra-aa': HindiWordCrush,
   'game-matra-i': HindiWordCrush,
   'game-matra-ee': HindiWordCrush,
