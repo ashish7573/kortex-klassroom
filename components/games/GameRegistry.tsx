@@ -36,12 +36,19 @@ const MathArcher = dynamic(() => import('./MathArcher'), {
   ssr: false, loading: () => <GameLoader /> 
 });
 
+// 5. Seriation Archery Game!
+const SeriationArcher = dynamic(() => import('./SeriationArcher'), { 
+  ssr: false, 
+  loading: () => <GameLoader /> 
+});
+
 // --- THE ROUTER SWITCHBOARD ---
 const SPECIFIC_GAMES: any = {
   'barahkhadi-word-connect': BarahkhadiWordConnect,
   'math-defenders': MathDefenders, // Catches your new arcade game from the CSV
   'hindi-word-crush': HindiWordCrush,
   'math-archer': MathArcher,
+  'seriation-archer': SeriationArcher,
   'game-matra-aa': HindiWordCrush,
   'game-matra-i': HindiWordCrush,
   'game-matra-ee': HindiWordCrush,
