@@ -322,21 +322,27 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
                         transform: `translate(-50%, -50%) rotate(${card.rot}deg)` 
                       }}
                     >
-                      <div className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] shadow-lg rounded-xl md:rounded-2xl ${card.isFlipped || card.isCorrect ? '[transform:rotateY(180deg)] shadow-sm' : ''}`}>
-                        
-                        {/* Front */}
-                        <div className="absolute inset-0 [backface-visibility:hidden] flex flex-col items-center justify-center rounded-xl md:rounded-2xl border-[3px] md:border-[4px] border-white bg-sky-500 overflow-hidden">
-                          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} />
-                          <Brain className="w-5 h-5 md:w-6 md:h-6 text-white/80 z-10" />
-                        </div>
-                        
-                        {/* Back */}
-                        <div className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] flex items-center justify-center rounded-xl md:rounded-2xl border-4 ${
-                          card.isCorrect ? 'bg-emerald-400 border-emerald-200 text-white' : 'bg-white border-slate-200 text-slate-800'
-                        }`}>
-                          <CardVisual card={card} />
-                        </div>
+                      <div className={`relative w-full h-full transition-transform duration-500 shadow-lg rounded-xl md:rounded-2xl`} style={{ transformStyle: 'preserve-3d', transform: card.isFlipped || card.isCorrect ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
+                      
+                      {/* Front (Card Back Design) */}
+                      <div 
+                        className="absolute inset-0 flex flex-col items-center justify-center rounded-xl md:rounded-2xl border-[3px] md:border-[4px] border-white bg-sky-500 overflow-hidden"
+                        style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(0deg)' }}
+                      >
+                        <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} />
+                        <Brain className="w-5 h-5 md:w-6 md:h-6 text-white/80 z-10" />
                       </div>
+                      
+                      {/* Back (The Value) */}
+                      <div 
+                        className={`absolute inset-0 flex items-center justify-center rounded-xl md:rounded-2xl border-4 ${
+                          card.isCorrect ? 'bg-emerald-400 border-emerald-200 text-white' : 'bg-white border-slate-200 text-slate-800'
+                        }`}
+                        style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                      >
+                        <CardVisual card={card} />
+                      </div>
+                    </div>
                     </div>
                   );
                 })}
