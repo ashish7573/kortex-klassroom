@@ -13,6 +13,10 @@ interface CardData {
   repType: CardRepresentation;
   isFlipped: boolean;
   isCorrect: boolean;
+  // --- New Random Positioning Props ---
+  rot: number;
+  xOffset: number;
+  yOffset: number;
 }
 
 interface Player {
@@ -28,26 +32,53 @@ interface Player {
 const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b'];
 const NUMBER_NAMES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 
-// --- Helper Renderers (Moved outside to prevent re-declaration) ---
+// --- Subitization Renderers ---
 const renderDots = (num: number) => (
-  <div className="grid grid-cols-3 gap-1 p-1">
+  // Force the grid to fill the entire card face, padding 10% on all sides
+  <div className="absolute inset-0 p-[10%] grid grid-cols-2 place-items-center gap-1">
     {Array.from({ length: num }).map((_, i) => (
-      <div key={i} className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-slate-800" />
+      <div key={i} className="w-[8px] h-[8px] sm:w-[10px] sm:h-[10px] md:w-[14px] md:h-[14px] rounded-full bg-slate-800 shadow-sm" />
     ))}
   </div>
 );
 
-const renderSticks = (num: number) => (
-  <div className="flex flex-wrap gap-1 justify-center items-center h-full">
-    {Array.from({ length: num }).map((_, i) => (
-      <div key={i} className={`w-1 h-6 md:h-10 bg-slate-800 rounded-full ${i % 5 === 4 ? 'rotate-[30deg] -ml-4' : ''}`} />
-    ))}
-  </div>
-);
+const renderSticks = (num: number) => {
+  // Determine how many full "5-blocks" and how many "remainder" sticks we need
+  const fullFives = Math.floor(num / 5);
+  const remainder = num % 5;
+
+  return (
+    <div className="absolute inset-0 p-[10%] flex flex-wrap gap-2 md:gap-3 justify-center items-center content-center">
+      
+      {/* 1. Render complete 5-blocks */}
+      {Array.from({ length: fullFives }).map((_, i) => (
+        <svg key={`five-${i}`} viewBox="0 0 40 40" className="w-6 h-6 md:w-8 md:h-8 overflow-visible">
+          {/* 4 Vertical Lines */}
+          <line x1="5" y1="5" x2="5" y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+          <line x1="15" y1="5" x2="15" y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+          <line x1="25" y1="5" x2="25" y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+          <line x1="35" y1="5" x2="35" y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+          {/* 1 Diagonal Cross Line */}
+          <line x1="0" y1="35" x2="40" y2="5" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+        </svg>
+      ))}
+
+      {/* 2. Render any remainder sticks (1, 2, 3, or 4) */}
+      {remainder > 0 && (
+        <svg viewBox={`0 0 ${remainder * 10} 40`} className={`h-6 md:h-8 overflow-visible`} style={{ width: `${(remainder * 10 / 40) * 1.5}rem` }}>
+          {Array.from({ length: remainder }).map((_, i) => (
+            <line key={`rem-${i}`} x1={5 + (i * 10)} y1="5" x2={5 + (i * 10)} y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+          ))}
+        </svg>
+      )}
+
+    </div>
+  );
+};
 
 const CardVisual = ({ card }: { card: CardData }) => {
-  if (card.repType === 'number') return <span className="text-2xl md:text-4xl font-black">{card.value}</span>;
-  if (card.repType === 'name') return <span className="text-xs md:text-sm font-bold uppercase text-center px-1">{NUMBER_NAMES[card.value]}</span>;
+  if (card.repType === 'number') return <span className="absolute inset-0 flex items-center justify-center text-2xl md:text-4xl font-black">{card.value}</span>;
+  if (card.repType === 'name') return <span className="absolute inset-0 flex items-center justify-center text-[10px] md:text-sm font-bold uppercase text-center px-1 leading-tight">{NUMBER_NAMES[card.value]}</span>;
   if (card.repType === 'dots') return renderDots(card.value);
   if (card.repType === 'sticks') return renderSticks(card.value);
   return null;
@@ -114,15 +145,45 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
   const generateCards = (diff: Difficulty): CardData[] => {
     const cards: CardData[] = [];
     const repTypes: CardRepresentation[] = ['number', 'name', 'dots', 'sticks'];
+    
+    // We need 10 cards. We'll use a 3x4 grid (12 slots) to ensure spacing.
+    // This prevents impossible overlaps on mobile screens.
+    const gridCols = 4;
+    const gridRows = 3;
+    const cellWidth = 100 / gridCols;
+    const cellHeight = 100 / gridRows;
+
+    // Create an array of available "slots" and shuffle them
+    const availableSlots = Array.from({ length: 12 }, (_, i) => i).sort(() => Math.random() - 0.5);
+
     for (let i = 1; i <= 10; i++) {
+      const slotIndex = availableSlots[i - 1]; // Pick a unique slot for this card
+      const col = slotIndex % gridCols;
+      const row = Math.floor(slotIndex / gridCols);
+
+      // Base position is the center of the grid cell
+      const baseLeft = (col * cellWidth) + (cellWidth / 2);
+      const baseTop = (row * cellHeight) + (cellHeight / 2);
+
+      // Add a slight "jitter" so they don't look like a perfect grid
+      // Keep jitter within bounds so they don't cross into the next cell
+      const jitterX = (Math.random() * (cellWidth * 0.4)) - (cellWidth * 0.2); 
+      const jitterY = (Math.random() * (cellHeight * 0.4)) - (cellHeight * 0.2);
+
       cards.push({
         id: i,
         value: i,
         repType: diff === 'easy' ? 'number' : repTypes[Math.floor(Math.random() * repTypes.length)],
         isFlipped: false,
-        isCorrect: false
+        isCorrect: false,
+        // Rotation between -15deg and +15deg (reduced slightly to prevent corner clipping)
+        rot: Math.floor(Math.random() * 30) - 15, 
+        // Final position uses the grid cell + jitter, minus 50% to center the card on the coordinate
+        xOffset: baseLeft + jitterX,
+        yOffset: baseTop + jitterY
       });
     }
+    
     return cards.sort(() => Math.random() - 0.5);
   };
 
@@ -185,7 +246,7 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
   };
 
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden bg-slate-100 font-sans touch-none select-none">
+    <div className="relative w-full h-full overflow-hidden bg-slate-100 font-sans touch-none select-none">
       
       {/* HEADER */}
       <div className="h-16 md:h-20 bg-white border-b-4 border-slate-200 flex items-center justify-between px-4 md:px-8 z-30 relative">
@@ -211,55 +272,91 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
         )}
       </div>
 
-      {/* STAGE */}
-      <div className={`w-full h-[calc(100vh-80px)] p-2 md:p-4 grid gap-2 md:gap-4 ${
-        playerCount === 1 ? 'grid-cols-1' : playerCount === 2 ? 'grid-cols-2' : 'grid-cols-2 grid-rows-2'
+      {/* STAGE (Adjusted to leave room for Lesson Player Footer and use Smartboard Columns) */}
+      <div className={`w-full h-[calc(100vh-140px)] p-2 md:p-4 grid gap-2 md:gap-4 ${
+        playerCount === 1 ? 'grid-cols-1' : 
+        playerCount === 2 ? 'grid-rows-2 md:grid-cols-2 md:grid-rows-1' :
+        playerCount === 3 ? 'grid-cols-3 grid-rows-1' :
+        'grid-cols-4 grid-rows-1' // 4 Players: 4 vertical columns on Smartboard
       }`}>
-        {players.map((player, pIdx) => (
-          <div 
-            key={player.id} 
-            className={`relative flex flex-col rounded-[2rem] border-4 p-2 md:p-4 transition-all ${
-              player.isFinished ? 'bg-emerald-50 border-emerald-500 opacity-60' : 'bg-white border-slate-200 shadow-xl'
-            }`}
-          >
-            <div className="flex justify-between items-center mb-2 px-2">
-              <span className="font-black text-sm md:text-lg uppercase" style={{ color: player.color }}>{player.name}</span>
-              <div className="flex gap-1 items-center">
-                 <GraduationCap className="w-4 h-4 text-slate-400" />
-                 <span className="font-black text-slate-400">{player.currentTarget - 1}/10</span>
+        {players.map((player, pIdx) => {
+          
+          // HEAD-TO-HEAD LOGIC: Rotate Player 2 upside down ONLY if playing 2-player on Mobile
+          const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+          const isHeadToHead = isMobile && playerCount === 2 && pIdx === 1;
+
+          return (
+            <div 
+              key={player.id} 
+              className={`relative flex flex-col overflow-hidden rounded-[2rem] border-4 p-2 md:p-4 transition-all ${
+                player.isFinished ? 'bg-emerald-50 border-emerald-500 opacity-60' : 'bg-amber-50/50 border-slate-200 shadow-xl'
+              } ${isHeadToHead ? 'rotate-180' : ''}`}
+            >
+              {/* Player Header */}
+            <div className="absolute top-2 left-2 right-2 flex justify-between items-center px-4 py-2 bg-white/90 backdrop-blur rounded-2xl z-20 shadow-sm border border-slate-100">
+              <span className="font-black text-xs md:text-base uppercase tracking-wider truncate mr-2" style={{ color: player.color }}>{player.name}</span>
+              <div className="flex gap-1 md:gap-2 items-center bg-slate-100 px-2 md:px-3 py-1 rounded-full shrink-0">
+                <GraduationCap className="w-3 h-3 md:w-4 md:h-4 text-slate-500" />
+                <span className="font-black text-xs md:text-sm text-slate-600">{player.currentTarget - 1}/10</span>
               </div>
             </div>
 
-            <div className="flex-grow grid grid-cols-5 grid-rows-2 gap-1 md:gap-3">
-              {player.cards.map((card, cIdx) => (
-                <div 
-                  key={cIdx}
-                  onClick={() => handleCardClick(pIdx, cIdx)}
-                  className="relative cursor-pointer h-full [perspective:1000px]"
-                >
-                  <div className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] ${card.isFlipped || card.isCorrect ? '[transform:rotateY(180deg)]' : ''}`}>
-                    {/* Front */}
-                    <div className="absolute inset-0 [backface-visibility:hidden] flex items-center justify-center rounded-xl md:rounded-3xl border-b-4 md:border-b-8 border-slate-300 bg-slate-200 text-slate-400 text-xl md:text-4xl font-black">
-                      ?
-                    </div>
-                    {/* Back */}
-                    <div className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] flex items-center justify-center rounded-xl md:rounded-3xl border-b-4 md:border-b-8 ${
-                      card.isCorrect ? 'bg-emerald-500 border-emerald-700 text-white' : 'bg-white border-slate-300 text-slate-800'
-                    }`}>
-                      <CardVisual card={card} />
+            {/* Messy Table Canvas */}
+            {/* ADDED mt-12 to push cards below the absolute header */}
+            <div className="flex-grow relative w-full h-full mt-10 md:mt-12">
+              {player.cards.map((card, cIdx) => {
+                
+                // MATH OVERRIDE: Compress Y coordinates so cards only appear in bottom 75% of container
+                // This ensures kids can reach them on tall smartboards.
+                const isMultiplayer = playerCount > 2;
+                const adjustedY = isMultiplayer ? (card.yOffset * 0.75) + 25 : card.yOffset;
+
+                return (
+                  <div 
+                    key={cIdx}
+                    onClick={() => handleCardClick(pIdx, cIdx)}
+                    // REDUCED SIZES: Changed w-24 h-32 to w-16 h-20 (mobile) and w-20 h-28 (desktop)
+                    className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer [perspective:1000px] hover:z-30 w-16 h-20 md:w-20 md:h-28 transition-transform active:scale-95"
+                    style={{ 
+                      left: `${card.xOffset}%`, 
+                      top: `${adjustedY}%`,
+                      transform: `translate(-50%, -50%) rotate(${card.rot}deg)` 
+                    }}
+                  >
+                    <div className={`relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d] shadow-lg rounded-xl md:rounded-2xl ${card.isFlipped || card.isCorrect ? '[transform:rotateY(180deg)] shadow-sm' : ''}`}>
+                      
+                      {/* Front */}
+                      <div className="absolute inset-0 [backface-visibility:hidden] flex flex-col items-center justify-center rounded-xl md:rounded-2xl border-[3px] md:border-[4px] border-white bg-sky-500 overflow-hidden">
+                        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, #ffffff 10px, #ffffff 20px)' }} />
+                        <Brain className="w-5 h-5 md:w-6 md:h-6 text-white/80 z-10" />
+                      </div>
+                      
+                      {/* Back */}
+                      <div className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] flex items-center justify-center rounded-xl md:rounded-2xl border-4 ${
+                        card.isCorrect ? 'bg-emerald-400 border-emerald-200 text-white' : 'bg-white border-slate-200 text-slate-800'
+                      }`}>
+                        <CardVisual card={card} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
+            {/* Finished Overlay with Time */}
             {player.isFinished && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[2px] rounded-[2rem] z-10">
-                <CheckCircle2 className="w-16 h-16 text-emerald-500" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[4px] rounded-[2rem] z-40">
+                <div className="bg-white p-4 rounded-full shadow-2xl mb-2">
+                  <CheckCircle2 className="w-12 h-12 md:w-16 md:h-16 text-emerald-500" />
+                </div>
+                <div className="bg-slate-800 text-white px-4 py-2 rounded-full font-mono font-bold shadow-lg border-2 border-slate-600">
+                  {player.finishTime?.toFixed(1)}s
+                </div>
               </div>
             )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       {/* MENU OVERLAY */}
@@ -282,8 +379,8 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
               </div>
               <div className="space-y-4">
                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">Players</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {[1, 2, 3, 4].map(n => (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {(typeof window !== 'undefined' && window.innerWidth < 768 ? [1, 2] : [1, 2, 3, 4]).map(n => (
                     <button key={n} onClick={() => setPlayerCount(n)} className={`py-3 rounded-2xl font-black border-b-4 transition-all ${playerCount === n ? 'bg-amber-500 border-amber-700 text-white shadow-lg' : 'bg-slate-100 border-slate-300 text-slate-500'}`}>{n}</button>
                   ))}
                 </div>
