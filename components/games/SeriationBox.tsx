@@ -1,21 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Trophy, LayoutGrid, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Play, RotateCcw, Trophy, LayoutGrid, CheckCircle2, ArrowUpCircle } from 'lucide-react';
 
 // --- Types ---
-interface Tile {
+interface TileData {
   id: number;
-  currentPos: number; // 0 to 11
-  targetPos: number;  // 0 to 11
-  value: number | null; // null represents the empty space
+  value: number; // 0 to 10
+  currentIdx: number; // 0 to 11
+  isEscaped: boolean;
 }
 
 interface Player {
   id: number;
   name: string;
   color: string;
-  tiles: Tile[];
+  tiles: TileData[];
+  currentTarget: number; // Tracks which number needs to escape next
   isFinished: boolean;
   finishTime?: number;
   moves: number;
@@ -32,6 +33,10 @@ export default function SeriationBox({ lesson, onComplete }: any) {
 
   const audioCtx = useRef<AudioContext | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // --- Multi-touch Registry ---
+  // Tracks every active finger on the screen independently
+  const activeTouches = useRef<Record<number, { startX: number, startY: number, tileId: number, pIdx: number }>>({});
 
   // --- Timer Logic (SSR Safe) ---
   useEffect(() => {
@@ -53,7 +58,7 @@ export default function SeriationBox({ lesson, onComplete }: any) {
     }
   };
 
-  const playSound = (type: 'slide' | 'lock' | 'win') => {
+  const playSound = (type: 'slide' | 'escape' | 'win' | 'error') => {
     if (!audioCtx.current) return;
     const ctx = audioCtx.current;
     const osc = ctx.createOscillator();
@@ -64,16 +69,21 @@ export default function SeriationBox({ lesson, onComplete }: any) {
       osc.frequency.setValueAtTime(300, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
-    } else if (type === 'lock') {
+    } else if (type === 'escape') {
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(600, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.15);
       gain.gain.setValueAtTime(0.15, ctx.currentTime);
     } else if (type === 'win') {
       osc.type = 'square';
       osc.frequency.setValueAtTime(440, ctx.currentTime);
       osc.frequency.setValueAtTime(554.37, ctx.currentTime + 0.1);
       osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    } else if (type === 'error') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(50, ctx.currentTime + 0.2);
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
     }
 
@@ -83,39 +93,29 @@ export default function SeriationBox({ lesson, onComplete }: any) {
     osc.stop(ctx.currentTime + 0.3);
   };
 
-  // --- Game Math: 15-Puzzle Logic ---
-  // A standard sliding puzzle must be "solvable". 
-  // We guarantee this by starting sorted and randomly sliding it backward N times.
-  const generateSolvableGrid = (): Tile[] => {
-    // Goal State: 0-10, then empty (null) at index 11
+  // --- Game Math: Generation ---
+  const generateSolvableGrid = (): TileData[] => {
     let grid: (number | null)[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, null];
     let emptyIdx = 11;
 
-    // Shuffle by making 100 valid random moves
-    for (let i = 0; i < 100; i++) {
+    // Shuffle by making valid reverse moves
+    for (let i = 0; i < 150; i++) {
       const validMoves = [];
-      const col = emptyIdx % 3;
-      const row = Math.floor(emptyIdx / 3);
-
-      if (col > 0) validMoves.push(emptyIdx - 1); // Left
-      if (col < 2) validMoves.push(emptyIdx + 1); // Right
-      if (row > 0) validMoves.push(emptyIdx - 3); // Up
-      if (row < 3) validMoves.push(emptyIdx + 3); // Down
+      if (emptyIdx >= 3) validMoves.push(emptyIdx - 3); // Up
+      if (emptyIdx <= 8) validMoves.push(emptyIdx + 3); // Down
+      if (emptyIdx % 3 !== 0) validMoves.push(emptyIdx - 1); // Left
+      if (emptyIdx % 3 !== 2) validMoves.push(emptyIdx + 1); // Right
 
       const move = validMoves[Math.floor(Math.random() * validMoves.length)];
-      
-      // Swap
       grid[emptyIdx] = grid[move];
       grid[move] = null;
       emptyIdx = move;
     }
 
-    return grid.map((val, idx) => ({
-      id: val === null ? 99 : val, // unique id for React keys
-      currentPos: idx,
-      targetPos: val === null ? 11 : val,
-      value: val
-    }));
+    return grid.map((val, idx) => {
+      if (val === null) return null;
+      return { id: val, value: val, currentIdx: idx, isEscaped: false };
+    }).filter(Boolean) as TileData[];
   };
 
   const startGame = () => {
@@ -125,6 +125,7 @@ export default function SeriationBox({ lesson, onComplete }: any) {
       name: `Hero ${i + 1}`,
       color: PLAYER_COLORS[i],
       tiles: generateSolvableGrid(),
+      currentTarget: 0, // Must push out 0 first, then 1, etc.
       moves: 0,
       isFinished: false
     }));
@@ -134,57 +135,160 @@ export default function SeriationBox({ lesson, onComplete }: any) {
     setUiState('playing');
   };
 
-  const handleTileClick = (pIdx: number, clickedTileIdx: number) => {
+  // --- Multi-Touch Handlers ---
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, pIdx: number, tileId: number) => {
     if (uiState !== 'playing' || players[pIdx].isFinished) return;
-
-    const player = players[pIdx];
-    const tiles = [...player.tiles];
     
-    // Find empty tile
-    const emptyIdx = tiles.findIndex(t => t.value === null);
-    
-    // Check adjacency (up, down, left, right)
-    const clickedCol = clickedTileIdx % 3;
-    const clickedRow = Math.floor(clickedTileIdx / 3);
-    const emptyCol = emptyIdx % 3;
-    const emptyRow = Math.floor(emptyIdx / 3);
+    // Capture the pointer so tracking doesn't drop if finger moves outside tile
+    e.currentTarget.setPointerCapture(e.pointerId);
+    activeTouches.current[e.pointerId] = {
+      startX: e.clientX,
+      startY: e.clientY,
+      tileId,
+      pIdx
+    };
+  };
 
-    const isAdjacent = 
-      (Math.abs(clickedCol - emptyCol) === 1 && clickedRow === emptyRow) ||
-      (Math.abs(clickedRow - emptyRow) === 1 && clickedCol === emptyCol);
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>, isRotated: boolean) => {
+    const touch = activeTouches.current[e.pointerId];
+    if (!touch) return;
 
-    if (isAdjacent) {
-      // Swap
-      const temp = tiles[clickedTileIdx];
-      tiles[clickedTileIdx] = tiles[emptyIdx];
-      tiles[emptyIdx] = temp;
+    let dx = e.clientX - touch.startX;
+    let dy = e.clientY - touch.startY;
 
-      // Update positions
-      tiles[clickedTileIdx].currentPos = clickedTileIdx;
-      tiles[emptyIdx].currentPos = emptyIdx;
+    // If player is rotated 180 degrees (Head-to-head mobile), 
+    // we must invert the swipe vectors to match their physical perspective!
+    if (isRotated) {
+      dx = -dx;
+      dy = -dy;
+    }
 
-      // Check if the moved tile landed in its target
-      const didLock = tiles[emptyIdx].currentPos === tiles[emptyIdx].targetPos;
-      playSound(didLock ? 'lock' : 'slide');
+    // Determine if it was a Swipe or a Tap
+    if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
+      let dir: 'up' | 'down' | 'left' | 'right';
+      if (Math.abs(dx) > Math.abs(dy)) dir = dx > 0 ? 'right' : 'left';
+      else dir = dy > 0 ? 'down' : 'up';
+      
+      attemptMove(touch.pIdx, touch.tileId, dir);
+    } else {
+      attemptTap(touch.pIdx, touch.tileId);
+    }
 
-      // Check Win Condition
-      const isWin = tiles.every(t => t.currentPos === t.targetPos);
+    delete activeTouches.current[e.pointerId];
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
 
-      const newPlayers = [...players];
-      newPlayers[pIdx].tiles = tiles;
-      newPlayers[pIdx].moves += 1;
+  // --- Core Game Physics ---
+  const attemptMove = (pIdx: number, tileId: number, dir: 'up' | 'down' | 'left' | 'right') => {
+    setPlayers(prev => {
+      const newPlayers = [...prev];
+      const player = { ...newPlayers[pIdx] };
+      const tiles = [...player.tiles];
+      const tIdx = tiles.findIndex(t => t.id === tileId);
+      const tile = { ...tiles[tIdx] };
 
-      if (isWin) {
-        playSound('win');
-        newPlayers[pIdx].isFinished = true;
-        newPlayers[pIdx].finishTime = (Date.now() - startTime) / 1000;
-        if (newPlayers.every(p => p.isFinished)) {
-          setUiState('gameover');
-        }
+      const cIdx = tile.currentIdx;
+      // Get array of all currently occupied indices (ignoring escaped tiles)
+      const occupied = tiles.filter(t => !t.isEscaped).map(t => t.currentIdx);
+
+      let newIdx = cIdx;
+      let escapes = false;
+
+      if (dir === 'up') {
+        // ESCAPE HATCH CHECK: Index 1 is the Top-Center slot
+        if (cIdx === 1 && tile.value === player.currentTarget) escapes = true;
+        else if (cIdx === 1 && tile.value !== player.currentTarget) playSound('error'); // Tried to push wrong number
+        else if (cIdx >= 3) newIdx = cIdx - 3;
+      } else if (dir === 'down') {
+        if (cIdx <= 8) newIdx = cIdx + 3;
+      } else if (dir === 'left') {
+        if (cIdx % 3 !== 0) newIdx = cIdx - 1;
+      } else if (dir === 'right') {
+        if (cIdx % 3 !== 2) newIdx = cIdx + 1;
       }
 
-      setPlayers(newPlayers);
-    }
+      if (escapes) {
+        tile.isEscaped = true;
+        player.currentTarget += 1;
+        playSound('escape');
+        if (player.currentTarget > 10) {
+          player.isFinished = true;
+          player.finishTime = (Date.now() - startTime) / 1000;
+          playSound('win');
+        }
+      } else if (newIdx !== cIdx && !occupied.includes(newIdx)) {
+        tile.currentIdx = newIdx;
+        playSound('slide');
+      } else {
+        return prev; // Invalid move, no state change
+      }
+
+      tiles[tIdx] = tile;
+      player.tiles = tiles;
+      player.moves += 1;
+      newPlayers[pIdx] = player;
+
+      if (newPlayers.every(p => p.isFinished)) {
+        setTimeout(() => setUiState('gameover'), 600);
+      }
+
+      return newPlayers;
+    });
+  };
+
+  const attemptTap = (pIdx: number, tileId: number) => {
+    // Tap auto-finds an empty space to slide into. Highly kid-friendly.
+    setPlayers(prev => {
+      const newPlayers = [...prev];
+      const player = { ...newPlayers[pIdx] };
+      const tiles = [...player.tiles];
+      const tIdx = tiles.findIndex(t => t.id === tileId);
+      const tile = { ...tiles[tIdx] };
+      
+      const cIdx = tile.currentIdx;
+      const occupied = tiles.filter(t => !t.isEscaped).map(t => t.currentIdx);
+
+      // Check Escape First
+      if (cIdx === 1 && tile.value === player.currentTarget) {
+        tile.isEscaped = true;
+        player.currentTarget += 1;
+        playSound('escape');
+        if (player.currentTarget > 10) {
+          player.isFinished = true;
+          player.finishTime = (Date.now() - startTime) / 1000;
+          playSound('win');
+        }
+        tiles[tIdx] = tile;
+        player.tiles = tiles;
+        player.moves += 1;
+        newPlayers[pIdx] = player;
+        if (newPlayers.every(p => p.isFinished)) setTimeout(() => setUiState('gameover'), 600);
+        return newPlayers;
+      }
+
+      // Check Neighbors for emptiness
+      const candidates = [];
+      if (cIdx >= 3) candidates.push(cIdx - 3); // up
+      if (cIdx <= 8) candidates.push(cIdx + 3); // down
+      if (cIdx % 3 !== 0) candidates.push(cIdx - 1); // left
+      if (cIdx % 3 !== 2) candidates.push(cIdx + 1); // right
+
+      const emptyNeighbor = candidates.find(idx => !occupied.includes(idx));
+      if (emptyNeighbor !== undefined) {
+        tile.currentIdx = emptyNeighbor;
+        playSound('slide');
+        tiles[tIdx] = tile;
+        player.tiles = tiles;
+        player.moves += 1;
+        newPlayers[pIdx] = player;
+        return newPlayers;
+      }
+
+      // If tapped but can't move anywhere, play error
+      if (cIdx === 1 && tile.value !== player.currentTarget) playSound('error');
+
+      return prev;
+    });
   };
 
   return (
@@ -197,8 +301,8 @@ export default function SeriationBox({ lesson, onComplete }: any) {
             <LayoutGrid className="text-white w-5 h-5 md:w-6 md:h-6" />
           </div>
           <div>
-            <h1 className="text-slate-900 font-black text-sm md:text-xl uppercase leading-none">Slide Seriation</h1>
-            <p className="text-sky-600 text-[10px] md:text-xs font-bold uppercase tracking-widest">Order 0 to 10</p>
+            <h1 className="text-slate-900 font-black text-sm md:text-xl uppercase leading-none">Slide Escape</h1>
+            <p className="text-sky-600 text-[10px] md:text-xs font-bold uppercase tracking-widest">Push out 0 to 10</p>
           </div>
         </div>
 
@@ -229,42 +333,68 @@ export default function SeriationBox({ lesson, onComplete }: any) {
           return (
             <div 
               key={player.id} 
-              className={`relative flex flex-col overflow-hidden rounded-[2rem] border-4 p-2 md:p-4 transition-all ${
-                player.isFinished ? 'bg-emerald-50 border-emerald-500' : 'bg-sky-50/50 border-slate-200 shadow-xl'
+              className={`relative flex flex-col overflow-hidden rounded-[2rem] border-4 p-2 transition-all ${
+                player.isFinished ? 'bg-emerald-50 border-emerald-500' : 'bg-slate-200/50 border-slate-300 shadow-inner'
               } ${isHeadToHeadTop ? 'rotate-180' : ''}`}
             >
-              {/* Player Header */}
-              <div className="flex justify-between items-center px-4 py-2 bg-white/90 backdrop-blur rounded-2xl z-20 shadow-sm border border-slate-100 mb-2 md:mb-4">
-                <span className="font-black text-xs md:text-base uppercase tracking-wider truncate mr-2" style={{ color: player.color }}>{player.name}</span>
-                <div className="flex gap-1 md:gap-2 items-center bg-slate-100 px-2 md:px-3 py-1 rounded-full shrink-0">
-                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4 text-slate-500" />
-                  <span className="font-black text-xs md:text-sm text-slate-600">{player.moves}</span>
-                </div>
+              
+              {/* TOP TRAY (Collected Numbers) */}
+              <div className="flex flex-wrap items-center justify-center gap-1 md:gap-2 p-2 bg-white rounded-2xl shadow-sm border border-slate-200 mb-2 z-10 shrink-0 min-h-[4rem]">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => {
+                  const isCollected = num < player.currentTarget;
+                  const isNext = num === player.currentTarget;
+                  return (
+                    <div 
+                      key={num} 
+                      className={`w-6 h-6 md:w-8 md:h-8 flex items-center justify-center rounded-lg md:rounded-xl font-black text-xs md:text-sm transition-all duration-300
+                        ${isCollected ? 'bg-emerald-500 text-white shadow-sm scale-100' : 
+                          isNext ? 'bg-amber-100 border-2 border-amber-400 text-amber-700 animate-pulse' : 
+                          'border border-dashed border-slate-300 text-slate-300 scale-90'}`}
+                    >
+                      {num}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Grid Canvas */}
-              <div className="flex-grow flex items-center justify-center p-2">
-                 <div className="grid grid-cols-3 grid-rows-4 gap-1.5 md:gap-3 w-full h-full max-w-sm">
-                    {player.tiles.map((tile, tIdx) => {
-                       const isCorrect = tile.currentPos === tile.targetPos && tile.value !== null;
-                       const isEmpty = tile.value === null;
+              {/* PUZZLE GRID AREA */}
+              <div className="flex-grow flex items-center justify-center relative">
+                 
+                 {/* The Physical 3x4 Box constraint */}
+                 <div className="relative w-full max-w-[200px] md:max-w-[280px] aspect-[3/4] bg-slate-800 rounded-2xl border-[6px] md:border-8 border-slate-700 overflow-hidden shadow-2xl">
+                    
+                    {/* The Visual Escape Hole (Top Middle) */}
+                    <div className="absolute top-0 left-1/3 w-1/3 h-2 bg-sky-300/20 z-0 border-b-2 border-dashed border-sky-400/50"></div>
+                    <div className="absolute top-2 left-1/3 w-1/3 flex justify-center opacity-40 animate-pulse pointer-events-none">
+                      <ArrowUpCircle className="w-6 h-6 text-sky-400" />
+                    </div>
+
+                    {/* The Tiles */}
+                    {player.tiles.map((tile) => {
+                       const col = tile.currentIdx % 3;
+                       const row = Math.floor(tile.currentIdx / 3);
+                       const isNextTarget = tile.value === player.currentTarget && !tile.isEscaped;
 
                        return (
                          <div 
-                           key={tIdx}
-                           onClick={() => handleTileClick(pIdx, tIdx)}
-                           className={`relative flex items-center justify-center rounded-xl md:rounded-2xl transition-all duration-300 select-none
-                             ${isEmpty ? 'bg-transparent border-2 border-dashed border-slate-300' : 
-                               isCorrect ? 'bg-emerald-500 border-b-4 border-emerald-700 shadow-sm' : 
-                               'bg-white border-b-4 border-slate-300 shadow-md hover:bg-sky-50 cursor-pointer active:translate-y-1 active:border-b-0'
-                             }
-                           `}
+                           key={tile.id}
+                           onPointerDown={(e) => handlePointerDown(e, pIdx, tile.id)}
+                           onPointerUp={(e) => handlePointerUp(e, isHeadToHeadTop)}
+                           onPointerCancel={(e) => handlePointerUp(e, isHeadToHeadTop)}
+                           // CSS TRANSITION MAGIC:
+                           // If Escaped: Slide up and out of bounds (top: -30%), shrink, and fade out.
+                           // If Active: Map strictly to col (33.3%) and row (25%).
+                           className={`absolute w-[33.33%] h-[25%] p-1 transition-all duration-300 ease-out select-none touch-none
+                             ${tile.isEscaped ? 'opacity-0 scale-50 pointer-events-none z-0' : 'opacity-100 scale-100 cursor-grab active:cursor-grabbing z-10 hover:z-20'}`}
+                           style={{ 
+                             left: tile.isEscaped ? '33.33%' : `${col * 33.33}%`, 
+                             top: tile.isEscaped ? '-30%' : `${row * 25}%` 
+                           }}
                          >
-                            {!isEmpty && (
-                              <span className={`text-2xl md:text-4xl font-black ${isCorrect ? 'text-white' : 'text-slate-700'}`}>
-                                {tile.value}
-                              </span>
-                            )}
+                            <div className={`w-full h-full flex items-center justify-center rounded-xl md:rounded-2xl border-b-4 md:border-b-[6px] shadow-sm transition-colors
+                               ${isNextTarget ? 'bg-amber-300 border-amber-500 text-amber-900' : 'bg-white border-slate-300 text-slate-700'}`}>
+                               <span className="text-3xl md:text-5xl font-black">{tile.value}</span>
+                            </div>
                          </div>
                        )
                     })}
@@ -292,10 +422,10 @@ export default function SeriationBox({ lesson, onComplete }: any) {
         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] p-6 md:p-10 max-w-xl w-full shadow-2xl text-center border-8 border-white/20">
             <div className="w-20 h-20 md:w-24 md:h-20 bg-sky-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
-               <LayoutGrid className="w-10 h-10 md:w-12 md:h-12 text-sky-500" />
+               <ArrowUpCircle className="w-10 h-10 md:w-12 md:h-12 text-sky-500" />
             </div>
-            <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-2 tracking-tight">Slide Seriation</h2>
-            <p className="text-slate-500 font-bold mb-8 italic">Slide the tiles to put the numbers in order from 0 to 10!</p>
+            <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-2 tracking-tight">Slide Escape!</h2>
+            <p className="text-slate-500 font-bold mb-8 italic">Swipe tiles to the empty spaces. Push the numbers out the top hole in order from 0 to 10!</p>
             
             <div className="space-y-4 mb-10">
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">Players</p>
@@ -318,8 +448,8 @@ export default function SeriationBox({ lesson, onComplete }: any) {
         <div className="absolute inset-0 bg-sky-600/90 backdrop-blur-xl z-50 flex items-center justify-center p-6">
            <div className="bg-white rounded-[3rem] p-10 max-w-xl w-full shadow-2xl text-center border-8 border-white/20">
               <Trophy className="w-24 h-24 text-amber-500 mx-auto mb-6" />
-              <h2 className="text-5xl font-black text-slate-800 mb-2 tracking-tight">Puzzle Solved!</h2>
-              <p className="text-sky-600 font-black uppercase tracking-widest text-sm mb-8">Numbers 0-10 Sorted</p>
+              <h2 className="text-5xl font-black text-slate-800 mb-2 tracking-tight">Escape Complete!</h2>
+              <p className="text-sky-600 font-black uppercase tracking-widest text-sm mb-8">All numbers saved.</p>
               
               <div className="space-y-3 mb-8">
                  {[...players].sort((a,b) => (a.finishTime || 0) - (b.finishTime || 0)).map((p, i) => (
