@@ -369,17 +369,22 @@ export default function CoinTowers({ lesson, onComplete }: any) {
         </div>
       )}
 
-      {/* GAME OVER OVERLAY */}
+      {/* GAME OVER OVERLAY (Unobtrusive Floating Banner) */}
       {uiState === 'gameover' && (
-        <div className="absolute inset-0 bg-emerald-900/95 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-fade-in">
-           <div className="bg-slate-900 rounded-[3rem] p-10 max-w-xl w-full shadow-2xl text-center border-4 border-emerald-800">
-              <Trophy className="w-24 h-24 text-amber-400 mx-auto mb-6 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]" />
-              <h2 className="text-5xl font-black text-white mb-2 tracking-tight">Perfect Sort!</h2>
-              <p className="text-emerald-400 font-black uppercase tracking-widest text-sm mb-10">You counted to 10</p>
+        <div className="absolute inset-x-0 top-20 md:top-24 z-50 flex items-start justify-center p-4 pointer-events-none animate-fade-in">
+           <div className="bg-slate-900/95 backdrop-blur-md rounded-[2rem] p-4 md:px-8 md:py-4 shadow-2xl border-2 border-emerald-500 flex flex-col md:flex-row items-center gap-4 md:gap-8 pointer-events-auto">
+              
+              <div className="flex items-center gap-3">
+                <Trophy className="w-10 h-10 md:w-12 md:h-12 text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.8)]" />
+                <div className="text-center md:text-left">
+                  <h2 className="text-2xl md:text-3xl font-black text-white leading-none mb-1">Perfect Sort!</h2>
+                  <p className="text-emerald-400 font-black uppercase tracking-widest text-[10px] md:text-xs">You counted to 10</p>
+                </div>
+              </div>
 
-              <div className="flex gap-4">
-                 <button onClick={startGame} className="flex-1 py-4 bg-slate-800 text-slate-300 font-black rounded-2xl border-b-4 border-slate-700 transition-transform active:translate-y-1 hover:text-white">PLAY AGAIN</button>
-                 <button onClick={() => onComplete?.()} className="flex-1 py-4 bg-amber-500 text-amber-950 font-black rounded-2xl border-b-4 border-amber-700 transition-transform active:translate-y-1 shadow-lg hover:bg-amber-400">NEXT LESSON</button>
+              <div className="flex gap-3 md:border-l-2 border-slate-700 md:pl-8 w-full md:w-auto">
+                 <button onClick={startGame} className="flex-1 md:flex-none px-4 py-3 bg-slate-800 text-slate-300 font-black text-xs md:text-sm rounded-xl border-b-4 border-slate-700 transition-transform active:translate-y-1 hover:text-white">REPLAY</button>
+                 <button onClick={() => onComplete?.()} className="flex-1 md:flex-none px-6 py-3 bg-amber-500 text-amber-950 font-black text-xs md:text-sm rounded-xl border-b-4 border-amber-700 transition-transform active:translate-y-1 shadow-lg hover:bg-amber-400">NEXT LESSON</button>
               </div>
            </div>
         </div>

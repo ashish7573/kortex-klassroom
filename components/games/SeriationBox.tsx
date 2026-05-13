@@ -339,14 +339,15 @@ export default function SeriationBox({ lesson, onComplete }: any) {
             >
               
               {/* TOP TRAY (Collected Numbers) */}
-              <div className="flex flex-wrap items-center justify-center gap-1 md:gap-2 p-2 bg-white rounded-2xl shadow-sm border border-slate-200 mb-2 z-10 shrink-0 min-h-[4rem]">
+              <div className="flex flex-wrap items-center justify-center gap-1 p-2 bg-white/80 rounded-2xl shadow-sm border border-slate-200 mb-2 z-10 shrink-0">
                 {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => {
                   const isCollected = num < player.currentTarget;
                   const isNext = num === player.currentTarget;
                   return (
                     <div 
                       key={num} 
-                      className={`w-6 h-6 md:w-8 md:h-8 flex items-center justify-center rounded-lg md:rounded-xl font-black text-xs md:text-sm transition-all duration-300
+                      // SHRINK FIX: Reduced size slightly on mobile so it doesn't push the board down
+                      className={`w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex items-center justify-center rounded-md md:rounded-xl font-black text-[10px] md:text-sm transition-all duration-300
                         ${isCollected ? 'bg-emerald-500 text-white shadow-sm scale-100' : 
                           isNext ? 'bg-amber-100 border-2 border-amber-400 text-amber-700 animate-pulse' : 
                           'border border-dashed border-slate-300 text-slate-300 scale-90'}`}
@@ -358,10 +359,10 @@ export default function SeriationBox({ lesson, onComplete }: any) {
               </div>
 
               {/* PUZZLE GRID AREA */}
-              <div className="flex-grow flex items-center justify-center relative">
+              <div className="flex-grow flex items-center justify-center relative min-h-0 w-full">
                  
-                 {/* The Physical 3x4 Box constraint */}
-                 <div className="relative w-full max-w-[200px] md:max-w-[280px] aspect-[3/4] bg-slate-800 rounded-2xl border-[6px] md:border-8 border-slate-700 overflow-hidden shadow-2xl">
+                 {/* SIZING FIX: Uses 'h-full aspect-[3/4] max-h-full' to dynamically fill available space without breaking */}
+                 <div className="relative h-full max-h-[60vh] aspect-[3/4] bg-slate-800 rounded-2xl md:rounded-[2rem] border-[6px] md:border-8 border-slate-700 overflow-hidden shadow-2xl">
                     
                     {/* The Visual Escape Hole (Top Middle) */}
                     <div className="absolute top-0 left-1/3 w-1/3 h-2 bg-sky-300/20 z-0 border-b-2 border-dashed border-sky-400/50"></div>
