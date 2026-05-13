@@ -659,7 +659,7 @@ export default function MathArcher() {
           <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-2xl w-full max-w-3xl border-4 border-white/50 my-auto">
             
             <div className="text-center mb-8">
-              <h1 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight">Math Defenders</h1>
+              <h1 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight">Math Archer</h1>
               <p className="text-slate-500 font-bold mt-2">Kortex Klassroom Multiplayer Edition</p>
             </div>
 

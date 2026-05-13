@@ -24,6 +24,7 @@ const CoinTowers = dynamic(() => import('./CoinTowers'), { ssr: false, loading: 
 const SPECIFIC_TOOLS: any = {
   'rounding-mountain': MountainRounding,
   'full-barahkhadi': BarahkhadiVisualiser,
+  'concept-seriation': CoinTowers,
   
   // ==========================================
   // HINDI WORD BUILDER ROUTING
