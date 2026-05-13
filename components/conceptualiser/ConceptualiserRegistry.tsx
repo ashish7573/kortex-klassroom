@@ -19,12 +19,16 @@ const MatraBarahkhadi = dynamic(() => import('./MatraBarahkhadi'), { ssr: false,
 // Unique Tools 
 const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: false, loading: () => <ConceptLoader /> });
 const CoinTowers = dynamic(() => import('./CoinTowers'), { ssr: false, loading: () => <ConceptLoader /> });
+const NumberStory = dynamic(() => import('./NumberStory'), { ssr: false, loading: () => <ConceptLoader /> });
+const ShopConceptualiser = dynamic(() => import('./ShopConceptualiser'), { ssr: false, loading: () => <ConceptLoader /> });
 
 // THE ROUTER: Map the Subtopic IDs from your CSV to the actual React Components
 const SPECIFIC_TOOLS: any = {
   'rounding-mountain': MountainRounding,
   'full-barahkhadi': BarahkhadiVisualiser,
   'concept-seriation': CoinTowers,
+  'number-story': NumberStory,
+  'concept-shop': ShopConceptualiser,
   
   // ==========================================
   // HINDI WORD BUILDER ROUTING
@@ -75,19 +79,22 @@ const SPECIFIC_TOOLS: any = {
 };
 
 export default function ConceptualiserRegistry({ lesson, onComplete }: any) {
-  // Grab the unique ID you assigned in the CSV
-  const slug = lesson.subtopicId || lesson.routePath?.split('/').pop();
+  // 1. Grab the raw ID from your Database
+  const rawSlug = lesson.subtopicId || lesson.routePath?.split('/').pop() || '';
+  
+  // 2. THE FIX: Strip out all invisible carriage returns (\r), newlines, spaces, and force lowercase.
+  const slug = String(rawSlug).toLowerCase().replace(/[^a-z0-9-]/g, '');
 
   if (!slug) return <div className="p-10 text-center text-rose-500 font-bold">Error: Missing Subtopic ID</div>;
 
-  // 1. Check if it is a Custom Tool
+  // 3. Check the Dictionary
   const SpecificTool = SPECIFIC_TOOLS[slug];
+  
   if (SpecificTool) {
-    // IMPORTANT: We pass the 'lesson' prop here so the tool can read the title!
     return <Suspense fallback={<ConceptLoader />}><SpecificTool lesson={lesson} onComplete={onComplete} /></Suspense>;
   }
 
-  // 2. Default Fallback: If it's a standard letter lesson, use the SwarVyanjan Shell
+  // 4. Default Fallback
   return (
     <Suspense fallback={<ConceptLoader />}>
       <SwarVyanjanConceptualiser subtopicId={slug} onComplete={onComplete} />
