@@ -1,9 +1,22 @@
 "use client";
-import dynamic from 'next/dynamic';
+
 import React, { Suspense } from 'react';
+import dynamic from 'next/dynamic';
+
+// ==========================================
+// 1. STANDARD IMPORTS (The Fix)
+// Bypasses the Next.js Turbopack dynamic Promise bug
+// ==========================================
 import BarahkhadiVisualiser from './Barahkhadi';
 import StoryConceptualiser from './FLNStoriesConceptualiser';
+import MountainRounding from './MountainRounding';
+import CoinTowers from './CoinTowers';
+import NumberStory from './NumberStory';
+import ShopConceptualiser from './ShopConceptualiser';
 
+// ==========================================
+// 2. LOADING STATE
+// ==========================================
 const ConceptLoader = () => (
   <div className="w-full h-[60vh] flex flex-col items-center justify-center bg-slate-50 rounded-[3xl] border-4 border-dashed border-slate-200">
      <div className="w-16 h-16 border-8 border-slate-100 border-t-purple-500 rounded-full animate-spin mb-6"></div>
@@ -11,28 +24,27 @@ const ConceptLoader = () => (
   </div>
 );
 
-// Core Modules
+// ==========================================
+// 3. CORE MODULES (Heavy shells kept dynamic)
+// ==========================================
 const SwarVyanjanConceptualiser = dynamic(() => import('./SwarVyanjanConceptualiser'), { ssr: false, loading: () => <ConceptLoader /> });
 const HindiWordBuilder = dynamic(() => import('./HindiWordBuilder'), { ssr: false, loading: () => <ConceptLoader /> });
 const MatraBarahkhadi = dynamic(() => import('./MatraBarahkhadi'), { ssr: false, loading: () => <ConceptLoader /> });
 
-// Unique Tools 
-const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: false, loading: () => <ConceptLoader /> });
-const CoinTowers = dynamic(() => import('./CoinTowers'), { ssr: false, loading: () => <ConceptLoader /> });
-const NumberStory = dynamic(() => import('./NumberStory'), { ssr: false, loading: () => <ConceptLoader /> });
-const ShopConceptualiser = dynamic(() => import('./ShopConceptualiser'), { ssr: false, loading: () => <ConceptLoader /> });
-
-// THE ROUTER: Map the Subtopic IDs from your CSV to the actual React Components
+// ==========================================
+// 4. THE ROUTER DICTIONARY
+// Maps the Subtopic IDs from your CSV to the actual React Components
+// ==========================================
 const SPECIFIC_TOOLS: any = {
+  // --- FLN Maths Tools ---
   'rounding-mountain': MountainRounding,
-  'full-barahkhadi': BarahkhadiVisualiser,
   'concept-seriation': CoinTowers,
   'number-story': NumberStory,
   'concept-shop': ShopConceptualiser,
+
+  // --- Hindi Tools ---
+  'full-barahkhadi': BarahkhadiVisualiser,
   
-  // ==========================================
-  // HINDI WORD BUILDER ROUTING
-  // ==========================================
   // Chapter 3: Amatrik Word Builders
   'word-builder-2': HindiWordBuilder,
   'word-builder-3': HindiWordBuilder,
@@ -51,9 +63,6 @@ const SPECIFIC_TOOLS: any = {
   'wb-matra-ang': HindiWordBuilder,
   'wb-matra-ah': HindiWordBuilder,
 
-  // ==========================================
-  // MATRA BARAHKHADI ROUTING
-  // ==========================================
   // Chapter 4: Matra Conceptualisers (The Combiner tool)
   'matra-aa': MatraBarahkhadi,
   'matra-i': MatraBarahkhadi,
@@ -66,9 +75,8 @@ const SPECIFIC_TOOLS: any = {
   'matra-au': MatraBarahkhadi,
   'matra-ang': MatraBarahkhadi,
   'matra-ah': MatraBarahkhadi,
-  // ==========================================
+  
   // CHAPTER 7: STORIES (READING PHASE)
-  // ==========================================
   'story-1-read': StoryConceptualiser,
   'story-2-read': StoryConceptualiser,
   'story-3-read': StoryConceptualiser,
@@ -78,23 +86,36 @@ const SPECIFIC_TOOLS: any = {
   'story-7-read': StoryConceptualiser,
 };
 
+// ==========================================
+// 5. MAIN COMPONENT EXPORT
+// ==========================================
 export default function ConceptualiserRegistry({ lesson, onComplete }: any) {
-  // 1. Grab the raw ID from your Database
+  // Grab the raw ID from your Database
   const rawSlug = lesson.subtopicId || lesson.routePath?.split('/').pop() || '';
   
-  // 2. THE FIX: Strip out all invisible carriage returns (\r), newlines, spaces, and force lowercase.
+  // THE SANITIZER: Strip out all invisible carriage returns (\r), newlines, spaces, and force lowercase.
   const slug = String(rawSlug).toLowerCase().replace(/[^a-z0-9-]/g, '');
 
+  // Failsafe if ID is completely missing
   if (!slug) return <div className="p-10 text-center text-rose-500 font-bold">Error: Missing Subtopic ID</div>;
 
-  // 3. Check the Dictionary
+  // Check the Dictionary
   const SpecificTool = SPECIFIC_TOOLS[slug];
   
   if (SpecificTool) {
-    return <Suspense fallback={<ConceptLoader />}><SpecificTool lesson={lesson} onComplete={onComplete} /></Suspense>;
+    
+    // THE FIX: The Next.js Module Unwrapper
+    // If Turbopack wrapped the component in a module object, this extracts the actual React function.
+    const ComponentToRender = SpecificTool.default || SpecificTool;
+    
+    return (
+      <Suspense fallback={<ConceptLoader />}>
+        <ComponentToRender lesson={lesson} onComplete={onComplete} />
+      </Suspense>
+    );
   }
 
-  // 4. Default Fallback
+  // Default Fallback to Swar Vyanjan
   return (
     <Suspense fallback={<ConceptLoader />}>
       <SwarVyanjanConceptualiser subtopicId={slug} onComplete={onComplete} />
