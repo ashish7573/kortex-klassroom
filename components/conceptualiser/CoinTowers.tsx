@@ -27,9 +27,27 @@ export default function CoinTowers({ lesson, onComplete }: any) {
 
   // --- Audio Synthesis ---
   const initAudio = () => {
-    if (typeof window !== 'undefined' && !audioCtx.current) {
+    if (typeof window === 'undefined') return;
+
+    // 1. Create the AudioContext if it doesn't exist yet
+    if (!audioCtx.current) {
       const WinAudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (WinAudioContext) audioCtx.current = new WinAudioContext();
+    }
+
+    // 2. iOS FIX: Explicitly resume the AudioContext. 
+    // Safari starts this in a 'suspended' state until a user interacts.
+    if (audioCtx.current && audioCtx.current.state === 'suspended') {
+      audioCtx.current.resume();
+    }
+
+    // 3. iOS FIX: "Prime" the Speech Synthesis engine.
+    // iOS blocks speech unless the very first utterance happens directly on a click event.
+    // We send a completely silent, empty string right when they click "Start" to unlock the engine.
+    if ('speechSynthesis' in window) {
+      const unlockSpeech = new SpeechSynthesisUtterance('');
+      unlockSpeech.volume = 0; 
+      window.speechSynthesis.speak(unlockSpeech);
     }
   };
 
