@@ -18,6 +18,7 @@ const MatraBarahkhadi = dynamic(() => import('./MatraBarahkhadi'), { ssr: false,
 
 // Unique Tools 
 const MountainRounding = dynamic(() => import('./MountainRounding'), { ssr: false, loading: () => <ConceptLoader /> });
+const CoinTowers = dynamic(() => import('./CoinTowers'), { ssr: false, loading: () => <ConceptLoader /> });
 
 // THE ROUTER: Map the Subtopic IDs from your CSV to the actual React Components
 const SPECIFIC_TOOLS: any = {
