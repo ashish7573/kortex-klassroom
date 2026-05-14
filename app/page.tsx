@@ -985,28 +985,8 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
     return () => clearInterval(interval);
   }, []);
 
+  
   useEffect(() => {
-    async function fetchTierData() {
-      setIsLoadingTiers(true);
-      try {
-        const q = query(collection(db, 'learning_tools'), where('is_featured', '==', true), limit(50));
-        const snapshot = await getDocs(q);
-        const items = snapshot.docs.map((d: any) => ({id: d.id, ...d.data()}));
-        const categorized: any = { conceptualiser: [], theatre: [], dojo: [], workbook: [], arcade: [] };
-
-        items.forEach((item: any) => {
-          const type = item.content_type?.toLowerCase();
-          if (type === 'video') categorized.theatre.push(item);
-          else if (type === 'quiz') categorized.dojo.push(item);
-          else if (type === 'pdf' || type === 'worksheet' || type === 'document') categorized.workbook.push(item);
-          else if (type === 'game') categorized.arcade.push(item);
-          else if (type === 'conceptualiser') categorized.conceptualiser.push(item);
-        });
-        setTierData(categorized);
-      } catch (error) { console.error(error); } finally { setIsLoadingTiers(false); }
-    }
-    fetchTierData();
-  }, []);useEffect(() => {
     async function fetchTierData() {
       setIsLoadingTiers(true);
       try {
@@ -1718,14 +1698,11 @@ const KrewEditorPanel = () => {
 // ============================================================================
 
 const AdminView = () => {
-  const [activeTab, setActiveTab] = useState('analytics'); // Default to Analytics now!
+  const [activeTab, setActiveTab] = useState('database'); // Default to Database Config
   const [pendingRequests, setPendingRequests] = useState([]);
   const [requestHistory, setRequestHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadingCSV, setIsUploadingCSV] = useState(false);
-  
-  // NEW: Analytics State
-  const [analytics, setAnalytics] = useState<any>(null);
 
   // Fetch Approvals
   useEffect(() => {
@@ -1748,52 +1725,7 @@ const AdminView = () => {
     if (activeTab === 'approvals') fetchRequests();
   }, [activeTab]);
 
-  // NEW: Fetch Analytics
-  useEffect(() => {
-    async function fetchAnalytics() {
-      setIsLoading(true);
-      try {
-        // Grab the last 2000 events to keep the dashboard extremely fast
-        const q = query(collection(db, 'analytics_events'), orderBy('timestamp', 'desc'), limit(2000));
-        const snap = await getDocs(q);
-        const events = snap.docs.map(d => d.data());
-
-        // 1. Calculate Unique Devices (Silent Visitors)
-        const uniqueDevices = new Set(events.map(e => e.device_id)).size;
-        
-        // 2. Categorize Events
-        const lessonStarts = events.filter(e => e.event_type === 'lesson_started');
-        const lessonCompletions = events.filter(e => e.event_type === 'lesson_completed');
-        const pageViews = events.filter(e => e.event_type === 'page_view');
-        const demoStarts = events.filter(e => e.event_type === 'demo_started');
-        
-        // 3. Find Most Popular Chapters
-        const chapterCounts: any = {};
-        lessonStarts.forEach(e => {
-            const chap = e.payload?.chapter || 'Unknown Module';
-            chapterCounts[chap] = (chapterCounts[chap] || 0) + 1;
-        });
-        const topChapters = Object.entries(chapterCounts)
-            .sort((a: any, b: any) => b[1] - a[1])
-            .slice(0, 5); // Top 5
-
-        setAnalytics({
-            totalVisitors: uniqueDevices,
-            totalStarts: lessonStarts.length,
-            totalCompletions: lessonCompletions.length,
-            completionRate: lessonStarts.length ? Math.round((lessonCompletions.length / lessonStarts.length) * 100) : 0,
-            pageViews: pageViews.length,
-            demoStarts: demoStarts.length,
-            topChapters
-        });
-      } catch (error: any) { 
-        console.error("🚨 ANALYTICS FETCH ERROR:", error); 
-      } finally { 
-        setIsLoading(false); 
-      }
-    }
-    if (activeTab === 'analytics') fetchAnalytics();
-  }, [activeTab]);
+  
 
   const handleRequestAction = async (request: any, actionStatus: string) => {
     const isApproved = actionStatus === 'APPROVED';
@@ -2027,91 +1959,10 @@ const AdminView = () => {
       </div>
 
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border-2 border-slate-100 shadow-sm w-fit">
-        <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${activeTab === 'analytics' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}><BarChart size={16} /> Traffic & Analytics</button>
-        <button onClick={() => setActiveTab('approvals')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${activeTab === 'approvals' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>Content Approvals {pendingRequests.length > 0 && <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-bounce">{pendingRequests.length}</span>}</button>
         <button onClick={() => setActiveTab('database')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${activeTab === 'database' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}><Database size={16} /> System Config</button>
+        <button onClick={() => setActiveTab('approvals')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${activeTab === 'approvals' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>Content Approvals {pendingRequests.length > 0 && <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-bounce">{pendingRequests.length}</span>}</button>
       </div>
 
-      {/* NEW: ANALYTICS TAB */}
-      {activeTab === 'analytics' && (
-         <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between mb-4">
-               <div>
-                  <h3 className="text-2xl font-black text-slate-800">Platform Analytics</h3>
-                  <p className="text-slate-500 font-medium mt-1">Live anonymous tracking of user engagement and content popularity.</p>
-               </div>
-            </div>
-            
-            {isLoading ? (
-               <div className="py-20 text-center text-indigo-500 font-bold animate-pulse">Compiling Data Engine...</div>
-            ) : !analytics ? (
-               <div className="py-20 text-center text-slate-500 font-bold">No data available yet. Start clicking around the site!</div>
-            ) : (
-               <>
-                  {/* Top Stats Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                     <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden group hover:border-sky-300 transition-colors">
-                        <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform"><Users size={60} className="text-sky-500"/></div>
-                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Unique Devices</p>
-                        <h4 className="text-4xl font-black text-slate-800">{analytics.totalVisitors}</h4>
-                     </div>
-                     <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden group hover:border-purple-300 transition-colors">
-                        <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform"><Activity size={60} className="text-purple-500"/></div>
-                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Total Page Views</p>
-                        <h4 className="text-4xl font-black text-slate-800">{analytics.pageViews}</h4>
-                     </div>
-                     <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden group hover:border-lime-300 transition-colors">
-                        <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform"><Play size={60} className="text-lime-500"/></div>
-                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Lessons Started</p>
-                        <h4 className="text-4xl font-black text-slate-800">{analytics.totalStarts}</h4>
-                     </div>
-                     <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden group hover:border-amber-300 transition-colors">
-                        <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform"><Target size={60} className="text-amber-500"/></div>
-                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Completion Rate</p>
-                        <h4 className="text-4xl font-black text-slate-800">{analytics.completionRate}%</h4>
-                     </div>
-                  </div>
-
-                  {/* Bottom Row */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                     
-                     {/* Top Modules List */}
-                     <div className="lg:col-span-2 bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 md:p-8">
-                        <h4 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2"><Flame size={20} className="text-orange-500"/> Top Performing Modules</h4>
-                        {analytics.topChapters.length === 0 ? (
-                           <p className="text-slate-400 font-medium italic">No lessons have been started yet.</p>
-                        ) : (
-                           <div className="space-y-4">
-                              {analytics.topChapters.map(([chapter, count]: any, idx: number) => (
-                                 <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                                    <div className="flex items-center gap-4">
-                                       <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-500 font-black flex items-center justify-center shrink-0">#{idx + 1}</div>
-                                       <span className="font-extrabold text-slate-700">{chapter}</span>
-                                    </div>
-                                    <div className="text-sm font-bold text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm">{count} Starts</div>
-                                 </div>
-                              ))}
-                           </div>
-                        )}
-                     </div>
-
-                     {/* Conversion Snippet */}
-                     <div className="bg-slate-900 text-white rounded-3xl border-4 border-indigo-900 shadow-sm p-6 md:p-8 flex flex-col justify-center">
-                        <h4 className="text-xl font-black text-white mb-2 text-center">Demo Conversion</h4>
-                        <p className="text-slate-400 text-sm font-medium text-center mb-8">How many users test drove the platform vs explored the real curriculum?</p>
-                        
-                        <div className="bg-slate-800 rounded-2xl p-6 text-center border-2 border-slate-700">
-                           <div className="text-5xl font-black text-sky-400 mb-2">{analytics.demoStarts}</div>
-                           <p className="text-slate-300 font-bold text-sm uppercase tracking-wider">Demo Plays</p>
-                        </div>
-                        <p className="text-center text-xs text-slate-500 mt-6 mt-auto">Note: High demo plays and low unique visitors means users are returning to replay the demo repeatedly.</p>
-                     </div>
-
-                  </div>
-               </>
-            )}
-         </div>
-      )}
 
       {/* APPROVALS TAB */}
       {activeTab === 'approvals' && (
