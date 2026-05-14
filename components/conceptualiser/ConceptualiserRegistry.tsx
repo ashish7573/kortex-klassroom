@@ -13,6 +13,7 @@ import MountainRounding from './MountainRounding';
 import CoinTowers from './CoinTowers';
 import NumberStory from './NumberStory';
 import ShopConceptualiser from './ShopConceptualiser';
+import MoreLess from './MoreLess';
 
 // ==========================================
 // 2. LOADING STATE
@@ -41,6 +42,7 @@ const SPECIFIC_TOOLS: any = {
   'concept-seriation': CoinTowers,
   'number-story': NumberStory,
   'concept-shop': ShopConceptualiser,
+  'concept-more-less': MoreLess,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,
