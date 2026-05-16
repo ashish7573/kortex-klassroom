@@ -14,6 +14,7 @@ import CoinTowers from './CoinTowers';
 import NumberStory from './NumberStory';
 import ShopConceptualiser from './ShopConceptualiser';
 import MoreLess from './MoreLess';
+import CountingCombinations from './CountingCombinations';
 
 // ==========================================
 // 2. LOADING STATE
@@ -43,6 +44,7 @@ const SPECIFIC_TOOLS: any = {
   'number-story': NumberStory,
   'concept-shop': ShopConceptualiser,
   'concept-more-less': MoreLess,
+  'counting-combinations': CountingCombinations,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,
