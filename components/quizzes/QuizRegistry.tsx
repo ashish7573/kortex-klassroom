@@ -27,6 +27,11 @@ const HindiWordDictation = dynamic(() => import('./HindiWordDictation'), {
   ssr: false, loading: () => <QuizLoader /> 
 });
 
+// 4. NEW: The Master Math Counting Quiz (Numbers up to 10)
+const MasterQuizUptoTen = dynamic(() => import('./MasterQuizUptoTen'), { 
+  ssr: false, loading: () => <QuizLoader /> 
+});
+
 // --- THE ROUTER SWITCHBOARD (subtopic id are matched here from csv)---
 const SPECIFIC_QUIZZES: any = {
   'hindi-word-match': HindiWordQuiz, 
@@ -65,6 +70,12 @@ const SPECIFIC_QUIZZES: any = {
   'story-5-quiz': FLNStoryQuiz,
   'story-6-quiz': FLNStoryQuiz,
   'story-7-quiz': FLNStoryQuiz,
+
+  // ==========================================
+  // MATH QUIZZES
+  // ==========================================
+  'master-quiz-upto-ten': MasterQuizUptoTen, // Use this exact ID in your CSV!
+  'numbers-1-to-10-quiz': MasterQuizUptoTen, // Added an alias just in case
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {
