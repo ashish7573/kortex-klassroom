@@ -15,6 +15,7 @@ import NumberStory from './NumberStory';
 import ShopConceptualiser from './ShopConceptualiser';
 import MoreLess from './MoreLess';
 import CountingCombinations from './CountingCombinations';
+import * as AdditionStoryModule from './AdditionStory';
 
 // ==========================================
 // 2. LOADING STATE
@@ -45,6 +46,7 @@ const SPECIFIC_TOOLS: any = {
   'concept-shop': ShopConceptualiser,
   'concept-more-less': MoreLess,
   'counting-combinations': CountingCombinations,
+  'addition-story-rohan': AdditionStoryModule,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,
@@ -108,9 +110,23 @@ export default function ConceptualiserRegistry({ lesson, onComplete }: any) {
   
   if (SpecificTool) {
     
-    // THE FIX: The Next.js Module Unwrapper
-    // If Turbopack wrapped the component in a module object, this extracts the actual React function.
-    const ComponentToRender = SpecificTool.default || SpecificTool;
+    // THE AGGRESSIVE UNWRAPPER (Turbopack Fix)
+    let ComponentToRender = SpecificTool;
+
+    // Keep digging into the object until we find a Function or a valid React Component ($$typeof)
+    while (ComponentToRender && typeof ComponentToRender === 'object' && !ComponentToRender.$$typeof) {
+      if (ComponentToRender.default) {
+        ComponentToRender = ComponentToRender.default;
+      } else {
+        // Fallback: Hunt for any function hidden inside the object
+        const fn = Object.values(ComponentToRender).find(val => typeof val === 'function');
+        if (fn) {
+          ComponentToRender = fn;
+        } else {
+          break; // Stop digging if we hit a dead end
+        }
+      }
+    }
     
     return (
       <Suspense fallback={<ConceptLoader />}>

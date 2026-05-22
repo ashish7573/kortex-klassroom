@@ -150,11 +150,11 @@ export default function NumberStory({ lesson, onComplete }: any) {
         <div className="w-full h-full max-w-4xl flex items-center justify-center bg-white rounded-[2rem] md:rounded-[3rem] shadow-xl border-4 border-amber-100 overflow-hidden relative">
            <img 
              key={currentSlide} 
-             src={`/assets/maths/FLN/NumberStory${currentSlide + 1}.png`} 
+             src={`/assets/maths/FLN/NumberStory${currentSlide + 1}.webp`} 
              alt={`Story illustration part ${currentSlide + 1}`}
              className="absolute inset-0 w-full h-full object-contain animate-fade-in p-4"
              onError={(e) => {
-               (e.target as HTMLImageElement).src = `/assets/maths/FLN/NumberStory${currentSlide + 1}.jpg`;
+               (e.target as HTMLImageElement).src = `/assets/maths/FLN/NumberStory${currentSlide + 1}.webp`;
              }}
            />
         </div>
