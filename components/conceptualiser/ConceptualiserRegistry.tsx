@@ -16,6 +16,7 @@ import ShopConceptualiser from './ShopConceptualiser';
 import MoreLess from './MoreLess';
 import CountingCombinations from './CountingCombinations';
 import AdditionStory from './AdditionStory';
+import AdditionMachine from './AdditionMachine';
 
 // ==========================================
 // 2. LOADING STATE
@@ -47,6 +48,7 @@ const SPECIFIC_TOOLS: any = {
   'concept-more-less': MoreLess,
   'counting-combinations': CountingCombinations,
   'addition-story-rohan': AdditionStory,
+  'addition-machine': AdditionMachine,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,
