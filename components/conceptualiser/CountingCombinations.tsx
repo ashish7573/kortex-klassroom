@@ -15,6 +15,7 @@ const LeftHand = ({ count, onClick }: { count: number, onClick: () => void }) =>
   const open = [count >= 1, count >= 2, count >= 3, count >= 4, count >= 5]; // Index, Middle, Ring, Pinky, Thumb
   return (
     <svg viewBox="0 0 100 120" className="w-full h-full max-h-48 drop-shadow-xl cursor-pointer hover:scale-105 active:scale-95 transition-transform" onClick={onClick}>
+      
       {/* Thumb (Left side) */}
       <rect x="13" y="65" width="38" height="14" rx="6" fill="#fcd34d" stroke="#d97706" strokeWidth="2" className="transition-all duration-300 origin-[18px_52px]" style={{ transform: open[4] ? 'rotate(40deg)' : 'rotate(0deg) translateX(15px) scaleX(0.5)' }} />
       
@@ -28,6 +29,7 @@ const LeftHand = ({ count, onClick }: { count: number, onClick: () => void }) =>
       <rect x="22" y="55" width="58" height="55" rx="15" fill="#fcd34d" stroke="#d97706" strokeWidth="2" />
       {/* Palm crease line */}
       <path d="M 30,80 Q 50,75 70,85" fill="none" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+      
     </svg>
     
   );

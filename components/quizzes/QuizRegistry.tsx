@@ -2,6 +2,10 @@
 import dynamic from 'next/dynamic';
 import React, { Suspense } from 'react';
 import FLNStoryQuiz from './FLNStoryQuiz';
+import FrogJumpQuiz from './FrogJumpQuiz';
+import FingerCountQuiz from './FingerCountQuiz';
+import BasicOperationWordProblems from './BasicOperationWordProblems';
+import TallyAddition from './TallyAddition';
 
 const QuizLoader = () => (
   <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100">
@@ -76,6 +80,11 @@ const SPECIFIC_QUIZZES: any = {
   // ==========================================
   'master-quiz-upto-ten': MasterQuizUptoTen, // Use this exact ID in your CSV!
   'numbers-1-to-10-quiz': MasterQuizUptoTen, // Added an alias just in case
+  'frog-jump-quiz': FrogJumpQuiz,
+  'finger-count-quiz': FingerCountQuiz,
+  'word-problem-quiz': BasicOperationWordProblems,
+  'tally-addition-quiz': TallyAddition,
+  
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {
