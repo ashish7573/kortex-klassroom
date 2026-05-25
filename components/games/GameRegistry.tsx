@@ -2,6 +2,7 @@
 import dynamic from 'next/dynamic';
 import React, { Suspense } from 'react';
 import BarahkhadiWordConnect from './BarahkhadiWordConnect';
+import TruckLoader from './TruckLoader';
 
 // Loading Shell
 const GameLoader = () => (
@@ -74,6 +75,7 @@ const SPECIFIC_GAMES: any = {
   'game-matra-au': HindiWordCrush,
   'game-matra-ang': HindiWordCrush,
   'game-matra-ah': HindiWordCrush,
+  'truck-loader-game': TruckLoader,
 };
 
 export default function GameRegistry({ lesson, onComplete }: any) {

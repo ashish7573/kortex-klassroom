@@ -6,6 +6,7 @@ import FrogJumpQuiz from './FrogJumpQuiz';
 import FingerCountQuiz from './FingerCountQuiz';
 import BasicOperationWordProblems from './BasicOperationWordProblems';
 import TallyAddition from './TallyAddition';
+import MathsPractice from './MathsPractice';
 
 const QuizLoader = () => (
   <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100">
@@ -84,7 +85,7 @@ const SPECIFIC_QUIZZES: any = {
   'finger-count-quiz': FingerCountQuiz,
   'word-problem-quiz': BasicOperationWordProblems,
   'tally-addition-quiz': TallyAddition,
-  
+  'maths-practice-generator': MathsPractice,
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {
