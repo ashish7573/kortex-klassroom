@@ -1,17 +1,24 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Settings, RefreshCcw, Eye, EyeOff, Calculator, FileText, CheckCircle2 } from 'lucide-react';
+import { Settings, RefreshCcw, Eye, EyeOff, Calculator, FileText, CheckCircle2, Globe } from 'lucide-react';
 
 // --- TYPES ---
 type Format = 'numerical' | 'word';
 type Operation = 'add_no_carry' | 'add_carry' | 'sub_no_borrow' | 'sub_borrow' | 'multiply' | 'divide';
 type Digits = 1 | 2 | 3 | 4;
+type Language = 'en' | 'hi' | 'fr' | 'es';
 
 type Config = {
     format: Format;
     operation: Operation;
     digits: Digits;
+};
+
+type WordProblemData = {
+    name1: string;
+    name2: string;
+    itemIndex: number;
 };
 
 type Problem = {
@@ -20,28 +27,48 @@ type Problem = {
     b: number;
     opSymbol: string;
     answer: number;
-    remainder?: number; // Added for Division
-    text?: string;
+    remainder?: number; 
+    wordData?: WordProblemData;
 };
 
-// --- NARRATIVE ENGINE ---
+// --- MULTI-LINGUAL NARRATIVE ENGINE ---
 const NAMES = ["Rahul", "Priya", "Amit", "Sara", "Kabir", "Aisha", "Rohan", "Meera"];
-const ITEMS = ["apples", "marbles", "books", "toys", "candies", "pencils", "stickers", "balloons"];
 
-const generateWordProblemText = (a: number, b: number, op: Operation): string => {
-    const name1 = NAMES[Math.floor(Math.random() * NAMES.length)];
-    let name2 = NAMES[Math.floor(Math.random() * NAMES.length)];
-    while (name2 === name1) name2 = NAMES[Math.floor(Math.random() * NAMES.length)];
-    const item = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+const DICTIONARY = {
+    en: ["apples", "marbles", "books", "toys", "candies", "pencils", "stickers", "balloons"],
+    hi: ["सेब", "कंचे", "किताबें", "खिलौने", "टॉफियां", "पेंसिलें", "स्टिकर", "गुब्बारे"],
+    fr: ["pommes", "billes", "livres", "jouets", "bonbons", "crayons", "autocollants", "ballons"],
+    es: ["manzanas", "canicas", "libros", "juguetes", "dulces", "lápices", "pegatinas", "globos"]
+};
+
+const getWordProblemText = (a: number, b: number, op: Operation, data: WordProblemData, lang: Language): string => {
+    const item = DICTIONARY[lang][data.itemIndex];
+    const n1 = data.name1;
+    const n2 = data.name2;
 
     if (op.includes('add')) {
-        return `${name1} has ${a} ${item}. ${name2} gives them ${b} more. How many ${item} does ${name1} have in total?`;
-    } else if (op.includes('sub')) {
-        return `${name1} had ${a} ${item}. They gave ${b} ${item} to ${name2}. How many ${item} are left with ${name1}?`;
-    } else if (op === 'multiply') {
+        if (lang === 'hi') return `${n1} के पास ${a} ${item} हैं। ${n2} ने उसे ${b} और दे दिए। अब ${n1} के पास कुल कितने ${item} हैं?`;
+        if (lang === 'fr') return `${n1} a ${a} ${item}. ${n2} lui en donne ${b} de plus. Combien de ${item} ${n1} a-t-il au total ?`;
+        if (lang === 'es') return `${n1} tiene ${a} ${item}. ${n2} le da ${b} más. ¿Cuántos ${item} tiene ${n1} en total?`;
+        return `${n1} has ${a} ${item}. ${n2} gives them ${b} more. How many ${item} does ${n1} have in total?`;
+    } 
+    else if (op.includes('sub')) {
+        if (lang === 'hi') return `${n1} के पास ${a} ${item} थे। उसने ${b} ${item} ${n2} को दे दिए। अब ${n1} के पास कितने ${item} बचे हैं?`;
+        if (lang === 'fr') return `${n1} avait ${a} ${item}. Il a donné ${b} ${item} à ${n2}. Combien de ${item} reste-t-il à ${n1} ?`;
+        if (lang === 'es') return `${n1} tenía ${a} ${item}. Le dio ${b} ${item} a ${n2}. ¿Cuántos ${item} le quedan a ${n1}?`;
+        return `${n1} had ${a} ${item}. They gave ${b} ${item} to ${n2}. How many ${item} are left with ${n1}?`;
+    } 
+    else if (op === 'multiply') {
+        if (lang === 'hi') return `यहाँ ${a} डिब्बे हैं। हर डिब्बे में ${b} ${item} हैं। कुल मिलाकर कितने ${item} हैं?`;
+        if (lang === 'fr') return `Il y a ${a} boîtes. Chaque boîte contient ${b} ${item}. Combien y a-t-il de ${item} au total ?`;
+        if (lang === 'es') return `Hay ${a} cajas. Cada caja contiene ${b} ${item}. ¿Cuántos ${item} hay en total?`;
         return `There are ${a} boxes. Each box contains ${b} ${item}. How many ${item} are there altogether?`;
-    } else if (op === 'divide') {
-        return `${name1} has ${a} ${item} and wants to share them equally among ${b} friends. How many ${item} will each friend get?`;
+    } 
+    else if (op === 'divide') {
+        if (lang === 'hi') return `${n1} के पास ${a} ${item} हैं और वह उन्हें ${b} दोस्तों में बराबर बांटना चाहता है। हर दोस्त को कितने ${item} मिलेंगे?`;
+        if (lang === 'fr') return `${n1} a ${a} ${item} et veut les partager équitablement entre ${b} amis. Combien de ${item} chaque ami recevra-t-il ?`;
+        if (lang === 'es') return `${n1} tiene ${a} ${item} y quiere compartirlos en partes iguales entre ${b} amigos. ¿Cuántos ${item} recibirá cada amigo?`;
+        return `${n1} has ${a} ${item} and wants to share them equally among ${b} friends. How many ${item} will each friend get?`;
     }
     return "";
 };
@@ -84,6 +111,7 @@ export default function MathsPractice() {
         operation: 'add_no_carry',
         digits: 1
     });
+    const [language, setLanguage] = useState<Language>('en');
     const [problems, setProblems] = useState<Problem[]>([]);
     const [showAnswers, setShowAnswers] = useState(false);
 
@@ -161,24 +189,19 @@ export default function MathsPractice() {
                 } 
                 else if (currentConfig.operation === 'divide') {
                     opSymbol = '÷';
-                    
-                    // Dividend bounds based precisely on selected digits
                     let aBounds = getMinMax(currentConfig.digits);
                     a = randomRange(aBounds.min === 1 ? 2 : aBounds.min, aBounds.max);
 
-                    // Divisor must be at least 1 digit less than dividend, capped at 2 digits total
                     let maxDivDigits = currentConfig.digits === 1 ? 1 : Math.min(2, currentConfig.digits - 1);
                     let divDigits = randomRange(1, maxDivDigits);
                     let divBounds = getMinMax(divDigits);
                     
-                    // Ensure divisor avoids 1, and is never greater than the dividend
                     b = randomRange(divBounds.min === 1 ? 2 : divBounds.min, Math.min(divBounds.max, a));
 
                     answer = Math.floor(a / b);
                     remainder = a % b;
                 }
 
-                // Check Uniqueness
                 const signature = `${a}_${opSymbol}_${b}`;
                 if (!generatedSignatures.has(signature) || attempts >= 49) {
                     generatedSignatures.add(signature);
@@ -186,11 +209,25 @@ export default function MathsPractice() {
                 }
             }
 
+            // Generate raw ingredients for word problems instead of baked strings
+            let wordData: WordProblemData | undefined;
+            if (currentConfig.format === 'word') {
+                const name1 = NAMES[Math.floor(Math.random() * NAMES.length)];
+                let name2 = NAMES[Math.floor(Math.random() * NAMES.length)];
+                while (name2 === name1) name2 = NAMES[Math.floor(Math.random() * NAMES.length)];
+                
+                wordData = {
+                    name1,
+                    name2,
+                    itemIndex: Math.floor(Math.random() * DICTIONARY.en.length)
+                };
+            }
+
             newProblems.push({
                 id: `prob-${Date.now()}-${newProblems.length}`,
                 a, b, opSymbol, answer,
-                ...(opSymbol === '÷' && { remainder }), // Only inject remainder if division
-                text: currentConfig.format === 'word' ? generateWordProblemText(a, b, currentConfig.operation) : undefined
+                ...(opSymbol === '÷' && { remainder }), 
+                wordData
             });
         }
 
@@ -295,13 +332,28 @@ export default function MathsPractice() {
                         <button onClick={() => setPhase('config')} className="text-slate-500 hover:text-slate-800 font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-slate-100 transition-colors text-sm md:text-base">
                             <Settings size={16} /> <span className="hidden md:inline">Back to Settings</span>
                         </button>
-                        <div className="text-center">
+                        
+                        <div className="text-center hidden sm:block">
                             <h2 className="text-lg md:text-xl font-black text-slate-800 leading-tight">
                                 {config.digits}-Digit {getOpLabel(config.operation)}
                             </h2>
                             <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">{config.format} practice</p>
                         </div>
-                        <div className="w-20 md:w-24"></div> {/* Spacer for center alignment */}
+                        
+                        {/* Dynamic Language Selector */}
+                        <div className="relative group">
+                            <select 
+                                value={language} 
+                                onChange={(e) => setLanguage(e.target.value as Language)}
+                                className="appearance-none bg-slate-100 border-2 border-slate-200 text-slate-700 font-bold text-sm py-1.5 pl-8 pr-8 rounded-lg outline-none focus:border-indigo-400 cursor-pointer"
+                            >
+                                <option value="en">English</option>
+                                <option value="hi">Hindi (हिंदी)</option>
+                                <option value="fr">French (Français)</option>
+                                <option value="es">Spanish (Español)</option>
+                            </select>
+                            <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                        </div>
                     </div>
 
                     {/* Problem Board (Scrollable Area) */}
@@ -339,7 +391,8 @@ export default function MathsPractice() {
                                         <div className="absolute top-0 left-0 bg-indigo-500 text-white font-black px-3 py-1 rounded-br-lg rounded-tl-2xl text-xs md:text-sm">Q{i + 1}</div>
                                         
                                         <p className="text-base md:text-lg font-medium text-slate-700 leading-snug mt-3">
-                                            {p.text}
+                                            {/* Translate On-the-Fly */}
+                                            {p.wordData && getWordProblemText(p.a, p.b, config.operation, p.wordData, language)}
                                         </p>
                                         
                                         <div className={`mt-3 pt-3 border-t-2 border-dashed border-slate-200 transition-all duration-300 ${showAnswers ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden pt-0 mt-0 border-transparent'}`}>
