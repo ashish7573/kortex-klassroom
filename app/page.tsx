@@ -11,7 +11,7 @@ import {
   Calculator, Leaf, Palette, Music, Monitor, Type, Check, Bell, Plus, 
   Database, Edit3, Trash2, UploadCloud, Save, ChevronDown, ChevronUp, 
   Sparkles, ArrowUpRight, Target, PlayCircle, UserPlus, LineChart, 
-  CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase, Filter, Share2
+  CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase, Filter, Share2, Instagram, 
 } from 'lucide-react';
 
 import ConceptualiserRegistry from '../components/conceptualiser/ConceptualiserRegistry';
@@ -517,16 +517,39 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
 
       {/* DIET FOOTER */}
       <div className="bg-slate-900 border-t border-slate-800 px-3 py-2 md:px-4 md:py-3 flex items-center justify-between shrink-0 relative z-10">
-        <button onClick={handlePrev} disabled={currentStep === 0} className={`px-4 py-2 md:px-5 md:py-2 rounded-lg md:rounded-xl font-bold text-xs md:text-sm flex items-center gap-1.5 transition-all ${currentStep === 0 ? 'opacity-30 cursor-not-allowed text-slate-500' : 'text-slate-300 hover:text-white border border-slate-700 hover:bg-slate-800'}`}><ChevronLeft size={16} /> <span className="hidden sm:inline">Previous</span></button>
         
-        {/* Mobile Progress Bar (Moved here because header is too small) */}
-        <div className="md:hidden flex-1 px-4">
-          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div></div>
+        {/* Left: Previous Button */}
+        <button onClick={handlePrev} disabled={currentStep === 0} className={`px-4 py-2 md:px-5 md:py-2 rounded-lg md:rounded-xl font-bold text-xs md:text-sm flex items-center gap-1.5 transition-all ${currentStep === 0 ? 'opacity-30 cursor-not-allowed text-slate-500' : 'text-slate-300 hover:text-white border border-slate-700 hover:bg-slate-800'}`}>
+            <ChevronLeft size={16} /> <span className="hidden sm:inline">Previous</span>
+        </button>
+        
+        {/* Center Content: Mobile Progress & Instagram Link */}
+        <div className="flex-1 flex flex-col items-center justify-center px-4 gap-1 md:gap-0">
+          
+          {/* Mobile Progress Bar */}
+          <div className="md:hidden w-full max-w-[120px] mb-1">
+            <div className="h-1 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                <div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
+            </div>
+          </div>
+
+          {/* Instagram Link Integration */}
+          <a 
+            href="https://instagram.com/kortexklassroom" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="flex items-center gap-1.5 text-slate-500 hover:text-pink-500 transition-colors group"
+          >
+            <Instagram size={16} className="group-hover:scale-110 transition-transform" />
+            <span className="font-bold text-[10px] md:text-xs tracking-wider">@kortexklassroom</span>
+          </a>
         </div>
 
+        {/* Right: Next/Complete Button */}
         <button onClick={handleNext} className={`px-5 py-2 md:px-6 md:py-2 rounded-lg md:rounded-xl font-black text-xs md:text-sm flex items-center gap-1.5 transition-all border shadow-sm ${isLastStep ? 'bg-lime-500 text-slate-900 border-lime-600 hover:bg-lime-400' : 'bg-sky-500 text-white border-sky-600 hover:bg-sky-400'}`}>
           {isLastStep ? (<>Complete <CheckCircle size={16} className="hidden sm:inline" /></>) : (<>Next <ChevronRight size={16} /></>)}
         </button>
+
       </div>
 
     </div>
