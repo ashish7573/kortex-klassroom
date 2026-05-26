@@ -1165,7 +1165,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
             activeItems.map((item: any) => (
               <Card 
                 key={item.id} 
-                className={`min-w-[280px] sm:min-w-[320px] snap-start flex-shrink-0 cursor-pointer p-0 flex flex-col bg-white overflow-hidden hover:-translate-y-3 transition-all duration-300 shadow-lg hover:shadow-2xl group border-none ring-4 ring-transparent hover:ring-${activeTier.mainColor.replace('bg-', '')}/30`} 
+                className={`w-[280px] min-w-[280px] max-w-[280px] sm:w-[320px] sm:min-w-[320px] sm:max-w-[320px] snap-start flex-shrink-0 cursor-pointer p-0 flex flex-col bg-white overflow-hidden hover:-translate-y-3 transition-all duration-300 shadow-lg hover:shadow-2xl group border-none ring-4 ring-transparent hover:ring-${activeTier.mainColor.replace('bg-', '')}/30`} 
                 onClick={() => onOpenFeatured(item)}
               >
                 {/* Image Area */}
@@ -1223,7 +1223,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
             ))
           ) : (
             /* "COMING SOON" FALLBACK CARD */
-            <Card className="min-w-[300px] sm:min-w-[340px] snap-start flex-shrink-0 p-0 flex flex-col bg-white overflow-hidden shadow-lg border-none">
+            <Card className="w-[280px] min-w-[280px] max-w-[280px] sm:w-[320px] sm:min-w-[320px] sm:max-w-[320px] snap-start flex-shrink-0 p-0 flex flex-col bg-white overflow-hidden shadow-lg border-none">
               <div className={`h-40 sm:h-48 w-full ${activeTier.lightColor} relative flex items-center justify-center`}>
                 <activeTier.icon size={80} className={`${activeTier.textColor} opacity-20`} />
                 <div className="absolute inset-0 flex items-center justify-center">
