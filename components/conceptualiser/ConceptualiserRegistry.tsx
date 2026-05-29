@@ -19,6 +19,7 @@ import AdditionStory from './AdditionStory';
 import AdditionMachine from './AdditionMachine';
 import AdditionFrog from './AdditionFrog';
 import SubtractionStory from './SubtractionStory';
+import CountingTwenty from './CountingTwenty';
 
 // ==========================================
 // 2. LOADING STATE
@@ -53,6 +54,7 @@ const SPECIFIC_TOOLS: any = {
   'addition-machine': AdditionMachine,
   'addition-frog': AdditionFrog,
   'subtraction-bus-story': SubtractionStory,
+  'counting-upto-20': CountingTwenty,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,

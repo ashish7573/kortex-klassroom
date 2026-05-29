@@ -12,6 +12,7 @@ const EMOJI_POOL = ['🍎', '🐶', '🚀', '🌟', '🍕', '🎈', '🚗', '�
 // --- Types ---
 type QuizMode = 'random' | 'before_after' | 'one_more_less' | 'count' | 'series' | 'compare' | 'color' | 'pick' | 'audio';
 type QuizState = 'menu' | 'playing' | 'results';
+type NumberLimit = 10 | 20;
 
 interface Question {
   type: QuizMode;
@@ -25,12 +26,12 @@ interface Question {
 export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
   const [quizState, setQuizState] = useState<QuizState>('menu');
   const [selectedMode, setSelectedMode] = useState<QuizMode>('random');
+  const [numberLimit, setNumberLimit] = useState<NumberLimit>(10);
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQIdx, setCurrentQIdx] = useState(0);
   const [score, setScore] = useState(0);
   
-  // Generic answer state. Can be a number, string ('A'/'B'), or array of booleans depending on the question.
   const [userAnswer, setUserAnswer] = useState<any>(null); 
   
   const [isSuccessAnim, setIsSuccessAnim] = useState(false);
@@ -52,7 +53,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
     if (audioCtx.current && audioCtx.current.state === 'suspended') audioCtx.current.resume();
   };
 
-  const playSound = (type: 'pop' | 'kaching' | 'error' | 'slide') => {
+  const playSound = (type: 'pop' | 'kaching' | 'error' | 'slide' | 'click') => {
     if (!audioCtx.current) return;
     const ctx = audioCtx.current;
     if (ctx.state === 'suspended') ctx.resume();
@@ -83,6 +84,12 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
       gain.gain.setValueAtTime(0.05, ctx.currentTime);
       osc.connect(gain); gain.connect(ctx.destination);
       osc.start(); osc.stop(ctx.currentTime + 0.1);
+    } else if (type === 'click') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.05);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.05);
     }
   };
 
@@ -98,59 +105,65 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
   // --- Helpers ---
   const shuffleArray = (arr: any[]) => [...arr].sort(() => Math.random() - 0.5);
   const getRandomEmoji = () => EMOJI_POOL[Math.floor(Math.random() * EMOJI_POOL.length)];
-  const getOptions = (correct: number, min: number = 0, max: number = 10) => {
+  const getOptions = (correct: number, limit: number) => {
     let opts = new Set([correct]);
+    const minBound = Math.max(0, correct - 4);
+    const maxBound = Math.min(limit + 2, correct + 4);
     while (opts.size < 4) {
-      opts.add(Math.floor(Math.random() * (max - min + 1)) + min);
+      opts.add(Math.floor(Math.random() * (maxBound - minBound + 1)) + minBound);
     }
     return shuffleArray(Array.from(opts));
   };
 
   // --- Question Generator ---
-  const generateQuestion = (mode: QuizMode): Question => {
+  const generateQuestion = (mode: QuizMode, limit: number): Question => {
     const types: QuizMode[] = ['before_after', 'one_more_less', 'count', 'series', 'compare', 'color', 'pick', 'audio'];
     const selectedType = mode === 'random' ? types[Math.floor(Math.random() * types.length)] : mode;
     
     const emoji = getRandomEmoji();
-    let n = Math.floor(Math.random() * 9) + 1; // 1 to 9 mostly
+    let n = 0;
 
     switch (selectedType) {
       case 'before_after':
         const isBefore = Math.random() > 0.5;
-        n = isBefore ? (Math.floor(Math.random() * 9) + 2) : (Math.floor(Math.random() * 9) + 1); // Ensure valid bounds
+        n = isBefore 
+          ? (Math.floor(Math.random() * (limit - 1)) + 2) // 2 to limit
+          : (Math.floor(Math.random() * (limit - 1)) + 1); // 1 to limit-1
         const answer = isBefore ? n - 1 : n + 1;
         return {
           type: 'before_after',
           answer: answer,
           questionText: `What comes ${isBefore ? 'before' : 'after'} ${n}?`,
-          options: getOptions(answer),
+          options: getOptions(answer, limit),
           data: { n, isBefore }
         };
       
       case 'one_more_less':
         const isMore = Math.random() > 0.5;
-        n = isMore ? (Math.floor(Math.random() * 9) + 1) : (Math.floor(Math.random() * 9) + 2);
+        n = isMore 
+          ? (Math.floor(Math.random() * (limit - 1)) + 1) 
+          : (Math.floor(Math.random() * (limit - 1)) + 2);
         const ansMoreLess = isMore ? n + 1 : n - 1;
         return {
           type: 'one_more_less',
           answer: ansMoreLess,
           questionText: `What is one ${isMore ? 'more' : 'less'} than ${n}?`,
-          options: getOptions(ansMoreLess),
+          options: getOptions(ansMoreLess, limit),
           data: { n, isMore, emoji }
         };
 
       case 'count':
-        n = Math.floor(Math.random() * 10) + 1; // 1 to 10
+        n = Math.floor(Math.random() * limit) + 1; 
         return {
           type: 'count',
           answer: n,
           questionText: "How many are there?",
-          options: getOptions(n, 1, 10),
-          data: { n, emoji }
+          options: getOptions(n, limit),
+          data: { n, emoji, totalMax: limit }
         };
 
       case 'series':
-        const start = Math.floor(Math.random() * 7); // 0 to 6
+        const start = Math.floor(Math.random() * (limit - 3)); // Leaves room for 4 numbers
         const seq = [start, start + 1, start + 2, start + 3];
         const missingIdx = Math.floor(Math.random() * 4);
         const missingNum = seq[missingIdx];
@@ -159,34 +172,35 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
           type: 'series',
           answer: missingNum,
           questionText: "Complete the series by finding the missing number.",
-          options: getOptions(missingNum),
+          options: getOptions(missingNum, limit),
           data: { seq, missingIdx }
         };
 
       case 'compare':
-        const a = Math.floor(Math.random() * 10) + 1;
-        let b = Math.floor(Math.random() * 10) + 1;
-        while (b === a) b = Math.floor(Math.random() * 10) + 1; // Ensure different for More/Less
+        const a = Math.floor(Math.random() * limit) + 1;
+        let b = Math.floor(Math.random() * limit) + 1;
+        while (b === a) b = Math.floor(Math.random() * limit) + 1; 
         const askMore = Math.random() > 0.5;
         return {
           type: 'compare',
           answer: askMore ? (a > b ? 'A' : 'B') : (a < b ? 'A' : 'B'),
           questionText: `Which box has ${askMore ? 'MORE' : 'LESS'}?`,
-          data: { a, b, emoji }
+          data: { a, b, emoji, totalMax: limit }
         };
 
       case 'color':
-        n = Math.floor(Math.random() * 10) + 1;
+        n = Math.floor(Math.random() * limit) + 1;
         return {
           type: 'color',
           answer: n,
           questionText: `Color exactly ${n} stars!`,
-          data: { n }
+          data: { n, totalStars: limit }
         };
 
       case 'pick':
-        n = Math.floor(Math.random() * 5) + 2; // 2 to 6 targets
-        const distractorCount = Math.floor(Math.random() * 4) + 3; // 3 to 6 distractors
+        const maxTargets = Math.min(limit, 12); // Prevent overcrowding
+        n = Math.floor(Math.random() * (maxTargets - 1)) + 2; 
+        const distractorCount = Math.floor(Math.random() * 4) + 3; 
         let items = Array(n).fill(true).concat(Array(distractorCount).fill(false));
         items = shuffleArray(items);
         const dEmoji = getRandomEmoji();
@@ -198,12 +212,12 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
         };
 
       case 'audio':
-        n = Math.floor(Math.random() * 11); // 0 to 10
+        n = Math.floor(Math.random() * (limit + 1)); 
         return {
           type: 'audio',
           answer: n,
           questionText: "Listen to the audio and select the correct number.",
-          options: getOptions(n, 0, 10),
+          options: getOptions(n, limit),
           data: { n }
         };
 
@@ -216,7 +230,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
     initAudio();
     playSound('slide');
     setSelectedMode(mode);
-    const qs = Array.from({ length: 10 }).map(() => generateQuestion(mode));
+    const qs = Array.from({ length: 10 }).map(() => generateQuestion(mode, numberLimit));
     setQuestions(qs);
     setCurrentQIdx(0);
     setScore(0);
@@ -228,8 +242,8 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
     setIsMatchFound(false);
     setIsSuccessAnim(false);
     setWarning('');
-    if (q.type === 'color') setUserAnswer(Array(10).fill(false));
-    else if (q.type === 'pick') setUserAnswer([]); // array of selected indices
+    if (q.type === 'color') setUserAnswer(Array(q.data.totalStars).fill(false));
+    else if (q.type === 'pick') setUserAnswer([]);
     else setUserAnswer(null);
   };
 
@@ -255,7 +269,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
       if (!isCorrect) showWarningMsg(coloredCount > q.answer ? "Too many colored!" : "Not enough colored!");
     } else if (q.type === 'pick') {
       const selectedIndices: number[] = userAnswer;
-      const allCorrectObjects = selectedIndices.every(idx => q.data.items[idx] === true);
+      const allCorrectObjects = selectedIndices.every((idx: number) => q.data.items[idx] === true);
       if (selectedIndices.length === q.answer && allCorrectObjects) {
         isCorrect = true;
       } else {
@@ -301,10 +315,27 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
         <div className="p-6 md:p-10 text-center shrink-0">
           <div className="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-sky-200"><BrainCircuit size={40} className="text-sky-500" /></div>
           <h1 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight mb-2">Master Quiz</h1>
-          <p className="text-slate-500 font-bold">Select a skill to practice, or play a random mix!</p>
+          <p className="text-slate-500 font-bold">Select your limits and skills to practice!</p>
         </div>
         
         <div className="flex-1 min-h-0 max-w-4xl mx-auto w-full px-4 pb-10 flex flex-col gap-6">
+           
+           {/* Limit Selector */}
+           <div className="w-full bg-white rounded-[2rem] p-2 flex gap-2 border-4 border-slate-200 shadow-sm">
+             <button 
+               onClick={() => { playSound('click'); setNumberLimit(10); }}
+               className={`flex-1 py-4 text-xl md:text-2xl font-black rounded-xl transition-all ${numberLimit === 10 ? 'bg-amber-100 text-amber-600 border-2 border-amber-300 shadow-inner' : 'text-slate-400 hover:bg-slate-50'}`}
+             >
+               Up to 10
+             </button>
+             <button 
+               onClick={() => { playSound('click'); setNumberLimit(20); }}
+               className={`flex-1 py-4 text-xl md:text-2xl font-black rounded-xl transition-all ${numberLimit === 20 ? 'bg-rose-100 text-rose-600 border-2 border-rose-300 shadow-inner' : 'text-slate-400 hover:bg-slate-50'}`}
+             >
+               Up to 20
+             </button>
+           </div>
+
            <button onClick={() => startGame('random')} className="w-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white p-6 md:p-8 rounded-[2rem] shadow-xl border-b-[8px] border-indigo-700 hover:border-b-[4px] hover:translate-y-1 transition-all flex flex-col md:flex-row items-center justify-center gap-4 group">
               <Sparkles size={48} className="group-hover:animate-pulse" />
               <div className="text-center md:text-left">
@@ -359,25 +390,25 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
       case 'before_after':
         return (
           <div className="flex flex-col items-center gap-8 w-full">
-             <div className="flex items-center gap-4">
+             <div className="flex items-center gap-2 md:gap-4">
                {q.data.isBefore ? (
                  <>
-                   <div className="w-20 h-24 md:w-24 md:h-32 border-4 border-dashed border-sky-300 rounded-2xl flex items-center justify-center bg-sky-50/50">
-                     {userAnswer !== null && <span className="text-4xl md:text-5xl font-black text-sky-600 animate-fade-in">{userAnswer}</span>}
+                   <div className="w-16 h-20 md:w-24 md:h-32 border-4 border-dashed border-sky-300 rounded-2xl flex items-center justify-center bg-sky-50/50">
+                     {userAnswer !== null && <span className="text-3xl md:text-5xl font-black text-sky-600 animate-fade-in">{userAnswer}</span>}
                    </div>
-                   <span className="text-4xl font-black text-slate-300">-</span>
-                   <div className="w-20 h-24 md:w-24 md:h-32 border-4 border-slate-200 rounded-2xl flex items-center justify-center bg-white shadow-sm">
-                     <span className="text-4xl md:text-5xl font-black text-slate-700">{q.data.n}</span>
+                   <span className="text-3xl md:text-4xl font-black text-slate-300">-</span>
+                   <div className="w-16 h-20 md:w-24 md:h-32 border-4 border-slate-200 rounded-2xl flex items-center justify-center bg-white shadow-sm">
+                     <span className="text-3xl md:text-5xl font-black text-slate-700">{q.data.n}</span>
                    </div>
                  </>
                ) : (
                  <>
-                   <div className="w-20 h-24 md:w-24 md:h-32 border-4 border-slate-200 rounded-2xl flex items-center justify-center bg-white shadow-sm">
-                     <span className="text-4xl md:text-5xl font-black text-slate-700">{q.data.n}</span>
+                   <div className="w-16 h-20 md:w-24 md:h-32 border-4 border-slate-200 rounded-2xl flex items-center justify-center bg-white shadow-sm">
+                     <span className="text-3xl md:text-5xl font-black text-slate-700">{q.data.n}</span>
                    </div>
-                   <span className="text-4xl font-black text-slate-300">-</span>
-                   <div className="w-20 h-24 md:w-24 md:h-32 border-4 border-dashed border-sky-300 rounded-2xl flex items-center justify-center bg-sky-50/50">
-                     {userAnswer !== null && <span className="text-4xl md:text-5xl font-black text-sky-600 animate-fade-in">{userAnswer}</span>}
+                   <span className="text-3xl md:text-4xl font-black text-slate-300">-</span>
+                   <div className="w-16 h-20 md:w-24 md:h-32 border-4 border-dashed border-sky-300 rounded-2xl flex items-center justify-center bg-sky-50/50">
+                     {userAnswer !== null && <span className="text-3xl md:text-5xl font-black text-sky-600 animate-fade-in">{userAnswer}</span>}
                    </div>
                  </>
                )}
@@ -394,14 +425,17 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
 
       case 'one_more_less':
       case 'count':
+        // Dynamically scale icons down if there are a lot of them
+        const iconSize = q.data.totalMax > 12 ? 'text-3xl md:text-4xl' : 'text-5xl md:text-6xl';
+        
         return (
           <div className="flex flex-col items-center gap-8 w-full">
-             <div className="bg-white p-6 rounded-3xl border-4 border-slate-100 shadow-sm flex flex-wrap justify-center gap-4 max-w-lg min-h-[150px]">
+             <div className="bg-white p-6 rounded-3xl border-4 border-slate-100 shadow-sm flex flex-wrap justify-center items-center gap-2 md:gap-4 w-full max-w-2xl min-h-[150px]">
                 {Array.from({length: q.data.n}).map((_, i) => (
-                  <span key={i} className="text-5xl md:text-6xl animate-fade-in drop-shadow-sm" style={{animationDelay: `${i*0.05}s`}}>{q.data.emoji}</span>
+                  <span key={i} className={`${iconSize} animate-fade-in drop-shadow-sm`} style={{animationDelay: `${i*0.02}s`}}>{q.data.emoji}</span>
                 ))}
                 {q.type === 'one_more_less' && q.data.isMore && (
-                  <span className="text-5xl md:text-6xl opacity-30 drop-shadow-sm border-2 border-dashed border-slate-300 rounded-xl">{q.data.emoji}</span>
+                  <span className={`${iconSize} opacity-30 drop-shadow-sm border-2 border-dashed border-slate-300 rounded-xl`}>{q.data.emoji}</span>
                 )}
              </div>
              <div className="flex flex-wrap justify-center gap-4 w-full max-w-lg">
@@ -415,19 +449,19 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
       case 'series':
         return (
           <div className="flex flex-col items-center gap-8 w-full">
-             <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4 bg-white p-4 md:p-8 rounded-[2rem] border-4 border-slate-100 shadow-sm w-full max-w-2xl">
+             <div className="flex flex-wrap items-center justify-center gap-1 md:gap-4 bg-white p-4 md:p-8 rounded-[2rem] border-4 border-slate-100 shadow-sm w-full max-w-2xl">
                {q.data.seq.map((num: number, i: number) => (
                  <React.Fragment key={i}>
                    {num === -1 ? (
-                     <div className="w-16 h-20 md:w-24 md:h-28 border-4 border-dashed border-purple-300 rounded-2xl flex items-center justify-center bg-purple-50/50">
-                       {userAnswer !== null && <span className="text-3xl md:text-5xl font-black text-purple-600 animate-fade-in">{userAnswer}</span>}
+                     <div className="w-14 h-16 md:w-24 md:h-28 border-4 border-dashed border-purple-300 rounded-xl md:rounded-2xl flex items-center justify-center bg-purple-50/50">
+                       {userAnswer !== null && <span className="text-2xl md:text-5xl font-black text-purple-600 animate-fade-in">{userAnswer}</span>}
                      </div>
                    ) : (
-                     <div className="w-16 h-20 md:w-24 md:h-28 border-4 border-slate-200 rounded-2xl flex items-center justify-center bg-slate-50">
-                       <span className="text-3xl md:text-5xl font-black text-slate-700">{num}</span>
+                     <div className="w-14 h-16 md:w-24 md:h-28 border-4 border-slate-200 rounded-xl md:rounded-2xl flex items-center justify-center bg-slate-50">
+                       <span className="text-2xl md:text-5xl font-black text-slate-700">{num}</span>
                      </div>
                    )}
-                   {i < 3 && <ChevronRight size={24} className="text-slate-300 hidden md:block" />}
+                   {i < 3 && <ChevronRight size={20} className="text-slate-300 hidden sm:block" />}
                  </React.Fragment>
                ))}
              </div>
@@ -441,8 +475,9 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
         );
 
       case 'compare':
+        const compSize = q.data.totalMax > 12 ? 'text-2xl md:text-4xl' : 'text-4xl md:text-5xl';
         return (
-          <div className="flex flex-col md:flex-row items-stretch justify-center gap-6 w-full max-w-4xl">
+          <div className="flex flex-col md:flex-row items-stretch justify-center gap-4 md:gap-6 w-full max-w-4xl">
              {['A', 'B'].map((box) => {
                const count = box === 'A' ? q.data.a : q.data.b;
                const isSelected = userAnswer === box;
@@ -450,11 +485,11 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
                  <button 
                    key={box}
                    onClick={() => { if(!isMatchFound){ playSound('pop'); setUserAnswer(box); } }}
-                   className={`flex-1 min-h-[200px] flex flex-col items-center p-6 rounded-[2rem] border-4 transition-all ${isSelected ? 'bg-orange-50 border-orange-400 shadow-md scale-105' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                   className={`flex-1 min-h-[150px] md:min-h-[200px] flex flex-col items-center p-4 md:p-6 rounded-[2rem] border-4 transition-all ${isSelected ? 'bg-orange-50 border-orange-400 shadow-md scale-[1.02]' : 'bg-white border-slate-200 hover:border-slate-300'}`}
                  >
                     <span className="text-slate-300 font-black text-xl mb-4">Box {box}</span>
-                    <div className="flex flex-wrap justify-center gap-3">
-                      {Array.from({length: count}).map((_, i) => <span key={i} className="text-4xl md:text-5xl drop-shadow-sm">{q.data.emoji}</span>)}
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {Array.from({length: count}).map((_, i) => <span key={i} className={`${compSize} drop-shadow-sm`}>{q.data.emoji}</span>)}
                     </div>
                  </button>
                )
@@ -463,10 +498,11 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
         );
 
       case 'color':
+        const starSize = q.data.totalStars > 12 ? 36 : 48;
         return (
           <div className="flex flex-col items-center gap-6 w-full max-w-2xl">
-             <div className="flex flex-wrap justify-center gap-4 md:gap-6 bg-white p-6 md:p-10 rounded-[2rem] border-4 border-slate-100 shadow-sm">
-                {Array.from({length: 10}).map((_, i) => {
+             <div className="flex flex-wrap justify-center gap-3 md:gap-6 bg-white p-6 md:p-10 rounded-[2rem] border-4 border-slate-100 shadow-sm">
+                {Array.from({length: q.data.totalStars}).map((_, i) => {
                   const isColored = userAnswer ? userAnswer[i] : false;
                   return (
                     <button 
@@ -474,13 +510,13 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
                       onClick={() => {
                         if (isMatchFound) return;
                         playSound('pop');
-                        const newArr = [...(userAnswer || Array(10).fill(false))];
+                        const newArr = [...(userAnswer || Array(q.data.totalStars).fill(false))];
                         newArr[i] = !newArr[i];
                         setUserAnswer(newArr);
                       }}
                       className="transition-transform active:scale-90"
                     >
-                      <Star size={48} md-size={64} className={`transition-all duration-300 ${isColored ? 'fill-yellow-400 text-yellow-500 drop-shadow-md scale-110' : 'fill-slate-200 text-slate-300'}`} />
+                      <Star size={starSize} className={`transition-all duration-300 ${isColored ? 'fill-yellow-400 text-yellow-500 drop-shadow-md scale-110' : 'fill-slate-200 text-slate-300'}`} />
                     </button>
                   )
                 })}
@@ -492,7 +528,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
       case 'pick':
         return (
           <div className="flex flex-col items-center gap-6 w-full max-w-2xl">
-             <div className="flex flex-wrap justify-center gap-4 bg-white p-6 md:p-10 rounded-[2rem] border-4 border-slate-100 shadow-sm">
+             <div className="flex flex-wrap justify-center gap-3 md:gap-4 bg-white p-6 md:p-10 rounded-[2rem] border-4 border-slate-100 shadow-sm">
                 {q.data.items.map((isTarget: boolean, i: number) => {
                   const isSelected = userAnswer ? userAnswer.includes(i) : false;
                   return (
@@ -502,11 +538,11 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
                         if (isMatchFound) return;
                         playSound('pop');
                         let newArr = [...(userAnswer || [])];
-                        if (isSelected) newArr = newArr.filter(idx => idx !== i);
+                        if (isSelected) newArr = newArr.filter((idx: number) => idx !== i);
                         else newArr.push(i);
                         setUserAnswer(newArr);
                       }}
-                      className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl text-4xl md:text-5xl flex items-center justify-center transition-all border-b-4 
+                      className={`w-14 h-14 md:w-20 md:h-20 rounded-2xl text-3xl md:text-5xl flex items-center justify-center transition-all border-b-4 
                         ${isSelected ? 'bg-cyan-100 border-cyan-400 shadow-inner scale-95' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
                     >
                       {isTarget ? q.data.targetEmoji : q.data.distractorEmoji}
@@ -523,9 +559,9 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
           <div className="flex flex-col items-center gap-10 w-full">
              <button 
                onClick={() => speakText(q.data.n.toString())}
-               className="w-32 h-32 md:w-40 md:h-40 bg-indigo-500 rounded-full flex items-center justify-center text-white border-b-[8px] border-indigo-700 active:border-b-0 active:translate-y-2 transition-all shadow-xl animate-pulse"
+               className="w-24 h-24 md:w-40 md:h-40 bg-indigo-500 rounded-full flex items-center justify-center text-white border-b-[8px] border-indigo-700 active:border-b-0 active:translate-y-2 transition-all shadow-xl animate-pulse"
              >
-               <Volume2 size={64} />
+               <Volume2 size={48} className="md:w-16 md:h-16" />
              </button>
              <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Tap to Listen</p>
              <div className="flex flex-wrap justify-center gap-4 w-full max-w-lg">
@@ -570,7 +606,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
          </div>
 
          {/* Dynamic Content */}
-         <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
+         <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 pb-8">
             {renderPlayArea()}
          </div>
 
