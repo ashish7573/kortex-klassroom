@@ -18,6 +18,7 @@ import CountingCombinations from './CountingCombinations';
 import AdditionStory from './AdditionStory';
 import AdditionMachine from './AdditionMachine';
 import AdditionFrog from './AdditionFrog';
+import SubtractionStory from './SubtractionStory';
 
 // ==========================================
 // 2. LOADING STATE
@@ -51,6 +52,7 @@ const SPECIFIC_TOOLS: any = {
   'addition-story-rohan': AdditionStory,
   'addition-machine': AdditionMachine,
   'addition-frog': AdditionFrog,
+  'subtraction-bus-story': SubtractionStory,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,
