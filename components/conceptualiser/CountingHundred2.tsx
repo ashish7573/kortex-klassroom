@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Volume2, ChevronLeft, LayoutGrid, List, Sparkles, X } from 'lucide-react';
 
 // --- Vocabulary Helper ---
@@ -34,6 +34,82 @@ const CATEGORIES = [
 type AppPhase = 'menu' | 'category' | 'grid';
 type HighlightState = 'tens' | 'ones' | 'all' | null;
 
+// ============================================================================
+// REUSABLE COMPONENTS (Moved OUTSIDE main component to prevent scroll-jumps!)
+// ============================================================================
+const VisualGroup = ({ num, emoji, isPlaying, highlight }: { num: number, emoji: string, isPlaying: boolean, highlight: HighlightState }) => {
+    const tens = Math.floor(num / 10);
+    const ones = num % 10;
+
+    const isTensActive = isPlaying && (highlight === 'tens' || highlight === 'all');
+    const isOnesActive = isPlaying && (highlight === 'ones' || highlight === 'all');
+    const isDimmed = isPlaying && highlight !== null;
+
+    return (
+        <div className="flex flex-wrap gap-3 w-full">
+            {/* Tens Groups */}
+            {Array.from({length: tens}).map((_, i) => (
+                <div key={`ten-${i}`} className={`relative bg-white rounded-lg border-2 border-slate-200 p-1 shadow-sm w-fit transition-all duration-300 ${isDimmed && !isTensActive ? 'opacity-30 scale-95 grayscale' : ''} ${isTensActive ? 'ring-4 ring-amber-400 scale-105' : ''}`}>
+                    <div className="grid grid-cols-5 gap-0.5 bg-slate-50 p-1 rounded w-full">
+                        {Array.from({length: 10}).map((_, j) => (
+                            <div key={`item-${j}`} className="w-4 h-4 md:w-5 md:h-5 bg-white rounded-[2px] border border-slate-200 flex items-center justify-center shadow-inner">
+                                <span className="text-[10px] md:text-xs">{emoji}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+            
+            {/* Loose Items */}
+            {ones > 0 && (
+                <div className={`flex flex-wrap gap-1 items-center bg-white/50 rounded-lg p-2 transition-all duration-300 ${isDimmed && !isOnesActive ? 'opacity-30 scale-95 grayscale' : ''} ${isOnesActive ? 'ring-4 ring-sky-400 bg-white scale-105' : ''}`}>
+                    {Array.from({length: ones}).map((_, i) => (
+                        <div key={`loose-${i}`} className="w-5 h-5 md:w-6 md:h-6 bg-white rounded-[4px] border-2 border-slate-200 flex items-center justify-center shadow-sm">
+                            <span className="text-[12px] md:text-sm drop-shadow-sm">{emoji}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const NumberCard = ({ num, emoji, playingId, highlightState, onPlay }: { num: number, emoji: string, playingId: number | null, highlightState: HighlightState, onPlay: (num: number) => void }) => {
+    const isThisPlaying = playingId === num;
+    return (
+        <div className={`bg-white rounded-2xl md:rounded-[2rem] border-4 border-slate-100 shadow-sm overflow-hidden flex flex-col transition-all duration-300 ${isThisPlaying ? 'border-sky-300 shadow-xl scale-[1.02]' : 'hover:border-slate-300'}`}>
+            {/* Visual Area */}
+            <div className="p-4 md:p-6 bg-slate-50 flex-1 min-h-[140px] flex items-center border-b-2 border-slate-100">
+                <VisualGroup num={num} emoji={emoji} isPlaying={isThisPlaying} highlight={highlightState} />
+            </div>
+            
+            {/* Text & Control Area */}
+            <div className="p-4 md:p-5 flex items-center justify-between gap-4 bg-white shrink-0">
+                <div className="flex items-center gap-4">
+                    <span className="text-4xl md:text-5xl font-black text-sky-500 w-16">{num}</span>
+                    <div className="flex flex-col">
+                        <span className="text-sm md:text-lg font-black text-slate-700 uppercase tracking-wide leading-tight">{numberToWords(num)}</span>
+                        <span className="text-[10px] md:text-xs font-bold text-slate-400 mt-1">
+                            {Math.floor(num/10)} Tens, {num%10} Ones
+                        </span>
+                    </div>
+                </div>
+                <button 
+                    onClick={() => onPlay(num)}
+                    disabled={playingId !== null && playingId !== num}
+                    className={`w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-full flex items-center justify-center transition-all shadow-md ${isThisPlaying ? 'bg-amber-400 text-amber-900 animate-pulse' : 'bg-sky-500 text-white hover:bg-sky-400 active:scale-95 disabled:opacity-50 disabled:bg-slate-300'}`}
+                >
+                    <Volume2 className="w-5 h-5 md:w-6 md:h-6" />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+
+// ============================================================================
+// MAIN APPLICATION
+// ============================================================================
 export default function CountingHundred2({ lesson, onComplete }: any) {
     const [phase, setPhase] = useState<AppPhase>('menu');
     const [activeCategory, setActiveCategory] = useState<any>(null);
@@ -57,25 +133,35 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
         });
     };
 
+    // Refactored to handle edge cases intelligently!
     const playExplanationSequence = async (num: number) => {
-        if (playingId !== null) return; // Prevent overlapping plays
+        if (playingId !== null) return; 
         setPlayingId(num);
         
         const tens = Math.floor(num / 10);
         const ones = num % 10;
 
-        if (tens > 0) {
+        if (tens === 0) {
+            // Case 1: Numbers under 10 (e.g. 5)
+            setHighlightState('ones');
+            await speakPromise(`${ones} loose item${ones > 1 ? 's' : ''}, makes a total of ${numberToWords(num)}!`);
+        } 
+        else if (ones === 0) {
+            // Case 2: Exact Tens (e.g. 40)
+            setHighlightState('tens');
+            await speakPromise(`${tens} group${tens > 1 ? 's' : ''} of ten, makes a total of ${numberToWords(num)}!`);
+        } 
+        else {
+            // Case 3: Mixed numbers (e.g. 45)
             setHighlightState('tens');
             await speakPromise(`${tens} group${tens > 1 ? 's' : ''} of ten makes ${tens * 10}.`);
-        }
-        
-        if (ones > 0) {
+            
             setHighlightState('ones');
             await speakPromise(`and ${ones} loose item${ones > 1 ? 's' : ''}.`);
-        }
 
-        setHighlightState('all');
-        await speakPromise(`makes a total of ${numberToWords(num)}!`);
+            setHighlightState('all');
+            await speakPromise(`makes a total of ${numberToWords(num)}!`);
+        }
         
         setHighlightState(null);
         setPlayingId(null);
@@ -85,79 +171,6 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
     useEffect(() => {
         return () => { if (typeof window !== 'undefined') window.speechSynthesis.cancel(); };
     }, [phase]);
-
-
-    // ============================================================================
-    // REUSABLE COMPONENTS
-    // ============================================================================
-    const VisualGroup = ({ num, emoji, isPlaying, highlight }: { num: number, emoji: string, isPlaying: boolean, highlight: HighlightState }) => {
-        const tens = Math.floor(num / 10);
-        const ones = num % 10;
-
-        const isTensActive = isPlaying && (highlight === 'tens' || highlight === 'all');
-        const isOnesActive = isPlaying && (highlight === 'ones' || highlight === 'all');
-        const isDimmed = isPlaying && highlight !== null;
-
-        return (
-            <div className="flex flex-wrap gap-3 w-full">
-                {/* Tens Groups */}
-                {Array.from({length: tens}).map((_, i) => (
-                    <div key={`ten-${i}`} className={`relative bg-white rounded-lg border-2 border-slate-200 p-1 shadow-sm w-fit transition-all duration-300 ${isDimmed && !isTensActive ? 'opacity-30 scale-95 grayscale' : ''} ${isTensActive ? 'ring-4 ring-amber-400 scale-105' : ''}`}>
-                        <div className="grid grid-cols-5 gap-0.5 bg-slate-50 p-1 rounded w-full">
-                            {Array.from({length: 10}).map((_, j) => (
-                                <div key={`item-${j}`} className="w-4 h-4 md:w-5 md:h-5 bg-white rounded-[2px] border border-slate-200 flex items-center justify-center shadow-inner">
-                                    <span className="text-[10px] md:text-xs">{emoji}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ))}
-                
-                {/* Loose Items */}
-                {ones > 0 && (
-                    <div className={`flex flex-wrap gap-1 items-center bg-white/50 rounded-lg p-2 transition-all duration-300 ${isDimmed && !isOnesActive ? 'opacity-30 scale-95 grayscale' : ''} ${isOnesActive ? 'ring-4 ring-sky-400 bg-white scale-105' : ''}`}>
-                        {Array.from({length: ones}).map((_, i) => (
-                            <div key={`loose-${i}`} className="w-5 h-5 md:w-6 md:h-6 bg-white rounded-[4px] border-2 border-slate-200 flex items-center justify-center shadow-sm">
-                                <span className="text-[12px] md:text-sm drop-shadow-sm">{emoji}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const NumberCard = ({ num, emoji }: { num: number, emoji: string }) => {
-        const isThisPlaying = playingId === num;
-        return (
-            <div className={`bg-white rounded-2xl md:rounded-[2rem] border-4 border-slate-100 shadow-sm overflow-hidden flex flex-col transition-all duration-300 ${isThisPlaying ? 'border-sky-300 shadow-xl scale-[1.02]' : 'hover:border-slate-300'}`}>
-                {/* Visual Area */}
-                <div className="p-4 md:p-6 bg-slate-50 flex-1 min-h-[140px] flex items-center border-b-2 border-slate-100">
-                    <VisualGroup num={num} emoji={emoji} isPlaying={isThisPlaying} highlight={highlightState} />
-                </div>
-                
-                {/* Text & Control Area */}
-                <div className="p-4 md:p-5 flex items-center justify-between gap-4 bg-white shrink-0">
-                    <div className="flex items-center gap-4">
-                        <span className="text-4xl md:text-5xl font-black text-sky-500 w-16">{num}</span>
-                        <div className="flex flex-col">
-                            <span className="text-sm md:text-lg font-black text-slate-700 uppercase tracking-wide leading-tight">{numberToWords(num)}</span>
-                            <span className="text-[10px] md:text-xs font-bold text-slate-400 mt-1">
-                                {Math.floor(num/10)} Tens, {num%10} Ones
-                            </span>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => playExplanationSequence(num)}
-                        disabled={playingId !== null && playingId !== num}
-                        className={`w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-full flex items-center justify-center transition-all shadow-md ${isThisPlaying ? 'bg-amber-400 text-amber-900 animate-pulse' : 'bg-sky-500 text-white hover:bg-sky-400 active:scale-95 disabled:opacity-50 disabled:bg-slate-300'}`}
-                    >
-                        <Volume2 className="w-5 h-5 md:w-6 md:h-6" />
-                    </button>
-                </div>
-            </div>
-        );
-    };
 
 
     // ============================================================================
@@ -237,11 +250,18 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
                     </div>
                 </div>
 
-                {/* List Container - Scrollable on Mobile, 2 Columns on Desktop */}
+                {/* List Container */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6">
                     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 pb-20">
                         {activeCategory.range.map((num: number) => (
-                            <NumberCard key={num} num={num} emoji={activeCategory.emoji} />
+                            <NumberCard 
+                                key={num} 
+                                num={num} 
+                                emoji={activeCategory.emoji} 
+                                playingId={playingId}
+                                highlightState={highlightState}
+                                onPlay={playExplanationSequence}
+                            />
                         ))}
                     </div>
                 </div>
@@ -270,18 +290,31 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
                     </div>
                 </div>
 
-                {/* 10x10 Grid */}
+                {/* 10x10 Master Grid - NOW IN COLUMNS */}
                 <div className="flex-1 overflow-y-auto p-2 md:p-6 flex items-center justify-center">
-                    <div className="w-full max-w-4xl aspect-square max-h-full grid grid-cols-10 gap-1 md:gap-2 p-2 md:p-4 bg-white rounded-2xl md:rounded-[2rem] border-4 border-slate-200 shadow-xl">
-                        {Array.from({length: 100}, (_, i) => i + 1).map((num) => (
-                            <button
-                                key={num}
-                                onClick={() => setSelectedGridNumber(num)}
-                                className="w-full h-full flex items-center justify-center bg-slate-50 hover:bg-sky-100 rounded md:rounded-lg border-2 border-slate-100 hover:border-sky-300 font-black text-slate-600 hover:text-sky-600 transition-all text-[10px] sm:text-xs md:text-lg lg:text-xl active:scale-95"
-                            >
-                                {num}
-                            </button>
-                        ))}
+                    <div 
+                        className="w-full max-w-4xl aspect-square max-h-full grid grid-cols-10 gap-1 md:gap-2 p-2 md:p-4 bg-white rounded-2xl md:rounded-[2rem] border-4 border-slate-200 shadow-xl"
+                        style={{ gridTemplateRows: 'repeat(10, minmax(0, 1fr))', gridAutoFlow: 'column' }}
+                    >
+                        {Array.from({length: 100}, (_, i) => i + 1).map((num) => {
+                            // Alternate colors based on the column index!
+                            const colIndex = Math.floor((num - 1) / 10);
+                            const isEvenCol = colIndex % 2 === 0;
+                            
+                            const bgClass = isEvenCol 
+                                ? 'bg-sky-50 border-sky-100 text-sky-700 hover:bg-sky-200 hover:border-sky-300 hover:text-sky-800' 
+                                : 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-200 hover:border-amber-300 hover:text-amber-800';
+
+                            return (
+                                <button
+                                    key={num}
+                                    onClick={() => setSelectedGridNumber(num)}
+                                    className={`w-full h-full flex items-center justify-center rounded md:rounded-lg border-2 font-black transition-all text-[10px] sm:text-xs md:text-lg lg:text-xl active:scale-95 ${bgClass}`}
+                                >
+                                    {num}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -295,7 +328,13 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
                             >
                                 <X size={24} />
                             </button>
-                            <NumberCard num={selectedGridNumber} emoji="🌟" />
+                            <NumberCard 
+                                num={selectedGridNumber} 
+                                emoji="🌟" 
+                                playingId={playingId}
+                                highlightState={highlightState}
+                                onPlay={playExplanationSequence}
+                            />
                         </div>
                     </div>
                 )}
