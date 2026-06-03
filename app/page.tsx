@@ -84,6 +84,15 @@ const getSubjectFallbackImage = (subjectStr: any) => {
   return (SUBJECT_IMAGES as any)[cleanSubj] || SUBJECT_IMAGES['DEFAULT'];
 };
 
+const getYouTubeThumbnail = (url: any) => {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  const videoId = (match && match[2].length === 11) ? match[2] : null;
+  // hqdefault.jpg is the standard high-quality thumbnail for YouTube videos
+  return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
+};
+
 // NEW: Global 5-Tier Configuration
 export const FIVE_TIERS = [
   { 
@@ -330,7 +339,7 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
     const shareLink = `${window.location.origin}/?tool=${toolId}`;
     navigator.clipboard.writeText(shareLink);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 3000);
   };
 
   if (!currentItem && !showFinale) {
@@ -515,6 +524,14 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
          {renderContent()}
       </div>
 
+      {/* NEW: 3-Second Floating Share Popup */}
+      {copied && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-slate-800/95 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm animate-fade-in-up z-50 border border-slate-600">
+              <CheckCircle size={18} className="text-emerald-400" />
+              Link copied to clipboard!
+          </div>
+      )}
+
       {/* DIET FOOTER */}
       <div className="bg-slate-900 border-t border-slate-800 px-3 py-2 md:px-4 md:py-3 flex items-center justify-between shrink-0 relative z-10">
         
@@ -594,16 +611,37 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool }: an
           else if (activeTier.id === 'workbook' && ['pdf', 'worksheet', 'document', 'presentation', 'ppt'].includes(type)) belongsToTier = true;
           else if (activeTier.id === 'arcade' && type === 'game') belongsToTier = true;
 
-          if (belongsToTier) {
+          // Added && item.is_featured === true to filter out non-featured items
+          if (belongsToTier && item.is_featured === true) {
+             let autoImage = item.image;
+
+             // Force YouTube thumbnail priority first for all videos
+             if (type === 'video' && item.content_url) {
+                 const ytThumb = getYouTubeThumbnail(item.content_url);
+                 if (ytThumb) autoImage = ytThumb;
+             }
+
+             // Apply general subject fallback if empty or if it contains an old Unsplash placeholder string
+             if (!autoImage || autoImage.trim() === "" || autoImage.includes("images.unsplash.com")) {
+                 autoImage = getSubjectFallbackImage(item.subject);
+             }
+
              extractedItems.push({
                ...item, 
-               image: item.image || getSubjectFallbackImage(item.subject),
+               image: autoImage, // FIXED: Now actually using the calculated autoImage!
                lessonContext: { chapter: item.chapter_name, book: item.book }, 
                stepIndex: 0
              });
           }
         });
-        setTierItems(extractedItems);
+        // Sort by created_at date (Newest first)
+extractedItems.sort((a: any, b: any) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return dateB - dateA; 
+});
+
+setTierItems(extractedItems);
       } catch (error) { console.error(error); } finally { setIsLoading(false); }
     }
     fetchTierData();
@@ -782,8 +820,19 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
            chapter.subTopics = subTopicsArray;
            delete chapter.subTopicsMap; // Cleanup
 
-           // Fallback Image handling
-           if (!chapter.image) chapter.image = getSubjectFallbackImage(chapter.subject);
+           // Fallback Image handling: Run lookup if empty OR if it contains a generic Unsplash fallback string
+           if (!chapter.image || chapter.image.trim() === "" || chapter.image.includes("images.unsplash.com")) {
+               // If the first item in the chapter is a video, use its thumbnail!
+               const firstSub = subTopicsArray[0] as any; 
+               const firstTool = firstSub?.tools?.[0];
+               if (firstTool && (firstTool.content_type?.toLowerCase() === 'video' || firstTool.type?.toLowerCase() === 'video') && firstTool.content_url) {
+                   chapter.image = getYouTubeThumbnail(firstTool.content_url);
+               }
+               // Otherwise, use subject fallback if no video thumbnail was successfully pulled
+               if (!chapter.image || chapter.image.trim() === "" || chapter.image.includes("images.unsplash.com")) {
+                   chapter.image = getSubjectFallbackImage(chapter.subject);
+               }
+           }
 
            return chapter;
         });
