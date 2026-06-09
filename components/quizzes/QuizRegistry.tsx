@@ -8,6 +8,8 @@ import BasicOperationWordProblems from './BasicOperationWordProblems';
 import TallyAddition from './TallyAddition';
 import MathsPractice from './MathsPractice';
 import AppleOrderQuiz from './AppleOrderQuiz';
+import MasterQuizUptoHundred from './MasterQuizUptoHundred';
+import CPAAdditionQuiz from './CPAAdditionQuiz';
 
 const QuizLoader = () => (
   <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100">
@@ -88,6 +90,8 @@ const SPECIFIC_QUIZZES: any = {
   'tally-addition-quiz': TallyAddition,
   'maths-practice-generator': MathsPractice,
   'apple-delivery-quiz': AppleOrderQuiz,
+  'master-quiz-upto-hundred': MasterQuizUptoHundred,
+  'CPA-Addition-Quiz': CPAAdditionQuiz,
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {

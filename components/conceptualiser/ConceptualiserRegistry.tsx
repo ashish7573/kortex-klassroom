@@ -22,6 +22,7 @@ import SubtractionStory from './SubtractionStory';
 import CountingTwenty from './CountingTwenty';
 import CountingHundred from './CountingHundred';
 import CountingHundred2 from './CountingHundred2';
+import AdditionUptoHundred from './AdditionUptoHundred';
 
 // ==========================================
 // 2. LOADING STATE
@@ -59,6 +60,7 @@ const SPECIFIC_TOOLS: any = {
   'counting-upto-20': CountingTwenty,
   'counting-hundred': CountingHundred,
   'counting-hundred-2': CountingHundred2,
+  'addition-upto-hundred': AdditionUptoHundred,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,
