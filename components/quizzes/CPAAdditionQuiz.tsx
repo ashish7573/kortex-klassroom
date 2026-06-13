@@ -7,7 +7,7 @@ import { ChevronLeft, CheckCircle2, RotateCcw, ArrowRight, Minus, Check, EyeOff,
 const FRUITS = [
     { name: 'Apples', emoji: '🍎', bg: 'bg-red-100', border: 'border-red-400' },
     { name: 'Oranges', emoji: '🍊', bg: 'bg-orange-100', border: 'border-orange-400' },
-    { name: 'Bananas', emoji: '🍌', bg: 'bg-yellow-100', border: 'border-yellow-400' },
+    { name: 'Watermelon', emoji: '🍉', bg: 'bg-yellow-100', border: 'border-yellow-400' },
     { name: 'Grapes', emoji: '🍇', bg: 'bg-purple-100', border: 'border-purple-400' },
     { name: 'Strawberries', emoji: '🍓', bg: 'bg-rose-100', border: 'border-rose-400' }
 ];
