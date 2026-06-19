@@ -24,6 +24,8 @@ import CountingHundred from './CountingHundred';
 import CountingHundred2 from './CountingHundred2';
 import AdditionUptoHundred from './AdditionUptoHundred';
 import AdditionWithCarry from './AdditionWithCarry';
+import SubtractionWithoutBorrow from './SubtractionWithoutBorrow';
+import SubtractionWithBorrow from './SubtractionWithBorrow';
 
 // ==========================================
 // 2. LOADING STATE
@@ -63,6 +65,8 @@ const SPECIFIC_TOOLS: any = {
   'counting-hundred-2': CountingHundred2,
   'addition-upto-hundred': AdditionUptoHundred,
   'addition-with-carry': AdditionWithCarry,
+  'subtraction-without-borrow': SubtractionWithoutBorrow,
+  'subtraction-with-borrow': SubtractionWithBorrow, 
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,

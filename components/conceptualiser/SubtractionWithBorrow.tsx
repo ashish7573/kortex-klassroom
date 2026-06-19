@@ -1,0 +1,543 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Volume2, ChevronRight, ChevronLeft, Truck, PackageCheck, CheckCircle2, ArrowRight, PackageOpen } from 'lucide-react';
+
+// --- Types & Data ---
+type AppPhase = 'story' | 'interactive' | 'finish';
+type AuditStep = 'pack' | 'delivered';
+
+const STORY_SLIDES = [
+  {
+    image: '/assets/maths/FLN/SubtractionWithBorrow1.webp',
+    text: "Rohan is packing a big order! 'Papa, they need 8 loose apples, but I only have 3 left on the table! We don't have enough!'"
+  },
+  {
+    image: '/assets/maths/FLN/SubtractionWithBorrow2.webp',
+    text: "Papa laughs and points to the huge stack of wooden crates. 'Don't panic, Rohan! What is inside those sealed crates?'"
+  },
+  {
+    image: '/assets/maths/FLN/SubtractionWithBorrow3.webp',
+    text: "Rohan's eyes light up. 'Oh! 10 loose apples! If we run out, we just UNPACK A NEW BOX and borrow the apples inside!'"
+  }
+];
+
+// Rounds carefully chosen to REQUIRE borrowing (Ones order > Ones initial)
+const FRUIT_ROUNDS = [
+    { id: 'apples', name: 'Apples', emoji: '🍎', initialTens: 5, initialOnes: 3, orderTens: 2, orderOnes: 8, color: 'text-red-500', bg: 'bg-red-100', border: 'border-red-400' },
+    { id: 'oranges', name: 'Oranges', emoji: '🍊', initialTens: 6, initialOnes: 2, orderTens: 3, orderOnes: 7, color: 'text-orange-500', bg: 'bg-orange-100', border: 'border-orange-400' },
+    { id: 'mangoes', name: 'Mangoes', emoji: '🥭', initialTens: 8, initialOnes: 4, orderTens: 4, orderOnes: 9, color: 'text-amber-500', bg: 'bg-amber-100', border: 'border-amber-400' },
+    { id: 'bananas', name: 'Bananas', emoji: '🍌', initialTens: 4, initialOnes: 1, orderTens: 1, orderOnes: 5, color: 'text-yellow-500', bg: 'bg-yellow-100', border: 'border-yellow-400' }
+];
+
+export default function SubtractionWithBorrow({ lesson, onComplete }: any) {
+  const [phase, setPhase] = useState<AppPhase>('story');
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Interactive State
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [auditStep, setAuditStep] = useState<AuditStep>('pack');
+  
+  // Packing State
+  const [truckTens, setTruckTens] = useState(0);
+  const [truckOnes, setTruckOnes] = useState(0);
+  const [unpackedBoxes, setUnpackedBoxes] = useState(0); // Tracks how many times they borrowed
+  
+  // Animation & Math State
+  const [answerInput, setAnswerInput] = useState('');
+  const [isTruckAnimating, setIsTruckAnimating] = useState(false);
+  const [isUnpackingAnim, setIsUnpackingAnim] = useState(false);
+
+  const currentRound = FRUIT_ROUNDS[roundIndex];
+  
+  // Derived Inventory State
+  const inventoryTens = currentRound.initialTens - truckTens - unpackedBoxes;
+  const inventoryOnes = currentRound.initialOnes - truckOnes + (unpackedBoxes * 10);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Reset round state
+  useEffect(() => {
+      setTruckTens(0);
+      setTruckOnes(0);
+      setUnpackedBoxes(0);
+      setAnswerInput('');
+      setIsTruckAnimating(false);
+      setIsUnpackingAnim(false);
+  }, [roundIndex]);
+
+  // --- Audio Engine ---
+  const audioCtx = useRef<AudioContext | null>(null);
+
+  const initAudio = () => {
+    if (typeof window === 'undefined') return;
+    if (!audioCtx.current) {
+      const WinAudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (WinAudioContext) audioCtx.current = new WinAudioContext();
+    }
+    if (audioCtx.current && audioCtx.current.state === 'suspended') audioCtx.current.resume();
+  };
+
+  const playSound = (type: 'pop' | 'kaching' | 'error' | 'whoosh' | 'truck' | 'break') => {
+    if (!audioCtx.current) return;
+    const ctx = audioCtx.current;
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    if (type === 'pop') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    } else if (type === 'kaching') {
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(1000, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    } else if (type === 'whoosh') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(300, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    } else if (type === 'error') {
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    } else if (type === 'truck') {
+      osc.type = 'square'; osc.frequency.setValueAtTime(100, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.5);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    } else if (type === 'break') {
+      // Clunky breaking sound
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    }
+    
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + (type === 'truck' ? 0.5 : (type === 'break' ? 0.3 : 0.2)));
+  };
+
+  const speakText = (text: string): Promise<void> => {
+    return new Promise((resolve) => {
+        if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+            resolve(); return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-IN'; 
+        utterance.rate = 0.9; 
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => { setIsSpeaking(false); resolve(); };
+        utterance.onerror = () => { setIsSpeaking(false); resolve(); };
+        window.speechSynthesis.speak(utterance);
+    });
+  };
+
+  // --- Actions ---
+  const handleNextSlide = () => {
+    initAudio(); playSound('pop'); window.speechSynthesis.cancel();
+    if (currentSlide < STORY_SLIDES.length - 1) {
+      setCurrentSlide(prev => prev + 1);
+    } else {
+      setPhase('interactive');
+      playSound('kaching');
+    }
+  };
+
+  const handlePrevSlide = () => {
+    initAudio(); playSound('pop'); window.speechSynthesis.cancel();
+    if (currentSlide > 0) setCurrentSlide(prev => prev - 1);
+  };
+
+  const handleMoveToTruck = (type: 'ten' | 'one') => {
+      playSound('pop');
+      if (type === 'ten' && inventoryTens > 0 && truckTens < currentRound.orderTens) setTruckTens(prev => prev + 1);
+      if (type === 'one' && inventoryOnes > 0 && truckOnes < currentRound.orderOnes) setTruckOnes(prev => prev + 1);
+  };
+
+  const handleMoveToInventory = (type: 'ten' | 'one') => {
+      playSound('pop');
+      if (type === 'ten' && truckTens > 0) setTruckTens(prev => prev - 1);
+      if (type === 'one' && truckOnes > 0) setTruckOnes(prev => prev - 1);
+  };
+
+  const handleUnpackBox = async () => {
+      if (inventoryTens <= 0) return;
+      playSound('break');
+      setIsUnpackingAnim(true);
+      await speakText(`Unpacking one box! We get 10 loose ${currentRound.name}!`);
+      
+      setTimeout(() => {
+          setUnpackedBoxes(prev => prev + 1);
+          setIsUnpackingAnim(false);
+          playSound('kaching');
+      }, 800); // Overlay animation duration
+  };
+
+  const handleDeliver = async () => {
+      playSound('truck');
+      setIsTruckAnimating(true);
+      await speakText(`Order packed! Let's calculate what is left!`);
+      
+      setTimeout(() => {
+          setAuditStep('delivered');
+          playSound('whoosh');
+      }, 600); // Wait for CSS animation
+  };
+
+  const handleCheckAnswer = () => {
+      const expectedTens = currentRound.initialTens - currentRound.orderTens;
+      const expectedOnes = currentRound.initialOnes - currentRound.orderOnes;
+      const expectedTotal = (expectedTens * 10) + expectedOnes;
+
+      if (Number(answerInput) === expectedTotal) {
+          playSound('kaching');
+          if (roundIndex < FRUIT_ROUNDS.length - 1) {
+              setRoundIndex(prev => prev + 1);
+              setAuditStep('pack');
+          } else {
+              setPhase('finish');
+          }
+      } else {
+          playSound('error');
+      }
+  };
+
+  if (!mounted) return null;
+
+  // ============================================================================
+  // REUSABLE COMPONENTS
+  // ============================================================================
+  const BoxOf10 = ({ emoji, colorStyle, onClick, clickable }: { emoji: string, colorStyle: string, onClick?: () => void, clickable?: boolean }) => (
+      <div 
+        onClick={onClick}
+        className={`relative ${colorStyle} rounded border-2 border-black/20 p-1 shadow-sm w-[40px] md:w-[60px] shrink-0 flex flex-col items-center transition-transform animate-fade-in ${clickable ? 'cursor-pointer hover:scale-110 active:scale-95' : ''}`}
+      >
+          <div className="absolute -top-2 bg-black/60 text-white text-[6px] md:text-[8px] font-black uppercase px-1 rounded z-10">10</div>
+          <div className="grid grid-cols-5 gap-0.5 bg-white/50 p-0.5 rounded border border-black/10 w-full mt-1">
+              {Array.from({length: 10}).map((_, i) => (
+                  <div key={i} className="aspect-square bg-white/80 rounded-[2px] flex items-center justify-center shadow-inner">
+                      <span className="text-[6px] md:text-[8px]">{emoji}</span>
+                  </div>
+              ))}
+          </div>
+      </div>
+  );
+
+  const LooseItem = ({ emoji, onClick, clickable }: { emoji: string, onClick?: () => void, clickable?: boolean }) => (
+      <div 
+        onClick={onClick}
+        className={`w-4 h-4 md:w-6 md:h-6 bg-white rounded border border-slate-200 flex items-center justify-center shadow-sm shrink-0 transition-transform animate-fade-in ${clickable ? 'cursor-pointer hover:scale-125 active:scale-95 hover:bg-slate-50 border-slate-300' : ''}`}
+      >
+          <span className="text-[8px] md:text-sm">{emoji}</span>
+      </div>
+  );
+
+  const isOrderExact = truckTens === currentRound.orderTens && truckOnes === currentRound.orderOnes;
+  const needsToBorrow = truckOnes < currentRound.orderOnes && inventoryOnes === 0 && inventoryTens > 0;
+
+  // ============================================================================
+  // RENDER: STORY PHASE
+  // ============================================================================
+  if (phase === 'story') {
+      const slide = STORY_SLIDES[currentSlide];
+      return (
+        <div className="w-full h-full flex flex-col bg-slate-50 font-sans md:rounded-3xl overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col p-3 md:p-6">
+             <div className="max-w-4xl w-full mx-auto flex flex-col h-full gap-3 md:gap-4">
+                <div className="flex-1 min-h-0 w-full bg-slate-200 rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border-4 border-white shadow-md relative">
+                   <img src={slide.image} alt="Story scene" className="absolute inset-0 w-full h-full object-contain bg-sky-50 z-10" onError={(e) => e.currentTarget.style.display = 'none'} />
+                   <button 
+                     onClick={() => { initAudio(); speakText(slide.text); }}
+                     className={`absolute top-3 right-3 md:top-4 md:right-4 z-20 w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center border-b-4 transition-all shadow-lg ${isSpeaking ? 'bg-amber-100 text-amber-500 border-amber-200 animate-pulse' : 'bg-sky-500 text-white border-sky-700 hover:bg-sky-400'}`}
+                   >
+                     <Volume2 className="w-5 h-5 md:w-6 md:h-6" />
+                   </button>
+                </div>
+                <div className="shrink-0 bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-6 border-4 border-slate-100 shadow-sm flex items-center justify-center text-center">
+                   <p className="text-sm md:text-lg lg:text-xl font-bold text-slate-700 leading-snug md:leading-relaxed max-w-2xl">{slide.text}</p>
+                </div>
+             </div>
+          </div>
+          <div className="shrink-0 p-2 md:p-4 flex justify-between items-center max-w-4xl mx-auto w-full">
+             <button onClick={handlePrevSlide} className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${currentSlide === 0 ? 'invisible' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}>
+               <ChevronLeft size={16} /> Back
+             </button>
+             <button onClick={handleNextSlide} className="px-6 py-2 rounded-xl font-black text-sm flex items-center gap-2 transition-all shadow-md active:scale-95 bg-sky-500 hover:bg-sky-400 text-white border-b-4 border-sky-700 active:border-b-0">
+               {currentSlide === STORY_SLIDES.length - 1 ? 'Start Packing' : 'Next'} <ChevronRight size={16} />
+             </button>
+          </div>
+        </div>
+      );
+  }
+
+  // ============================================================================
+  // RENDER: FINISH PHASE
+  // ============================================================================
+  if (phase === 'finish') {
+      return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 font-sans md:rounded-3xl p-6 text-center animate-fade-in-up">
+              <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6 shadow-xl bg-emerald-100 border-4 border-emerald-300">
+                  <CheckCircle2 size={64} className="text-emerald-500"/>
+              </div>
+              <h2 className="text-4xl font-black text-slate-800 mb-2">Master Borrower!</h2>
+              <p className="text-slate-500 font-bold text-lg mb-8">You successfully unpacked boxes to pack the big orders!</p>
+              <button 
+                  onClick={onComplete}
+                  className="bg-emerald-500 text-slate-950 px-8 py-4 rounded-2xl font-black tracking-wide shadow-[0_6px_0_rgb(16,185,129)] active:translate-y-[6px] active:shadow-none transition-all flex items-center gap-2"
+              >
+                  Complete Lesson <ChevronRight />
+              </button>
+          </div>
+      );
+  }
+
+  // ============================================================================
+  // RENDER: INTERACTIVE PHASE
+  // ============================================================================
+  return (
+    <div className="w-full h-full flex flex-col bg-slate-900 font-sans md:rounded-3xl overflow-hidden relative">
+      
+      {/* HEADER */}
+      <div className="w-full shrink-0 p-3 md:p-4 z-20 bg-slate-800 border-b-2 border-slate-700 shadow-sm flex items-center justify-between text-white">
+          <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 md:w-10 md:h-10 ${currentRound.bg} rounded-full flex items-center justify-center text-lg md:text-xl`}>{currentRound.emoji}</div>
+              <h2 className="text-base md:text-xl font-black tracking-widest uppercase">Subtraction (Borrowing)</h2>
+          </div>
+          <span className="text-xs font-bold text-slate-400 bg-slate-700 px-3 py-1 rounded-full">Order {roundIndex + 1} / {FRUIT_ROUNDS.length}</span>
+      </div>
+
+      {/* DUAL WORKSPACE */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-2 md:p-4 gap-2 md:gap-4 overflow-hidden relative">
+          
+          {/* UNPACKING ANIMATION OVERLAY */}
+          {isUnpackingAnim && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+                  <div className="flex flex-col items-center animate-bounce gap-4">
+                      <BoxOf10 emoji={currentRound.emoji} colorStyle={currentRound.bg} />
+                      <div className="text-white font-black tracking-widest uppercase bg-sky-500 px-4 py-1 rounded-full shadow-lg">Breaking Box...</div>
+                  </div>
+              </div>
+          )}
+
+          {/* LEFT: INVENTORY (Shop Stock) */}
+          <div className={`flex-[1.5] flex flex-col bg-white rounded-2xl md:rounded-[2rem] border-4 border-slate-200 overflow-hidden shadow-sm relative transition-all duration-700 ${auditStep === 'delivered' ? 'flex-[2]' : ''}`}>
+              <div className="text-center py-2 bg-slate-100 border-b-2 border-slate-200 font-black text-slate-500 uppercase tracking-widest text-[10px] md:text-xs">
+                  Inventory Stock {auditStep === 'pack' ? `(Started with ${(currentRound.initialTens * 10) + currentRound.initialOnes})` : ''}
+              </div>
+              
+              <div className="flex-1 flex flex-col md:flex-row p-2 md:p-4">
+                  {/* Inventory Tens */}
+                  <div className="flex-1 border-b-2 md:border-b-0 md:border-r-2 border-slate-100 p-2 md:p-4 flex flex-col items-center">
+                      <span className="text-slate-400 font-black text-xs uppercase tracking-widest mb-4">Boxes (Tens)</span>
+                      
+                      <div className="flex-1 flex flex-col w-full">
+                          <div className="flex flex-wrap gap-2 justify-center content-start w-full mb-4">
+                              {Array.from({length: inventoryTens}).map((_, i) => (
+                                  <BoxOf10 
+                                      key={`inv-t-${i}`} 
+                                      emoji={currentRound.emoji} 
+                                      colorStyle={currentRound.bg} 
+                                      clickable={auditStep === 'pack' && !needsToBorrow}
+                                      onClick={() => {
+                                          if (auditStep === 'pack') {
+                                              if (needsToBorrow) alert("You need loose fruits first! Unpack a box!");
+                                              else handleMoveToTruck('ten');
+                                          }
+                                      }} 
+                                  />
+                              ))}
+                          </div>
+
+                          {/* UNPACK BUTTON */}
+                          {auditStep === 'pack' && inventoryTens > 0 && (
+                              <button 
+                                  onClick={handleUnpackBox}
+                                  className={`mt-auto w-full py-3 rounded-xl font-black text-xs md:text-sm tracking-wide flex items-center justify-center gap-2 transition-all shadow-sm border-b-4 active:border-b-0 active:translate-y-[4px]
+                                      ${needsToBorrow 
+                                          ? 'bg-amber-400 text-amber-950 border-amber-600 animate-pulse shadow-[0_0_20px_rgba(251,191,36,0.5)]' 
+                                          : 'bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300'}`}
+                              >
+                                  <PackageOpen size={18} /> Unpack 1 Box
+                              </button>
+                          )}
+                      </div>
+                  </div>
+
+                  {/* Inventory Ones */}
+                  <div className="flex-1 p-2 md:p-4 flex flex-col items-center">
+                      <span className="text-slate-400 font-black text-xs uppercase tracking-widest mb-4">Loose (Ones)</span>
+                      <div className="flex flex-wrap gap-1 md:gap-2 justify-center content-start w-full max-w-[200px]">
+                          {Array.from({length: inventoryOnes}).map((_, i) => (
+                              <LooseItem 
+                                  key={`inv-o-${i}`} 
+                                  emoji={currentRound.emoji} 
+                                  clickable={auditStep === 'pack'}
+                                  onClick={() => auditStep === 'pack' && handleMoveToTruck('one')}
+                              />
+                          ))}
+                      </div>
+                  </div>
+              </div>
+          </div>
+
+          {/* RIGHT: TRUCK OR MATH */}
+          {auditStep === 'pack' ? (
+              // DELIVERY TRUCK PANEL
+              <div className={`flex-1 flex flex-col bg-slate-800 rounded-2xl md:rounded-[2rem] border-4 border-slate-700 overflow-hidden shadow-xl relative transition-transform duration-700 ${isTruckAnimating ? 'translate-x-[150%]' : 'translate-x-0'}`}>
+                  <div className="text-center py-2 bg-slate-900 border-b-2 border-slate-700 font-black text-emerald-400 uppercase tracking-widest text-[10px] md:text-xs">
+                      Order: {(currentRound.orderTens * 10) + currentRound.orderOnes} {currentRound.name}
+                  </div>
+                  
+                  <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+                      {/* Faded background icon */}
+                      <Truck className="absolute text-slate-700/50 w-32 h-32 md:w-48 md:h-48 z-0 pointer-events-none" />
+                      
+                      {/* Truck Contents */}
+                      <div className="z-10 w-full flex flex-col gap-4">
+                          {/* Truck Tens */}
+                          <div className="w-full flex flex-col items-center">
+                              <span className="text-slate-500 font-black text-[10px] uppercase mb-1">Packed Boxes ({truckTens}/{currentRound.orderTens})</span>
+                              <div className="flex flex-wrap gap-2 justify-center min-h-[50px]">
+                                  {Array.from({length: truckTens}).map((_, i) => (
+                                      <BoxOf10 
+                                          key={`trk-t-${i}`} 
+                                          emoji={currentRound.emoji} 
+                                          colorStyle={currentRound.bg} 
+                                          clickable={true}
+                                          onClick={() => handleMoveToInventory('ten')} 
+                                      />
+                                  ))}
+                              </div>
+                          </div>
+                          
+                          {/* Truck Ones */}
+                          <div className="w-full flex flex-col items-center">
+                              <span className="text-slate-500 font-black text-[10px] uppercase mb-1">Packed Loose ({truckOnes}/{currentRound.orderOnes})</span>
+                              <div className="flex flex-wrap gap-1 md:gap-2 justify-center min-h-[40px] max-w-[150px]">
+                                  {Array.from({length: truckOnes}).map((_, i) => (
+                                      <LooseItem 
+                                          key={`trk-o-${i}`} 
+                                          emoji={currentRound.emoji} 
+                                          clickable={true}
+                                          onClick={() => handleMoveToInventory('one')}
+                                      />
+                                  ))}
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Deliver Button (Only shows when exactly packed) */}
+                      <div className="absolute bottom-4 left-0 w-full flex justify-center z-20 h-16">
+                          {isOrderExact ? (
+                              <button 
+                                  onClick={handleDeliver}
+                                  className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-black tracking-widest uppercase flex items-center gap-2 shadow-[0_4px_0_rgb(16,185,129)] active:translate-y-[4px] active:shadow-none animate-bounce"
+                              >
+                                  Deliver Order <ArrowRight size={20} />
+                              </button>
+                          ) : needsToBorrow ? (
+                              <div className="text-amber-400 font-bold text-xs bg-amber-500/10 px-4 py-2 rounded-full border border-amber-500/20 text-center shadow-lg animate-fade-in-up">
+                                  Not enough loose items!<br/>Unpack a box!
+                              </div>
+                          ) : (
+                              <div className="text-slate-400/80 font-bold text-xs bg-slate-700 px-4 py-2 rounded-full">
+                                  Pack exact order to deliver
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          ) : (
+              // ABSTRACT MATH PANEL (Shows Borrow Marking explicitly)
+              <div className="flex-1 flex flex-col bg-slate-800 rounded-2xl md:rounded-[2rem] border-4 border-slate-700 overflow-hidden shadow-xl relative animate-fade-in">
+                  <div className="text-center py-2 bg-slate-900 border-b-2 border-slate-700 font-black text-sky-400 uppercase tracking-widest text-[10px] md:text-xs flex items-center justify-center gap-2">
+                      <PackageCheck size={16} /> Order Delivered!
+                  </div>
+                  
+                  <div className="flex-1 flex items-center justify-center p-4">
+                      {/* Vertical Subtraction */}
+                      <div className="grid grid-cols-[auto_1fr_1fr] gap-x-4 md:gap-x-8 gap-y-2 text-center font-black text-4xl md:text-6xl text-slate-300 items-end">
+                          
+                          {/* Headers */}
+                          <div></div>
+                          <div className="text-sm md:text-lg text-slate-500 uppercase tracking-widest pb-2">Tens</div>
+                          <div className="text-sm md:text-lg text-slate-500 uppercase tracking-widest pb-2">Ones</div>
+
+                          {/* Borrow Markings (Appears above the initial stock) */}
+                          <div></div>
+                          <div className="h-6 md:h-10 text-xl md:text-3xl text-emerald-400 font-black flex justify-center items-end animate-fade-in-up">
+                              {unpackedBoxes > 0 ? (currentRound.initialTens - unpackedBoxes) : ''}
+                          </div>
+                          <div className="h-6 md:h-10 text-xl md:text-3xl text-sky-400 font-black flex justify-center items-end animate-fade-in-up">
+                              {unpackedBoxes > 0 ? (currentRound.initialOnes + 10) : ''}
+                          </div>
+
+                          {/* Initial Stock */}
+                          <div className="text-right pr-2">
+                              <span className="text-[10px] md:text-xs text-slate-500 uppercase tracking-wider block leading-tight">Start</span>
+                          </div>
+                          <div className="relative">
+                              {/* Cross Out Line if borrowed */}
+                              {unpackedBoxes > 0 && <div className="absolute top-1/2 left-1/4 right-1/4 h-1 md:h-1.5 bg-rose-500 -translate-y-1/2 -rotate-12 animate-fade-in"></div>}
+                              {currentRound.initialTens}
+                          </div>
+                          <div className="relative">
+                              {/* Cross Out Line if borrowed */}
+                              {unpackedBoxes > 0 && <div className="absolute top-1/2 left-1/4 right-1/4 h-1 md:h-1.5 bg-rose-500 -translate-y-1/2 -rotate-12 animate-fade-in"></div>}
+                              {currentRound.initialOnes}
+                          </div>
+
+                          {/* Order Subtracted */}
+                          <div className="text-right pr-2 relative">
+                              <span className="absolute -left-6 md:-left-8 top-1/2 -translate-y-1/2 text-rose-400 text-3xl md:text-5xl font-black">−</span>
+                              <span className="text-[10px] md:text-xs text-slate-500 uppercase tracking-wider block leading-tight">Order</span>
+                          </div>
+                          <div className="text-rose-300">{currentRound.orderTens}</div>
+                          <div className="text-rose-300">{currentRound.orderOnes}</div>
+
+                          {/* Divider */}
+                          <div className="col-span-3 border-t-4 border-slate-600 my-2"></div>
+
+                          {/* Final Answer Input */}
+                          <div className="text-right pr-2">
+                              <span className="text-[10px] md:text-xs text-sky-400 uppercase tracking-wider block leading-tight">Left</span>
+                          </div>
+                          <div className="col-span-2 flex justify-center w-full">
+                              <input 
+                                  type="text" 
+                                  inputMode="numeric"
+                                  maxLength={2}
+                                  value={answerInput}
+                                  onChange={e => {
+                                      playSound('pop');
+                                      setAnswerInput(e.target.value.replace(/[^0-9]/g, ''));
+                                  }}
+                                  placeholder="?"
+                                  className={`w-24 h-16 md:w-32 md:h-20 text-center rounded-2xl outline-none transition-all tracking-[0.5em] bg-slate-700 border-2 text-sky-400 ${
+                                      answerInput === '' ? 'border-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.5)] animate-pulse placeholder:text-slate-500' : 'border-slate-500 focus:border-sky-400 focus:shadow-[0_0_15px_rgba(56,189,248,0.3)]'
+                                  }`}
+                              />
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-900 shrink-0">
+                      <button 
+                          onClick={handleCheckAnswer}
+                          disabled={answerInput === ''}
+                          className={`w-full py-4 rounded-xl font-black text-lg tracking-wide transition-all shadow-[0_4px_0_rgb(14,165,233)] active:translate-y-[4px] active:shadow-none
+                              ${answerInput !== '' ? 'bg-sky-500 text-white hover:bg-sky-400 cursor-pointer' : 'bg-slate-700 text-slate-500 border-slate-600 shadow-none cursor-not-allowed'}`}
+                      >
+                          Check Math
+                      </button>
+                  </div>
+              </div>
+          )}
+
+      </div>
+    </div>
+  );
+}

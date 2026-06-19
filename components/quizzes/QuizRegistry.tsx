@@ -10,7 +10,7 @@ import MathsPractice from './MathsPractice';
 import AppleOrderQuiz from './AppleOrderQuiz';
 import MasterQuizUptoHundred from './MasterQuizUptoHundred';
 import CPAAdditionQuiz from './CPAAdditionQuiz';
-import AdditionBlocksQuiz from './AdditionBlockQuiz';
+import FLNBlocksQuiz from './FLNBlocksQuiz';
 import BasicOperationsCrossword from './BasicOperationsCrossword'
 
 const QuizLoader = () => (
@@ -94,7 +94,7 @@ const SPECIFIC_QUIZZES: any = {
   'apple-delivery-quiz': AppleOrderQuiz,
   'master-quiz-upto-hundred': MasterQuizUptoHundred,
   'CPA-Addition-Quiz': CPAAdditionQuiz,
-  'addition-block-quiz': AdditionBlocksQuiz,
+  'fln-blocks-quiz': FLNBlocksQuiz,
   'basic-operations-crossword': BasicOperationsCrossword
 };
 
