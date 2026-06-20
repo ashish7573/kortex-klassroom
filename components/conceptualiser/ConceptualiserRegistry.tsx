@@ -26,6 +26,7 @@ import AdditionUptoHundred from './AdditionUptoHundred';
 import AdditionWithCarry from './AdditionWithCarry';
 import SubtractionWithoutBorrow from './SubtractionWithoutBorrow';
 import SubtractionWithBorrow from './SubtractionWithBorrow';
+import MultiplicationConceptualiser from './MultiplicationConceptualiser';
 
 // ==========================================
 // 2. LOADING STATE
@@ -67,6 +68,7 @@ const SPECIFIC_TOOLS: any = {
   'addition-with-carry': AdditionWithCarry,
   'subtraction-without-borrow': SubtractionWithoutBorrow,
   'subtraction-with-borrow': SubtractionWithBorrow, 
+  'multiplication-conceptualiser': MultiplicationConceptualiser,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,

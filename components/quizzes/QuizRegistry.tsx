@@ -12,6 +12,7 @@ import MasterQuizUptoHundred from './MasterQuizUptoHundred';
 import CPAAdditionQuiz from './CPAAdditionQuiz';
 import FLNBlocksQuiz from './FLNBlocksQuiz';
 import BasicOperationsCrossword from './BasicOperationsCrossword'
+import MultiplicationTranslator from './MultiplicationTranslator';
 
 const QuizLoader = () => (
   <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100">
@@ -95,7 +96,8 @@ const SPECIFIC_QUIZZES: any = {
   'master-quiz-upto-hundred': MasterQuizUptoHundred,
   'CPA-Addition-Quiz': CPAAdditionQuiz,
   'fln-blocks-quiz': FLNBlocksQuiz,
-  'basic-operations-crossword': BasicOperationsCrossword
+  'basic-operations-crossword': BasicOperationsCrossword,
+  'multiply-practice': MultiplicationTranslator,
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {

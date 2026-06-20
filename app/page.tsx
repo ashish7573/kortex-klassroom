@@ -1254,7 +1254,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
                     
                     {/* Dynamic Action Button */}
                     <div className={`px-4 py-2.5 rounded-xl ${activeTier.lightColor} flex items-center justify-center group-hover:${activeTier.mainColor} transition-colors duration-300 shadow-sm`}>
-                      <span className={`text-[11px] font-black uppercase tracking-wider ${activeTier.textColor} group-hover:text-white flex items-center gap-1.5`}>
+                      <span className={`text-[11px] font-black uppercase tracking-wider ${activeTier.textColor} group-hover:text-black flex items-center gap-1.5`}>
                         {{
                           'Conceptualiser': 'Learn Concept',
                           'Video': 'Play Video',
