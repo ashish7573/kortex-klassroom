@@ -28,6 +28,7 @@ import SubtractionWithoutBorrow from './SubtractionWithoutBorrow';
 import SubtractionWithBorrow from './SubtractionWithBorrow';
 import MultiplicationConceptualiser from './MultiplicationConceptualiser';
 import TimesTable from './TimesTable';
+import LongMultiplicationIntro from './LongMultiplicationIntro';
 
 // ==========================================
 // 2. LOADING STATE
@@ -71,6 +72,7 @@ const SPECIFIC_TOOLS: any = {
   'subtraction-with-borrow': SubtractionWithBorrow, 
   'multiplication-conceptualiser': MultiplicationConceptualiser,
   'times-table': TimesTable,
+  'long-multiplication': LongMultiplicationIntro,
 
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,
