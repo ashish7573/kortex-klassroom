@@ -1049,11 +1049,11 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
     { icon: Layers, title: "The 5-Tier Loop", desc: "Master concepts through a proven cycle: Sandbox ➔ Video ➔ Quiz ➔ PDF ➔ Game.", color: "text-purple-500", bg: "bg-purple-100", shadow: "shadow-purple-200/50" },
     { icon: BookOpen, title: "Structured Curriculum", desc: "Not just a random arcade. Every tool is perfectly mapped to chapter-wise progressions.", color: "text-sky-500", bg: "bg-sky-100", shadow: "shadow-sky-200/50" },
     { icon: Zap, title: "Frictionless Access", desc: "Zero paywalls. Zero sign-ups. Click, play, and learn instantly across all devices.", color: "text-orange-500", bg: "bg-orange-100", shadow: "shadow-orange-200/50" },
-    { icon: Brain, title: "NEP 2020 Aligned", desc: "Meticulously engineered by experts to target foundational and preparatory competencies.", color: "text-emerald-500", bg: "bg-emerald-100", shadow: "shadow-emerald-200/50" }
+    { icon: Brain, title: "Individualised Learning", desc: "Child learns at their own pace saving Time, Money and Efforts that boosts Confidence.", color: "text-emerald-500", bg: "bg-emerald-100", shadow: "shadow-emerald-200/50" }
   ];
 
   useEffect(() => {
-    const interval = setInterval(() => { setActiveUsp((prev) => (prev + 1) % USPS.length); }, 3000);
+    const interval = setInterval(() => { setActiveUsp((prev) => (prev + 1) % USPS.length); }, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1113,7 +1113,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
           </div>
           {/* UPDATED: Headline & Subheadline */}
           <h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 leading-tight tracking-tight">Smarter Tools,<br/><span className="text-sky-500">Stronger Minds.</span></h1>
-          <p className="text-xl text-slate-600 font-medium max-w-lg mx-auto md:mx-0">Go beyond random videos. Explore a perfectly sequenced curriculum of Interactive Sandboxes, Quizzes, and Games mapped to your exact syllabus.</p>
+          <p className="text-xl text-slate-600 font-medium max-w-lg mx-auto md:mx-0">Go beyond random videos and worksheets. Explore a Pedagogically sequenced curriculum of Interactive Concept Learning, Quizzes, worksheets and Games mapped to your exact syllabus.</p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start pt-4">
             <Button variant="primary" className="text-lg px-8 py-4 w-full sm:w-auto shadow-sky-500/30" onClick={() => document.getElementById('five-tiers')?.scrollIntoView({behavior: 'smooth'})}>Explore 5-Tier System</Button>

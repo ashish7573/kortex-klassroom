@@ -13,6 +13,7 @@ import CPAAdditionQuiz from './CPAAdditionQuiz';
 import FLNBlocksQuiz from './FLNBlocksQuiz';
 import BasicOperationsCrossword from './BasicOperationsCrossword'
 import MultiplicationTranslator from './MultiplicationTranslator';
+import RapidFireMathArena from './RapidFireMathArena';
 
 const QuizLoader = () => (
   <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100">
@@ -98,6 +99,7 @@ const SPECIFIC_QUIZZES: any = {
   'fln-blocks-quiz': FLNBlocksQuiz,
   'basic-operations-crossword': BasicOperationsCrossword,
   'multiply-practice': MultiplicationTranslator,
+  'rapid-fire': RapidFireMathArena
 };
 
 export default function QuizRegistry({ lesson, onComplete }: any) {
