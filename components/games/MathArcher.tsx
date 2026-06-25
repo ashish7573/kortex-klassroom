@@ -598,11 +598,9 @@ export default function MathArcher() {
                 >
                   <div className="flex flex-col">
                     <span className="text-[10px] md:text-sm font-black uppercase tracking-wider" style={{ color: p.color.main }}>{p.color.name}</span>
-                    <div className="flex gap-0.5 mt-0.5">
-                      {/* FIX 3: Increased from Array(3) to Array(5) */}
-                      {[...Array(5)].map((_, i) => (
-                        <Heart key={i} className={`w-3 h-3 md:w-4 md:h-4 transition-all ${i < p.lives ? 'fill-red-500 text-red-500' : 'fill-slate-200 text-slate-200'}`} />
-                      ))}
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Heart className={`w-3 h-3 md:w-4 md:h-4 ${p.lives > 0 ? 'fill-red-500 text-red-500' : 'fill-slate-200 text-slate-200'}`} />
+                      <span className="text-xs md:text-sm font-bold text-slate-600">× {p.lives}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 bg-slate-50 rounded-lg md:rounded-xl p-1.5 md:p-2 border border-slate-100">
@@ -623,11 +621,9 @@ export default function MathArcher() {
                 >
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] md:text-sm font-black uppercase tracking-wider" style={{ color: p.color.main }}>{p.color.name}</span>
-                    <div className="flex gap-0.5 mt-0.5 flex-row-reverse">
-                      {/* FIX 3: Increased from Array(3) to Array(5) */}
-                      {[...Array(5)].map((_, i) => (
-                        <Heart key={i} className={`w-3 h-3 md:w-4 md:h-4 transition-all ${i < p.lives ? 'fill-red-500 text-red-500' : 'fill-slate-200 text-slate-200'}`} />
-                      ))}
+                    <div className="flex items-center flex-row-reverse gap-1 mt-0.5">
+                      <Heart className={`w-3 h-3 md:w-4 md:h-4 ${p.lives > 0 ? 'fill-red-500 text-red-500' : 'fill-slate-200 text-slate-200'}`} />
+                      <span className="text-xs md:text-sm font-bold text-slate-600">× {p.lives}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 bg-slate-50 rounded-lg md:rounded-xl p-1.5 md:p-2 border border-slate-100 flex-row-reverse">
