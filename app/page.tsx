@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Image from 'next/image';
 
 import { 
@@ -7,9 +7,9 @@ import {
   Settings, Globe, Play, LogOut, CheckCircle, Clock, Search,
   Heart, Zap, BookMarked, Star, Video, Gamepad2, Menu, X, ArrowRight, 
   ChevronLeft, ChevronRight, Layers, Lock, Unlock, Shield, Timer, Info, 
-  Calendar, Pause, RotateCcw, Rocket, Trophy, Medal, Flame, Book,  
+  Calendar, Pause, RotateCcw, Rocket, Trophy, Medal, Flame, Book, Pen, Eraser,
   Calculator, Leaf, Palette, Music, Monitor, Type, Check, Bell, Plus, 
-  Database, Edit3, Trash2, UploadCloud, Save, ChevronDown, ChevronUp, 
+  Database, Edit3, Trash2, UploadCloud, DownloadCloud, Save, ChevronDown, ChevronUp, 
   Sparkles, ArrowUpRight, Target, PlayCircle, UserPlus, LineChart, 
   CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase, Filter, Share2, Instagram, 
 } from 'lucide-react';
@@ -21,7 +21,7 @@ import QuizRegistry from '../components/quizzes/QuizRegistry';
 
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, query, where, orderBy, deleteDoc, addDoc, limit } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, query, where, orderBy, deleteDoc, addDoc, limit, writeBatch } from "firebase/firestore";
 import { AnyOfSchema } from 'firebase/ai';
 import { useSearchParams } from 'next/navigation';
 
@@ -327,6 +327,11 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   
   // NEW: State to track if we should show the finale screen
   const [showFinale, setShowFinale] = useState(false);
+  // NEW: Drawing Overlay State & Refs
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [drawColor, setDrawColor] = useState('#ef4444'); // Default Red
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawing = useRef(false);
   
   const currentItem = playlist[currentStep];
   
@@ -426,6 +431,51 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
     );
   }
 
+// --- NEW: ANNOTATION DRAWING LOGIC ---
+  useEffect(() => {
+      if (isDrawingMode && canvasRef.current) {
+          const canvas = canvasRef.current;
+          canvas.width = canvas.offsetWidth;
+          canvas.height = canvas.offsetHeight;
+      }
+  }, [isDrawingMode]);
+
+  const startDrawing = (e: any) => {
+      isDrawing.current = true;
+      draw(e);
+  };
+
+  const stopDrawing = () => {
+      isDrawing.current = false;
+      if (canvasRef.current) {
+          canvasRef.current.getContext('2d')?.beginPath();
+      }
+  };
+
+  const draw = (e: any) => {
+      if (!isDrawing.current || !canvasRef.current) return;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      ctx.lineWidth = drawColor === 'eraser' ? 30 : 6;
+      ctx.lineCap = 'round';
+      ctx.globalCompositeOperation = drawColor === 'eraser' ? 'destination-out' : 'source-over';
+      ctx.strokeStyle = drawColor === 'eraser' ? 'rgba(0,0,0,1)' : drawColor;
+
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+  };
+
+
   const renderContent = () => {
     switch (currentItem.content_type?.toLowerCase() || currentItem.type?.toLowerCase()) {
       case 'video':
@@ -509,8 +559,18 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
           <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div></div>
         </div>
 
-        {/* Right: Share & Type Pill */}
+        {/* Right: Annotate, Share & Type Pill */}
         <div className="flex items-center gap-2 shrink-0">
+            
+            {/* NEW: Annotation Toggle Button */}
+            <button 
+                onClick={() => setIsDrawingMode(!isDrawingMode)} 
+                className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-md border ${isDrawingMode ? 'bg-sky-500 text-white border-sky-400' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'}`}
+                title="Annotate Screen"
+            >
+                <Pen size={14} className="md:w-4 md:h-4" />
+            </button>
+
             <button onClick={handleShare} className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold text-[10px] md:text-xs transition-all border border-slate-700">
                {copied ? <CheckCircle size={14} className="text-emerald-400" /> : <Share2 size={14} />}
                <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
@@ -521,7 +581,50 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
 
       {/* DIET CONTENT CONTAINER */}
       <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-0 md:p-2 lg:p-4 flex items-center justify-center">
-         {renderContent()}
+         
+         {/* The underlying content - pointer events disabled to freeze interactions if drawing mode is active */}
+         <div className={`w-full h-full flex items-center justify-center transition-all ${isDrawingMode ? 'pointer-events-none' : ''}`}>
+             {renderContent()}
+         </div>
+
+         {/* NEW: Drawing Overlay & Toolbar */}
+         {isDrawingMode && (
+             <>
+                 {/* Invisible canvas covering the whole content area */}
+                 <canvas
+                     ref={canvasRef}
+                     onMouseDown={startDrawing}
+                     onMouseMove={draw}
+                     onMouseUp={stopDrawing}
+                     onMouseOut={stopDrawing}
+                     onTouchStart={startDrawing}
+                     onTouchMove={draw}
+                     onTouchEnd={stopDrawing}
+                     onTouchCancel={stopDrawing}
+                     className="absolute inset-0 z-40 w-full h-full touch-none cursor-crosshair"
+                 />
+                 
+                 {/* Floating Toolbar for Colors/Eraser */}
+                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800/95 backdrop-blur-md border border-slate-600 rounded-full p-2 flex items-center gap-2 shadow-2xl animate-fade-in-up">
+                     {['#ef4444', '#3b82f6', '#10b981'].map(color => (
+                         <button 
+                             key={color}
+                             onClick={() => setDrawColor(color)}
+                             className={`w-8 h-8 rounded-full border-2 transition-transform ${drawColor === color ? 'scale-110 border-white' : 'border-transparent hover:scale-105'}`}
+                             style={{ backgroundColor: color }}
+                         />
+                     ))}
+                     <div className="w-px h-6 bg-slate-600 mx-1"></div>
+                     <button 
+                         onClick={() => setDrawColor('eraser')}
+                         className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${drawColor === 'eraser' ? 'bg-slate-200 text-slate-800 border-white' : 'bg-slate-700 text-slate-300 border-transparent hover:bg-slate-600'}`}
+                         title="Eraser"
+                     >
+                         <Eraser size={16} />
+                     </button>
+                 </div>
+             </>
+         )}
       </div>
 
       {/* NEW: 3-Second Floating Share Popup */}
@@ -1775,6 +1878,7 @@ const AdminView = () => {
   const [requestHistory, setRequestHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadingCSV, setIsUploadingCSV] = useState(false);
+  const [syncPreview, setSyncPreview] = useState<{ toAdd: any[], toUpdate: any[] } | null>(null);
 
   // Fetch Approvals
   useEffect(() => {
@@ -1926,36 +2030,79 @@ const AdminView = () => {
     } catch (error: any) { console.error("🚨 ERROR UPDATING REQUEST:", error); }
   };
 
-  const handleBulkCurriculumUpload = (e: any) => {
+  // --- NEW: THE EXPORT ENGINE ---
+  const handleExportCSV = async () => {
+    setIsLoading(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, 'learning_tools'));
+      // Define headers including the critical Firebase ID
+      let csvContent = "Grade,Subject,Chapter Number,Chapter Name,Subtopic Order,Subtopic,Content Order,Content Type,Title,Image URL,Content URL,Premium,Book,Featured,Subtopic ID,Firebase ID\n";
+      
+      querySnapshot.forEach((document) => {
+        const data = document.data();
+        const escapeCsv = (str: any) => `"${String(str || '').replace(/"/g, '""')}"`;
+        
+        const row = [
+          escapeCsv(data.grade),
+          escapeCsv(data.subject),
+          data.chapter_number || 1,
+          escapeCsv(data.chapter_name),
+          data.subtopic_order || 1,
+          escapeCsv(data.subtopic),
+          data.content_order || 1,
+          escapeCsv(data.content_type),
+          escapeCsv(data.title),
+          escapeCsv(data.image),
+          escapeCsv(data.content_url),
+          data.isPremium ? 'TRUE' : 'FALSE',
+          escapeCsv(data.book),
+          data.is_featured ? 'TRUE' : 'FALSE',
+          escapeCsv(data.subtopicId),
+          escapeCsv(document.id) // THE MASTER KEY
+        ].join(',');
+        
+        csvContent += row + "\n";
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "kortex_master_db.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      alert("Failed to export database.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- UPGRADED: THE PREVIEW & SYNC ENGINE ---
+  const handleSyncDatabase = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (event) => {
-      setIsUploadingCSV(true);
       try {
-        const text = event.target.result as string;
-        
-        // Split rows, handling potential empty lines at the end of the file
+        const text = event.target?.result as string;
         const rows = text.split('\n');
         
-        // We will push everything to a flat 'learning_tools' collection for maximum query power
-        const toolsRef = collection(db, 'learning_tools');
-        let count = 0;
+        let toAdd: any[] = [];
+        let toUpdate: any[] = [];
 
         for (let i = 1; i < rows.length; i++) {
            const rowText = rows[i].trim();
            if (!rowText) continue;
 
-           // Smart Split: Splits by comma, but IGNORES commas that are inside "quotes"
            const row = rowText.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+           if (row.length < 4) continue; 
            
-           if (row.length < 4) continue; // Skip incomplete rows
-           
-           // EXPECTED FORMAT: grade, subject, chapter_number, chapter_name, subtopic_order, subtopic, content_order, content_type, title, image_url, content_url, is_premium, book, is_featured
            const grade = row[0];
            const subject = row[1];
-           
-           // parseInt() forces Firebase to treat these as math numbers, guaranteeing 1, 2... 10 sorting!
            const chapter_number = parseInt(row[2], 10) || 1; 
            const chapter_name = row[3] || "Untitled Chapter";
            const subtopic_order = parseInt(row[4], 10) || 1;
@@ -1969,50 +2116,90 @@ const AdminView = () => {
            const book = row[12] || "";
            const is_featured = row[13]?.toUpperCase() === 'TRUE';
            const subtopicId = row[14] || "";
+           const firebase_id = row[15] || ""; 
+
+           if (!grade || !subject) continue;
            
-           if (!grade || !subject) continue; // Failsafe
-           
-           // Automatically assign beautiful UI colors based on the content type
            let color = 'bg-sky-500';
            if (content_type.toLowerCase() === 'game') color = 'bg-orange-500';
            else if (content_type.toLowerCase() === 'video') color = 'bg-purple-500';
            else if (content_type.toLowerCase() === 'pdf') color = 'bg-emerald-500';
            else if (content_type.toLowerCase() === 'quiz') color = 'bg-amber-500';
 
-           const toolData = {
-              grade,
-              subject,
-              chapter_number,
-              chapter_name,
-              subtopic_order,
-              subtopic,
-              subtopicId,
-              content_order,
-              content_type,
-              title,
-              image: image_url,
-              content_url,
-              isPremium: is_premium,
-              book,
-              is_featured,
-              color,
-              created_at: new Date().toISOString()
+           const toolData: any = {
+              grade, subject, chapter_number, chapter_name, subtopic_order, subtopic, subtopicId,
+              content_order, content_type, title, image: image_url, content_url,
+              isPremium: is_premium, book, is_featured, color, firebase_id
            };
 
-           await addDoc(toolsRef, toolData);
-           count++;
+           if (firebase_id && firebase_id.length > 5) {
+               toUpdate.push(toolData);
+           } else {
+               toAdd.push(toolData);
+           }
         }
         
-        alert(`SUCCESS! Flawlessly uploaded ${count} structured lessons to the Database.`);
+        setSyncPreview({ toAdd, toUpdate });
       } catch (err: any) { 
         console.error(err); 
-        alert("Error parsing CSV. Please make sure it matches the exact 14-column format."); 
+        alert("Error parsing CSV data layout."); 
       } finally { 
-        setIsUploadingCSV(false); 
         e.target.value = ''; 
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleConfirmSync = async () => {
+     if (!syncPreview) return;
+     setIsUploadingCSV(true);
+     try {
+        const batches = [];
+        let currentBatch = writeBatch(db);
+        let operationCount = 0;
+
+        // Commit Updates
+        for (const item of syncPreview.toUpdate) {
+           const { firebase_id, ...toolData } = item;
+           const docRef = doc(db, 'learning_tools', firebase_id);
+           currentBatch.set(docRef, { ...toolData, updated_at: new Date().toISOString() }, { merge: true });
+           
+           operationCount++;
+           if (operationCount === 490) {
+               batches.push(currentBatch);
+               currentBatch = writeBatch(db);
+               operationCount = 0;
+           }
+        }
+
+        // Commit Additions
+        for (const item of syncPreview.toAdd) {
+           const { firebase_id, ...toolData } = item;
+           const docRef = doc(collection(db, 'learning_tools'));
+           currentBatch.set(docRef, { ...toolData, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+           
+           operationCount++;
+           if (operationCount === 490) {
+               batches.push(currentBatch);
+               currentBatch = writeBatch(db);
+               operationCount = 0;
+           }
+        }
+
+        if (operationCount > 0) batches.push(currentBatch);
+        
+        for (const batch of batches) {
+           await batch.commit();
+        }
+        
+        alert(`SYNC SUCCESSFUL! ✅\nSuccessfully added ${syncPreview.toAdd.length} resources and updated ${syncPreview.toUpdate.length} records.`);
+        setSyncPreview(null);
+     } catch (err) {
+        console.error(err);
+        alert("Firestore database sync error.");
+     } finally {
+        setIsUploadingCSV(false);
+     }
   };
   
   return (
@@ -2125,22 +2312,136 @@ const AdminView = () => {
 
       {/* DATABASE TAB */}
       {activeTab === 'database' && (
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-            <div className="bg-white border-4 border-slate-100 p-10 rounded-3xl text-center shadow-sm relative">
-               <UploadCloud size={64} className="mx-auto text-sky-500 mb-6" />
-               <h3 className="text-3xl font-black text-slate-800 mb-4">Bulk Import</h3>
-               <p className="text-slate-500 font-medium mb-6 text-sm">Upload a CSV to instantly publish hundreds of structured chapters and tools.<br/><span className="font-mono text-[10px] bg-slate-50 p-1 mt-2 block">Grade,Subject,Chapter,Book,Subtopic,Type,Title,URL,Premium,Order,Image</span></p>
-               <div className="relative">
-                 <input type="file" accept=".csv" onChange={handleBulkCurriculumUpload} disabled={isUploadingCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-                 <Button disabled={isUploadingCSV} className="w-full py-4 text-lg border-b-4">{isUploadingCSV ? 'Processing CSV...' : 'Select CSV File'}</Button>
+         <div className="w-full animate-fade-in">
+            {syncPreview ? (
+               <div className="space-y-6 w-full bg-white p-6 md:p-8 border-2 border-slate-200 rounded-3xl shadow-sm text-slate-800">
+                  <div>
+                     <h3 className="text-2xl font-black text-slate-900">Review Data Sync Request</h3>
+                     <p className="text-sm text-slate-500 font-medium mt-1">Carefully examine changes below before confirming deployment to Firestore production tables.</p>
+                  </div>
+
+                  {/* Category 1: Items to Update */}
+                  <div className="space-y-2">
+                     <h4 className="text-sm font-black uppercase tracking-widest text-amber-500 flex items-center gap-2">
+                        <div className="w-2 h-2 bg-amber-500 rounded-full"></div> 1. Existing Items To Update ({syncPreview.toUpdate.length})
+                     </h4>
+                     <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto bg-slate-50">
+                        <table className="w-full text-left text-xs font-mono">
+                           <thead className="bg-slate-100 font-sans font-bold text-slate-500 border-b border-slate-200 sticky top-0">
+                              <tr>
+                                 <th className="p-3">Doc ID</th>
+                                 <th className="p-3">Grade/Subject</th>
+                                 <th className="p-3">Module Title</th>
+                                 <th className="p-3">Type</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-200">
+                              {syncPreview.toUpdate.length === 0 ? (
+                                 <tr><td colSpan={4} className="p-4 text-center text-slate-400 font-sans font-medium">No updates found in this sheet.</td></tr>
+                              ) : (
+                                 syncPreview.toUpdate.map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-amber-50/40 transition-colors">
+                                       <td className="p-3 font-bold text-amber-600 truncate max-w-[100px]">{item.firebase_id}</td>
+                                       <td className="p-3 font-sans text-slate-600 font-medium">{item.grade} • {item.subject}</td>
+                                       <td className="p-3 font-sans font-bold text-slate-800">{item.title}</td>
+                                       <td className="p-3"><span className="px-2 py-0.5 rounded bg-slate-200 font-sans font-bold text-[10px] uppercase text-slate-600">{item.content_type}</span></td>
+                                    </tr>
+                                 ))
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+                  </div>
+
+                  {/* Category 2: New Items to Upload */}
+                  <div className="space-y-2 pt-2">
+                     <h4 className="text-sm font-black uppercase tracking-widest text-emerald-500 flex items-center gap-2">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full"></div> 2. New Items to Create ({syncPreview.toAdd.length})
+                     </h4>
+                     <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto bg-slate-50">
+                        <table className="w-full text-left text-xs font-mono">
+                           <thead className="bg-slate-100 font-sans font-bold text-slate-500 border-b border-slate-200 sticky top-0">
+                              <tr>
+                                 <th className="p-3">Grade/Subject</th>
+                                 <th className="p-3">Module Title</th>
+                                 <th className="p-3">Chapter</th>
+                                 <th className="p-3">Type</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-200">
+                              {syncPreview.toAdd.length === 0 ? (
+                                 <tr><td colSpan={4} className="p-4 text-center text-slate-400 font-sans font-medium">No new additions detected in this sheet.</td></tr>
+                              ) : (
+                                 syncPreview.toAdd.map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-emerald-50/40 transition-colors">
+                                       <td className="p-3 font-sans text-slate-600 font-medium">{item.grade} • {item.subject}</td>
+                                       <td className="p-3 font-sans font-bold text-slate-800">{item.title}</td>
+                                       <td className="p-3 font-sans text-slate-500">{item.chapter_name}</td>
+                                       <td className="p-3"><span className="px-2 py-0.5 rounded bg-slate-200 font-sans font-bold text-[10px] uppercase text-slate-600">{item.content_type}</span></td>
+                                    </tr>
+                                 ))
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+                  </div>
+
+                  {/* Bottom Confirm / Deny Bar */}
+                  <div className="flex gap-4 pt-4 border-t-2 border-slate-100">
+                     <button 
+                        onClick={() => setSyncPreview(null)}
+                        disabled={isUploadingCSV}
+                        className="flex-1 py-3.5 border-2 border-slate-300 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+                     >
+                        Deny / Cancel
+                     </button>
+                     <button 
+                        onClick={handleConfirmSync}
+                        disabled={isUploadingCSV}
+                        className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl border-b-4 border-indigo-900 active:border-b-0 active:translate-y-1 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                     >
+                        {isUploadingCSV ? 'Processing Commits...' : 'Confirm & Publish Changes'}
+                     </button>
+                  </div>
                </div>
-            </div>
+            ) : (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* EXPORT CARD */}
+                  <div className="bg-white border-4 border-slate-100 p-8 rounded-3xl text-center shadow-sm relative flex flex-col items-center justify-center text-slate-800">
+                     <DownloadCloud size={64} className="text-emerald-500 mb-6" />
+                     <h3 className="text-3xl font-black text-slate-800 mb-4">Export Master CSV</h3>
+                     <p className="text-slate-500 font-medium mb-6 text-sm">Download the entire database into a structured spreadsheet. Safely edit items locally, then sync them back to the app.</p>
+                     <button 
+                        onClick={handleExportCSV} 
+                        disabled={isLoading || isUploadingCSV} 
+                        className="w-full py-4 rounded-xl font-bold text-lg border-b-4 bg-emerald-500 hover:bg-emerald-600 border-emerald-700 text-white active:scale-95 transition-all disabled:opacity-50"
+                     >
+                         {isLoading ? 'Exporting Database...' : 'Download Database'}
+                     </button>
+                  </div>
+
+                  {/* SYNC/IMPORT CARD */}
+                  <div className="bg-white border-4 border-slate-100 p-8 rounded-3xl text-center shadow-sm relative flex flex-col items-center justify-center text-slate-800">
+                     <UploadCloud size={64} className="text-sky-500 mb-6" />
+                     <h3 className="text-3xl font-black text-slate-800 mb-4">Sync / Import CSV</h3>
+                     <p className="text-slate-500 font-medium mb-6 text-sm">Upload your edited CSV. Rows with a Firebase ID will update securely. Rows without an ID will be added as new tools.</p>
+                     <div className="relative w-full mt-auto">
+                        <input type="file" accept=".csv" onChange={handleSyncDatabase} disabled={isUploadingCSV || isLoading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+                        <button 
+                           disabled={isUploadingCSV || isLoading} 
+                           className="w-full py-4 rounded-xl font-bold text-lg border-b-4 bg-sky-500 hover:bg-sky-600 border-sky-700 text-white active:scale-95 transition-all disabled:opacity-50"
+                        >
+                            Select CSV to Sync
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            )}
          </div>
       )}
     </div>
   );
 };
-
 
 
 

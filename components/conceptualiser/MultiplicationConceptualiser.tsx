@@ -37,11 +37,11 @@ const STORY_SLIDES = [
     },
     {
         image: '/assets/maths/FLN/MultStory8.webp',
-        text: "'Well, we don't only have to make groups of 10! We can make groups of ANY number! Groups of 2, groups of 3, or groups of 5... 5, 10, 15, 20!'"
+        text: "'Well, we don't only have to make groups of 10! We can make groups of ANY number! Groups of 2, groups of 3, or groups of 5 like 5, 10, 15, 20!'"
     },
     {
         image: '/assets/maths/FLN/MultStory9.webp',
-        text: "'If we know our groups, we can do super-fast repeated addition. This magic trick is called Multiplication!'"
+        text: "'If we know our groups, we can do super-fast repeated addition. This magic trick is called Multiplication! and these groups are called Tables. Now Lets distribute and count!'"
     }
 ];
 
