@@ -67,15 +67,15 @@ const SUBJECT_ICONS = {
 
 // NEW: Beautiful, subject-specific fallbacks if CSV doesn't provide an image!
 const SUBJECT_IMAGES = {
-  'English': 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=500',
-  'Hindi': 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&q=80&w=500',
-  'Maths': 'https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&q=80&w=500',
-  'EVS': 'https://images.unsplash.com/photo-1536699137060-6dd82d617c16?auto=format&fit=crop&q=80&w=500',
-  'SST': 'https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=500',
-  'Mental Training': 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=500',
-  'Physical Training and Sports': 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=500',
-  'Computers and AI': 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=500',
-  'DEFAULT': 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&q=80&w=500'
+  'English': '/thumbnails/english-cover.webp',
+  'Hindi': '/thumbnails/hindi-cover.webp',
+  'Maths': '/thumbnails/maths-cover.webp',
+  'EVS': '/thumbnails/evs-cover.webp',
+  'SST': '/thumbnails/sst-cover.webp',
+  'Mental Training': '/thumbnails/mental-training-cover.webp',
+  'Physical Training and Sports': '/thumbnails/sports-cover.webp',
+  'Computers and AI': '/thumbnails/computers-cover.webp',
+  'DEFAULT': '/thumbnails/default-cover.webp'
 };
 
 const getSubjectFallbackImage = (subjectStr: any) => {
@@ -111,7 +111,7 @@ export const FIVE_TIERS = [
     icon: Target, actionText: 'View All Quizzes'
   },
   { 
-    id: 'workbook', label: 'The Workbook', desc: 'PDFs & Guides', 
+    id: 'Notebook', label: 'The Notebook', desc: 'PDFs & Guides', 
     mainColor: 'bg-sky-500', lightColor: 'bg-sky-50', borderColor: 'border-sky-500', textColor: 'text-sky-500', 
     icon: FileText, actionText: 'View All Worksheets'
   },
@@ -332,6 +332,66 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   const [drawColor, setDrawColor] = useState('#ef4444'); // Default Red
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
+
+  // --- NEW: TIMER & STOPWATCH LOGIC ---
+  const [showTimeTool, setShowTimeTool] = useState(false);
+  const [timeMode, setTimeMode] = useState<'stopwatch' | 'timer'>('stopwatch');
+  const [timeRemaining, setTimeRemaining] = useState(0); 
+  const [isTimerActive, setIsTimerActive] = useState(false);
+  const [timerInput, setTimerInput] = useState('5'); 
+  const timerRef = useRef<any>(null);
+  const timeAudioCtxRef = useRef<AudioContext | null>(null);
+
+  const playTimeSound = (type: 'start' | 'pause' | 'alarm' | 'reset') => {
+      try {
+          if (!timeAudioCtxRef.current) {
+              const WinAudioContext = window.AudioContext || (window as any).webkitAudioContext;
+              timeAudioCtxRef.current = new WinAudioContext();
+          }
+          const ctx = timeAudioCtxRef.current;
+          if (ctx.state === 'suspended') ctx.resume();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          
+          if (type === 'start') { osc.type = 'sine'; osc.frequency.setValueAtTime(600, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1); }
+          else if (type === 'pause') { osc.type = 'sine'; osc.frequency.setValueAtTime(400, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1); }
+          else if (type === 'reset') { osc.type = 'triangle'; osc.frequency.setValueAtTime(200, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.2); }
+          else if (type === 'alarm') { 
+              osc.type = 'square'; osc.frequency.setValueAtTime(800, ctx.currentTime); osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.2); osc.frequency.setValueAtTime(800, ctx.currentTime + 0.4);
+              gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.6); 
+          }
+      } catch(e) {}
+  };
+
+  useEffect(() => {
+      if (isTimerActive) {
+          timerRef.current = setInterval(() => {
+              setTimeRemaining(prev => {
+                  if (timeMode === 'timer') {
+                      if (prev <= 1) { playTimeSound('alarm'); setIsTimerActive(false); return 0; }
+                      return prev - 1;
+                  } else { return prev + 1; }
+              });
+          }, 1000);
+      } else { clearInterval(timerRef.current); }
+      return () => clearInterval(timerRef.current);
+  }, [isTimerActive, timeMode]);
+
+  const formatTime = (secs: number) => {
+      const m = Math.floor(secs / 60); const s = secs % 60;
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const handleTimeAction = (action: 'start' | 'pause' | 'reset') => {
+      playTimeSound(action);
+      if (action === 'start') {
+          if (timeMode === 'timer' && timeRemaining === 0) setTimeRemaining(parseInt(timerInput) * 60 || 300);
+          setIsTimerActive(true);
+      }
+      else if (action === 'pause') setIsTimerActive(false);
+      else if (action === 'reset') { setIsTimerActive(false); setTimeRemaining(0); }
+  };
   
   const currentItem = playlist[currentStep];
   
@@ -383,7 +443,7 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
       { id: 'conceptualiser', label: 'Conceptualisers', icon: Lightbulb, color: 'text-purple-500' },
       { id: 'theatre', label: 'Video Lessons', icon: PlayCircle, color: 'text-rose-500' },
       { id: 'dojo', label: 'Quick Checks', icon: Target, color: 'text-amber-500' },
-      { id: 'workbook', label: 'Visual Guides', icon: BookOpen, color: 'text-emerald-500' },
+      { id: 'Notebook', label: 'Visual Guides', icon: BookOpen, color: 'text-emerald-500' },
       { id: 'arcade', label: 'Kortex Arcade', icon: Gamepad2, color: 'text-lime-500' },
     ];
 
@@ -559,9 +619,19 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
           <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div></div>
         </div>
 
-        {/* Right: Annotate, Share & Type Pill */}
+        {/* Right: Tools, Share & Type Pill */}
         <div className="flex items-center gap-2 shrink-0">
             
+            {/* NEW: Timer / Stopwatch Toggle Button */}
+            <button 
+                onClick={() => setShowTimeTool(!showTimeTool)} 
+                className={`relative w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-md border ${showTimeTool || isTimerActive ? 'bg-indigo-500 text-white border-indigo-400' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'}`}
+                title="Timer / Stopwatch"
+            >
+                <Timer size={14} className="md:w-4 md:h-4" />
+                {isTimerActive && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse border border-slate-900"></span>}
+            </button>
+
             {/* NEW: Annotation Toggle Button */}
             <button 
                 onClick={() => setIsDrawingMode(!isDrawingMode)} 
@@ -578,6 +648,36 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
             <div className="bg-slate-800 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold text-[10px] md:text-xs flex items-center gap-1.5 border border-slate-700">{currentItem.type?.toUpperCase()}</div>
         </div>
       </div>
+
+      {/* NEW: FLOATING TIME TOOL PANEL */}
+      {showTimeTool && (
+          <div className="absolute top-[68px] right-4 md:right-8 z-[60] bg-slate-800/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-5 w-64 animate-fade-in-up text-white">
+              <div className="flex bg-slate-900 rounded-lg p-1 mb-4 border border-slate-700 shadow-inner">
+                  <button onClick={() => { setTimeMode('stopwatch'); setIsTimerActive(false); setTimeRemaining(0); }} className={`flex-1 text-[11px] uppercase tracking-wider font-black py-1.5 rounded-md transition-colors ${timeMode === 'stopwatch' ? 'bg-indigo-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Stopwatch</button>
+                  <button onClick={() => { setTimeMode('timer'); setIsTimerActive(false); setTimeRemaining(parseInt(timerInput)*60 || 300); }} className={`flex-1 text-[11px] uppercase tracking-wider font-black py-1.5 rounded-md transition-colors ${timeMode === 'timer' ? 'bg-indigo-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Timer</button>
+              </div>
+              
+              {timeMode === 'timer' && !isTimerActive && timeRemaining === 0 && (
+                  <div className="mb-4 flex items-center justify-center gap-2">
+                      <input type="number" min="1" max="60" value={timerInput} onChange={(e) => setTimerInput(e.target.value)} className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center font-bold text-white outline-none focus:border-indigo-500" />
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Minutes</span>
+                  </div>
+              )}
+
+              <div className="text-5xl font-mono font-black text-center mb-6 tracking-wider text-sky-400 drop-shadow-[0_0_12px_rgba(56,189,248,0.4)]">
+                  {formatTime(timeRemaining)}
+              </div>
+
+              <div className="flex justify-center items-center gap-4">
+                  <button onClick={() => handleTimeAction('reset')} className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 transition-colors shadow-md"><RotateCcw size={16} /></button>
+                  {isTimerActive ? (
+                      <button onClick={() => handleTimeAction('pause')} className="w-14 h-14 rounded-full bg-amber-500 hover:bg-amber-400 flex items-center justify-center text-slate-900 transition-colors shadow-lg"><Pause size={24} className="fill-current" /></button>
+                  ) : (
+                      <button onClick={() => handleTimeAction('start')} className="w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center text-slate-900 transition-colors shadow-lg"><Play size={24} className="fill-current ml-1" /></button>
+                  )}
+              </div>
+          </div>
+      )}
 
       {/* DIET CONTENT CONTAINER */}
       <div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black p-0 md:p-2 lg:p-4 flex items-center justify-center">
@@ -711,7 +811,7 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool }: an
           if (activeTier.id === 'conceptualiser' && type === 'conceptualiser') belongsToTier = true;
           else if (activeTier.id === 'theatre' && type === 'video') belongsToTier = true;
           else if (activeTier.id === 'dojo' && type === 'quiz') belongsToTier = true;
-          else if (activeTier.id === 'workbook' && ['pdf', 'worksheet', 'document', 'presentation', 'ppt'].includes(type)) belongsToTier = true;
+          else if (activeTier.id === 'Notebook' && type === 'pdf') belongsToTier = true;
           else if (activeTier.id === 'arcade' && type === 'game') belongsToTier = true;
 
           // Added && item.is_featured === true to filter out non-featured items
@@ -1034,9 +1134,12 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                     <div className="p-6 bg-white flex-1 flex flex-col group-hover:bg-slate-50 transition-colors">
                        <h3 className="text-2xl font-black text-slate-800 mb-2 group-hover:text-sky-600 leading-tight">{lesson.chapter}</h3>
                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mb-4"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{lesson.grade}</span><span>•</span><span>{lesson.subject}</span></div>
-                       <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600 mt-auto pt-4 border-t border-slate-100">
-                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md shadow-sm"><Video size={14} className="text-pink-500"/> Video</span>
-                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md shadow-sm"><Layers size={14} className="text-sky-500"/> Docs</span>
+                       <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-600 mt-auto pt-4 border-t border-slate-100">
+                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-purple-300 transition-colors"><Lightbulb size={14} className="text-purple-500"/> Concepts</span>
+                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-pink-300 transition-colors"><Video size={14} className="text-pink-500"/> Videos</span>
+                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-lime-300 transition-colors"><Gamepad2 size={14} className="text-lime-500"/> Games</span>
+                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-orange-300 transition-colors"><Target size={14} className="text-orange-500"/> Quizzes</span>
+                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-sky-300 transition-colors"><FileText size={14} className="text-sky-500"/> Docs</span>
                        </div>
                     </div>
                   </Card>
@@ -1077,10 +1180,12 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                                        <div className="flex items-center gap-4">
                                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>
                                              {(() => {
-                                                const toolType = (item.content_type || item.type || '').toLowerCase();
+                                                const toolType = (item.content_type || item.type || '').toLowerCase().trim();
+                                                if (toolType === 'conceptualiser') return <Lightbulb size={24}/>;
                                                 if (toolType === 'video') return <Video size={24}/>;
-                                                if (toolType === 'pdf' || toolType === 'presentation' || toolType === 'ppt') return <FileText size={24}/>;
-                                                return <Gamepad2 size={24}/>;
+                                                if (toolType === 'quiz') return <Target size={24}/>;
+                                                if (toolType === 'pdf') return <FileText size={24}/>;
+                                                return <Gamepad2 size={24}/>; // Fallback for game/arcade or unmapped types
                                              })()}
                                           </div>
                                           <div>
@@ -1111,7 +1216,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                         return (
                            <div key={index} className="relative group">
                               <div className={`absolute -left-[54px] top-2 w-10 h-10 rounded-full border-4 border-white ${item.color || 'bg-slate-800'} flex items-center justify-center text-white shadow-md z-10`}>
-                                 {toolType === 'video' ? <Video size={16}/> : (toolType === 'pdf' || toolType === 'presentation' || toolType === 'ppt') ? <FileText size={16}/> : <Gamepad2 size={16}/>}
+                                 {toolType === 'conceptualiser' ? <Lightbulb size={16}/> : toolType === 'video' ? <Video size={16}/> : toolType === 'quiz' ? <Target size={16}/> : toolType === 'pdf'  ? <FileText size={16}/> : <Gamepad2 size={16}/>}
                               </div>
                               <Card className="p-5 md:p-6 border-2 hover:border-sky-300">
                                  <div className="flex justify-between items-center">
@@ -1144,7 +1249,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
 const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured, onLoginClick }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
   const [activeTierId, setActiveTierId] = useState('conceptualiser');
-  const [tierData, setTierData] = useState({ conceptualiser: [], theatre: [], dojo: [], workbook: [], arcade: [] });
+  const [tierData, setTierData] = useState({ conceptualiser: [], theatre: [], dojo: [], Notebook: [], arcade: [] });
   const [isLoadingTiers, setIsLoadingTiers] = useState(true);
 
   // UPDATED: Highlighting the 5-Tier, Curriculum, and Frictionless approach!
@@ -1177,7 +1282,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
            return dateB - dateA;
         });
 
-        const categorized: any = { conceptualiser: [], theatre: [], dojo: [], workbook: [], arcade: [] };
+        const categorized: any = { conceptualiser: [], theatre: [], dojo: [], Notebook: [], arcade: [] };
 
         items.forEach((item: any) => {
           // 2. Add .trim() to bulletproof against accidental spaces in your CSV
@@ -1186,7 +1291,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
           // 3. Distribute them, but strictly stop when a category hits 10 items
           if (type === 'video' && categorized.theatre.length < 10) categorized.theatre.push(item);
           else if (type === 'quiz' && categorized.dojo.length < 10) categorized.dojo.push(item);
-          else if ((type === 'pdf' || type === 'worksheet' || type === 'document') && categorized.workbook.length < 10) categorized.workbook.push(item);
+          else if ((type === 'pdf' || type === 'worksheet' || type === 'document') && categorized.Notebook.length < 10) categorized.Notebook.push(item);
           else if ((type === 'game' || type === 'arcade') && categorized.arcade.length < 10) categorized.arcade.push(item);
           else if (type === 'conceptualiser' && categorized.conceptualiser.length < 10) categorized.conceptualiser.push(item);
         });
@@ -1632,7 +1737,7 @@ const KrewEditorPanel = () => {
      if (tType === 'conceptualiser') toolColor = 'bg-purple-500';
      else if (tType === 'video') toolColor = 'bg-pink-500';
      else if (tType === 'quiz') toolColor = 'bg-orange-500';
-     else if (tType === 'pdf' || tType === 'presentation') toolColor = 'bg-sky-500';
+     else if (tType === 'pdf') toolColor = 'bg-sky-500';
      else if (tType === 'game') toolColor = 'bg-lime-500';
 
      const flatPayload = {
@@ -1812,7 +1917,7 @@ const KrewEditorPanel = () => {
                                             let tType = 'Video';
                                             if(tool.type) {
                                                const t = tool.type.toLowerCase();
-                                               if (t==='game'||t==='gamepad2') tType='Game'; else if (t==='pdf') tType='PDF'; else if (t==='presentation'||t==='ppt') tType='Presentation'; else if (t==='quiz') tType='Quiz'; else if (t==='conceptualiser') tType='Conceptualiser';
+                                               if (t==='game'||t==='gamepad2') tType='Game'; else if (t==='pdf') tType='PDF'; else if (t==='quiz') tType='Quiz'; else if (t==='conceptualiser') tType='Conceptualiser';
                                             }
                                             setKrewWizard({...krewWizard, toolSelect: val, toolOrder: tool.orderIndex || tool.content_order || 1, toolType: tType, toolTitle: tool.title, imageUrl: tool.image || tool.image_url || '', url: tool.content_url || '', originalToolTitle: tool.title, isFeatured: tool.is_featured || false});
                                         }
@@ -2818,7 +2923,7 @@ useEffect(() => {
                <button onClick={() => setCurrentView('conceptualiser')} className={`py-2 px-1 transition-colors hover:text-purple-500 ${currentView === 'conceptualiser' ? 'text-purple-500 border-b-2 border-purple-500' : ''}`}>Interactive<br/>Sandbox</button>
                <button onClick={() => setCurrentView('theatre')} className={`py-2 px-1 transition-colors hover:text-pink-500 ${currentView === 'theatre' ? 'text-pink-500 border-b-2 border-pink-500' : ''}`}>Kortex<br/>Theatre</button>
                <button onClick={() => setCurrentView('dojo')} className={`py-2 px-1 transition-colors hover:text-orange-500 ${currentView === 'dojo' ? 'text-orange-500 border-b-2 border-orange-500' : ''}`}>The<br/>Dojo</button>
-               <button onClick={() => setCurrentView('workbook')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'workbook' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>The<br/>Workbook</button>
+               <button onClick={() => setCurrentView('Notebook')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'Notebook' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>The<br/>Notebook</button>
                <button onClick={() => setCurrentView('arcade')} className={`py-2 px-1 transition-colors hover:text-lime-600 ${currentView === 'arcade' ? 'text-lime-600 border-b-2 border-lime-500' : ''}`}>Kortex<br/>Arcade</button>
             </div>
 
@@ -2847,7 +2952,7 @@ useEffect(() => {
               <button onClick={() => { setCurrentView('conceptualiser'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'conceptualiser' ? 'text-purple-500 bg-purple-50' : 'hover:bg-slate-50'}`}>Interactive Sandbox</button>
               <button onClick={() => { setCurrentView('theatre'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'theatre' ? 'text-pink-500 bg-pink-50' : 'hover:bg-slate-50'}`}>Kortex Theatre</button>
               <button onClick={() => { setCurrentView('dojo'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'dojo' ? 'text-orange-500 bg-orange-50' : 'hover:bg-slate-50'}`}>The Dojo</button>
-              <button onClick={() => { setCurrentView('workbook'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'workbook' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>The Workbook</button>
+              <button onClick={() => { setCurrentView('Notebook'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'Notebook' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>The Notebook</button>
               <button onClick={() => { setCurrentView('arcade'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'arcade' ? 'text-lime-600 bg-lime-50' : 'hover:bg-slate-50'}`}>Kortex Arcade</button>
 
               {isLoggedIn && <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-red-500 mt-2 border-t-2 border-slate-100 pt-4">Log Out</button>}
