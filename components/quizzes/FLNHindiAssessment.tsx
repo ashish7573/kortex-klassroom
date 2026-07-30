@@ -20,14 +20,13 @@ import { HINDI_ASSETS, SUBTOPIC_MAP, getBarahkhadiAudio } from '@/lib/SwarVyanja
 import { getWordsForSubtopic, getWordData, WORD_SUBTOPIC_MAP } from '@/lib/HindiWordDictionary';
 import { STORIES_DATA } from '@/lib/FLNStories';
 
-// Define the 5 Proficiency Levels
+// Define the Actionable Feedback Levels
 const LEVELS = {
-  LEVEL_0: 'प्रारंभिक (Beginner - Cannot read letters)',
-  LEVEL_1: 'अक्षर ज्ञान (Knows Swar & Vyanjan)',
-  LEVEL_2: 'शब्द पठन (Can read 2/3/4 letter words)',
-  LEVEL_3: 'मात्रा और बारहखड़ी (Knows Matras & Barahkhadi)',
-  LEVEL_4: 'वाक्य पठन (Reads sentences, lacks fluency)',
-  LEVEL_5: 'धाराप्रवाह पठन (Fluent reading with comprehension)'
+  LEVEL_1: 'Student needs to attend "Swar and Vyanjan" class.',
+  LEVEL_2: 'Student needs to attend "2/3/4 letter words" class.',
+  LEVEL_3: 'Student needs to attend "Matraa and Barahkhadi" class.',
+  LEVEL_4: 'Student needs to practice reading starting from simple books.',
+  LEVEL_5: 'Student has achieved mastery, they can continue their grade level activities.'
 };
 
 export default function FLNHindiAssessment({ onComplete }: any) {
@@ -148,23 +147,23 @@ export default function FLNHindiAssessment({ onComplete }: any) {
 
     // CHECK FAIL CONDITIONS IMMEDIATELY
     if (testPhase === 'LEVEL_2' && currentMistakes > 2) {
-       // Failed Level 2 -> Drop down to Level 1
+       // Failed Level 2 -> Drop down to Level 1 to test basic letters
        generateLevel1();
        return;
     }
     if (testPhase === 'LEVEL_1' && currentMistakes > 1) {
-       // Failed Level 1 -> Assessment Over (Level 0)
-       finishAssessment(LEVELS.LEVEL_0);
+       // Failed Level 1 -> Needs Swar/Vyanjan Class
+       finishAssessment(LEVELS.LEVEL_1);
        return;
     }
     if (testPhase === 'LEVEL_3' && currentMistakes > 0) {
-       // Failed Level 3 -> Assessment Over (Level 2 achieved)
-       finishAssessment(LEVELS.LEVEL_2);
+       // Failed Level 3 -> Needs Matraa & Barahkhadi Class
+       finishAssessment(LEVELS.LEVEL_3);
        return;
     }
     if (testPhase === 'STORY' && currentQIndex > 0 && currentMistakes > 0) {
-       // Failed Story MCQs -> Assessment Over (Level 3 achieved)
-       finishAssessment(LEVELS.LEVEL_3);
+       // Failed Story MCQs -> Needs Reading Practice (Level 4)
+       finishAssessment(LEVELS.LEVEL_4);
        return;
     }
 
@@ -173,13 +172,14 @@ export default function FLNHindiAssessment({ onComplete }: any) {
        setCurrentQIndex(prev => prev + 1);
     } else {
        // Level Complete! Move UP!
-       if (testPhase === 'LEVEL_1') finishAssessment(LEVELS.LEVEL_1); // Rebounded from L2 fail, passed L1
+       // If they pass L1, it means they failed L2 earlier. So they DO know letters, but they need the 2/3/4 word class!
+       if (testPhase === 'LEVEL_1') finishAssessment(LEVELS.LEVEL_2); 
        else if (testPhase === 'LEVEL_2') generateLevel3();
        else if (testPhase === 'LEVEL_3') generateStoryLevel();
        else if (testPhase === 'STORY') {
            // Passed MCQs. Final result depends on Teacher Fluency Check!
-           if (storyFluency) finishAssessment(LEVELS.LEVEL_5);
-           else finishAssessment(LEVELS.LEVEL_4);
+           if (storyFluency) finishAssessment(LEVELS.LEVEL_5); // Mastery!
+           else finishAssessment(LEVELS.LEVEL_4); // Lacks fluency -> Needs reading practice
        }
     }
   };
@@ -298,7 +298,7 @@ export default function FLNHindiAssessment({ onComplete }: any) {
          <span className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs font-bold text-slate-600">प्रश्न {currentQIndex + 1} / {questions.length}</span>
       </div>
 
-      <div className="flex-1 p-6 md:p-10 flex flex-col items-center justify-center relative">
+      <div className="flex-1 p-4 md:p-10 flex flex-col items-center justify-start md:justify-center relative overflow-y-auto min-h-0">
         
         {/* --- TYPE 1: DICTATION (Teacher Verified) --- */}
         {q.type === 'dictation' && (
@@ -359,32 +359,37 @@ export default function FLNHindiAssessment({ onComplete }: any) {
 
         {/* --- TYPE 2: STORY FLUENCY (Teacher Verified) --- */}
         {q.type === 'fluency' && (
-          <div className="text-center w-full max-w-2xl">
-             <BookOpen size={48} className="mx-auto text-sky-500 mb-6" />
-             <div className="bg-sky-50 border-2 border-sky-100 rounded-2xl p-6 md:p-8 mb-8">
-               <p className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-justify">{q.text}</p>
+          <div className="text-center w-full max-w-2xl flex flex-col h-full md:h-auto pb-4 md:pb-0">
+             <BookOpen size={40} className="mx-auto text-sky-500 mb-3 shrink-0 hidden md:block" />
+             
+             {/* Scrollable Story Box */}
+             <div className="bg-sky-50 border-2 border-sky-100 rounded-2xl p-5 md:p-8 mb-4 md:mb-8 flex-1 overflow-y-auto min-h-0 shadow-inner">
+               <p className="text-xl md:text-3xl font-bold text-slate-800 leading-relaxed text-justify">{q.text}</p>
              </div>
              
-             <button onClick={() => setShowTeacherVerify(true)} className="w-full bg-purple-500 hover:bg-purple-600 text-white font-black py-4 rounded-2xl shadow-sm border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all">
+             {/* Pinned Button */}
+             <button onClick={() => setShowTeacherVerify(true)} className="w-full shrink-0 bg-purple-500 hover:bg-purple-600 text-white font-black py-4 rounded-2xl shadow-sm border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all mt-auto">
                 शिक्षक मूल्यांकन करें (Teacher Evaluate)
              </button>
 
-             {/* TEACHER OVERRIDE MODAL */}
+             {/* TEACHER OVERRIDE MODAL (Scroll-safe for small phones) */}
              {showTeacherVerify && (
-               <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fade-in text-center">
-                  <h3 className="text-2xl font-black text-slate-800 mb-2">पठन मूल्यांकन (Fluency Check)</h3>
-                  <p className="text-lg font-bold text-slate-600 mb-8">छात्र ने कहानी कैसे पढ़ी?</p>
-                  
-                  <div className="flex flex-col gap-4 w-full max-w-md">
-                     <button onClick={() => { setStoryFluency(true); handleAnswer(true); }} className="w-full bg-emerald-500 border-b-4 border-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
-                       धाराप्रवाह पढ़ी (Read Fluently)
-                     </button>
-                     <button onClick={() => { setStoryFluency(false); handleAnswer(true); }} className="w-full bg-amber-500 border-b-4 border-amber-700 hover:bg-amber-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
-                       अटक-अटक कर पढ़ी (Read with Hesitation)
-                     </button>
-                     <button onClick={() => handleAnswer(false)} className="w-full bg-white border-2 border-rose-200 text-rose-600 font-black py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-rose-50 transition-colors mt-4">
-                       नहीं पढ़ सका (Could not read)
-                     </button>
+               <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-start md:justify-center p-6 animate-fade-in text-center overflow-y-auto">
+                  <div className="my-auto w-full max-w-md flex flex-col items-center">
+                    <h3 className="text-2xl font-black text-slate-800 mb-2">पठन मूल्यांकन (Fluency Check)</h3>
+                    <p className="text-lg font-bold text-slate-600 mb-6">छात्र ने कहानी कैसे पढ़ी?</p>
+                    
+                    <div className="flex flex-col gap-3 w-full">
+                       <button onClick={() => { setStoryFluency(true); handleAnswer(true); }} className="w-full bg-emerald-500 border-b-4 border-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm">
+                         धाराप्रवाह पढ़ी (Read Fluently)
+                       </button>
+                       <button onClick={() => { setStoryFluency(false); handleAnswer(true); }} className="w-full bg-amber-500 border-b-4 border-amber-700 hover:bg-amber-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm">
+                         अटक-अटक कर पढ़ी (Read with Hesitation)
+                       </button>
+                       <button onClick={() => handleAnswer(false)} className="w-full bg-white border-2 border-rose-200 text-rose-600 font-black py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-rose-50 transition-colors mt-2 shadow-sm">
+                         नहीं पढ़ सका (Could not read)
+                       </button>
+                    </div>
                   </div>
                </div>
              )}
