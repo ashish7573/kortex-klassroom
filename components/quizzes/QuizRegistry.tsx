@@ -14,6 +14,7 @@ import FLNBlocksQuiz from './FLNBlocksQuiz';
 import BasicOperationsCrossword from './BasicOperationsCrossword'
 import MultiplicationTranslator from './MultiplicationTranslator';
 import RapidFireMathArena from './RapidFireMathArena';
+import FLNHindiAssessment from './FLNHindiAssessment';
 
 const QuizLoader = () => (
   <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100">
@@ -46,6 +47,7 @@ const MasterQuizUptoTen = dynamic(() => import('./MasterQuizUptoTen'), {
 
 // --- THE ROUTER SWITCHBOARD (subtopic id are matched here from csv)---
 const SPECIFIC_QUIZZES: any = {
+  'FLNHindiAssessment': FLNHindiAssessment,
   'hindi-word-match': HindiWordQuiz, 
   'hindi-word-dictation': HindiWordDictation,
   'quiz-matra-aa': HindiWordQuiz,
