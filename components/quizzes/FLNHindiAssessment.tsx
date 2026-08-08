@@ -25,8 +25,8 @@ const LEVELS = {
   LEVEL_1: 'Student needs to attend "Swar and Vyanjan" class.',
   LEVEL_2: 'Student needs to attend "2/3/4 letter words" class.',
   LEVEL_3: 'Student needs to attend "Matraa and Barahkhadi" class.',
-  LEVEL_4: 'Student needs to practice reading starting from simple books.',
-  LEVEL_5: 'Student has achieved mastery, they can continue their grade level activities.'
+  LEVEL_4: 'Student needs to "Start Reading" simple books.',
+  LEVEL_5: 'Student has achieved mastery, they can continue their "Grade Level" activities.'
 };
 
 export default function FLNHindiAssessment({ onComplete }: any) {
@@ -52,12 +52,12 @@ export default function FLNHindiAssessment({ onComplete }: any) {
   const generateLevel1 = () => {
     const letters = [...SUBTOPIC_MAP['vyanjan-ka'], ...SUBTOPIC_MAP['vyanjan-pa'], ...SUBTOPIC_MAP['swar-a-oo']].sort(() => 0.5 - Math.random());
     const qs = [];
-    // 1. Image to Letter
-    qs.push({ type: 'mcq', mode: 'image_to_letter', target: letters[0], options: [letters[0], letters[1], letters[2], letters[3]].sort(() => 0.5 - Math.random()) });
-    // 2. Audio to Letter
+    
+    // 1, 2, 3: Pure Audio to Letter (Removes image ambiguity entirely)
+    qs.push({ type: 'mcq', mode: 'audio_to_letter', target: letters[0], options: [letters[0], letters[1], letters[2], letters[3]].sort(() => 0.5 - Math.random()) });
     qs.push({ type: 'mcq', mode: 'audio_to_letter', target: letters[4], options: [letters[4], letters[5], letters[6], letters[7]].sort(() => 0.5 - Math.random()) });
-    // 3. Letter to Image
-    qs.push({ type: 'mcq', mode: 'letter_to_image', target: letters[8], options: [letters[8], letters[9], letters[10], letters[11]].sort(() => 0.5 - Math.random()) });
+    qs.push({ type: 'mcq', mode: 'audio_to_letter', target: letters[8], options: [letters[8], letters[9], letters[10], letters[11]].sort(() => 0.5 - Math.random()) });
+    
     // 4 & 5. Dictation (Teacher Verified)
     qs.push({ type: 'dictation', mode: 'letter', target: letters[12] });
     qs.push({ type: 'dictation', mode: 'letter', target: letters[13] });
@@ -75,14 +75,16 @@ export default function FLNHindiAssessment({ onComplete }: any) {
     const w4 = getWordsForSubtopic('word-builder-4').sort(() => 0.5 - Math.random());
     
     const qs = [];
-    // Build Word (Image to Word)
-    qs.push({ type: 'mcq', mode: 'image_to_word', target: w2[0], options: [w2[0], w2[1], w2[2], w2[3]].sort(() => 0.5 - Math.random()) });
-    qs.push({ type: 'mcq', mode: 'image_to_word', target: w3[0], options: [w3[0], w3[1], w3[2], w3[3]].sort(() => 0.5 - Math.random()) });
-    qs.push({ type: 'mcq', mode: 'image_to_word', target: w4[0], options: [w4[0], w4[1], w4[2], w4[3]].sort(() => 0.5 - Math.random()) });
-    // Identify Word (Word to Image)
-    qs.push({ type: 'mcq', mode: 'word_to_image', target: w2[4], options: [w2[4], w2[5], w2[6], w2[7]].sort(() => 0.5 - Math.random()) });
-    qs.push({ type: 'mcq', mode: 'word_to_image', target: w3[4], options: [w3[4], w3[5], w3[6], w3[7]].sort(() => 0.5 - Math.random()) });
-    qs.push({ type: 'mcq', mode: 'word_to_image', target: w4[4], options: [w4[4], w4[5], w4[6], w4[7]].sort(() => 0.5 - Math.random()) });
+    
+    // Pure Audio to Word (Tests raw reading ability, no image guessing)
+    qs.push({ type: 'mcq', mode: 'audio_to_word', target: w2[0], options: [w2[0], w2[1], w2[2], w2[3]].sort(() => 0.5 - Math.random()) });
+    qs.push({ type: 'mcq', mode: 'audio_to_word', target: w3[0], options: [w3[0], w3[1], w3[2], w3[3]].sort(() => 0.5 - Math.random()) });
+    qs.push({ type: 'mcq', mode: 'audio_to_word', target: w4[0], options: [w4[0], w4[1], w4[2], w4[3]].sort(() => 0.5 - Math.random()) });
+    
+    qs.push({ type: 'mcq', mode: 'audio_to_word', target: w2[4], options: [w2[4], w2[5], w2[6], w2[7]].sort(() => 0.5 - Math.random()) });
+    qs.push({ type: 'mcq', mode: 'audio_to_word', target: w3[4], options: [w3[4], w3[5], w3[6], w3[7]].sort(() => 0.5 - Math.random()) });
+    qs.push({ type: 'mcq', mode: 'audio_to_word', target: w4[4], options: [w4[4], w4[5], w4[6], w4[7]].sort(() => 0.5 - Math.random()) });
+    
     // Dictation (Teacher Verified)
     qs.push({ type: 'dictation', mode: 'word', target: w2[8].word });
     qs.push({ type: 'dictation', mode: 'word', target: w3[8].word });
@@ -98,11 +100,13 @@ export default function FLNHindiAssessment({ onComplete }: any) {
   const generateLevel3 = () => {
     const matraWords = getWordsForSubtopic('wb-matra-aa').concat(getWordsForSubtopic('wb-matra-ee')).sort(() => 0.5 - Math.random());
     const qs = [];
-    qs.push({ type: 'mcq', mode: 'image_to_word', target: matraWords[0], options: [matraWords[0], matraWords[1], matraWords[2], matraWords[3]].sort(() => 0.5 - Math.random()) });
+    
+    // Pure Audio to Word 
+    qs.push({ type: 'mcq', mode: 'audio_to_word', target: matraWords[0], options: [matraWords[0], matraWords[1], matraWords[2], matraWords[3]].sort(() => 0.5 - Math.random()) });
     qs.push({ type: 'mcq', mode: 'audio_to_word', target: matraWords[4], options: [matraWords[4], matraWords[5], matraWords[6], matraWords[7]].sort(() => 0.5 - Math.random()) });
     qs.push({ type: 'dictation', mode: 'word', target: matraWords[8].word });
     
-    // NEW: Randomize Vyanjan for Barahkhadi
+    // Randomize Vyanjan for Barahkhadi
     const vyanjans = ['क', 'ख', 'ग', 'घ', 'च', 'छ', 'ज', 'ट', 'ठ', 'ड', 'त', 'थ', 'द', 'ध', 'न', 'प', 'फ', 'ब', 'भ', 'म', 'य', 'र', 'ल', 'व', 'श', 'स', 'ह'];
     const randomVyanjan = vyanjans[Math.floor(Math.random() * vyanjans.length)];
     qs.push({ type: 'dictation', mode: 'barahkhadi', target: randomVyanjan }); 
@@ -112,6 +116,8 @@ export default function FLNHindiAssessment({ onComplete }: any) {
     setMistakes(0);
     setTestPhase('LEVEL_3');
   };
+
+ 
 
   // Level 4/5: Story Reading
   const generateStoryLevel = () => {
@@ -273,9 +279,26 @@ export default function FLNHindiAssessment({ onComplete }: any) {
         <h2 className="text-3xl font-black text-slate-800 mb-2">मूल्यांकन पूर्ण हुआ</h2>
         <p className="text-lg font-bold text-slate-500 mb-8">Assessment Complete</p>
         
-        <div className="bg-white border-4 border-sky-100 rounded-3xl p-8 w-full max-w-lg shadow-sm">
-           <p className="text-sm font-black text-sky-500 uppercase tracking-widest mb-2">छात्र का स्तर (Student Level)</p>
-           <h3 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight">{finalResult}</h3>
+       <div className="bg-white border-4 border-sky-100 rounded-3xl p-8 w-full max-w-xl shadow-sm">
+           <p className="text-sm font-black text-sky-500 uppercase tracking-widest mb-6 border-b-2 border-sky-50 pb-4">छात्र का स्तर (Student Level)</p>
+           
+           {finalResult && finalResult.includes('"') ? (
+               <div className="flex flex-col items-center justify-center text-center">
+                  <span className="block text-xl font-bold text-slate-600 mb-4">
+                     {finalResult.split('"')[0]}
+                  </span>
+                  
+                  <span className="block text-2xl md:text-3xl font-black text-sky-600 mb-4 px-6 py-4 bg-sky-50 rounded-2xl border-2 border-sky-200 shadow-inner w-full">
+                     {finalResult.split('"')[1]}
+                  </span>
+                  
+                  <span className="block text-xl font-bold text-slate-600">
+                     {finalResult.split('"')[2]}
+                  </span>
+               </div>
+           ) : (
+               <h3 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight">{finalResult}</h3>
+           )}
         </div>
 
         <button onClick={handleReset} className="mt-12 bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 font-black text-lg py-3 px-8 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2">

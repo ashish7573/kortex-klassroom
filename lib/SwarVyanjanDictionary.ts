@@ -9,8 +9,8 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'अनार', english: 'Pomegranate', image: '/assets/hindi/images/anar.png', emoji: '🍎' },
       { word: 'अदरक', english: 'Ginger', image: '/assets/hindi/images/adrak.png', emoji: '🫚' },
-      { word: 'अनाज', english: 'Grain', image: '/assets/hindi/images/anaaj.png', emoji: '🌾' },
-      { word: 'अचार', english: 'Pickle', image: '/assets/hindi/images/achaar.png', emoji: '🥒' }
+      { word: 'अनानास', english: 'Pineapple', image: '/assets/hindi/images/ananaas.png', emoji: '🍍' },
+      { word: 'अलमारी', english: 'Almirah', image: '/assets/hindi/images/almari.png', emoji: '🚪' }
     ]
   },
   'आ': {
@@ -27,7 +27,7 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'इंद्रधनुष', english: 'Rainbow', image: '/assets/hindi/images/indradhanush.png', emoji: '🌈' },
       { word: 'इंसान', english: 'Human', image: '/assets/hindi/images/insaan.png', emoji: '🧑' },
-      { word: 'इंजन', english: 'Engine', image: '/assets/hindi/images/engine.png', emoji: '🚂' },
+      { word: 'इडली', english: 'Idli', image: '/assets/hindi/images/idli.png', emoji: '🍛' },
       { word: 'इमली', english: 'Tamarind', image: '/assets/hindi/images/imli.png', emoji: '🫘' }
     ]
   },
@@ -35,9 +35,7 @@ export const HINDI_ASSETS: any = {
     audio: '/assets/hindi/audio/ee.mp3', theme: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200', btn: 'bg-emerald-500 hover:bg-emerald-600',
     examples: [
       { word: 'ईख', english: 'Sugarcane', image: '/assets/hindi/images/eenkh.png', emoji: '🎋' },
-      { word: 'ईंट', english: 'Brick', image: '/assets/hindi/images/eent.png', emoji: '🧱' },
-      { word: 'ईंधन', english: 'Fuel', image: '/assets/hindi/images/eendhan.png', emoji: '⛽' },
-      { word: 'ईमानदार', english: 'Honest', image: '/assets/hindi/images/eemaandaar.png', emoji: '😇' }
+      { word: 'ईंट', english: 'Brick', image: '/assets/hindi/images/eent.png', emoji: '🧱' }
     ]
   },
   'उ': {
@@ -46,13 +44,13 @@ export const HINDI_ASSETS: any = {
       { word: 'उपहार', english: 'Gift', image: '/assets/hindi/images/uphaar.png', emoji: '🎁' },
       { word: 'उल्लू', english: 'Owl', image: '/assets/hindi/images/ullu.png', emoji: '🦉' },
       { word: 'उल्टा', english: 'Upside Down', image: '/assets/hindi/images/ulta.png', emoji: '🙃' },
-      { word: 'उत्सव', english: 'Festival', image: '/assets/hindi/images/utsav.png', emoji: '🎉' }
+      { word: 'उँगली', english: 'Finger', image: '/assets/hindi/images/ungali.png', emoji: '☝🏻' }
     ]
   },
   'ऊ': {
     audio: '/assets/hindi/audio/oo.mp3', theme: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-200', btn: 'bg-indigo-500 hover:bg-indigo-600',
     examples: [
-      { word: 'ऊंचा', english: 'High', image: '/assets/hindi/images/ooncha.png', emoji: '🏔️' },
+      { word: 'ऊदबिलाव', english: 'Otter', image: '/assets/hindi/images/oodbilaav.png', emoji: '🦦' },
       { word: 'ऊंट', english: 'Camel', image: '/assets/hindi/images/oont.png', emoji: '🐫' },
       { word: 'ऊन', english: 'Wool', image: '/assets/hindi/images/oon.png', emoji: '🧶' },
       { word: 'ऊपर', english: 'Up', image: '/assets/hindi/images/oopar.png', emoji: '⬆️' }
@@ -70,17 +68,14 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'एड़ी', english: 'Heel', image: '/assets/hindi/images/edi.png', emoji: '🦶' },
       { word: 'एक', english: 'One', image: '/assets/hindi/images/ek.png', emoji: '1️⃣' },
-      { word: 'एकतारा', english: 'Ektara', image: '/assets/hindi/images/ektara.png', emoji: '🎸' },
-      { word: 'एकता', english: 'Unity', image: '/assets/hindi/images/ekta.png', emoji: '🤝' }
+      { word: 'एकतारा', english: 'Ektara', image: '/assets/hindi/images/ektaara.png', emoji: '🎸' }
     ]
   },
   'ऐ': {
     audio: '/assets/hindi/audio/ai.mp3', theme: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-200', btn: 'bg-rose-600 hover:bg-rose-700',
     examples: [
       { word: 'ऐनक', english: 'Glasses', image: '/assets/hindi/images/ainak.png', emoji: '👓' },
-      { word: 'ऐसिड', english: 'Acid', image: '/assets/hindi/images/acid.png', emoji: '🧪' },
-      { word: 'ऐतिहासिक', english: 'Historical', image: '/assets/hindi/images/aitihasik.png', emoji: '🏰' },
-      { word: 'ऐटम', english: 'Atom', image: '/assets/hindi/images/atom.png', emoji: '⚛️' }
+      { word: 'ऐलान', english: 'Announce', image: '/assets/hindi/images/ailaan.png', emoji: '📢' }
     ]
   },
   'ओ': {
@@ -88,7 +83,6 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'ओखली', english: 'Mortar', image: '/assets/hindi/images/okhali.png', emoji: '🥣' },
       { word: 'ओस', english: 'Dew', image: '/assets/hindi/images/oss.png', emoji: '💧' },
-      { word: 'ओम', english: 'Om', image: '/assets/hindi/images/om.png', emoji: '🕉️' },
       { word: 'ओढ़नी', english: 'Stole', image: '/assets/hindi/images/odhani.png', emoji: '🧣' }
     ]
   },
@@ -97,7 +91,6 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'औज़ार', english: 'Tools', image: '/assets/hindi/images/aujar.png', emoji: '🛠️' },
       { word: 'औरत', english: 'Woman', image: '/assets/hindi/images/aurat.png', emoji: '👩' },
-      { word: 'औद्योगिक', english: 'Industrial', image: '/assets/hindi/images/audyogik.png', emoji: '🏭' },
       { word: 'औषधि', english: 'Medicine', image: '/assets/hindi/images/aushadhi.png', emoji: '💊' }
     ]
   },
@@ -167,8 +160,8 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'चम्मच', english: 'Spoon', image: '/assets/hindi/images/chammach.png', emoji: '🥄' },
       { word: 'चोर', english: 'Thief', image: '/assets/hindi/images/chor.png', emoji: '🥷' },
-      { word: 'चेहरा', english: 'Face', image: '/assets/hindi/images/chehra.png', emoji: '👤' },
-      { word: 'चांदी', english: 'Silver', image: '/assets/hindi/images/chaandi.png', emoji: '🥈' }
+      { word: 'चिड़िया', english: 'Sparrow', image: '/assets/hindi/images/chidiya.png', emoji: '🐦' },
+      { word: 'चाँद', english: 'Moon', image: '/assets/hindi/images/chaand.png', emoji: '🌒' }
     ]
   },
   'छ': {
@@ -176,8 +169,8 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'छाता', english: 'Umbrella', image: '/assets/hindi/images/chhata.png', emoji: '☂️' },
       { word: 'छेह', english: 'Six', image: '/assets/hindi/images/cheh.png', emoji: '6️⃣' },
-      { word: 'छत', english: 'Roof', image: '/assets/hindi/images/chhat.png', emoji: '🏠' },
-      { word: 'छात्र', english: 'Student', image: '/assets/hindi/images/chhatra.png', emoji: '🧑‍🎓' }
+      { word: 'छत', english: 'Rooftop', image: '/assets/hindi/images/chhat.png', emoji: '🏠' },
+      { word: 'छलनी', english: 'Sieve', image: '/assets/hindi/images/chalni.png', emoji: '' }
     ]
   },
   'ज': {
@@ -185,8 +178,8 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'जग', english: 'Jug', image: '/assets/hindi/images/jug.png', emoji: '🫖' },
       { word: 'जोकर', english: 'Joker', image: '/assets/hindi/images/jokar.png', emoji: '🤡' },
-      { word: 'जाम', english: 'Jam', image: '/assets/hindi/images/jam.png', emoji: '🍯' },
-      { word: 'जल', english: 'Water', image: '/assets/hindi/images/jal.png', emoji: '💧' }
+      { word: 'जूता', english: 'Shoe', image: '/assets/hindi/images/joota.png', emoji: '👞' },
+      { word: 'जलेबी', english: 'Jalebi', image: '/assets/hindi/images/jalebi.png', emoji: '' }
     ]
   },
   'झ': {
@@ -194,7 +187,7 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'झंडा', english: 'Flag', image: '/assets/hindi/images/jhanda.png', emoji: '🚩' },
       { word: 'झाडू', english: 'Broom', image: '/assets/hindi/images/jhadu.png', emoji: '🧹' },
-      { word: 'झील', english: 'Lake', image: '/assets/hindi/images/jheel.png', emoji: '🏞️' },
+      { word: 'झूला', english: 'Swing', image: '/assets/hindi/images/jhoola.png', emoji: '' },
       { word: 'झोपड़ी', english: 'Hut', image: '/assets/hindi/images/jhopadi.png', emoji: '🛖' }
     ]
   },
@@ -208,7 +201,7 @@ export const HINDI_ASSETS: any = {
     audio: '/assets/hindi/audio/tta.mp3', theme: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-200', btn: 'bg-amber-500 hover:bg-amber-600',
     examples: [
       { word: 'टमाटर', english: 'Tomato', image: '/assets/hindi/images/tamatar.png', emoji: '🍅' },
-      { word: 'टूटना', english: 'Break', image: '/assets/hindi/images/tootana.png', emoji: '🔨' },
+      { word: 'टॉफ़ी', english: 'Toffee', image: '/assets/hindi/images/toffee.png', emoji: '🍬' },
       { word: 'टोपी', english: 'Cap', image: '/assets/hindi/images/topi.png', emoji: '🧢' },
       { word: 'टोकरी', english: 'Basket', image: '/assets/hindi/images/tokari.png', emoji: '🧺' }
     ]
@@ -227,8 +220,8 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'डमरू', english: 'Small Drum', image: '/assets/hindi/images/damroo.png', emoji: '🥁' },
       { word: 'डोसा', english: 'Dosa', image: '/assets/hindi/images/dosa.png', emoji: '🌯' },
-      { word: 'दाल', english: 'Pulses', image: '/assets/hindi/images/daal.png', emoji: '🥣' },
-      { word: 'डाकघर', english: 'Post Office', image: '/assets/hindi/images/dakghar.png', emoji: '🏤' }
+      { word: 'डाल', english: 'Branch', image: '/assets/hindi/images/daal.png', emoji: '🌳' },
+      { word: 'डिब्बा', english: 'Box', image: '/assets/hindi/images/dibba.png', emoji: '📦' }
     ]
   },
   'ढ': {
