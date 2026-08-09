@@ -96,17 +96,20 @@ export default function FLNHindiAssessment({ onComplete }: any) {
     setTestPhase('LEVEL_2');
   };
 
-  // Level 3: Matra (4 Questions - Max 0 mistakes allowed / 100% required)
+  // Level 3: Matra (5 Questions - Max 1 mistake allowed)
   const generateLevel3 = () => {
     const matraWords = getWordsForSubtopic('wb-matra-aa').concat(getWordsForSubtopic('wb-matra-ee')).sort(() => 0.5 - Math.random());
     const qs = [];
     
-    // Pure Audio to Word 
+    // 1 & 2. Pure Audio to Word MCQs
     qs.push({ type: 'mcq', mode: 'audio_to_word', target: matraWords[0], options: [matraWords[0], matraWords[1], matraWords[2], matraWords[3]].sort(() => 0.5 - Math.random()) });
     qs.push({ type: 'mcq', mode: 'audio_to_word', target: matraWords[4], options: [matraWords[4], matraWords[5], matraWords[6], matraWords[7]].sort(() => 0.5 - Math.random()) });
-    qs.push({ type: 'dictation', mode: 'word', target: matraWords[8].word });
     
-    // Randomize Vyanjan for Barahkhadi
+    // 3 & 4. Word Dictations (Writing Questions)
+    qs.push({ type: 'dictation', mode: 'word', target: matraWords[8].word });
+    qs.push({ type: 'dictation', mode: 'word', target: matraWords[9].word });
+    
+    // 5. Randomize Vyanjan for Barahkhadi (Writing Question)
     const vyanjans = ['क', 'ख', 'ग', 'घ', 'च', 'छ', 'ज', 'ट', 'ठ', 'ड', 'त', 'थ', 'द', 'ध', 'न', 'प', 'फ', 'ब', 'भ', 'म', 'य', 'र', 'ल', 'व', 'श', 'स', 'ह'];
     const randomVyanjan = vyanjans[Math.floor(Math.random() * vyanjans.length)];
     qs.push({ type: 'dictation', mode: 'barahkhadi', target: randomVyanjan }); 
@@ -162,7 +165,7 @@ export default function FLNHindiAssessment({ onComplete }: any) {
        finishAssessment(LEVELS.LEVEL_1);
        return;
     }
-    if (testPhase === 'LEVEL_3' && currentMistakes > 0) {
+    if (testPhase === 'LEVEL_3' && currentMistakes > 1) {
        // Failed Level 3 -> Needs Matraa & Barahkhadi Class
        finishAssessment(LEVELS.LEVEL_3);
        return;
@@ -359,13 +362,24 @@ export default function FLNHindiAssessment({ onComplete }: any) {
                <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fade-in text-center">
                   <AlertCircle size={48} className="text-amber-500 mb-4" />
                   <h3 className="text-2xl font-black text-slate-800 mb-2">शिक्षक सत्यापन (Teacher Check)</h3>
-                  <p className="text-lg font-bold text-slate-600 mb-8">
+                  
+                  <p className={`text-lg font-bold text-slate-600 ${q.mode === 'barahkhadi' ? 'mb-4' : 'mb-8'}`}>
                     क्या छात्र ने अपनी कॉपी में 
                     <span className="text-sky-600 text-2xl font-black mx-2">
                         {q.mode === 'barahkhadi' ? `'${q.target}' की बारहखड़ी` : `"${q.target}"`}
                     </span> 
                     सही {q.mode === 'barahkhadi' ? 'लिखी' : 'लिखा'} है?
                   </p>
+
+                  {/* NEW: Specific Instruction for Barahkhadi Verification */}
+                  {q.mode === 'barahkhadi' && (
+                     <div className="bg-sky-50 border-2 border-sky-200 rounded-xl p-4 mb-8 w-full max-w-sm text-left shadow-inner">
+                        <p className="text-sm font-bold text-sky-800 leading-relaxed">
+                          <AlertCircle size={16} className="inline mb-0.5 mr-1" />
+                          <b>शिक्षक ध्यान दें (Note):</b> बारहखड़ी में अधिकतम 1 गलती माफ़ है। यदि छात्र ने 1 से अधिक गलती की है, तभी 'गलत' चुनें।
+                        </p>
+                     </div>
+                  )}
                   
                   <div className="flex gap-4 w-full max-w-sm">
                      <button onClick={() => handleAnswer(false)} className="flex-1 bg-white border-2 border-rose-200 hover:bg-rose-50 text-rose-600 font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
