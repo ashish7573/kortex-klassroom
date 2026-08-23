@@ -289,7 +289,7 @@ export const HINDI_ASSETS: any = {
   'प': {
     audio: '/assets/hindi/audio/pa.mp3', theme: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-200', btn: 'bg-indigo-500 hover:bg-indigo-600',
     examples: [
-      { word: 'पुस्तक', english: 'Book', image: '/assets/hindi/images/pustak.png', emoji: '📖' },
+      { word: 'पपीता', english: 'Papaya', image: '/assets/hindi/images/papita.png', emoji: '' },
       { word: 'पतंग', english: 'Kite', image: '/assets/hindi/images/patang.png', emoji: '🪁' },
       { word: 'पीला', english: 'Yellow', image: '/assets/hindi/images/peela.png', emoji: '🟡' },
       { word: 'पंख़ा', english: 'Fan', image: '/assets/hindi/images/pankha.png', emoji: '🌀' }
@@ -310,7 +310,7 @@ export const HINDI_ASSETS: any = {
       { word: 'बच्चा', english: 'Child', image: '/assets/hindi/images/bacha.png', emoji: '👶' },
       { word: 'बकरी', english: 'Goat', image: '/assets/hindi/images/bakri.png', emoji: '🐐' },
       { word: 'बतख', english: 'Duck', image: '/assets/hindi/images/batakh.png', emoji: '🦆' },
-      { word: 'बाज़', english: 'Eagle', image: '/assets/hindi/images/baaj.png', emoji: '🦅' }
+      { word: 'बस', english: 'Bus', image: '/assets/hindi/images/bus.png', emoji: '🚌' }
     ]
   },
   'भ': {
@@ -327,8 +327,8 @@ export const HINDI_ASSETS: any = {
     examples: [
       { word: 'मछली', english: 'Fish', image: '/assets/hindi/images/machli.png', emoji: '🐟' },
       { word: 'मगर', english: 'Crocodile', image: '/assets/hindi/images/magar.png', emoji: '🐊' },
-      { word: 'महल', english: 'Palace', image: '/assets/hindi/images/mahal.png', emoji: '🏰' },
-      { word: 'मज़दूर', english: 'Worker', image: '/assets/hindi/images/majdoor.png', emoji: '👷' }
+      { word: 'माला', english: 'Garland', image: '/assets/hindi/images/mala.png', emoji: '📿' },
+      { word: 'मोर', english: 'Peacock', image: '/assets/hindi/images/mor.png', emoji: '🦚' }
     ]
   },
 
@@ -345,7 +345,7 @@ export const HINDI_ASSETS: any = {
   'र': {
     audio: '/assets/hindi/audio/ra.mp3', theme: 'text-violet-500', bg: 'bg-violet-50', border: 'border-violet-200', btn: 'bg-violet-500 hover:bg-violet-600',
     examples: [
-      { word: 'रथ', english: 'Chariot', image: '/assets/hindi/images/rath.png', emoji: '🛒' },
+      { word: 'रथ', english: 'Chariot', image: '/assets/hindi/images/rath.png', emoji: '' },
       { word: 'रस्सी', english: 'Rope', image: '/assets/hindi/images/rassi.png', emoji: '🪢' },
       { word: 'राजा', english: 'King', image: '/assets/hindi/images/raja.png', emoji: '👑' },
       { word: 'रंगोली', english: 'Rangoli', image: '/assets/hindi/images/rangoli.png', emoji: '🎨' }
