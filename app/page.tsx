@@ -2186,73 +2186,119 @@ const AdminView = () => {
     }
   };
 
-  // --- UPGRADED: THE PREVIEW & SYNC ENGINE ---
-  const handleSyncDatabase = (e: any) => {
+  // --- UPGRADED: THE SMART DIFF & SYNC ENGINE ---
+  const handleSyncDatabase = async (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        const rows = text.split('\n');
-        
-        let toAdd: any[] = [];
-        let toUpdate: any[] = [];
+    
+    setIsUploadingCSV(true); // Show loading while fetching comparison data
+    
+    try {
+      // 1. Fetch current live database state to compare against the CSV
+      const snapshot = await getDocs(collection(db, 'learning_tools'));
+      const existingDocs = new Map();
+      snapshot.forEach(doc => existingDocs.set(doc.id, doc.data()));
 
-        for (let i = 1; i < rows.length; i++) {
-           const rowText = rows[i].trim();
-           if (!rowText) continue;
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const text = event.target?.result as string;
+          const rows = text.split('\n');
+          
+          let toAdd: any[] = [];
+          let toUpdate: any[] = [];
 
-           const row = rowText.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
-           if (row.length < 4) continue; 
-           
-           const grade = row[0];
-           const subject = row[1];
-           const chapter_number = parseInt(row[2], 10) || 1; 
-           const chapter_name = row[3] || "Untitled Chapter";
-           const subtopic_order = parseInt(row[4], 10) || 1;
-           const subtopic = row[5] || "";
-           const content_order = parseInt(row[6], 10) || 1;
-           const content_type = row[7] || "Placeholder";
-           const title = row[8] || chapter_name;
-           const image_url = row[9] || "";
-           const content_url = row[10] || "";
-           const is_premium = row[11]?.toUpperCase() === 'TRUE';
-           const book = row[12] || "";
-           const is_featured = row[13]?.toUpperCase() === 'TRUE';
-           const subtopicId = row[14] || "";
-           const firebase_id = row[15] || ""; 
+          for (let i = 1; i < rows.length; i++) {
+             const rowText = rows[i].trim();
+             if (!rowText) continue;
 
-           if (!grade || !subject) continue;
-           
-           let color = 'bg-sky-500';
-           if (content_type.toLowerCase() === 'game') color = 'bg-orange-500';
-           else if (content_type.toLowerCase() === 'video') color = 'bg-purple-500';
-           else if (content_type.toLowerCase() === 'pdf') color = 'bg-emerald-500';
-           else if (content_type.toLowerCase() === 'quiz') color = 'bg-amber-500';
+             const row = rowText.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+             if (row.length < 4) continue; 
+             
+             const grade = row[0];
+             const subject = row[1];
+             const chapter_number = parseInt(row[2], 10) || 1; 
+             const chapter_name = row[3] || "Untitled Chapter";
+             const subtopic_order = parseInt(row[4], 10) || 1;
+             const subtopic = row[5] || "";
+             const content_order = parseInt(row[6], 10) || 1;
+             const content_type = row[7] || "Placeholder";
+             const title = row[8] || chapter_name;
+             const image_url = row[9] || "";
+             const content_url = row[10] || "";
+             const is_premium = row[11]?.toUpperCase() === 'TRUE';
+             const book = row[12] || "";
+             const is_featured = row[13]?.toUpperCase() === 'TRUE';
+             const subtopicId = row[14] || "";
+             const firebase_id = row[15] || ""; 
 
-           const toolData: any = {
-              grade, subject, chapter_number, chapter_name, subtopic_order, subtopic, subtopicId,
-              content_order, content_type, title, image: image_url, content_url,
-              isPremium: is_premium, book, is_featured, color, firebase_id
-           };
+             if (!grade || !subject) continue;
+             
+             let color = 'bg-sky-500';
+             if (content_type.toLowerCase() === 'game') color = 'bg-orange-500';
+             else if (content_type.toLowerCase() === 'video') color = 'bg-purple-500';
+             else if (content_type.toLowerCase() === 'pdf') color = 'bg-emerald-500';
+             else if (content_type.toLowerCase() === 'quiz') color = 'bg-amber-500';
 
-           if (firebase_id && firebase_id.length > 5) {
-               toUpdate.push(toolData);
-           } else {
-               toAdd.push(toolData);
-           }
+             const toolData: any = {
+                grade, subject, chapter_number, chapter_name, subtopic_order, subtopic, subtopicId,
+                content_order, content_type, title, image: image_url, content_url,
+                isPremium: is_premium, book, is_featured, color, firebase_id
+             };
+
+             if (firebase_id && firebase_id.length > 5) {
+                 const existing = existingDocs.get(firebase_id);
+                 if (existing) {
+                     // 2. THE SMART DIFF: Only flag for update if a field actually changed!
+                     const hasChanges = 
+                         existing.grade !== toolData.grade ||
+                         existing.subject !== toolData.subject ||
+                         existing.chapter_number !== toolData.chapter_number ||
+                         existing.chapter_name !== toolData.chapter_name ||
+                         existing.subtopic_order !== toolData.subtopic_order ||
+                         existing.subtopic !== toolData.subtopic ||
+                         (existing.subtopicId || "") !== toolData.subtopicId ||
+                         existing.content_order !== toolData.content_order ||
+                         existing.content_type !== toolData.content_type ||
+                         existing.title !== toolData.title ||
+                         (existing.image || "") !== toolData.image ||
+                         (existing.content_url || "") !== toolData.content_url ||
+                         !!existing.isPremium !== toolData.isPremium ||
+                         (existing.book || "") !== toolData.book ||
+                         !!existing.is_featured !== toolData.is_featured;
+
+                     if (hasChanges) {
+                         toUpdate.push(toolData);
+                     }
+                 } else {
+                     toAdd.push(toolData);
+                 }
+             } else {
+                 toAdd.push(toolData);
+             }
+          }
+          
+          // 3. Prevent the staging screen entirely if nothing changed
+          if (toAdd.length === 0 && toUpdate.length === 0) {
+             alert("No changes detected! The CSV perfectly matches the live database.");
+             setSyncPreview(null);
+          } else {
+             setSyncPreview({ toAdd, toUpdate });
+          }
+        } catch (err: any) { 
+          console.error(err); 
+          alert("Error parsing CSV data layout."); 
+        } finally { 
+          setIsUploadingCSV(false);
+          e.target.value = ''; 
         }
-        
-        setSyncPreview({ toAdd, toUpdate });
-      } catch (err: any) { 
-        console.error(err); 
-        alert("Error parsing CSV data layout."); 
-      } finally { 
-        e.target.value = ''; 
-      }
-    };
-    reader.readAsText(file);
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error("Failed to fetch baseline database:", err);
+      setIsUploadingCSV(false);
+      e.target.value = '';
+    }
   };
 
   const handleConfirmSync = async () => {
