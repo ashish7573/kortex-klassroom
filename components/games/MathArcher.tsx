@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+"use client"; // Required for Next.js App Router
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, RotateCcw, Trophy, Settings, Users, Target, Heart } from 'lucide-react';
 
 // ==========================================
 // 🛠️ DEVELOPER CONTROLS - ADJUST HEIGHT HERE
 // ==========================================
-const SMARTBOARD_BOW_OFFSET = 320; // Increase this to push bows higher on Smartboards
-const MOBILE_BOW_OFFSET = 180;     // Increase this to push bows higher on Mobile phones
+const SMARTBOARD_BOW_OFFSET = 320; 
+const MOBILE_BOW_OFFSET = 180;     
 // ==========================================
 
-// Kortex Klassroom Player Palette
 const PLAYER_COLORS = [
   { main: '#ef4444', light: '#fca5a5', name: 'Red' },    // Player 1
   { main: '#3b82f6', light: '#93c5fd', name: 'Blue' },   // Player 2
@@ -26,19 +26,18 @@ const OPERATIONS = [
 ];
 
 export default function MathArcher() {
-  // --- DOM UI STATE ---
   const [uiState, setUiState] = useState<'menu' | 'playing' | 'gameover'>('menu');
   const [equation, setEquation] = useState('');
   const [playerStats, setPlayerStats] = useState<any[]>([]);
   const [winnerMessage, setWinnerMessage] = useState('');
-
-  // --- SETTINGS STATE ---
   const [settings, setSettings] = useState({ operation: 'add', digits: 1, playerCount: 1 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
+  
+  // Throttle UI updates to prevent Canvas freezing
+  const lastSyncRef = useRef<number>(0);
 
-  // --- CORE GAME ENGINE (MUTABLE) ---
   const gameRef = useRef({
     state: 'menu',
     width: 800,
@@ -48,11 +47,10 @@ export default function MathArcher() {
     balloons: [] as any[],
     particles: [] as any[],
     clouds: [] as any[],
-    activeTouches: {} as Record<number, number> 
+    activePointers: new Map<number, number>() // UPGRADE: Using Map for robust pointer tracking
   });
 
-  // --- MATH ENGINE ---
-  const generateProblem = () => {
+  const generateProblem = useCallback(() => {
     let a=0, b=0, answer=0, text='';
     const { operation, digits } = settings;
 
@@ -162,18 +160,27 @@ export default function MathArcher() {
         wobbleSpeed: Math.random() * 0.05 + 0.02
       };
     });
-  };
+  }, [settings]);
 
-  // --- GAME LIFECYCLE ---
-  const startGame = () => {
+  // UPGRADE: Throttled UI Sync to prevent React from freezing the Canvas
+  const syncUI = useCallback((force = false) => {
+    const now = performance.now();
+    if (force || now - lastSyncRef.current > 100) {
+        setPlayerStats([...gameRef.current.players]);
+        lastSyncRef.current = now;
+    }
+  }, []);
+
+  const startGame = useCallback(() => {
     gameRef.current.state = 'playing';
+    gameRef.current.activePointers.clear(); // Reset pointers safely
     
     const sectionWidth = window.innerWidth / settings.playerCount;
     gameRef.current.players = Array.from({ length: settings.playerCount }).map((_, i) => ({
       id: i,
       color: PLAYER_COLORS[i],
       score: 0,
-      lives: 5, // INCREASED TO 5 LIVES
+      lives: 5,
       bowX: (sectionWidth * i) + (sectionWidth / 2),
       bowY: window.innerHeight - (window.innerWidth < 768 ? MOBILE_BOW_OFFSET : SMARTBOARD_BOW_OFFSET),
       bowAngle: -Math.PI / 2,
@@ -183,17 +190,14 @@ export default function MathArcher() {
       interaction: { isDown: false, startX: 0, startY: 0, currentX: 0, currentY: 0 }
     }));
 
-    syncUI();
+    syncUI(true);
     generateProblem();
     setUiState('playing');
-  };
+  }, [settings, generateProblem, syncUI]);
 
-  const syncUI = () => {
-    setPlayerStats([...gameRef.current.players]);
-  };
-
-  const handleGameOver = () => {
+  const handleGameOver = useCallback(() => {
     gameRef.current.state = 'gameover';
+    gameRef.current.activePointers.clear();
     
     let maxScore = -1;
     let winners: string[] = [];
@@ -208,8 +212,9 @@ export default function MathArcher() {
       setWinnerMessage(winners.length > 1 ? "It's a Tie!" : `${winners[0]} Wins!`);
     }
     
+    syncUI(true);
     setUiState('gameover');
-  };
+  }, [settings.playerCount, syncUI]);
 
   const spawnParticles = (x: number, y: number, color: string) => {
     for (let i = 0; i < 25; i++) {
@@ -223,11 +228,10 @@ export default function MathArcher() {
     }
   };
 
-  // --- CANVAS RENDER LOOP ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false }); // Hardware acceleration optimization
 
     if (gameRef.current.clouds.length === 0) {
       for(let i=0; i<6; i++){
@@ -277,6 +281,7 @@ export default function MathArcher() {
 
       if (state === 'playing') {
         let activePlayers = 0;
+        let needsUIRefresh = false;
 
         players.forEach(p => {
           if (p.lives <= 0) return; 
@@ -297,12 +302,10 @@ export default function MathArcher() {
               p.charge = Math.min(dist * 0.4, p.maxCharge);
             }
           } else if (!interaction.isDown && arrow.state === 'nocked') {
-            // FIX 1: Lowered release threshold from 10 to 5 to eliminate delay
             if (p.charge > 5) { 
               arrow.state = 'flying';
               arrow.x = p.bowX - Math.cos(p.bowAngle) * p.charge;
               arrow.y = p.bowY - Math.sin(p.bowAngle) * p.charge;
-              // FIX 1: Increased base launch velocity significantly (+25) for snappier shots
               arrow.vx = Math.cos(p.bowAngle) * (p.charge * 0.8 + 25);
               arrow.vy = Math.sin(p.bowAngle) * (p.charge * 0.8 + 25);
             } else {
@@ -326,7 +329,7 @@ export default function MathArcher() {
             if (arrow.y > height || arrow.x < 0 || arrow.x > width) {
               p.lives--;
               arrow.state = 'idle';
-              syncUI();
+              needsUIRefresh = true;
             }
           }
 
@@ -381,25 +384,18 @@ export default function MathArcher() {
             ctx.rotate(arrow.angle);
           }
           
-          // FIX 2: Completely Redesigned Round-Back Arrow
-          
-          // 1. The Shaft (Now distinctly rounded lineCap)
           ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(35, 0);
           ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.stroke();
           
-          // 2. The Fletching (Flat vertical back, sloping forward to shaft)
           ctx.fillStyle = p.color.main;
           ctx.beginPath(); ctx.moveTo(-30, -6); ctx.lineTo(-15, 0); ctx.lineTo(-30, 0); ctx.fill();
           ctx.beginPath(); ctx.moveTo(-30, 6); ctx.lineTo(-15, 0); ctx.lineTo(-30, 0); ctx.fill();
 
-          // 3. The Nock (Round circle right at the tail end)
           ctx.beginPath(); ctx.arc(-30, 0, 4, 0, Math.PI * 2);
           ctx.fillStyle = p.color.main; ctx.fill();
 
-          // 4. The Arrowhead
           ctx.fillStyle = '#475569'; 
           ctx.beginPath(); ctx.moveTo(35, -6); ctx.lineTo(48, 0); ctx.lineTo(35, 6); ctx.fill();
-          
           ctx.restore();
         });
 
@@ -429,14 +425,14 @@ export default function MathArcher() {
                   spawnParticles(b.x, b.y, b.color);
                   p.score += 10;
                   p.arrow.state = 'idle';
-                  syncUI();
+                  needsUIRefresh = true;
                   generateProblem(); 
                 } else {
                   spawnParticles(b.x, b.y, '#64748b');
                   balloons.splice(i, 1); 
                   p.lives--;
                   p.arrow.state = 'idle';
-                  syncUI();
+                  needsUIRefresh = true;
                 }
               }
             }
@@ -482,6 +478,9 @@ export default function MathArcher() {
           ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
         }
+
+        // Only sync UI if a score or life changed
+        if (needsUIRefresh) syncUI();
       }
       
       animationRef.current = requestAnimationFrame(draw);
@@ -493,102 +492,66 @@ export default function MathArcher() {
       window.removeEventListener('resize', resize);
       cancelAnimationFrame(animationRef.current);
     };
-  }, []);
+  }, [generateProblem, syncUI]);
 
-  const getPlayerZone = (clientX: number) => {
+  // UPGRADE: Unified Pointer Events (Hardware Accelerated Multi-Touch & Mouse)
+  const getPlayerZone = useCallback((clientX: number) => {
     const sectionWidth = window.innerWidth / settings.playerCount;
-    const index = Math.floor(clientX / sectionWidth);
-    return Math.min(index, settings.playerCount - 1);
-  };
+    return Math.min(Math.floor(clientX / sectionWidth), settings.playerCount - 1);
+  }, [settings.playerCount]);
 
-  const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (gameRef.current.state !== 'playing') return;
-    
-    if ('touches' in e && e.cancelable) e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId); // Lock touch to canvas
 
-    if ('changedTouches' in e) {
-      Array.from(e.changedTouches).forEach(touch => {
-        const pIndex = getPlayerZone(touch.clientX);
-        const player = gameRef.current.players[pIndex];
-        if (player && player.lives > 0) {
-          gameRef.current.activeTouches[touch.identifier] = pIndex;
-          player.interaction = { isDown: true, startX: touch.clientX, startY: touch.clientY, currentX: touch.clientX, currentY: touch.clientY };
-        }
-      });
-    } else {
-      const mouseEvent = e as React.MouseEvent;
-      const pIndex = getPlayerZone(mouseEvent.clientX);
+    const pIndex = getPlayerZone(e.clientX);
+    const player = gameRef.current.players[pIndex];
+    if (player && player.lives > 0) {
+      gameRef.current.activePointers.set(e.pointerId, pIndex);
+      player.interaction = { isDown: true, startX: e.clientX, startY: e.clientY, currentX: e.clientX, currentY: e.clientY };
+    }
+  }, [getPlayerZone]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (gameRef.current.state !== 'playing') return;
+
+    const pIndex = gameRef.current.activePointers.get(e.pointerId);
+    if (pIndex !== undefined) {
       const player = gameRef.current.players[pIndex];
-      if (player && player.lives > 0) {
-        player.interaction = { isDown: true, startX: mouseEvent.clientX, startY: mouseEvent.clientY, currentX: mouseEvent.clientX, currentY: mouseEvent.clientY };
+      if (player && player.interaction.isDown) {
+        player.interaction.currentX = e.clientX;
+        player.interaction.currentY = e.clientY;
       }
     }
-  };
+  }, []);
 
-  const handlePointerMove = (e: React.MouseEvent | React.TouchEvent) => {
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (gameRef.current.state !== 'playing') return;
 
-    if ('changedTouches' in e) {
-      Array.from(e.changedTouches).forEach(touch => {
-        const pIndex = gameRef.current.activeTouches[touch.identifier];
-        if (pIndex !== undefined) {
-          const player = gameRef.current.players[pIndex];
-          if (player) {
-            player.interaction.currentX = touch.clientX;
-            player.interaction.currentY = touch.clientY;
-          }
-        }
-      });
-    } else {
-      const mouseEvent = e as React.MouseEvent;
-      gameRef.current.players.forEach(player => {
-        if (player.interaction.isDown) {
-          player.interaction.currentX = mouseEvent.clientX;
-          player.interaction.currentY = mouseEvent.clientY;
-        }
-      });
+    const pIndex = gameRef.current.activePointers.get(e.pointerId);
+    if (pIndex !== undefined) {
+      const player = gameRef.current.players[pIndex];
+      if (player) player.interaction.isDown = false;
+      gameRef.current.activePointers.delete(e.pointerId);
     }
-  };
-
-  const handlePointerUp = (e: React.MouseEvent | React.TouchEvent) => {
-    if (gameRef.current.state !== 'playing') return;
-
-    if ('changedTouches' in e) {
-      Array.from(e.changedTouches).forEach(touch => {
-        const pIndex = gameRef.current.activeTouches[touch.identifier];
-        if (pIndex !== undefined) {
-          const player = gameRef.current.players[pIndex];
-          if (player) player.interaction.isDown = false;
-          delete gameRef.current.activeTouches[touch.identifier];
-        }
-      });
-    } else {
-      gameRef.current.players.forEach(p => p.interaction.isDown = false);
-    }
-  };
+  }, []);
 
   return (
-    <div 
-      className="relative w-full h-[100dvh] overflow-hidden select-none bg-sky-200 font-sans touch-none flex flex-col"
-      onMouseMove={handlePointerMove}
-      onMouseDown={handlePointerDown}
-      onMouseUp={handlePointerUp}
-      onMouseLeave={handlePointerUp}
-      onTouchMove={handlePointerMove}
-      onTouchStart={handlePointerDown}
-      onTouchEnd={handlePointerUp}
-      onTouchCancel={handlePointerUp}
-    >
-      <canvas ref={canvasRef} className="absolute inset-0 z-0 cursor-crosshair block" />
+    <div className="relative w-full h-[100dvh] overflow-hidden select-none bg-sky-200 font-sans touch-none flex flex-col">
+      <canvas 
+        ref={canvasRef} 
+        className="absolute inset-0 z-0 cursor-crosshair block" 
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerOut={handlePointerUp} // Ensures release if finger slides off screen
+      />
 
       {/* --- IN-GAME DOM HUD --- */}
       {uiState === 'playing' && (
         <div className="absolute inset-0 z-10 pointer-events-none">
-          
-          {/* Top Corners Container for Scores */}
           <div className="absolute top-4 inset-x-2 md:inset-x-6 flex justify-between items-start z-20">
-            
-            {/* LEFT SIDE: Player 1 (Red) & Player 3 (Green) */}
             <div className="flex flex-col gap-2 md:gap-3 items-start">
               {playerStats.filter((_, i) => i === 0 || i === 2).map((p) => (
                 <div 
@@ -611,7 +574,6 @@ export default function MathArcher() {
               ))}
             </div>
 
-            {/* RIGHT SIDE: Player 2 (Blue) & Player 4 (Yellow) */}
             <div className="flex flex-col gap-2 md:gap-3 items-end">
               {playerStats.filter((_, i) => i === 1 || i === 3).map((p) => (
                 <div 
@@ -633,10 +595,8 @@ export default function MathArcher() {
                 </div>
               ))}
             </div>
-
           </div>
 
-          {/* Top-Center: Compact Equation Display */}
           <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-[150px] sm:max-w-[200px] md:max-w-xs px-2 z-10">
             <div className="bg-white/95 backdrop-blur-md px-3 py-2 md:px-6 md:py-4 rounded-2xl md:rounded-3xl shadow-xl border-b-4 md:border-b-6 border-sky-300 text-center">
               <h2 className="text-sky-500 text-[8px] md:text-xs font-black uppercase tracking-widest mb-0.5 md:mb-1">Target</h2>
@@ -645,13 +605,12 @@ export default function MathArcher() {
               </div>
             </div>
           </div>
-
         </div>
       )}
 
       {/* --- MENU OVERLAY --- */}
       {uiState === 'menu' && (
-        <div className="absolute inset-0 z-20 bg-sky-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+        <div className="absolute inset-0 z-20 bg-sky-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto pointer-events-auto">
           <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-2xl w-full max-w-3xl border-4 border-white/50 my-auto">
             
             <div className="text-center mb-8">
@@ -660,7 +619,6 @@ export default function MathArcher() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-              {/* Math Settings */}
               <div className="space-y-6 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                 <div>
                   <h3 className="text-slate-500 font-bold uppercase tracking-wider text-xs mb-3 flex items-center gap-2"><Target className="w-4 h-4"/> Select Operation</h3>
@@ -701,7 +659,6 @@ export default function MathArcher() {
                 </div>
               </div>
 
-              {/* Player Setup */}
               <div className="bg-sky-50 p-6 rounded-3xl border border-sky-100 flex flex-col justify-center">
                 <h3 className="text-sky-700 font-black uppercase tracking-wider text-sm mb-4 flex items-center gap-2 justify-center">
                   <Users className="w-5 h-5"/> How many players?
@@ -741,7 +698,7 @@ export default function MathArcher() {
 
       {/* --- GAME OVER OVERLAY --- */}
       {uiState === 'gameover' && (
-        <div className="absolute inset-0 z-30 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 md:p-4">
+        <div className="absolute inset-0 z-30 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 md:p-4 pointer-events-auto">
           <div className="bg-white rounded-[2rem] p-4 md:p-8 shadow-2xl text-center max-w-2xl w-full border-4 border-slate-200 max-h-[95vh] flex flex-col">
             <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-2 shrink-0">Round Over!</h2>
             

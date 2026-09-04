@@ -1,55 +1,53 @@
 "use client";
-import dynamic from 'next/dynamic';
-import React, { Suspense } from 'react';
-import FLNStoryQuiz from './FLNStoryQuiz';
-import FrogJumpQuiz from './FrogJumpQuiz';
-import FingerCountQuiz from './FingerCountQuiz';
-import BasicOperationWordProblems from './BasicOperationWordProblems';
-import TallyAddition from './TallyAddition';
-import MathsPractice from './MathsPractice';
-import AppleOrderQuiz from './AppleOrderQuiz';
-import MasterQuizUptoHundred from './MasterQuizUptoHundred';
-import CPAAdditionQuiz from './CPAAdditionQuiz';
-import FLNBlocksQuiz from './FLNBlocksQuiz';
-import BasicOperationsCrossword from './BasicOperationsCrossword'
-import MultiplicationTranslator from './MultiplicationTranslator';
-import RapidFireMathArena from './RapidFireMathArena';
-import FLNHindiAssessment from './FLNHindiAssessment';
 
+import dynamic from 'next/dynamic';
+import React from 'react';
+
+// ==========================================
+// 1. LOADING STATE (The Shell)
+// ==========================================
 const QuizLoader = () => (
-  <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-slate-100">
-     <div className="w-12 h-12 border-4 border-sky-200 border-t-sky-500 rounded-full animate-spin mb-4"></div>
-     <h3 className="text-slate-500 font-bold animate-pulse">Loading Interactive Quiz...</h3>
+  <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-slate-50 rounded-[3xl] border-4 border-dashed border-slate-200">
+     <div className="w-12 h-12 border-8 border-sky-100 border-t-sky-500 rounded-full animate-spin mb-4"></div>
+     <h3 className="text-slate-500 font-black text-xl animate-pulse uppercase tracking-widest">Loading Quiz...</h3>
   </div>
 );
 
-// 1. The Swar & Vyanjan Engine
-const SwarVyanjanQuiz = dynamic(() => import('./SwarVyanjanQuiz'), { 
-  ssr: false,
-  loading: () => <QuizLoader /> 
-});
+// ==========================================
+// 2. UNIFIED DYNAMIC IMPORTS (100% Lazy Loaded)
+// Bypasses the initial bundle bloat completely
+// ==========================================
+const FLNStoryQuiz = dynamic(() => import('./FLNStoryQuiz'), { ssr: false, loading: () => <QuizLoader /> });
+const FrogJumpQuiz = dynamic(() => import('./FrogJumpQuiz'), { ssr: false, loading: () => <QuizLoader /> });
+const FingerCountQuiz = dynamic(() => import('./FingerCountQuiz'), { ssr: false, loading: () => <QuizLoader /> });
+const BasicOperationWordProblems = dynamic(() => import('./BasicOperationWordProblems'), { ssr: false, loading: () => <QuizLoader /> });
+const TallyAddition = dynamic(() => import('./TallyAddition'), { ssr: false, loading: () => <QuizLoader /> });
+const MathsPractice = dynamic(() => import('./MathsPractice'), { ssr: false, loading: () => <QuizLoader /> });
+const AppleOrderQuiz = dynamic(() => import('./AppleOrderQuiz'), { ssr: false, loading: () => <QuizLoader /> });
+const MasterQuizUptoHundred = dynamic(() => import('./MasterQuizUptoHundred'), { ssr: false, loading: () => <QuizLoader /> });
+const CPAAdditionQuiz = dynamic(() => import('./CPAAdditionQuiz'), { ssr: false, loading: () => <QuizLoader /> });
+const FLNBlocksQuiz = dynamic(() => import('./FLNBlocksQuiz'), { ssr: false, loading: () => <QuizLoader /> });
+const BasicOperationsCrossword = dynamic(() => import('./BasicOperationsCrossword'), { ssr: false, loading: () => <QuizLoader /> });
+const MultiplicationTranslator = dynamic(() => import('./MultiplicationTranslator'), { ssr: false, loading: () => <QuizLoader /> });
+const RapidFireMathArena = dynamic(() => import('./RapidFireMathArena'), { ssr: false, loading: () => <QuizLoader /> });
+const FLNHindiAssessment = dynamic(() => import('./FLNHindiAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+const SwarVyanjanQuiz = dynamic(() => import('./SwarVyanjanQuiz'), { ssr: false, loading: () => <QuizLoader /> });
+const HindiWordQuiz = dynamic(() => import('./HindiWordQuiz'), { ssr: false, loading: () => <QuizLoader /> });
+const HindiWordDictation = dynamic(() => import('./HindiWordDictation'), { ssr: false, loading: () => <QuizLoader /> });
+const MasterQuizUptoTen = dynamic(() => import('./MasterQuizUptoTen'), { ssr: false, loading: () => <QuizLoader /> });
 
-// 2. NEW: The Hindi Word & Picture Match Engine
-const HindiWordQuiz = dynamic(() => import('./HindiWordQuiz'), { 
-  ssr: false,
-  loading: () => <QuizLoader /> 
-});
-
-// 3. NEW: The Hindi Word Dictation
-const HindiWordDictation = dynamic(() => import('./HindiWordDictation'), { 
-  ssr: false, loading: () => <QuizLoader /> 
-});
-
-// 4. NEW: The Master Math Counting Quiz (Numbers up to 10)
-const MasterQuizUptoTen = dynamic(() => import('./MasterQuizUptoTen'), { 
-  ssr: false, loading: () => <QuizLoader /> 
-});
-
-// --- THE ROUTER SWITCHBOARD (subtopic id are matched here from csv)---
-const SPECIFIC_QUIZZES: any = {
+// ==========================================
+// 3. THE ROUTER DICTIONARY
+// ==========================================
+const SPECIFIC_QUIZZES: Record<string, React.ComponentType<any>> = {
+  // --- Core Hindi Assessments ---
+  'swar-vyanjan-quiz': SwarVyanjanQuiz, // Catch for the old fallback
   'FLNHindiAssessment': FLNHindiAssessment,
   'hindi-word-match': HindiWordQuiz, 
   'hindi-word-dictation': HindiWordDictation,
+  'barahkhadi-dictation': HindiWordDictation,
+
+  // --- Matra Quizzes ---
   'quiz-matra-aa': HindiWordQuiz,
   'quiz-matra-i': HindiWordQuiz,
   'quiz-matra-ee': HindiWordQuiz,
@@ -61,6 +59,8 @@ const SPECIFIC_QUIZZES: any = {
   'quiz-matra-au': HindiWordQuiz,
   'quiz-matra-ang': HindiWordQuiz,
   'quiz-matra-ah': HindiWordQuiz,
+
+  // --- Matra Dictations ---
   'dictation-matra-aa': HindiWordDictation,
   'dictation-matra-i': HindiWordDictation,
   'dictation-matra-ee': HindiWordDictation,
@@ -72,11 +72,8 @@ const SPECIFIC_QUIZZES: any = {
   'dictation-matra-au': HindiWordDictation,
   'dictation-matra-ang': HindiWordDictation,
   'dictation-matra-ah': HindiWordDictation,
-  'barahkhadi-dictation': HindiWordDictation,
 
-  // ==========================================
-  // CHAPTER 7: STORIES (QUIZ PHASE)
-  // ==========================================
+  // --- FLN Story Quizzes ---
   'story-1-quiz': FLNStoryQuiz,
   'story-2-quiz': FLNStoryQuiz,
   'story-3-quiz': FLNStoryQuiz,
@@ -85,11 +82,9 @@ const SPECIFIC_QUIZZES: any = {
   'story-6-quiz': FLNStoryQuiz,
   'story-7-quiz': FLNStoryQuiz,
 
-  // ==========================================
-  // MATH QUIZZES
-  // ==========================================
-  'master-quiz-upto-ten': MasterQuizUptoTen, // Use this exact ID in your CSV!
-  'numbers-1-to-10-quiz': MasterQuizUptoTen, // Added an alias just in case
+  // --- Math Quizzes ---
+  'master-quiz-upto-ten': MasterQuizUptoTen,
+  'numbers-1-to-10-quiz': MasterQuizUptoTen,
   'frog-jump-quiz': FrogJumpQuiz,
   'finger-count-quiz': FingerCountQuiz,
   'word-problem-quiz': BasicOperationWordProblems,
@@ -104,33 +99,36 @@ const SPECIFIC_QUIZZES: any = {
   'rapid-fire': RapidFireMathArena
 };
 
+// ==========================================
+// 4. MAIN COMPONENT EXPORT
+// ==========================================
 export default function QuizRegistry({ lesson, onComplete }: any) {
   // Extract the slug
   const slug = lesson.subtopicId || lesson.content_url?.split('/').pop();
 
-  if (!slug) return <div className="p-10 text-center text-rose-500 font-bold">Error: Missing Subtopic ID</div>;
-
-  // 1. Check for unique quizzes first (like the Word Match)
-  const SpecificQuiz = SPECIFIC_QUIZZES[slug];
-  if (SpecificQuiz) {
+  if (!slug) {
     return (
-      <Suspense fallback={<QuizLoader />}>
-        <SpecificQuiz lesson={lesson} onComplete={onComplete} />
-      </Suspense>
+      <div className="w-full p-10 text-center text-rose-500 font-bold bg-rose-50 rounded-3xl border-2 border-rose-200">
+        Error: Missing Subtopic ID
+      </div>
     );
   }
 
-  // 2. Route by Subject (Fallback logic)
+  // Look up the specific quiz in our dictionary
+  const SpecificQuiz = SPECIFIC_QUIZZES[slug];
+
+  // Render if found (next/dynamic automatically handles the Suspense!)
+  if (SpecificQuiz) {
+    return <SpecificQuiz lesson={lesson} onComplete={onComplete} />;
+  }
+
+  // Graceful Fallback if the database asks for a quiz that doesn't exist yet
   return (
-    <Suspense fallback={<QuizLoader />}>
-      {lesson.subject === 'Hindi' ? (
-        <SwarVyanjanQuiz lesson={lesson} onComplete={onComplete} />
-      ) : (
-        <div className="p-12 text-center bg-amber-50 rounded-3xl border-2 border-amber-100">
-          <h2 className="text-amber-600 font-black text-2xl">Quiz Coming Soon!</h2>
-          <p className="text-amber-500 font-bold">The {lesson.subject} quiz is currently under construction.</p>
-        </div>
-      )}
-    </Suspense>
+    <div className="w-full h-[60vh] flex flex-col items-center justify-center p-12 text-center bg-amber-50 rounded-[3xl] border-4 border-amber-200">
+      <h2 className="text-amber-500 font-black text-3xl mb-4">Quiz Coming Soon!</h2>
+      <p className="text-amber-600 font-bold text-lg max-w-md">
+        The interactive quiz for <span className="text-sky-500">"{lesson.title || slug}"</span> is currently being constructed. Check back later!
+      </p>
+    </div>
   );
 }
