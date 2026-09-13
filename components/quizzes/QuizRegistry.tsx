@@ -47,6 +47,18 @@ const SPECIFIC_QUIZZES: Record<string, React.ComponentType<any>> = {
   'hindi-word-dictation': HindiWordDictation,
   'barahkhadi-dictation': HindiWordDictation,
 
+// --- Hindi Tools (Chapters 1 & 2: Swar & Vyanjan) ---
+  'swar-a-oo': SwarVyanjanQuiz,
+  'swar-ri-aha': SwarVyanjanQuiz,
+  'vyanjan-ka': SwarVyanjanQuiz,
+  'vyanjan-cha': SwarVyanjanQuiz,
+  'vyanjan-tta': SwarVyanjanQuiz,
+  'vyanjan-ta': SwarVyanjanQuiz,
+  'vyanjan-pa': SwarVyanjanQuiz,
+  'vyanjan-ya': SwarVyanjanQuiz,
+  'vyanjan-sha': SwarVyanjanQuiz,
+  'vyanjan-ksha': SwarVyanjanQuiz,
+
   // --- Matra Quizzes ---
   'quiz-matra-aa': HindiWordQuiz,
   'quiz-matra-i': HindiWordQuiz,

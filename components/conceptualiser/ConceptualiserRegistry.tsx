@@ -75,6 +75,19 @@ const SPECIFIC_TOOLS: Record<string, React.ComponentType<any>> = {
   'times-table': TimesTable,
   'long-multiplication': LongMultiplicationIntro,
 
+
+// --- Hindi Tools (Chapters 1 & 2: Swar & Vyanjan) ---
+  'swar-a-oo': SwarVyanjanConceptualiser,
+  'swar-ri-aha': SwarVyanjanConceptualiser,
+  'vyanjan-ka': SwarVyanjanConceptualiser,
+  'vyanjan-cha': SwarVyanjanConceptualiser,
+  'vyanjan-tta': SwarVyanjanConceptualiser,
+  'vyanjan-ta': SwarVyanjanConceptualiser,
+  'vyanjan-pa': SwarVyanjanConceptualiser,
+  'vyanjan-ya': SwarVyanjanConceptualiser,
+  'vyanjan-sha': SwarVyanjanConceptualiser,
+  'vyanjan-ksha': SwarVyanjanConceptualiser,
+
   // --- Hindi Tools ---
   'full-barahkhadi': BarahkhadiVisualiser,
   
@@ -123,11 +136,8 @@ const SPECIFIC_TOOLS: Record<string, React.ComponentType<any>> = {
 // 4. MAIN COMPONENT EXPORT
 // ==========================================
 export default function ConceptualiserRegistry({ lesson, onComplete }: any) {
-  // Grab the raw ID from your Database
-  const rawSlug = lesson.subtopicId || lesson.routePath?.split('/').pop() || '';
-  
-  // THE SANITIZER: Strip out all invisible carriage returns (\r), newlines, spaces, and force lowercase.
-  const slug = String(rawSlug).toLowerCase().replace(/[^a-z0-9-]/g, '');
+  // Grab the ID identically to how GameRegistry and QuizRegistry do it
+  const slug = lesson.subtopicId || lesson.routePath?.split('/').pop();
 
   // Failsafe if ID is completely missing
   if (!slug) {
@@ -142,12 +152,11 @@ export default function ConceptualiserRegistry({ lesson, onComplete }: any) {
   const SpecificTool = SPECIFIC_TOOLS[slug];
   
   if (SpecificTool) {
-    return <SpecificTool lesson={lesson} onComplete={onComplete} />;
+    // We pass both subtopicId (for Swar/Vyanjan) and lesson
+    return <SpecificTool subtopicId={slug} lesson={lesson} onComplete={onComplete} />;
   }
 
   // Safety Catch: Graceful Fallback if the tool isn't in the dictionary
-  // Note: We leave SwarVyanjan here only if the system explicitly requests a general Hindi fallback.
-  // Otherwise, it provides a clean "Under Construction" message like the games registry.
   return (
     <div className="w-full h-[60vh] flex flex-col items-center justify-center p-12 text-center bg-slate-50 rounded-[3xl] border-4 border-dashed border-slate-200">
       <h2 className="text-purple-500 font-black text-3xl mb-4">Lesson Coming Soon!</h2>

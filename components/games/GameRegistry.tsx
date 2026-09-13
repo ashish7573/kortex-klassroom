@@ -45,6 +45,19 @@ const SPECIFIC_GAMES: Record<string, React.ComponentType<any>> = {
   'game-matra-au': HindiWordCrush,
   'game-matra-ang': HindiWordCrush,
   'game-matra-ah': HindiWordCrush,
+
+// --- Hindi Tools (Chapters 1 & 2: Swar & Vyanjan) ---
+  'swar-a-oo': SwarVyanjanGame,
+  'swar-ri-aha': SwarVyanjanGame,
+  'vyanjan-ka': SwarVyanjanGame,
+  'vyanjan-cha': SwarVyanjanGame,
+  'vyanjan-tta': SwarVyanjanGame,
+  'vyanjan-ta': SwarVyanjanGame,
+  'vyanjan-pa': SwarVyanjanGame,
+  'vyanjan-ya': SwarVyanjanGame,
+  'vyanjan-sha': SwarVyanjanGame,
+  'vyanjan-ksha': SwarVyanjanGame,
+  
 };
 
 // 4. THE MAIN REGISTRY COMPONENT

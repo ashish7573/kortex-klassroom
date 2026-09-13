@@ -51,7 +51,7 @@ export const HINDI_ASSETS: any = {
     audio: '/assets/hindi/audio/oo.mp3', theme: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-200', btn: 'bg-indigo-500 hover:bg-indigo-600',
     examples: [
       { word: 'ऊदबिलाव', english: 'Otter', image: '/assets/hindi/images/oodbilaav.png', emoji: '🦦' },
-      { word: 'ऊंट', english: 'Camel', image: '/assets/hindi/images/oont.png', emoji: '🐫' },
+      { word: 'ऊँट', english: 'Camel', image: '/assets/hindi/images/oont.png', emoji: '🐫' },
       { word: 'ऊन', english: 'Wool', image: '/assets/hindi/images/oon.png', emoji: '🧶' },
       { word: 'ऊपर', english: 'Up', image: '/assets/hindi/images/oopar.png', emoji: '⬆️' }
     ]
