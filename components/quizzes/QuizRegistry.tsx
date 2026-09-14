@@ -47,7 +47,7 @@ const SPECIFIC_QUIZZES: Record<string, React.ComponentType<any>> = {
   'hindi-word-dictation': HindiWordDictation,
   'barahkhadi-dictation': HindiWordDictation,
 
-// --- Hindi Tools (Chapters 1 & 2: Swar & Vyanjan) ---
+  // --- Hindi Tools (Chapters 1 & 2: Swar & Vyanjan) ---
   'swar-a-oo': SwarVyanjanQuiz,
   'swar-ri-aha': SwarVyanjanQuiz,
   'vyanjan-ka': SwarVyanjanQuiz,
@@ -86,6 +86,28 @@ const SPECIFIC_QUIZZES: Record<string, React.ComponentType<any>> = {
   'dictation-matra-ah': HindiWordDictation,
 
   // --- FLN Story Quizzes ---
+  // Level 1: 2-Letter Amatrik
+  'story-a1-quiz': FLNStoryQuiz,
+  'story-a2-quiz': FLNStoryQuiz,
+  'story-a3-quiz': FLNStoryQuiz,
+  'story-a4-quiz': FLNStoryQuiz,
+  'story-a5-quiz': FLNStoryQuiz,
+
+  // Level 2: 2 & 3-Letter Amatrik
+  'story-b1-quiz': FLNStoryQuiz,
+  'story-b2-quiz': FLNStoryQuiz,
+  'story-b3-quiz': FLNStoryQuiz,
+  'story-b4-quiz': FLNStoryQuiz,
+  'story-b5-quiz': FLNStoryQuiz,
+
+  // Level 3: 2, 3 & 4-Letter Amatrik
+  'story-c1-quiz': FLNStoryQuiz,
+  'story-c2-quiz': FLNStoryQuiz,
+  'story-c3-quiz': FLNStoryQuiz,
+  'story-c4-quiz': FLNStoryQuiz,
+  'story-c5-quiz': FLNStoryQuiz,
+
+  // Level 4: Original Matra Stories
   'story-1-quiz': FLNStoryQuiz,
   'story-2-quiz': FLNStoryQuiz,
   'story-3-quiz': FLNStoryQuiz,
@@ -115,7 +137,7 @@ const SPECIFIC_QUIZZES: Record<string, React.ComponentType<any>> = {
 // 4. MAIN COMPONENT EXPORT
 // ==========================================
 export default function QuizRegistry({ lesson, onComplete }: any) {
-  // Extract the slug
+  // Extract the slug without the sanitizer block
   const slug = lesson.subtopicId || lesson.content_url?.split('/').pop();
 
   if (!slug) {
@@ -131,7 +153,8 @@ export default function QuizRegistry({ lesson, onComplete }: any) {
 
   // Render if found (next/dynamic automatically handles the Suspense!)
   if (SpecificQuiz) {
-    return <SpecificQuiz lesson={lesson} onComplete={onComplete} />;
+    // Explicitly pass subtopicId down just like we did in ConceptualiserRegistry
+    return <SpecificQuiz subtopicId={slug} lesson={lesson} onComplete={onComplete} />;
   }
 
   // Graceful Fallback if the database asks for a quiz that doesn't exist yet

@@ -1,10 +1,416 @@
 // lib/FLNStories.ts
 
 export const STORIES_DATA = [
+  // ==========================================
+  // LEVEL 1: 2-LETTER WORDS (AMATRIK)
+  // ==========================================
+  {
+    id: 'story-a1',
+    title: 'घर चल',
+    description: '2-Letter Words (No Matra)',
+    pages: [
+      { image: 'sa1_p1.jpg', text: 'यश घर चल।' },
+      { image: 'sa1_p2.jpg', text: 'नल पर जल भर।' },
+      { image: 'sa1_p3.jpg', text: 'जग भर कर रख।' },
+      { image: 'sa1_p4.jpg', text: 'अब टब भर।' },
+      { image: 'sa1_p5.jpg', text: 'हठ मत कर।' }
+    ],
+    quiz: [
+      {
+        question: 'यश को कहाँ चलने को कहा?',
+        options: ['वन', 'घर', 'छत'],
+        correctAnswer: 'घर'
+      },
+      {
+        question: 'जल किस पर भरने को कहा?',
+        options: ['जग', 'मग', 'नल'],
+        correctAnswer: 'नल'
+      }
+    ]
+  },
+  {
+    id: 'story-a2',
+    title: 'रथ पर चढ़',
+    description: '2-Letter Words (No Matra)',
+    pages: [
+      { image: 'sa2_p1.jpg', text: 'जय रथ पर चढ़।' },
+      { image: 'sa2_p2.jpg', text: 'अब पथ पर चल।' },
+      { image: 'sa2_p3.jpg', text: 'वन तक चल।' },
+      { image: 'sa2_p4.jpg', text: 'गज पर मत चढ़।' },
+      { image: 'sa2_p5.jpg', text: 'अब मत डर।' }
+    ],
+    quiz: [
+      {
+        question: 'जय को किस पर चढ़ने को कहा?',
+        options: ['बस', 'रथ', 'गज'],
+        correctAnswer: 'रथ'
+      },
+      {
+        question: 'वन में किस पर नहीं चढ़ने को कहा?',
+        options: ['गज', 'रथ', 'छत'],
+        correctAnswer: 'गज'
+      }
+    ]
+  },
+  {
+    id: 'story-a3',
+    title: 'खत पढ़',
+    description: '2-Letter Words (No Matra)',
+    pages: [
+      { image: 'sa3_p1.jpg', text: 'लव अब खत पढ़।' },
+      { image: 'sa3_p2.jpg', text: 'खत पढ़ कर रख।' },
+      { image: 'sa3_p3.jpg', text: 'कप भर कर रख।' },
+      { image: 'sa3_p4.jpg', text: 'अब फल चख।' },
+      { image: 'sa3_p5.jpg', text: 'सच सच कह।' }
+    ],
+    quiz: [
+      {
+        question: 'लव को क्या पढ़ने को कहा?',
+        options: ['खत', 'सच', 'कप'],
+        correctAnswer: 'खत'
+      },
+      {
+        question: 'लव को क्या चखने को कहा?',
+        options: ['जल', 'रस', 'फल'],
+        correctAnswer: 'फल'
+      }
+    ]
+  },
+  {
+    id: 'story-a4',
+    title: 'बस पर चढ़',
+    description: '2-Letter Words (No Matra)',
+    pages: [
+      { image: 'sa4_p1.jpg', text: 'अब बस पर चढ़।' },
+      { image: 'sa4_p2.jpg', text: 'छत पर मत चढ़।' },
+      { image: 'sa4_p3.jpg', text: 'यह धन रख।' },
+      { image: 'sa4_p4.jpg', text: 'दस मग जल भर।' },
+      { image: 'sa4_p5.jpg', text: 'जड़ पर जल रख।' }
+    ],
+    quiz: [
+      {
+        question: 'कहाँ मत चढ़?',
+        options: ['रथ', 'बस', 'छत'],
+        correctAnswer: 'छत'
+      },
+      {
+        question: 'कितने मग जल भरने को कहा?',
+        options: ['दस', 'मग', 'टब'],
+        correctAnswer: 'दस'
+      }
+    ]
+  },
+  {
+    id: 'story-a5',
+    title: 'हल रख',
+    description: '2-Letter Words (No Matra)',
+    pages: [
+      { image: 'sa5_p1.jpg', text: 'हल रख कर चल।' },
+      { image: 'sa5_p2.jpg', text: 'यह नथ रख।' },
+      { image: 'sa5_p3.jpg', text: 'अब घर चल।' },
+      { image: 'sa5_p4.jpg', text: 'दस फल रख।' },
+      { image: 'sa5_p5.jpg', text: 'धन रख कर चल।' }
+    ],
+    quiz: [
+      {
+        question: 'क्या रख कर चलने को कहा?',
+        options: ['हल', 'जग', 'मग'],
+        correctAnswer: 'हल'
+      },
+      {
+        question: 'कितने फल रखने को कहा?',
+        options: ['दस', 'बस', 'रस'],
+        correctAnswer: 'दस'
+      }
+    ]
+  },
+
+  // ==========================================
+  // LEVEL 2: 2 & 3-LETTER WORDS (AMATRIK)
+  // ==========================================
+  {
+    id: 'story-b1',
+    title: 'शहर चल',
+    description: '2 & 3 Letter Words (No Matra)',
+    pages: [
+      { image: 'sb1_p1.jpg', text: 'गगन शहर चल।' },
+      { image: 'sb1_p2.jpg', text: 'सड़क पर मत टहल।' },
+      { image: 'sb1_p3.jpg', text: 'डगर पकड़ कर चल।' },
+      { image: 'sb1_p4.jpg', text: 'अब भवन तक चल।' },
+      { image: 'sb1_p5.jpg', text: 'महल पर कलश रख।' },
+      { image: 'sb1_p6.jpg', text: 'कलश रख कर घर चल।' }
+    ],
+    quiz: [
+      {
+        question: 'गगन को कहाँ चलने को कहा?',
+        options: ['नहर', 'शहर', 'भवन'],
+        correctAnswer: 'शहर'
+      },
+      {
+        question: 'महल पर क्या रखने को कहा?',
+        options: ['कलश', 'कलप', 'कलम'],
+        correctAnswer: 'कलश'
+      }
+    ]
+  },
+  {
+    id: 'story-b2',
+    title: 'नहर पर जल',
+    description: '2 & 3 Letter Words (No Matra)',
+    pages: [
+      { image: 'sb2_p1.jpg', text: 'नयन नहर पर चल।' },
+      { image: 'sb2_p2.jpg', text: 'नहर पर जल भर।' },
+      { image: 'sb2_p3.jpg', text: 'जल पर कमल पकड़।' },
+      { image: 'sb2_p4.jpg', text: 'अब बतख मत पकड़।' },
+      { image: 'sb2_p5.jpg', text: 'मगर पर रहम कर।' },
+      { image: 'sb2_p6.jpg', text: 'घर तक चल।' }
+    ],
+    quiz: [
+      {
+        question: 'नयन को कहाँ चलने को कहा?',
+        options: ['डगर', 'नहर', 'शहर'],
+        correctAnswer: 'नहर'
+      },
+      {
+        question: 'जल पर क्या पकड़ने को कहा?',
+        options: ['कमल', 'बतख', 'मगर'],
+        correctAnswer: 'कमल'
+      }
+    ]
+  },
+  {
+    id: 'story-b3',
+    title: 'गरम मटर',
+    description: '2 & 3 Letter Words (No Matra)',
+    pages: [
+      { image: 'sb3_p1.jpg', text: 'रमन अब उठ।' },
+      { image: 'sb3_p2.jpg', text: 'गरम मटर चख।' },
+      { image: 'sb3_p3.jpg', text: 'अब शहद चख।' },
+      { image: 'sb3_p4.jpg', text: 'मटर पर नमक रख।' },
+      { image: 'sb3_p5.jpg', text: 'यह कलम पकड़।' },
+      { image: 'sb3_p6.jpg', text: 'कलम पकड़ कर खत पढ़।' },
+      { image: 'sb3_p7.jpg', text: 'रबड़ इधर रख।' }
+    ],
+    quiz: [
+      {
+        question: 'मटर पर क्या रखने को कहा?',
+        options: ['शहद', 'नमक', 'रबड़'],
+        correctAnswer: 'नमक'
+      },
+      {
+        question: 'कलम पकड़ कर क्या पढ़ने को कहा?',
+        options: ['किताब', 'खत', 'शहर'],
+        correctAnswer: 'खत'
+      }
+    ]
+  },
+  {
+    id: 'story-b4',
+    title: 'नखत परख',
+    description: '2 & 3 Letter Words (No Matra)',
+    pages: [
+      { image: 'sb4_p1.jpg', text: 'बहन अब घर चल।' },
+      { image: 'sb4_p2.jpg', text: 'वसन पहन कर चल।' },
+      { image: 'sb4_p3.jpg', text: 'यह बटन पकड़।' },
+      { image: 'sb4_p4.jpg', text: 'नयन इधर कर।' },
+      { image: 'sb4_p5.jpg', text: 'नखत परख कर चल।' },
+      { image: 'sb4_p6.jpg', text: 'समझ कर सब पढ़।' }
+    ],
+    quiz: [
+      {
+        question: 'क्या पकड़ने को कहा?',
+        options: ['बटन', 'वसन', 'खत'],
+        correctAnswer: 'बटन'
+      },
+      {
+        question: 'क्या परखने को कहा?',
+        options: ['नयन', 'नखत', 'गगन'],
+        correctAnswer: 'नखत'
+      }
+    ]
+  },
+  {
+    id: 'story-b5',
+    title: 'भवन तक चल',
+    description: '2 & 3 Letter Words (No Matra)',
+    pages: [
+      { image: 'sb5_p1.jpg', text: 'मदन डगर पर चल।' },
+      { image: 'sb5_p2.jpg', text: 'सड़क पर बहस मत कर।' },
+      { image: 'sb5_p3.jpg', text: 'भवन तक चल कर पढ़।' },
+      { image: 'sb5_p4.jpg', text: 'गलत जगह मत ठहर।' },
+      { image: 'sb5_p5.jpg', text: 'कमल पकड़ कर चल।' },
+      { image: 'sb5_p6.jpg', text: 'कलश भर कर रख।' }
+    ],
+    quiz: [
+      {
+        question: 'कहाँ बहस मत कर?',
+        options: ['सड़क', 'डगर', 'लहर'],
+        correctAnswer: 'सड़क'
+      },
+      {
+        question: 'मदन को कहाँ तक चलने को कहा?',
+        options: ['गगन', 'भवन', 'महल'],
+        correctAnswer: 'भवन'
+      }
+    ]
+  },
+
+  // ==========================================
+  // LEVEL 3: 2, 3 & 4-LETTER WORDS (AMATRIK)
+  // ==========================================
+  {
+    id: 'story-c1',
+    title: 'अचकन पहन',
+    description: '2, 3 & 4 Letter Words (No Matra)',
+    pages: [
+      { image: 'sc1_p1.jpg', text: 'दशरथ अब उठ।' },
+      { image: 'sc1_p2.jpg', text: 'झटपट अचकन पहन।' },
+      { image: 'sc1_p3.jpg', text: 'अब बरगद तक चल।' },
+      { image: 'sc1_p4.jpg', text: 'बरगद पर मत चढ़।' },
+      { image: 'sc1_p5.jpg', text: 'बरगद पर खटमल मत पकड़।' },
+      { image: 'sc1_p6.jpg', text: 'अब कसरत कर।' },
+      { image: 'sc1_p7.jpg', text: 'कसरत कर बल पकड़।' },
+      { image: 'sc1_p8.jpg', text: 'बचपन पर समझ कर चल।' },
+      { image: 'sc1_p9.jpg', text: 'पनघट तक चल।' },
+      { image: 'sc1_p10.jpg', text: 'पनघट पर कलश भर।' }
+    ],
+    quiz: [
+      {
+        question: 'दशरथ को क्या पहनने को कहा?',
+        options: ['मलमल', 'अचकन', 'नटखट'],
+        correctAnswer: 'अचकन'
+      },
+      {
+        question: 'बरगद पर क्या नहीं पकड़ने को कहा?',
+        options: ['खटमल', 'कमल', 'बतख'],
+        correctAnswer: 'खटमल'
+      }
+    ]
+  },
+  {
+    id: 'story-c2',
+    title: 'पनघट पर जल',
+    description: '2, 3 & 4 Letter Words (No Matra)',
+    pages: [
+      { image: 'sc2_p1.jpg', text: 'शबनम अब पनघट चल।' },
+      { image: 'sc2_p2.jpg', text: 'पनघट पर बरतन रख।' },
+      { image: 'sc2_p3.jpg', text: 'बरतन रख कर जल भर।' },
+      { image: 'sc2_p4.jpg', text: 'अब यह थरमस भर।' },
+      { image: 'sc2_p5.jpg', text: 'थरमस भर कर घर चल।' },
+      { image: 'sc2_p6.jpg', text: 'डगर पर मत भटक।' },
+      { image: 'sc2_p7.jpg', text: 'घर चल कर खत पढ़।' },
+      { image: 'sc2_p8.jpg', text: 'सब खत समझ कर पढ़।' },
+      { image: 'sc2_p9.jpg', text: 'अब शरबत चख।' },
+      { image: 'sc2_p10.jpg', text: 'शरबत चख कर कसरत कर।' }
+    ],
+    quiz: [
+      {
+        question: 'शबनम को कहाँ चलने को कहा?',
+        options: ['पनघट', 'सरकस', 'बरगद'],
+        correctAnswer: 'पनघट'
+      },
+      {
+        question: 'पनघट पर क्या रखने को कहा?',
+        options: ['थरमस', 'बरतन', 'कलश'],
+        correctAnswer: 'बरतन'
+      }
+    ]
+  },
+  {
+    id: 'story-c3',
+    title: 'दमकल पर चढ़',
+    description: '2, 3 & 4 Letter Words (No Matra)',
+    pages: [
+      { image: 'sc3_p1.jpg', text: 'गगन शहर तक चल।' },
+      { image: 'sc3_p2.jpg', text: 'सड़क पर दमकल पर चढ़।' },
+      { image: 'sc3_p3.jpg', text: 'अब वन तक चल।' },
+      { image: 'sc3_p4.jpg', text: 'वन पर अजगर मत पकड़।' },
+      { image: 'sc3_p5.jpg', text: 'अजगर पर रहम कर।' },
+      { image: 'sc3_p6.jpg', text: 'घर चल कर अदरक चख।' },
+      { image: 'sc3_p7.jpg', text: 'अदरक चख कर सच कह।' },
+      { image: 'sc3_p8.jpg', text: 'अब शलगम चख।' },
+      { image: 'sc3_p9.jpg', text: 'शलगम चख कर समझ।' },
+      { image: 'sc3_p10.jpg', text: 'नटखट मत बन।' }
+    ],
+    quiz: [
+      {
+        question: 'सड़क पर किस पर चढ़ने को कहा?',
+        options: ['दमकल', 'बस', 'रथ'],
+        correctAnswer: 'दमकल'
+      },
+      {
+        question: 'घर चल कर क्या चखने को कहा?',
+        options: ['शहद', 'अदरक', 'मटर'],
+        correctAnswer: 'अदरक'
+      }
+    ]
+  },
+  {
+    id: 'story-c4',
+    title: 'थरमस इधर रख',
+    description: '2, 3 & 4 Letter Words (No Matra)',
+    pages: [
+      { image: 'sc4_p1.jpg', text: 'अनवर अब घर चल।' },
+      { image: 'sc4_p2.jpg', text: 'घर पर बरतन रख।' },
+      { image: 'sc4_p3.jpg', text: 'बरतन पर मटर रख।' },
+      { image: 'sc4_p4.jpg', text: 'अब थरमस इधर रख।' },
+      { image: 'sc4_p5.jpg', text: 'थरमस रख कर कसरत कर।' },
+      { image: 'sc4_p6.jpg', text: 'कसरत कर कर मत थक।' },
+      { image: 'sc4_p7.jpg', text: 'नहर पर चल कर जल भर।' },
+      { image: 'sc4_p8.jpg', text: 'जल भर कर महल चल।' },
+      { image: 'sc4_p9.jpg', text: 'महल पर सच सच कह।' },
+      { image: 'sc4_p10.jpg', text: 'छत पर मत टहल।' }
+    ],
+    quiz: [
+      {
+        question: 'घर पर क्या रखने को कहा?',
+        options: ['थरमस', 'बरतन', 'मटर'],
+        correctAnswer: 'बरतन'
+      },
+      {
+        question: 'थरमस रख कर क्या करने को कहा?',
+        options: ['कसरत', 'गपशप', 'भजन'],
+        correctAnswer: 'कसरत'
+      }
+    ]
+  },
+  {
+    id: 'story-c5',
+    title: 'बचपन पर समझ',
+    description: '2, 3 & 4 Letter Words (No Matra)',
+    pages: [
+      { image: 'sc5_p1.jpg', text: 'गणपत अब अचकन पहन।' },
+      { image: 'sc5_p2.jpg', text: 'अचकन पहन कर पनघट चल।' },
+      { image: 'sc5_p3.jpg', text: 'पनघट पर बरतन भर।' },
+      { image: 'sc5_p4.jpg', text: 'अब बरगद तक चल।' },
+      { image: 'sc5_p5.jpg', text: 'बरगद पर खटमल मत पकड़।' },
+      { image: 'sc5_p6.jpg', text: 'बचपन पर नटखट मत बन।' },
+      { image: 'sc5_p7.jpg', text: 'अब अदरक चख।' },
+      { image: 'sc5_p8.jpg', text: 'शलगम चख कर समझ।' },
+      { image: 'sc5_p9.jpg', text: 'घर तक बस पर चल।' },
+      { image: 'sc5_p10.jpg', text: 'घर चल कर पढ़।' }
+    ],
+    quiz: [
+      {
+        question: 'गणपत को पनघट पर क्या भरने को कहा?',
+        options: ['कलश', 'बरतन', 'टब'],
+        correctAnswer: 'बरतन'
+      },
+      {
+        question: 'गणपत को घर तक किस पर चलने को कहा?',
+        options: ['रथ', 'दमकल', 'बस'],
+        correctAnswer: 'बस'
+      }
+    ]
+  },
+
+  // ==========================================
+  // LEVEL 4: MATRA STORIES (CHAPTER 6+)
+  // ==========================================
   {
     id: 'story-1',
     title: 'अमन और बड़ा गज',
-    description: 'Amatrik (No Matra) Focus',
+    description: 'Mixed Matras Focus',
     pages: [
       { image: 's1_p1.jpg', text: 'एक छोटा लड़का था, उसका नाम अमन था।' },
       { image: 's1_p2.jpg', text: 'अमन अपने घर के बाहर खेल रहा था।' },

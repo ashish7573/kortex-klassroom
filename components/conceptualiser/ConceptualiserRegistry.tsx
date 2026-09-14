@@ -76,7 +76,7 @@ const SPECIFIC_TOOLS: Record<string, React.ComponentType<any>> = {
   'long-multiplication': LongMultiplicationIntro,
 
 
-// --- Hindi Tools (Chapters 1 & 2: Swar & Vyanjan) ---
+  // --- Hindi Tools (Chapters 1 & 2: Swar & Vyanjan) ---
   'swar-a-oo': SwarVyanjanConceptualiser,
   'swar-ri-aha': SwarVyanjanConceptualiser,
   'vyanjan-ka': SwarVyanjanConceptualiser,
@@ -122,7 +122,32 @@ const SPECIFIC_TOOLS: Record<string, React.ComponentType<any>> = {
   'matra-ang': MatraBarahkhadi,
   'matra-ah': MatraBarahkhadi,
   
-  // CHAPTER 7: STORIES (READING PHASE)
+  // ==========================================
+  // CHAPTER 3 & 7: STORIES (READING PHASE)
+  // ==========================================
+  
+  // Level 1: 2-Letter Amatrik
+  'story-a1-read': StoryConceptualiser,
+  'story-a2-read': StoryConceptualiser,
+  'story-a3-read': StoryConceptualiser,
+  'story-a4-read': StoryConceptualiser,
+  'story-a5-read': StoryConceptualiser,
+
+  // Level 2: 2 & 3-Letter Amatrik
+  'story-b1-read': StoryConceptualiser,
+  'story-b2-read': StoryConceptualiser,
+  'story-b3-read': StoryConceptualiser,
+  'story-b4-read': StoryConceptualiser,
+  'story-b5-read': StoryConceptualiser,
+
+  // Level 3: 2, 3 & 4-Letter Amatrik
+  'story-c1-read': StoryConceptualiser,
+  'story-c2-read': StoryConceptualiser,
+  'story-c3-read': StoryConceptualiser,
+  'story-c4-read': StoryConceptualiser,
+  'story-c5-read': StoryConceptualiser,
+
+  // Level 4: Original Matra Stories
   'story-1-read': StoryConceptualiser,
   'story-2-read': StoryConceptualiser,
   'story-3-read': StoryConceptualiser,
