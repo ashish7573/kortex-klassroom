@@ -17,7 +17,9 @@ import {
   User, 
   Heart, 
   Building2, 
-  CheckCircle2, 
+  CheckCircle2,
+  Eye,
+  EyeOff, 
   ArrowRight,
   Sparkles
 } from 'lucide-react';
@@ -35,6 +37,8 @@ export default function UnifiedAuthModal({
 }: UnifiedAuthModalProps) {
   const { resetPassword } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(initialMode);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showParentPassword, setShowParentPassword] = useState(false);
   
   // Sign In State
   const [loginIdentifier, setLoginIdentifier] = useState(''); // Email or Student Username
@@ -359,25 +363,36 @@ export default function UnifiedAuthModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Password</label>
+                    <div className="relative">
                     <input
-                      type="password"
+                      type={showParentPassword ? "text" : "password"}
                       required
                       value={parentPassword}
                       onChange={(e) => setParentPassword(e.target.value)}
                       placeholder="Min 6 chars"
-                      className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2.5 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
+                      className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 pr-10 py-2.5 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowParentPassword(!showParentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showParentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Confirm</label>
+                    <div className="relative">
                     <input
-                      type="password"
+                      type={showParentPassword ? "text" : "password"}
                       required
                       value={parentConfirmPassword}
                       onChange={(e) => setParentConfirmPassword(e.target.value)}
                       placeholder="Confirm"
-                      className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2.5 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
+                      className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 pr-10 py-2.5 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
                     />
+                  </div>
                   </div>
                 </div>
 

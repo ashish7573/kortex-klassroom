@@ -6,7 +6,7 @@ import StudentDashboard from './student/StudentDashboard';
 import TeacherDashboard from './teacher/TeacherDashboard';
 import OrgAdminDashboard from './org_admin/OrgAdminDashboard';
 import KrewDashboard from './krew/KrewDashboard';
-import AdminDashboard from './admin/AdminDashboard';
+import KortexAdminDashboard from './admin/KortexAdminDashboard';
 
 interface UserPortalDispatcherProps {
   profile: UserProfile;
@@ -38,7 +38,8 @@ export default function UserPortalDispatcher({
       return <KrewDashboard profile={profile} onOpenCMS={onOpenCMS} />;
 
     case 'admin':
-      return <AdminDashboard profile={profile} />;
+      // The nodes will be populated by page.tsx if rendered directly, but here we just return the shell if loaded standalone.
+      return <KortexAdminDashboard profile={profile} />;
 
     default:
       return (

@@ -1,16 +1,17 @@
 "use client";
 import React, { useState } from 'react';
 import { AdminProfile } from '../../../types/user';
-import { ShieldAlert, Database, FileText, CheckCircle2, UserCheck, Inbox } from 'lucide-react';
+import { ShieldAlert, Database, FileText, CheckCircle2, UserCheck, Inbox, Users } from 'lucide-react';
+import UsersManager from './UsersManager';
+import SystemConfig from './SystemConfig';
+import ContentApprovals from './ContentApprovals';
 
-interface AdminDashboardProps {
+interface KortexAdminDashboardProps {
   profile: AdminProfile;
-  onOpenSystemConfig?: () => void;
-  onOpenApprovals?: () => void;
 }
 
-export default function AdminDashboard({ profile, onOpenSystemConfig, onOpenApprovals }: AdminDashboardProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'quotes' | 'system' | 'approvals'>('quotes');
+export default function KortexAdminDashboard({ profile }: KortexAdminDashboardProps) {
+  const [activeSubTab, setActiveSubTab] = useState<'quotes' | 'system' | 'approvals' | 'users'>('quotes');
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
@@ -44,10 +45,19 @@ export default function AdminDashboard({ profile, onOpenSystemConfig, onOpenAppr
 
         <button
           type="button"
-          onClick={() => {
-            setActiveSubTab('approvals');
-            onOpenApprovals?.();
-          }}
+          onClick={() => setActiveSubTab('users')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all ${
+            activeSubTab === 'users'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Users size={18} /> Users & Organizations
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('approvals')}
           className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all ${
             activeSubTab === 'approvals'
               ? 'bg-indigo-600 text-white shadow-md'
@@ -59,10 +69,7 @@ export default function AdminDashboard({ profile, onOpenSystemConfig, onOpenAppr
 
         <button
           type="button"
-          onClick={() => {
-            setActiveSubTab('system');
-            onOpenSystemConfig?.();
-          }}
+          onClick={() => setActiveSubTab('system')}
           className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all ${
             activeSubTab === 'system'
               ? 'bg-indigo-600 text-white shadow-md'
@@ -72,6 +79,11 @@ export default function AdminDashboard({ profile, onOpenSystemConfig, onOpenAppr
           <Database size={18} /> System & Database Config
         </button>
       </div>
+
+      {/* Users Manager View */}
+      {activeSubTab === 'users' && (
+        <UsersManager />
+      )}
 
       {/* Inquiries & Quotes Queue */}
       {activeSubTab === 'quotes' && (
@@ -95,6 +107,19 @@ export default function AdminDashboard({ profile, onOpenSystemConfig, onOpenAppr
               New inquiries submitted through the "Partner With Us" institution form will automatically appear here for one-click account creation.
             </p>
           </div>
+        </div>
+      )}
+      {/* System Config View */}
+      {activeSubTab === 'system' && (
+        <div className="bg-white rounded-3xl border-2 border-slate-100 p-8 shadow-sm">
+           <SystemConfig />
+        </div>
+      )}
+
+      {/* Content Approvals View */}
+      {activeSubTab === 'approvals' && (
+        <div className="bg-white rounded-3xl border-2 border-slate-100 p-8 shadow-sm">
+           <ContentApprovals />
         </div>
       )}
     </div>

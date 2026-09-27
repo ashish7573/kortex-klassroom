@@ -10,6 +10,7 @@ export type UserStatus = 'active' | 'suspended' | 'pending';
 
 export interface BaseUserProfile {
   uid: string;
+  kortex_id?: string;             // Custom unique human-readable ID
   email?: string;
   full_name: string;
   role: UserRole;
@@ -18,6 +19,7 @@ export interface BaseUserProfile {
   session_token?: string;
   status: UserStatus;
   avatar?: string;
+  has_completed_onboarding?: boolean; // Used for first-login guards
 }
 
 export interface OrgApprovalRequest {

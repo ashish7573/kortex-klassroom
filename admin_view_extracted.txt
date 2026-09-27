@@ -1,0 +1,612 @@
+// SECTION 12: DIRECTOR COMMAND CENTER (WITH UPGRADED BULK UPLOAD & ANALYTICS)
+// ============================================================================
+
+const AdminView = ({ profile }: any) => {
+  const [activeTab, setActiveTab] = useState('database'); // Default to Database Config
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [requestHistory, setRequestHistory] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingCSV, setIsUploadingCSV] = useState(false);
+  const [syncPreview, setSyncPreview] = useState<{ toAdd: any[], toUpdate: any[] } | null>(null);
+
+  // Fetch Approvals
+  useEffect(() => {
+    async function fetchRequests() {
+      setIsLoading(true);
+      try {
+        const q = query(collection(db, 'content_requests'), orderBy('created_at', 'desc'));
+        const querySnapshot = await getDocs(q);
+        const allReqs = querySnapshot.docs.map(doc => ({ 
+                id: doc.id, 
+                ...doc.data() 
+              } as { 
+                id: string; status: string; [key: string]: any; 
+              }));
+        setPendingRequests(allReqs.filter(req => req.status === 'pending'));
+        setRequestHistory(allReqs.filter(req => req.status !== 'pending'));
+      } catch (error: any) { console.error("🚨 FIREBASE ADMIN FETCH ERROR:", error); } 
+      finally { setIsLoading(false); }
+    }
+    if (activeTab === 'approvals') fetchRequests();
+  }, [activeTab]);
+
+  
+
+  const handleRequestAction = async (request: any, actionStatus: string) => {
+    const isApproved = actionStatus === 'APPROVED';
+    if (!window.confirm(`Are you sure you want to ${isApproved ? 'APPROVE' : 'REJECT'} this request?`)) return;
+    
+    try {
+      const adminEmail = auth.currentUser?.email || 'Admin';
+      const requestRef = doc(db, 'content_requests', request.id);
+      
+      const getMatchedDoc = async (g: string, s: string, c: string) => {
+         const snap = await getDocs(collection(db, 'learning_tools'));
+         return snap.docs.find(d => {
+            const data = d.data();
+            const dGrade = data.grade?.toLowerCase().trim() || '';
+            const dSubj = data.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : (data.subject?.toLowerCase().trim() || '');
+            const dChap = data.chapter?.toLowerCase().trim() || '';
+            const fGrade = g?.toLowerCase().trim() || '';
+            const fSubj = s?.toLowerCase().trim() === 'mathematics' ? 'maths' : (s?.toLowerCase().trim() || '');
+            const fChap = c?.toLowerCase().trim() || '';
+            return dGrade === fGrade && dSubj === fSubj && dChap === fChap;
+         });
+      };
+
+      // QUICK EDIT LOGIC (Chapters & Subtopics)
+      if (isApproved && request.action_type === 'EDIT') {
+         const curRef = doc(db, 'learning_tools', request.target_id);
+         const curSnap = await getDoc(curRef);
+         if (curSnap.exists()) {
+            let data = curSnap.data();
+            const p = request.payload;
+            if (request.target_type === 'CHAPTER') {
+               data.chapter = p.newTitle;
+            } else if (request.target_type === 'SUBTOPIC') {
+               const sIdx = (data.subTopics || []).findIndex((s: any) => s.title === p.oldTitle);
+               if (sIdx > -1) data.subTopics[sIdx].title = p.newTitle;
+            }
+            await setDoc(curRef, data, { merge: true });
+         }
+      }
+
+      // FULL TIER EDIT LOGIC (Tools)
+      if (isApproved && request.action_type === 'FULL_TIER_EDIT') {
+         const p = request.payload;
+         const orig = request.originalData;
+
+         const oldDoc = await getMatchedDoc(p.grade, p.subject, orig.chapter);
+         if (oldDoc) {
+            let oldData = oldDoc.data();
+            let oldSubTopics = oldData.subTopics || [];
+            const sIdx = oldSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === orig.subtopic.toLowerCase().trim());
+            if (sIdx > -1) {
+               oldSubTopics[sIdx].tools = (oldSubTopics[sIdx].tools || []).filter((t: any) => t.title !== orig.toolTitle);
+               await setDoc(doc(db, 'learning_tools', oldDoc.id), { subTopics: oldSubTopics }, { merge: true });
+            }
+         }
+
+         const newDoc = await getMatchedDoc(p.grade, p.subject, p.chapter);
+         if (!newDoc) {
+             await addDoc(collection(db, 'learning_tools'), { grade: p.grade, subject: p.subject, chapter: p.chapter, book: p.book, subTopics: [{ title: p.subtopic, tools: [p.tool] }] });
+         } else {
+             const existingData = newDoc.data();
+             let newSubTopics = existingData.subTopics || [];
+             const subIndex = newSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === p.subtopic.toLowerCase().trim());
+
+             if (subIndex > -1) {
+                newSubTopics[subIndex].tools = (newSubTopics[subIndex].tools || []).filter((t: any) => t.title !== p.tool.title);
+                const insertAt = Math.max(0, Math.min(newSubTopics[subIndex].tools.length, p.tool.orderIndex - 1));
+                newSubTopics[subIndex].tools.splice(insertAt, 0, p.tool);
+             } else {
+                newSubTopics.push({ title: p.subtopic, tools: [p.tool] });
+             }
+             await setDoc(doc(db, 'learning_tools', newDoc.id), { subTopics: newSubTopics }, { merge: true });
+         }
+      }
+
+      // FULL TIER ADD LOGIC
+      if (isApproved && request.action_type === 'FULL_TIER_ADD') {
+         const p = request.payload;
+         const existingDoc = await getMatchedDoc(p.grade, p.subject, p.chapter);
+
+         if (!existingDoc) {
+            await addDoc(collection(db, 'learning_tools'), { grade: p.grade, subject: p.subject, chapter: p.chapter, book: p.book, subTopics: [{ title: p.subtopic, tools: [p.tool] }] });
+         } else {
+            const existingData = existingDoc.data();
+            let newSubTopics = existingData.subTopics || [];
+            const subIndex = newSubTopics.findIndex((s: any) => s.title?.toLowerCase().trim() === p.subtopic.toLowerCase().trim());
+            
+            if (subIndex > -1) {
+               newSubTopics[subIndex].tools = (newSubTopics[subIndex].tools || []).filter((t: any) => t.title !== p.tool.title);
+               const insertAt = Math.max(0, Math.min(newSubTopics[subIndex].tools.length, p.tool.orderIndex - 1));
+               newSubTopics[subIndex].tools.splice(insertAt, 0, p.tool); 
+            } else { newSubTopics.push({ title: p.subtopic, tools: [p.tool] }); }
+            await setDoc(doc(db, 'learning_tools', existingDoc.id), { subTopics: newSubTopics }, { merge: true });
+         }
+      }
+
+      // DELETE LOGIC
+      if (isApproved && request.action_type === 'DELETE') {
+         if (request.target_type === 'CHAPTER') {
+            await deleteDoc(doc(db, 'learning_tools', request.target_id));
+         } else {
+            const targetDocSnap = await getDoc(doc(db, 'learning_tools', request.target_id));
+            if (targetDocSnap.exists()) {
+               let data = targetDocSnap.data();
+               if (request.target_type === 'SUBTOPIC') {
+                  data.subTopics = (data.subTopics || []).filter((s: any) => s.title !== request.payload.title);
+               } else if (request.target_type === 'TOOL') {
+                  data.subTopics = (data.subTopics || []).map((sub: any) => {
+                     sub.tools = (sub.tools || []).filter((t: any) => t.title !== request.payload.title);
+                     return sub;
+                  });
+               }
+               await setDoc(doc(db, 'learning_tools', targetDocSnap.id), { subTopics: data.subTopics }, { merge: true });
+            }
+         }
+      }
+
+      // Record History
+      const timestamp = new Date().toISOString();
+      const updatedRequest = { ...request, status: actionStatus, resolved_by: adminEmail, resolved_at: timestamp };
+      await setDoc(requestRef, { status: actionStatus, resolved_by: adminEmail, resolved_at: timestamp }, { merge: true });
+      
+      setPendingRequests((prev: any) => prev.filter((req: any) => req.id !== request.id));
+      setRequestHistory((prev: any) => [updatedRequest, ...prev]);
+      alert(isApproved ? `APPROVED! Database updated automatically.` : "REJECTED. Archived in History.");
+    } catch (error: any) { console.error("🚨 ERROR UPDATING REQUEST:", error); }
+  };
+
+  // --- NEW: THE EXPORT ENGINE ---
+  const handleExportCSV = async () => {
+    setIsLoading(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, 'learning_tools'));
+      // Define headers including the critical Firebase ID
+      let csvContent = "Grade,Subject,Chapter Number,Chapter Name,Subtopic Order,Subtopic,Content Order,Content Type,Title,Image URL,Content URL,Premium,Book,Featured,Subtopic ID,Firebase ID\n";
+      
+      querySnapshot.forEach((document) => {
+        const data = document.data();
+        const escapeCsv = (str: any) => `"${String(str || '').replace(/"/g, '""')}"`;
+        
+        const row = [
+          escapeCsv(data.grade),
+          escapeCsv(data.subject),
+          data.chapter_number || 1,
+          escapeCsv(data.chapter_name),
+          data.subtopic_order || 1,
+          escapeCsv(data.subtopic),
+          data.content_order || 1,
+          escapeCsv(data.content_type),
+          escapeCsv(data.title),
+          escapeCsv(data.image),
+          escapeCsv(data.content_url),
+          data.isPremium ? 'TRUE' : 'FALSE',
+          escapeCsv(data.book),
+          data.is_featured ? 'TRUE' : 'FALSE',
+          escapeCsv(data.subtopicId),
+          escapeCsv(document.id) // THE MASTER KEY
+        ].join(',');
+        
+        csvContent += row + "\n";
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "kortex_master_db.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      alert("Failed to export database.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- UPGRADED: THE SMART DIFF & SYNC ENGINE ---
+  const handleSyncDatabase = async (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setIsUploadingCSV(true); // Show loading while fetching comparison data
+    
+    try {
+      // 1. Fetch current live database state to compare against the CSV
+      const snapshot = await getDocs(collection(db, 'learning_tools'));
+      const existingDocs = new Map();
+      snapshot.forEach(doc => existingDocs.set(doc.id, doc.data()));
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const text = event.target?.result as string;
+          const rows = text.split('\n');
+          
+          let toAdd: any[] = [];
+          let toUpdate: any[] = [];
+
+          for (let i = 1; i < rows.length; i++) {
+             const rowText = rows[i].trim();
+             if (!rowText) continue;
+
+             const row = rowText.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+             if (row.length < 4) continue; 
+             
+             const grade = row[0];
+             const subject = row[1];
+             const chapter_number = parseInt(row[2], 10) || 1; 
+             const chapter_name = row[3] || "Untitled Chapter";
+             const subtopic_order = parseInt(row[4], 10) || 1;
+             const subtopic = row[5] || "";
+             const content_order = parseInt(row[6], 10) || 1;
+             const content_type = row[7] || "Placeholder";
+             const title = row[8] || chapter_name;
+             const image_url = row[9] || "";
+             const content_url = row[10] || "";
+             const is_premium = row[11]?.toUpperCase() === 'TRUE';
+             const book = row[12] || "";
+             const is_featured = row[13]?.toUpperCase() === 'TRUE';
+             const subtopicId = row[14] || "";
+             const firebase_id = row[15] || ""; 
+
+             if (!grade || !subject) continue;
+             
+             let color = 'bg-sky-500';
+             if (content_type.toLowerCase() === 'game') color = 'bg-orange-500';
+             else if (content_type.toLowerCase() === 'video') color = 'bg-purple-500';
+             else if (content_type.toLowerCase() === 'pdf') color = 'bg-emerald-500';
+             else if (content_type.toLowerCase() === 'quiz') color = 'bg-amber-500';
+
+             const toolData: any = {
+                grade, subject, chapter_number, chapter_name, subtopic_order, subtopic, subtopicId,
+                content_order, content_type, title, image: image_url, content_url,
+                isPremium: is_premium, book, is_featured, color, firebase_id
+             };
+
+             if (firebase_id && firebase_id.length > 5) {
+                 const existing = existingDocs.get(firebase_id);
+                 if (existing) {
+                     // 2. THE SMART DIFF: Only flag for update if a field actually changed!
+                     const hasChanges = 
+                         existing.grade !== toolData.grade ||
+                         existing.subject !== toolData.subject ||
+                         existing.chapter_number !== toolData.chapter_number ||
+                         existing.chapter_name !== toolData.chapter_name ||
+                         existing.subtopic_order !== toolData.subtopic_order ||
+                         existing.subtopic !== toolData.subtopic ||
+                         (existing.subtopicId || "") !== toolData.subtopicId ||
+                         existing.content_order !== toolData.content_order ||
+                         existing.content_type !== toolData.content_type ||
+                         existing.title !== toolData.title ||
+                         (existing.image || "") !== toolData.image ||
+                         (existing.content_url || "") !== toolData.content_url ||
+                         !!existing.isPremium !== toolData.isPremium ||
+                         (existing.book || "") !== toolData.book ||
+                         !!existing.is_featured !== toolData.is_featured;
+
+                     if (hasChanges) {
+                         toUpdate.push(toolData);
+                     }
+                 } else {
+                     toAdd.push(toolData);
+                 }
+             } else {
+                 toAdd.push(toolData);
+             }
+          }
+          
+          // 3. Prevent the staging screen entirely if nothing changed
+          if (toAdd.length === 0 && toUpdate.length === 0) {
+             alert("No changes detected! The CSV perfectly matches the live database.");
+             setSyncPreview(null);
+          } else {
+             setSyncPreview({ toAdd, toUpdate });
+          }
+        } catch (err: any) { 
+          console.error(err); 
+          alert("Error parsing CSV data layout."); 
+        } finally { 
+          setIsUploadingCSV(false);
+          e.target.value = ''; 
+        }
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error("Failed to fetch baseline database:", err);
+      setIsUploadingCSV(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleConfirmSync = async () => {
+     if (!syncPreview) return;
+     setIsUploadingCSV(true);
+     try {
+        const batches = [];
+        let currentBatch = writeBatch(db);
+        let operationCount = 0;
+
+        // Commit Updates
+        for (const item of syncPreview.toUpdate) {
+           const { firebase_id, ...toolData } = item;
+           const docRef = doc(db, 'learning_tools', firebase_id);
+           currentBatch.set(docRef, { ...toolData, updated_at: new Date().toISOString() }, { merge: true });
+           
+           operationCount++;
+           if (operationCount === 490) {
+               batches.push(currentBatch);
+               currentBatch = writeBatch(db);
+               operationCount = 0;
+           }
+        }
+
+        // Commit Additions
+        for (const item of syncPreview.toAdd) {
+           const { firebase_id, ...toolData } = item;
+           const docRef = doc(collection(db, 'learning_tools'));
+           currentBatch.set(docRef, { ...toolData, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+           
+           operationCount++;
+           if (operationCount === 490) {
+               batches.push(currentBatch);
+               currentBatch = writeBatch(db);
+               operationCount = 0;
+           }
+        }
+
+        if (operationCount > 0) batches.push(currentBatch);
+        
+        for (const batch of batches) {
+           await batch.commit();
+        }
+        
+        alert(`SYNC SUCCESSFUL! ✅\nSuccessfully added ${syncPreview.toAdd.length} resources and updated ${syncPreview.toUpdate.length} records.`);
+        setSyncPreview(null);
+     } catch (err) {
+        console.error(err);
+        alert("Firestore database sync error.");
+     } finally {
+        setIsUploadingCSV(false);
+     }
+  };
+  
+  
+  return (
+    <KortexAdminDashboard 
+      profile={profile}
+      approvalsNode={(
+        
+         <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-6"><div><h3 className="text-2xl font-black text-slate-800">Curriculum Approval Queue</h3><p className="text-slate-500 font-medium mt-1">Review changes submitted by your Krew members before they go live.</p></div></div>
+            {isLoading ? (
+               <div className="py-20 text-center text-indigo-500 font-bold animate-pulse">Loading secure database...</div>
+            ) : pendingRequests.length === 0 ? (
+               <div className="bg-white border-2 border-slate-100 p-16 rounded-3xl text-center shadow-sm"><div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6"><CheckCircle size={40} className="text-green-500"/></div><h3 className="text-2xl font-black text-slate-800 mb-2">All Caught Up!</h3><p className="text-slate-500 font-medium">There are no pending curriculum requests from the Krew.</p></div>
+            ) : (
+               <div className="space-y-4">
+                  {pendingRequests.map((req: any) => {
+                     const isAdd = req.action_type === 'FULL_TIER_ADD';
+                     const isEdit = req.action_type === 'FULL_TIER_EDIT' || req.action_type === 'EDIT';
+                     return (
+                        <div key={req.id} className="bg-white border-2 border-slate-200 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm hover:border-indigo-300 transition-colors">
+                           <div className="flex gap-6 items-start w-full md:w-auto">
+                              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${isAdd ? 'bg-green-100 text-green-600' : isEdit ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'}`}>{isAdd ? <Plus size={28} /> : isEdit ? <Edit3 size={28}/> : <Trash2 size={28} />}</div>
+                              <div className="w-full">
+                                 <div className="flex items-center gap-3 mb-2"><span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded bg-slate-100 text-slate-600`}>{req.target_type}</span><span className="text-xs font-bold text-slate-400 flex items-center gap-1"><Clock size={12}/> {new Date(req.created_at).toLocaleDateString()}</span></div>
+                                 <h4 className="text-xl font-bold text-slate-800 leading-tight mb-1">
+                                    <span className={isAdd ? 'text-green-600' : isEdit ? 'text-amber-600' : 'text-red-600'}>{isEdit ? 'Edit:' : isAdd ? 'Add:' : 'Remove:'}</span> {isEdit ? (req.action_type === 'EDIT' ? `'${req.payload?.oldTitle}' → '${req.payload?.newTitle}'` : `'${req.originalData?.toolTitle}' → '${req.payload?.title}'`) : (req.payload?.title || 'Unknown Item')}
+                                 </h4>
+                                 <p className="text-sm font-bold text-slate-500">Requested by: <span className="text-indigo-600">{req.krew_member_email}</span></p>
+                                 
+                                 {(isAdd || isEdit) && req.payload?.tool?.gameCode && (
+                                     <div className="mt-4 w-full bg-slate-900 rounded-xl p-4 relative border-l-4 border-amber-500">
+                                        <div className="absolute top-0 right-0 bg-slate-700 text-slate-300 text-[10px] uppercase font-bold px-2 py-1 rounded-bl-xl rounded-tr-xl">Raw Code Block</div>
+                                        <pre className="text-emerald-400 text-xs font-mono overflow-x-auto max-h-32 mt-2">{req.payload.tool.gameCode}</pre>
+                                        <p className="text-amber-400 text-[10px] mt-2 font-bold uppercase tracking-wider">⚠️ Copy this into GameRegistry.js before approving.</p>
+                                     </div>
+                                 )}
+                              </div>
+                           </div>
+                           <div className="flex gap-3 w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t-2 border-slate-100 md:border-t-0">
+                              <button onClick={() => handleRequestAction(req, 'REJECTED')} className="flex-1 md:flex-none bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2"><XCircle size={18}/> Reject</button>
+                              <button onClick={() => handleRequestAction(req, 'APPROVED')} className="flex-1 md:flex-none bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl font-bold text-sm border-b-4 border-green-700 active:border-b-0 transition-all flex items-center justify-center gap-2"><CheckCircle size={18}/> Approve</button>
+                           </div>
+                        </div>
+                     )
+                  })}
+               </div>
+            )}
+
+            {/* AUDIT LOG / HISTORY TABLE */}
+            <div className="mt-12 pt-8 border-t-4 border-slate-100">
+               <h3 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2"><Clock size={24} className="text-slate-400"/> Audit Log & Request History</h3>
+               <div className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto">
+                     <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-50 border-b-2 border-slate-100">
+                           <tr>
+                              <th className="p-4 font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Timestamp</th>
+                              <th className="p-4 font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Requested By</th>
+                              <th className="p-4 font-black text-slate-400 uppercase tracking-wider min-w-[200px]">Action</th>
+                              <th className="p-4 font-black text-slate-400 uppercase tracking-wider">Status</th>
+                              <th className="p-4 font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Resolved By</th>
+                           </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                           {requestHistory.length === 0 ? (
+                              <tr><td colSpan={5} className="p-8 text-center text-slate-400 font-medium">No history recorded yet.</td></tr>
+                           ) : (
+                              requestHistory.map((req: any) => (
+                                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-4 font-bold text-slate-500 whitespace-nowrap">{new Date(req.resolved_at || req.created_at).toLocaleString()}</td>
+                                    <td className="p-4 font-medium text-slate-700">{req.krew_member_email || 'Krew'}</td>
+                                    <td className="p-4">
+                                       <span className="font-bold text-slate-800">{req.action_type} {req.target_type}</span>
+                                       <div className="text-xs text-slate-500 mt-1 line-clamp-1">
+                                          {req.action_type === 'EDIT' ? `Renamed to: ${req.payload?.newTitle}` : req.action_type === 'FULL_TIER_EDIT' ? `Modified: ${req.payload?.title}` : (req.payload?.title || 'Data Payload')}
+                                       </div>
+                                    </td>
+                                    <td className="p-4">
+                                       <span className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${req.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{req.status}</span>
+                                    </td>
+                                    <td className="p-4 font-medium text-slate-700">{req.resolved_by || 'Admin'}</td>
+                                 </tr>
+                              ))
+                           )}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
+         </div>
+      )}
+      systemConfigNode={(
+        
+         <div className="w-full animate-fade-in">
+            {syncPreview ? (
+               <div className="space-y-6 w-full bg-white p-6 md:p-8 border-2 border-slate-200 rounded-3xl shadow-sm text-slate-800">
+                  <div>
+                     <h3 className="text-2xl font-black text-slate-900">Review Data Sync Request</h3>
+                     <p className="text-sm text-slate-500 font-medium mt-1">Carefully examine changes below before confirming deployment to Firestore production tables.</p>
+                  </div>
+
+                  {/* Category 1: Items to Update */}
+                  <div className="space-y-2">
+                     <h4 className="text-sm font-black uppercase tracking-widest text-amber-500 flex items-center gap-2">
+                        <div className="w-2 h-2 bg-amber-500 rounded-full"></div> 1. Existing Items To Update ({syncPreview.toUpdate.length})
+                     </h4>
+                     <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto bg-slate-50">
+                        <table className="w-full text-left text-xs font-mono">
+                           <thead className="bg-slate-100 font-sans font-bold text-slate-500 border-b border-slate-200 sticky top-0">
+                              <tr>
+                                 <th className="p-3">Doc ID</th>
+                                 <th className="p-3">Grade/Subject</th>
+                                 <th className="p-3">Module Title</th>
+                                 <th className="p-3">Type</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-200">
+                              {syncPreview.toUpdate.length === 0 ? (
+                                 <tr><td colSpan={4} className="p-4 text-center text-slate-400 font-sans font-medium">No updates found in this sheet.</td></tr>
+                              ) : (
+                                 syncPreview.toUpdate.map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-amber-50/40 transition-colors">
+                                       <td className="p-3 font-bold text-amber-600 truncate max-w-[100px]">{item.firebase_id}</td>
+                                       <td className="p-3 font-sans text-slate-600 font-medium">{item.grade} • {item.subject}</td>
+                                       <td className="p-3 font-sans font-bold text-slate-800">{item.title}</td>
+                                       <td className="p-3"><span className="px-2 py-0.5 rounded bg-slate-200 font-sans font-bold text-[10px] uppercase text-slate-600">{item.content_type}</span></td>
+                                    </tr>
+                                 ))
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+                  </div>
+
+                  {/* Category 2: New Items to Upload */}
+                  <div className="space-y-2 pt-2">
+                     <h4 className="text-sm font-black uppercase tracking-widest text-emerald-500 flex items-center gap-2">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full"></div> 2. New Items to Create ({syncPreview.toAdd.length})
+                     </h4>
+                     <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto bg-slate-50">
+                        <table className="w-full text-left text-xs font-mono">
+                           <thead className="bg-slate-100 font-sans font-bold text-slate-500 border-b border-slate-200 sticky top-0">
+                              <tr>
+                                 <th className="p-3">Grade/Subject</th>
+                                 <th className="p-3">Module Title</th>
+                                 <th className="p-3">Chapter</th>
+                                 <th className="p-3">Type</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-200">
+                              {syncPreview.toAdd.length === 0 ? (
+                                 <tr><td colSpan={4} className="p-4 text-center text-slate-400 font-sans font-medium">No new additions detected in this sheet.</td></tr>
+                              ) : (
+                                 syncPreview.toAdd.map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-emerald-50/40 transition-colors">
+                                       <td className="p-3 font-sans text-slate-600 font-medium">{item.grade} • {item.subject}</td>
+                                       <td className="p-3 font-sans font-bold text-slate-800">{item.title}</td>
+                                       <td className="p-3 font-sans text-slate-500">{item.chapter_name}</td>
+                                       <td className="p-3"><span className="px-2 py-0.5 rounded bg-slate-200 font-sans font-bold text-[10px] uppercase text-slate-600">{item.content_type}</span></td>
+                                    </tr>
+                                 ))
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+                  </div>
+
+                  {/* Bottom Confirm / Deny Bar */}
+                  <div className="flex gap-4 pt-4 border-t-2 border-slate-100">
+                     <button 
+                        onClick={() => setSyncPreview(null)}
+                        disabled={isUploadingCSV}
+                        className="flex-1 py-3.5 border-2 border-slate-300 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+                     >
+                        Deny / Cancel
+                     </button>
+                     <button 
+                        onClick={handleConfirmSync}
+                        disabled={isUploadingCSV}
+                        className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl border-b-4 border-indigo-900 active:border-b-0 active:translate-y-1 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                     >
+                        {isUploadingCSV ? 'Processing Commits...' : 'Confirm & Publish Changes'}
+                     </button>
+                  </div>
+               </div>
+            ) : (
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* EXPORT CARD */}
+                  <div className="bg-white border-4 border-slate-100 p-8 rounded-3xl text-center shadow-sm relative flex flex-col items-center justify-center text-slate-800">
+                     <DownloadCloud size={64} className="text-emerald-500 mb-6" />
+                     <h3 className="text-3xl font-black text-slate-800 mb-4">Export Master CSV</h3>
+                     <p className="text-slate-500 font-medium mb-6 text-sm">Download the entire database into a structured spreadsheet. Safely edit items locally, then sync them back to the app.</p>
+                     <button 
+                        onClick={handleExportCSV} 
+                        disabled={isLoading || isUploadingCSV} 
+                        className="w-full py-4 rounded-xl font-bold text-lg border-b-4 bg-emerald-500 hover:bg-emerald-600 border-emerald-700 text-white active:scale-95 transition-all disabled:opacity-50"
+                     >
+                         {isLoading ? 'Exporting Database...' : 'Download Database'}
+                     </button>
+                  </div>
+
+                  {/* SYNC/IMPORT CARD */}
+                  <div className="bg-white border-4 border-slate-100 p-8 rounded-3xl text-center shadow-sm relative flex flex-col items-center justify-center text-slate-800">
+                     <UploadCloud size={64} className="text-sky-500 mb-6" />
+                     <h3 className="text-3xl font-black text-slate-800 mb-4">Sync / Import CSV</h3>
+                     <p className="text-slate-500 font-medium mb-6 text-sm">Upload your edited CSV. Rows with a Firebase ID will update securely. Rows without an ID will be added as new tools.</p>
+                     <div className="relative w-full mt-auto">
+                        <input type="file" accept=".csv" onChange={handleSyncDatabase} disabled={isUploadingCSV || isLoading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+                        <button 
+                           disabled={isUploadingCSV || isLoading} 
+                           className="w-full py-4 rounded-xl font-bold text-lg border-b-4 bg-sky-500 hover:bg-sky-600 border-sky-700 text-white active:scale-95 transition-all disabled:opacity-50"
+                        >
+                            Select CSV to Sync
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            )}
+         </div>
+      )}
+    />
+  );
+
+};
+
+
+
+
+
+
+
+
+
+// ============================================================================
