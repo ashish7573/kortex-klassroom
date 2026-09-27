@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db } from '../backend_configurations/firebase';
 import { UserProfile } from '../types/user';
 
 interface AuthContextType {

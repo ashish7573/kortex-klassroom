@@ -1,6 +1,6 @@
 "use server";
 
-import { adminAuth, adminDb } from '../../lib/firebase-admin';
+import { adminAuth, adminDb } from '../../backend_configurations/firebase-admin';
 import { OrgAdminProfile } from '../../types/user';
 
 export async function provisionSchoolAccount(
