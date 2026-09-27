@@ -14,9 +14,9 @@ import {
   CreditCard, DollarSign, XCircle, AlertTriangle, Briefcase, Filter, Share2, Instagram, 
 } from 'lucide-react';
 
-import ConceptualiserRegistry from '../components/conceptualiser/ConceptualiserRegistry';
-import GameRegistry from '../components/games/GameRegistry';
-import QuizRegistry from '../components/quizzes/QuizRegistry';
+import ConceptualiserRegistry from '../components/conceptualiser/00_ConceptualiserRegistry';
+import GameRegistry from '../components/games/00_GameRegistry';
+import QuizRegistry from '../components/quizzes/00_QuizRegistry';
 
 
 import { initializeApp } from "firebase/app";
