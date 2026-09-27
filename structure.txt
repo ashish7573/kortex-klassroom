@@ -7,7 +7,11 @@
 |  ├── layout.tsx
 |  └── page.tsx
 ├── components
+|  ├── auth
+|  |  ├── QuoteInquiryModal.tsx
+|  |  └── UnifiedAuthModal.tsx
 |  ├── conceptualiser
+|  |  ├── 00_ConceptualiserRegistry.tsx
 |  |  ├── AdditionFrog.tsx
 |  |  ├── AdditionMachine.tsx
 |  |  ├── AdditionStory.tsx
@@ -15,7 +19,6 @@
 |  |  ├── AdditionWithCarry.tsx
 |  |  ├── Barahkhadi.tsx
 |  |  ├── CoinTowers.tsx
-|  |  ├── ConceptualiserRegistry.tsx
 |  |  ├── CountingCombinations.tsx
 |  |  ├── CountingHundred.tsx
 |  |  ├── CountingHundred2.tsx
@@ -37,8 +40,8 @@
 |  |  ├── test1.tsx
 |  |  └── test2.tsx
 |  ├── games
+|  |  ├── 00_GameRegistry.tsx
 |  |  ├── BarahkhadiWordConnect.tsx
-|  |  ├── GameRegistry.tsx
 |  |  ├── HindiWordCrush.tsx
 |  |  ├── MathArcher.tsx
 |  |  ├── MathDefenders.tsx
@@ -47,31 +50,52 @@
 |  |  ├── SeriationBox.tsx
 |  |  ├── SwarVyanjanGame.tsx
 |  |  └── TruckLoader.tsx
-|  └── quizzes
-|     ├── AppleOrderQuiz.tsx
-|     ├── BasicOperationWordProblems.tsx
-|     ├── BasicOperationsCrossword.tsx
-|     ├── CPAAdditionQuiz.tsx
-|     ├── FLNBlocksQuiz.tsx
-|     ├── FLNHindiAssessment.tsx
-|     ├── FLNStoryQuiz.tsx
-|     ├── FingerCountQuiz.tsx
-|     ├── FrogJumpQuiz.tsx
-|     ├── HindiWordDictation.tsx
-|     ├── HindiWordQuiz.tsx
-|     ├── MasterQuizUptoHundred.tsx
-|     ├── MasterQuizUptoTen.tsx
-|     ├── MathsPractice.tsx
-|     ├── MultiplicationTranslator.tsx
-|     ├── QuizRegistry.tsx
-|     ├── RapidFireMathArena.tsx
-|     ├── SwarVyanjanQuiz.tsx
-|     └── TallyAddition.tsx
+|  ├── quizzes
+|  |  ├── 00_QuizRegistry.tsx
+|  |  ├── AppleOrderQuiz.tsx
+|  |  ├── BasicOperationWordProblems.tsx
+|  |  ├── BasicOperationsCrossword.tsx
+|  |  ├── CPAAdditionQuiz.tsx
+|  |  ├── FLNBlocksQuiz.tsx
+|  |  ├── FLNHindiAssessment.tsx
+|  |  ├── FLNStoryQuiz.tsx
+|  |  ├── FingerCountQuiz.tsx
+|  |  ├── FrogJumpQuiz.tsx
+|  |  ├── HindiWordDictation.tsx
+|  |  ├── HindiWordQuiz.tsx
+|  |  ├── MasterQuizUptoHundred.tsx
+|  |  ├── MasterQuizUptoTen.tsx
+|  |  ├── MathsPractice.tsx
+|  |  ├── MultiplicationTranslator.tsx
+|  |  ├── RapidFireMathArena.tsx
+|  |  ├── SwarVyanjanQuiz.tsx
+|  |  └── TallyAddition.tsx
+|  └── users
+|     ├── UserPortalDispatcher.tsx
+|     ├── admin
+|     |  └── AdminDashboard.tsx
+|     ├── krew
+|     |  └── KrewDashboard.tsx
+|     ├── org_admin
+|     |  └── OrgAdminDashboard.tsx
+|     ├── parent
+|     |  ├── AddChildModal.tsx
+|     |  └── ParentDashboard.tsx
+|     ├── student
+|     |  └── StudentDashboard.tsx
+|     └── teacher
+|        └── TeacherDashboard.tsx
+├── context
+|  └── AuthContext.tsx
+├── declarations.d.ts
 ├── eslint.config.mjs
+├── hooks
+|  └── useAuth.ts
 ├── lib
 |  ├── FLNStories.ts
 |  ├── HindiWordDictionary.ts
-|  └── SwarVyanjanDictionary.ts
+|  ├── SwarVyanjanDictionary.ts
+|  └── firebase.ts
 ├── next-env.d.ts
 ├── next.config.ts
 ├── node_modules
@@ -658,48 +682,6 @@
 |  |     ├── index.js.flow
 |  |     └── package.json
 |  ├── @supabase
-|  |  ├── auth-js
-|  |  |  ├── LICENSE
-|  |  |  ├── README.md
-|  |  |  ├── dist
-|  |  |  ├── package.json
-|  |  |  └── src
-|  |  ├── functions-js
-|  |  |  ├── README.md
-|  |  |  ├── dist
-|  |  |  ├── package.json
-|  |  |  └── src
-|  |  ├── postgrest-js
-|  |  |  ├── README.md
-|  |  |  ├── dist
-|  |  |  ├── package.json
-|  |  |  └── src
-|  |  ├── realtime-js
-|  |  |  ├── README.md
-|  |  |  ├── dist
-|  |  |  ├── package.json
-|  |  |  └── src
-|  |  ├── ssr
-|  |  |  ├── CHANGELOG.md
-|  |  |  ├── LICENSE
-|  |  |  ├── README.md
-|  |  |  ├── dist
-|  |  |  ├── docs
-|  |  |  ├── package.json
-|  |  |  ├── release-please-config.json
-|  |  |  ├── src
-|  |  |  ├── tsconfig.json
-|  |  |  └── tsconfig.main.json
-|  |  ├── storage-js
-|  |  |  ├── README.md
-|  |  |  ├── dist
-|  |  |  ├── package.json
-|  |  |  └── src
-|  |  └── supabase-js
-|  |     ├── README.md
-|  |     ├── dist
-|  |     ├── package.json
-|  |     └── src
 |  ├── @swc
 |  |  └── helpers
 |  |     ├── LICENSE
@@ -813,11 +795,6 @@
 |  |  |  ├── web-globals
 |  |  |  ├── worker_threads.d.ts
 |  |  |  └── zlib.d.ts
-|  |  ├── phoenix
-|  |  |  ├── LICENSE
-|  |  |  ├── README.md
-|  |  |  ├── index.d.ts
-|  |  |  └── package.json
 |  |  ├── react
 |  |  |  ├── LICENSE
 |  |  |  ├── README.md
@@ -830,30 +807,24 @@
 |  |  |  ├── jsx-runtime.d.ts
 |  |  |  ├── package.json
 |  |  |  └── ts5.0
-|  |  ├── react-dom
-|  |  |  ├── LICENSE
-|  |  |  ├── README.md
-|  |  |  ├── canary.d.ts
-|  |  |  ├── client.d.ts
-|  |  |  ├── experimental.d.ts
-|  |  |  ├── index.d.ts
-|  |  |  ├── package.json
-|  |  |  ├── server.browser.d.ts
-|  |  |  ├── server.bun.d.ts
-|  |  |  ├── server.d.ts
-|  |  |  ├── server.edge.d.ts
-|  |  |  ├── server.node.d.ts
-|  |  |  ├── static.browser.d.ts
-|  |  |  ├── static.d.ts
-|  |  |  ├── static.edge.d.ts
-|  |  |  ├── static.node.d.ts
-|  |  |  └── test-utils
-|  |  └── ws
+|  |  └── react-dom
 |  |     ├── LICENSE
 |  |     ├── README.md
-|  |     ├── index.d.mts
+|  |     ├── canary.d.ts
+|  |     ├── client.d.ts
+|  |     ├── experimental.d.ts
 |  |     ├── index.d.ts
-|  |     └── package.json
+|  |     ├── package.json
+|  |     ├── server.browser.d.ts
+|  |     ├── server.bun.d.ts
+|  |     ├── server.d.ts
+|  |     ├── server.edge.d.ts
+|  |     ├── server.node.d.ts
+|  |     ├── static.browser.d.ts
+|  |     ├── static.d.ts
+|  |     ├── static.edge.d.ts
+|  |     ├── static.node.d.ts
+|  |     └── test-utils
 |  ├── @typescript-eslint
 |  |  ├── eslint-plugin
 |  |  |  ├── LICENSE
@@ -1335,14 +1306,6 @@
 |  |  ├── LICENSE
 |  |  ├── README.md
 |  |  ├── index.js
-|  |  └── package.json
-|  ├── cookie
-|  |  ├── LICENSE
-|  |  ├── README.md
-|  |  ├── dist
-|  |  |  ├── index.d.ts
-|  |  |  ├── index.js
-|  |  |  └── index.js.map
 |  |  └── package.json
 |  ├── cross-spawn
 |  |  ├── LICENSE
@@ -4907,17 +4870,6 @@
 |  |  ├── http-parser.d.ts
 |  |  ├── http-parser.js
 |  |  └── package.json
-|  ├── iceberg-js
-|  |  ├── LICENSE
-|  |  ├── README.md
-|  |  ├── dist
-|  |  |  ├── index.cjs
-|  |  |  ├── index.cjs.map
-|  |  |  ├── index.d.cts
-|  |  |  ├── index.d.ts
-|  |  |  ├── index.mjs
-|  |  |  └── index.mjs.map
-|  |  └── package.json
 |  ├── idb
 |  |  ├── CHANGELOG.md
 |  |  ├── LICENSE
@@ -7263,27 +7215,6 @@
 |  |  ├── license
 |  |  ├── package.json
 |  |  └── readme.md
-|  ├── ws
-|  |  ├── LICENSE
-|  |  ├── README.md
-|  |  ├── browser.js
-|  |  ├── index.js
-|  |  ├── lib
-|  |  |  ├── buffer-util.js
-|  |  |  ├── constants.js
-|  |  |  ├── event-target.js
-|  |  |  ├── extension.js
-|  |  |  ├── limiter.js
-|  |  |  ├── permessage-deflate.js
-|  |  |  ├── receiver.js
-|  |  |  ├── sender.js
-|  |  |  ├── stream.js
-|  |  |  ├── subprotocol.js
-|  |  |  ├── validation.js
-|  |  |  ├── websocket-server.js
-|  |  |  └── websocket.js
-|  |  ├── package.json
-|  |  └── wrapper.mjs
 |  ├── y18n
 |  |  ├── CHANGELOG.md
 |  |  ├── LICENSE
@@ -7509,11 +7440,14 @@
 |  └── window.svg
 ├── structure.txt
 ├── tsconfig.json
+├── tsconfig.tsbuildinfo
+├── types
+|  └── user.ts
 └── utils
    └── hindiRegistry.js
 
-directory: 1208 file: 6303
+directory: 1189 file: 6256
 
 
 
-[2K[1G
+ [2K[1G

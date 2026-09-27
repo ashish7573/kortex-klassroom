@@ -18,6 +18,10 @@ import ConceptualiserRegistry from '../components/conceptualiser/00_Conceptualis
 import GameRegistry from '../components/games/00_GameRegistry';
 import QuizRegistry from '../components/quizzes/00_QuizRegistry';
 
+import UnifiedAuthModal from '../components/auth/UnifiedAuthModal';
+import UserPortalDispatcher from '../components/users/UserPortalDispatcher';
+import { useAuth } from '../hooks/useAuth';
+
 
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -2630,6 +2634,16 @@ function MainApp() {
      _setRole(newRole);
   };
 
+  const { 
+    user: authUser, 
+    profile: authProfile, 
+    role: authRole, 
+    isLoggedIn: authIsLoggedIn, 
+    isPro: authIsPro, 
+    logout: authLogout, 
+    sessionAlert 
+  } = useAuth();
+
   const [stage, setStage] = useState<string | null>(null);
   const [lang, setLang] = useState('en');
 
@@ -2639,9 +2653,33 @@ function MainApp() {
   const [userName, setUserName] = useState(''); 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authMessage, setAuthMessage] = useState("Join Kortex Klassroom to unlock all features.");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertConfig, setAlertConfig] = useState(null);
+
+  // Synchronize AuthContext reactive profile with local state
+  useEffect(() => {
+    if (authProfile) {
+      _setRole(authProfile.role);
+      setIsLoggedIn(true);
+      setIsPro(authIsPro);
+      setUserName(authProfile.full_name || '');
+      setUserEmail(authProfile.email || authUser?.email || '');
+    } else if (!authUser) {
+      _setRole(null);
+      setIsLoggedIn(false);
+      setIsPro(false);
+      setUserName('');
+      setUserEmail('');
+    }
+  }, [authProfile, authUser, authIsPro]);
+
+  useEffect(() => {
+    if (sessionAlert) {
+      setAlertConfig(sessionAlert as any);
+    }
+  }, [sessionAlert]);
 
   const [playingLesson, _setPlayingLesson] = useState<any>(null);
   const setPlayingLesson = (lesson: any) => {
@@ -2923,20 +2961,37 @@ useEffect(() => {
       return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onOpenTool={handleOpenFeatured} />;
     }
 
-      if (role === 'admin') return <AdminView />;
+    if (currentView === 'portal' && authProfile) {
+      return (
+        <UserPortalDispatcher 
+          profile={authProfile} 
+          onNavigateHome={() => setCurrentView('home')} 
+          onExploreTier={(tierId: any) => setCurrentView(tierId)}
+          onOpenCMS={() => setCurrentView('home')}
+        />
+      );
+    }
+
+    if (role === 'admin') return <AdminView />;
     
     return <LandingView 
       onTryDemo={handleStartDemo} 
       onNavigateToTier={(tierId: any) => setCurrentView(tierId)} 
       onNavigateToLessons={() => setCurrentView('lessons')} 
       onOpenFeatured={handleOpenFeatured}
-      onLoginClick={() => setShowAuthModal(true)}
+      onLoginClick={() => { setAuthMode('signin'); setShowAuthModal(true); }}
     />;
   };
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-sky-200 relative">
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      {showAuthModal && (
+        <UnifiedAuthModal 
+          onClose={() => setShowAuthModal(false)} 
+          initialMode={authMode}
+          authMessage={authMessage}
+        />
+      )}
       {alertConfig && <GeneralAlertModal {...alertConfig} onClose={() => setAlertConfig(null)} />}
       
       {playingLesson && (
@@ -2974,16 +3029,44 @@ useEffect(() => {
             </div>
 
             {/* Profile & Mobile Menu Toggle */}
-            <div className="flex items-center gap-4 shrink-0">
-              {isLoggedIn && (
+            <div className="flex items-center gap-3 shrink-0">
+              {isLoggedIn ? (
                  <div className="hidden sm:flex items-center gap-3 border-l-2 border-slate-100 pl-4 xl:pl-8">
-                   <div className="text-right">
+                   <button 
+                     type="button"
+                     onClick={() => setCurrentView('portal')}
+                     className="text-right hover:opacity-80 transition-opacity cursor-pointer"
+                     title="Open Your User Portal"
+                   >
                      <div className="text-sm font-bold text-slate-800 leading-none">{userName || userEmail.split('@')[0]}</div>
-                     <div className="text-xs font-bold text-sky-500 capitalize">{role} {isPro ? '(Pro)' : '(Free)'}</div>
+                     <div className="text-xs font-bold text-sky-500 capitalize">{role?.replace('_', ' ')} {isPro ? '(Pro)' : ''}</div>
+                   </button>
+                   <div 
+                     onClick={() => setCurrentView('portal')}
+                     className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center text-sky-600 border-2 border-sky-200 cursor-pointer hover:scale-105 transition-transform"
+                     title="Open Your User Portal"
+                   >
+                     <User size={20} />
                    </div>
-                   <div className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center text-sky-600 border-2 border-sky-200"><User size={20} /></div>
-                   <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors ml-2" title="Log Out"><LogOut size={18} /></button>
+                   <button onClick={logout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors ml-1" title="Log Out"><LogOut size={18} /></button>
                  </div>
+              ) : (
+                <div className="hidden sm:flex items-center gap-2 border-l-2 border-slate-100 pl-4 xl:pl-8">
+                  <button 
+                    type="button"
+                    onClick={() => { setAuthMode('signin'); setShowAuthModal(true); }}
+                    className="px-4 py-2 text-xs font-black text-slate-700 hover:text-sky-500 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => { setAuthMode('signup'); setShowAuthModal(true); }}
+                    className="px-4 py-2 text-xs font-black text-white bg-sky-500 hover:bg-sky-600 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
+                  >
+                    Parent Sign Up
+                  </button>
+                </div>
               )}
               <button className="lg:hidden text-slate-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button>
             </div>
@@ -3001,7 +3084,17 @@ useEffect(() => {
               <button onClick={() => { setCurrentView('Notebook'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'Notebook' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>The Notebook</button>
               <button onClick={() => { setCurrentView('arcade'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'arcade' ? 'text-lime-600 bg-lime-50' : 'hover:bg-slate-50'}`}>Kortex Arcade</button>
 
-              {isLoggedIn && <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-red-500 mt-2 border-t-2 border-slate-100 pt-4">Log Out</button>}
+              {isLoggedIn ? (
+                <>
+                  <button onClick={() => { setCurrentView('portal'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg font-black ${currentView === 'portal' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>My Portal ({role?.replace('_', ' ')})</button>
+                  <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-red-500 mt-2 border-t-2 border-slate-100 pt-4">Log Out</button>
+                </>
+              ) : (
+                <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                  <button onClick={() => { setAuthMode('signin'); setShowAuthModal(true); setMobileMenuOpen(false); }} className="w-full text-center py-2.5 rounded-xl font-bold bg-slate-100 text-slate-700">Sign In</button>
+                  <button onClick={() => { setAuthMode('signup'); setShowAuthModal(true); setMobileMenuOpen(false); }} className="w-full text-center py-2.5 rounded-xl font-bold bg-sky-500 text-white shadow-md">Parent Sign Up</button>
+                </div>
+              )}
            </div>
         )}
       </nav>
