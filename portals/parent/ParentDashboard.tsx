@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { doc, updateDoc, arrayRemove } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
-import { ParentProfile, OrgApprovalRequest } from '../../../types/user';
+import { db } from '../../lib/firebase';
+import { ParentProfile, OrgApprovalRequest } from '../../types/user';
 import { Users, Plus, ShieldCheck, Heart, BookOpen, Clock, X, CheckCircle2 } from 'lucide-react';
 import AddChildModal from './AddChildModal';
 

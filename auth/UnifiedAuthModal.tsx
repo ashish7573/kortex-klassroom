@@ -5,9 +5,9 @@ import {
   signInWithEmailAndPassword 
 } from 'firebase/auth';
 import { doc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
-import { useAuth } from '../../hooks/useAuth';
-import { ParentProfile } from '../../types/user';
+import { auth, db } from '../lib/firebase';
+import { useAuth } from '../hooks/useAuth';
+import { ParentProfile } from '../types/user';
 import QuoteInquiryModal from './QuoteInquiryModal';
 import { 
   X, 

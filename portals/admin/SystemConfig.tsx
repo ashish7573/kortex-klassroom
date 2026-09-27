@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { collection, getDocs, doc, writeBatch } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { DownloadCloud, UploadCloud } from 'lucide-react';
 
 export default function SystemConfig() {

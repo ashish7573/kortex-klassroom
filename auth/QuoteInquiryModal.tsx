@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import { QuoteInquiry } from '../../types/user';
+import { db } from '../lib/firebase';
+import { QuoteInquiry } from '../types/user';
 import { Building2, X, Send, CheckCircle2 } from 'lucide-react';
 
 interface QuoteInquiryModalProps {

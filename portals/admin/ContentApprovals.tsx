@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, getDocs, doc, deleteDoc, setDoc } from 'firebase/firestore';
-import { db, auth } from '../../../lib/firebase';
+import { db, auth } from '../../lib/firebase';
 import { CheckCircle, Plus, Edit3, Trash2, Clock, XCircle } from 'lucide-react';
 
 export default function ContentApprovals() {

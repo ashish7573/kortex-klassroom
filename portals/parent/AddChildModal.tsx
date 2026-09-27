@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 import { doc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '../../../lib/firebase';
-import { StudentProfile } from '../../../types/user';
+import { auth, db } from '../../lib/firebase';
+import { StudentProfile } from '../../types/user';
 import { X, Sparkles, UserPlus, CheckCircle2, Copy, Check, KeyRound } from 'lucide-react';
 
 interface AddChildModalProps {

@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { TeacherProfile } from '../../../types/user';
+import { TeacherProfile } from '../../types/user';
 import { BookOpen, Users, BarChart3, PlusCircle, CheckCircle2, Award } from 'lucide-react';
 
 interface TeacherDashboardProps {

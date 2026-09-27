@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { KrewProfile } from '../../../types/user';
+import { KrewProfile } from '../../types/user';
 import { Sparkles, Edit3, Layers, BookOpen, CheckCircle } from 'lucide-react';
 
 interface KrewDashboardProps {

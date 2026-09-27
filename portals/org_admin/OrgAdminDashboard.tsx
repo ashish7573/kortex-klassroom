@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
-import { OrgAdminProfile, ParentProfile } from '../../../types/user';
+import { db } from '../../lib/firebase';
+import { OrgAdminProfile, ParentProfile } from '../../types/user';
 import { Building2, Users, GraduationCap, UserPlus, FileSpreadsheet, Send, Search, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface OrgAdminDashboardProps {

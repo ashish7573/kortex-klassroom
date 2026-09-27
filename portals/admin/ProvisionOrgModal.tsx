@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, X, Send, ShieldAlert, CheckCircle2, Copy } from 'lucide-react';
-import { auth } from '../../../lib/firebase';
-import { provisionSchoolAccount } from '../../../app/actions/provision';
+import { auth } from '../../lib/firebase';
+import { provisionSchoolAccount } from '../../app/actions/provision';
 
 interface ProvisionOrgModalProps {
   onClose: () => void;

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { AdminProfile } from '../../../types/user';
+import { AdminProfile } from '../../types/user';
 import { ShieldAlert, Database, FileText, CheckCircle2, UserCheck, Inbox, Users } from 'lucide-react';
 import UsersManager from './UsersManager';
 import SystemConfig from './SystemConfig';

@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { UserProfile } from '../../types/user';
+import { UserProfile } from '../types/user';
 import ParentDashboard from './parent/ParentDashboard';
 import StudentDashboard from './student/StudentDashboard';
 import TeacherDashboard from './teacher/TeacherDashboard';

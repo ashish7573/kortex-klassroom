@@ -1,12 +1,12 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
-import { BaseUserProfile, OrgAdminProfile, ParentProfile, StudentProfile, TeacherProfile } from '../../../types/user';
+import { db } from '../../lib/firebase';
+import { BaseUserProfile, OrgAdminProfile, ParentProfile, StudentProfile, TeacherProfile } from '../../types/user';
 import { Users, Building2, UserPlus, Search, ShieldCheck, AlertCircle, Trash2 } from 'lucide-react';
 import ProvisionOrgModal from './ProvisionOrgModal';
-import { auth } from '../../../lib/firebase';
-import { deleteOrganizationAccount } from '../../../app/actions/provision';
+import { auth } from '../../lib/firebase';
+import { deleteOrganizationAccount } from '../../app/actions/provision';
 
 export default function UsersManager() {
   const [activeTab, setActiveTab] = useState<'organizations' | 'individuals'>('organizations');

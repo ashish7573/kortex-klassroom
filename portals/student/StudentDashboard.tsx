@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { StudentProfile } from '../../../types/user';
+import { StudentProfile } from '../../types/user';
 import { Sparkles, Trophy, Flame, Play, BookOpen, Lightbulb, Gamepad2, Target } from 'lucide-react';
 
 interface StudentDashboardProps {
