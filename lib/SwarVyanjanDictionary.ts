@@ -325,7 +325,7 @@ export const HINDI_ASSETS: any = {
   'म': {
     audio: '/assets/hindi/audio/ma.mp3', theme: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-200', btn: 'bg-indigo-500 hover:bg-indigo-600',
     examples: [
-      { word: 'मछली', english: 'Fish', image: '/assets/hindi/images/machli.png', emoji: '🐟' },
+      { word: 'मछली', english: 'Fish', image: '/assets/hindi/images/machali.png', emoji: '🐟' },
       { word: 'मगर', english: 'Crocodile', image: '/assets/hindi/images/magar.png', emoji: '🐊' },
       { word: 'माला', english: 'Garland', image: '/assets/hindi/images/mala.png', emoji: '📿' },
       { word: 'मोर', english: 'Peacock', image: '/assets/hindi/images/mor.png', emoji: '🦚' }
