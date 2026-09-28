@@ -22,23 +22,23 @@ import {
   GRADES, SUBJECTS, SUBJECT_ICONS, SUBJECT_IMAGES, 
   getSubjectFallbackImage, getYouTubeThumbnail, FIVE_TIERS, 
   TRANSLATIONS, TESTIMONIALS 
-} from '../kortex_library/curriculumConfig';
+} from '../kortex_landing_page/curriculumConfig';
 
 import { 
   Card, Button, ProgressBar, GeneralAlertModal, WorkInProgressView 
-} from '../kortex_views/components/SharedUI';
+} from '../kortex_landing_page/components/SharedUI';
 
 // ============================================================================
 // CORE VIEWS (Static for immediate first-paint)
 // ============================================================================
-import LandingView from '../kortex_views/LandingView';
-import LessonsView from '../kortex_views/LessonsView';
-import TierLibraryView from '../kortex_views/TierLibraryView';
+import LandingView from '../kortex_landing_page/LandingPage';
+import LessonsView from '../kortex_landing_page/all_lessons_page';
+import TierLibraryView from '../kortex_landing_page/TierLibraryView';
 
 // ============================================================================
 // LAZY-LOADED COMPONENTS (Loaded on-demand for maximum page performance)
 // ============================================================================
-const LessonPlayer = dynamic(() => import('../kortex_views/LessonPlayer'), {
+const LessonPlayer = dynamic(() => import('../kortex_landing_page/LessonPlayer'), {
   ssr: false,
   loading: () => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-md">

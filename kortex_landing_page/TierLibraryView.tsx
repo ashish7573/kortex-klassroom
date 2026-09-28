@@ -10,7 +10,7 @@ import {
   SUBJECTS, 
   getYouTubeThumbnail, 
   getSubjectFallbackImage 
-} from '../kortex_library/curriculumConfig';
+} from './curriculumConfig';
 
 const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool }: any) => {
   const [selectedClass, setSelectedClass] = useState("");

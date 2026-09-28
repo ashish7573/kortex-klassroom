@@ -13,7 +13,7 @@ import {
   SUBJECT_ICONS, 
   FIVE_TIERS, 
   TESTIMONIALS 
-} from '../kortex_library/curriculumConfig';
+} from './curriculumConfig';
 
 const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured, onLoginClick }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);

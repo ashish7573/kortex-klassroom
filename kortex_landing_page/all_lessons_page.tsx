@@ -13,7 +13,7 @@ import {
   SUBJECTS, 
   getYouTubeThumbnail, 
   getSubjectFallbackImage 
-} from '../kortex_library/curriculumConfig';
+} from './curriculumConfig';
 
 const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
   const [selectedClass, setSelectedClass] = useState("");
