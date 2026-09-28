@@ -15,7 +15,7 @@ import {
   TESTIMONIALS 
 } from './curriculumConfig';
 
-const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured, onLoginClick }: any) => {
+const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
   const [activeTierId, setActiveTierId] = useState('conceptualiser');
   const [tierData, setTierData] = useState({ conceptualiser: [], theatre: [], dojo: [], Notebook: [], arcade: [] });
@@ -337,9 +337,6 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
              <div className="pt-6 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
                 <Button variant="fun" className="text-lg px-8 py-4 w-full sm:w-auto shadow-xl shadow-amber-500/20" onClick={() => window.open('https://forms.gle/g1AY5rG5F6zCoSiw5', '_blank')}>
                    Apply to Join the Krew <ArrowRight size={20} className="ml-2 inline"/>
-                </Button>
-                <Button variant="secondary" className="text-lg px-8 py-4 w-full sm:w-auto border-2 border-amber-200 text-amber-700 hover:border-amber-400 hover:bg-white" onClick={onLoginClick}>
-                   Krew Login <Lock size={20} className="ml-2 inline"/>
                 </Button>
              </div>
           </div>

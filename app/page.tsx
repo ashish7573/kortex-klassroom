@@ -443,7 +443,6 @@ useEffect(() => {
       onNavigateToTier={(tierId: any) => setCurrentView(tierId)} 
       onNavigateToLessons={() => setCurrentView('lessons')} 
       onOpenFeatured={handleOpenFeatured}
-      onLoginClick={() => { setAuthMode('signin'); setShowAuthModal(true); }}
     />;
   };
 
@@ -519,16 +518,9 @@ useEffect(() => {
                   <button 
                     type="button"
                     onClick={() => { setAuthMode('signin'); setShowAuthModal(true); }}
-                    className="px-4 py-2 text-xs font-black text-slate-700 hover:text-sky-500 rounded-xl transition-colors cursor-pointer"
-                  >
-                    Sign In
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => { setAuthMode('signup'); setShowAuthModal(true); }}
                     className="px-4 py-2 text-xs font-black text-white bg-sky-500 hover:bg-sky-600 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
                   >
-                    Parent Sign Up
+                    Sign In
                   </button>
                 </div>
               )}
@@ -555,8 +547,7 @@ useEffect(() => {
                 </>
               ) : (
                 <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
-                  <button onClick={() => { setAuthMode('signin'); setShowAuthModal(true); setMobileMenuOpen(false); }} className="w-full text-center py-2.5 rounded-xl font-bold bg-slate-100 text-slate-700">Sign In</button>
-                  <button onClick={() => { setAuthMode('signup'); setShowAuthModal(true); setMobileMenuOpen(false); }} className="w-full text-center py-2.5 rounded-xl font-bold bg-sky-500 text-white shadow-md">Parent Sign Up</button>
+                  <button onClick={() => { setAuthMode('signin'); setShowAuthModal(true); setMobileMenuOpen(false); }} className="w-full text-center py-2.5 rounded-xl font-bold bg-sky-500 text-white shadow-md">Sign In</button>
                 </div>
               )}
            </div>

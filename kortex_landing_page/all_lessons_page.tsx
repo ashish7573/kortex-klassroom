@@ -12,7 +12,8 @@ import {
   GRADES, 
   SUBJECTS, 
   getYouTubeThumbnail, 
-  getSubjectFallbackImage 
+  getSubjectFallbackImage,
+  getTierForTool
 } from './curriculumConfig';
 
 const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
@@ -248,16 +249,15 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                                  {subTopic.tools && subTopic.tools.length > 0 ? [...subTopic.tools].sort((a: any, b: any) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((item: any, index: any) => (
                                     <div key={index} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 rounded-xl border-2 border-slate-100 transition-colors group relative hover:border-sky-300">
                                        <div className="flex items-center gap-4">
-                                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${item.color || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>
-                                             {(() => {
-                                                const toolType = (item.content_type || item.type || '').toLowerCase().trim();
-                                                if (toolType === 'conceptualiser') return <Lightbulb size={24}/>;
-                                                if (toolType === 'video') return <Video size={24}/>;
-                                                if (toolType === 'quiz') return <Target size={24}/>;
-                                                if (toolType === 'pdf') return <FileText size={24}/>;
-                                                return <Gamepad2 size={24}/>; // Fallback for game/arcade or unmapped types
-                                             })()}
-                                          </div>
+                                          {(() => {
+                                             const tier = getTierForTool(item.content_type || item.type);
+                                             const Icon = tier?.icon || Gamepad2;
+                                             return (
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0 ${tier?.mainColor || 'bg-slate-800'} group-hover:scale-110 transition-transform`}>
+                                                   <Icon size={24} />
+                                                </div>
+                                             );
+                                          })()}
                                           <div>
                                              <div className="flex items-center gap-2 mb-1">
                                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">#{index + 1} • {item.content_type || item.type || 'Tool'}</span>
@@ -285,9 +285,15 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                         const toolType = (item.content_type || item.type || '').toLowerCase();
                         return (
                            <div key={index} className="relative group">
-                              <div className={`absolute -left-[54px] top-2 w-10 h-10 rounded-full border-4 border-white ${item.color || 'bg-slate-800'} flex items-center justify-center text-white shadow-md z-10`}>
-                                 {toolType === 'conceptualiser' ? <Lightbulb size={16}/> : toolType === 'video' ? <Video size={16}/> : toolType === 'quiz' ? <Target size={16}/> : toolType === 'pdf'  ? <FileText size={16}/> : <Gamepad2 size={16}/>}
-                              </div>
+                              {(() => {
+                                 const tier = getTierForTool(item.content_type || item.type);
+                                 const Icon = tier?.icon || Gamepad2;
+                                 return (
+                                    <div className={`absolute -left-[54px] top-2 w-10 h-10 rounded-full border-4 border-white ${tier?.mainColor || 'bg-slate-800'} flex items-center justify-center text-white shadow-md z-10`}>
+                                       <Icon size={16} />
+                                    </div>
+                                 );
+                              })()}
                               <Card className="p-5 md:p-6 border-2 hover:border-sky-300">
                                  <div className="flex justify-between items-center">
                                     <h4 className="text-xl font-extrabold text-slate-800">{item.title}</h4>

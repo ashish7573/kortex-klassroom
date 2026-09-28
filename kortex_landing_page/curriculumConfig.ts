@@ -85,6 +85,15 @@ export const FIVE_TIERS = [
   }
 ];
 
+export const getTierForTool = (toolType?: string) => {
+  const type = (toolType || '').toLowerCase().trim();
+  if (type === 'conceptualiser') return FIVE_TIERS[0];
+  if (type === 'video' || type === 'theatre') return FIVE_TIERS[1];
+  if (type === 'quiz' || type === 'dojo') return FIVE_TIERS[2];
+  if (type === 'pdf' || type === 'worksheet' || type === 'notebook' || type === 'document') return FIVE_TIERS[3];
+  return FIVE_TIERS[4]; // Default: Game / Arcade
+};
+
 export const TRANSLATIONS: Record<string, any> = {
   en: { app_name: "Kortex Klassroom", select_role: "Select Your Role", student: "Student", teacher: "Teacher", parent: "Parent" },
   hi: { app_name: "कॉर्टेक्स क्लासरूम", select_role: "अपनी भूमिका चुनें", student: "छात्र", teacher: "शिक्षक", parent: "अभिभावक" }
