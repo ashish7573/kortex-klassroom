@@ -16,6 +16,12 @@ export const SUBJECTS = [
   'Computers and AI'
 ];
 
+export const SECTIONS = [
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 
+  'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 
+  'U', 'V', 'W', 'X', 'Y', 'Z'
+];
+
 export const SUBJECT_ICONS: Record<string, { icon: any; color: string }> = {
   'English': { icon: Type, color: 'text-blue-500' },
   'Hindi': { icon: FileText, color: 'text-orange-500' },

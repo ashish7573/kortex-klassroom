@@ -19,7 +19,7 @@ export default function TeacherDashboard({ profile, onAssignLesson }: TeacherDas
           </div>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">Welcome, {profile.full_name}!</h1>
           <p className="text-emerald-100 text-base max-w-xl font-medium">
-            Subjects: {profile.subjects?.join(', ') || 'General Educator'} · Organization ID: {profile.org_id}
+            Subjects: {profile.assigned_combos?.join(', ') || 'General Educator'} · Organization ID: {profile.org_id}
           </p>
         </div>
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />

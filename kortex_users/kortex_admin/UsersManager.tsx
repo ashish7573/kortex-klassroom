@@ -1,16 +1,21 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../backend_configurations/firebase';
-import { BaseUserProfile, OrgAdminProfile, ParentProfile, StudentProfile, TeacherProfile } from '../../types/user';
-import { Users, Building2, UserPlus, Search, ShieldCheck, AlertCircle, Trash2 } from 'lucide-react';
+import { BaseUserProfile, OrgAdminProfile } from '../../types/user';
+import { 
+  Users, Building2, UserPlus, Search, ShieldCheck, 
+  AlertCircle, Trash2, Pencil, FileText, ExternalLink 
+} from 'lucide-react';
 import ProvisionOrgModal from './ProvisionOrgModal';
+import EditOrgModal from './EditOrgModal';
 import { auth } from '../../backend_configurations/firebase';
 import { deleteOrganizationAccount } from '../../app/actions/provision';
 
 export default function UsersManager() {
   const [activeTab, setActiveTab] = useState<'organizations' | 'individuals'>('organizations');
   const [showProvisionModal, setShowProvisionModal] = useState(false);
+  const [editingOrg, setEditingOrg] = useState<OrgAdminProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [organizations, setOrganizations] = useState<OrgAdminProfile[]>([]);
@@ -50,7 +55,6 @@ export default function UsersManager() {
     org.kortex_id?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  
   const handleDeleteOrg = async (uid: string, orgName: string) => {
     if (!window.confirm(`Are you sure you want to permanently delete the organization: "${orgName}"?`)) return;
     
@@ -62,9 +66,9 @@ export default function UsersManager() {
       if (!result.success) throw new Error(result.error);
       
       alert(`Successfully deleted "${orgName}".`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || "Failed to delete organization.");
+      alert(err instanceof Error ? err.message : "Failed to delete organization.");
     }
   };
 
@@ -81,6 +85,18 @@ export default function UsersManager() {
       case 'teacher': return <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg uppercase">Teacher</span>;
       default: return <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg uppercase">{role}</span>;
     }
+  };
+
+  const getOrganizationName = (ind: BaseUserProfile) => {
+    const orgId = (ind as BaseUserProfile & { org_id?: string }).org_id;
+    if (!orgId) return <span className="text-slate-300 italic text-xs font-bold">Independent</span>;
+    const org = organizations.find(o => o.uid === orgId);
+    return org ? (
+      <div className="flex flex-col">
+        <span className="font-bold text-slate-700">{org.organization_name}</span>
+        <span className="text-[10px] font-mono font-bold text-slate-400">{org.kortex_id}</span>
+      </div>
+    ) : <span className="text-slate-400 italic text-xs font-bold">Unknown Org</span>;
   };
 
   return (
@@ -144,8 +160,9 @@ export default function UsersManager() {
                   <>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Kortex ID / Org Name</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Contact Email</th>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Teacher Seats</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Combos Approved</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Student Seats</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Documents</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Status</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Actions</th>
                   </>
@@ -153,6 +170,7 @@ export default function UsersManager() {
                   <>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Kortex ID / Name</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Role</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Organization</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Email</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Join Date</th>
                   </>
@@ -161,16 +179,13 @@ export default function UsersManager() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">Loading records...</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading records...</td></tr>
               ) : activeTab === 'organizations' ? (
                 filteredOrgs.length > 0 ? filteredOrgs.map(org => {
-                  const teachersUsed = org.teacher_ids?.length || 0;
                   const studentsUsed = org.active_students_count || 0;
-                  // Temporary types fallback if max seats aren't populated from older records
-                  const maxTeachers = (org as any).max_teacher_seats || 0;
                   const maxStudents = org.license_quota || 0;
-                  
-                  const isExpired = (org as any).subscription_end_date && new Date((org as any).subscription_end_date) < new Date();
+                  const combosCount = org.approved_grade_subject_combos?.length || 0;
+                  const isExpired = org.subscription_end_date && new Date(org.subscription_end_date) < new Date();
 
                   return (
                     <tr key={org.uid} className="hover:bg-slate-50 transition-colors">
@@ -180,12 +195,43 @@ export default function UsersManager() {
                       </td>
                       <td className="px-6 py-4 font-semibold text-slate-600">{org.email}</td>
                       <td className="px-6 py-4">
-                        <span className="font-black text-slate-700">{teachersUsed}</span>
-                        <span className="text-slate-400 font-bold"> / {maxTeachers}</span>
+                        <span className="font-black text-slate-800 text-sm">{combosCount}</span>
+                        <span className="text-slate-400 font-bold text-xs ml-1">combos</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-black text-slate-700">{studentsUsed}</span>
                         <span className="text-slate-400 font-bold"> / {maxStudents}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {org.agreement_url ? (
+                            <a 
+                              href={org.agreement_url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
+                              title="View B2B Agreement"
+                            >
+                              <FileText size={13} /> SLA <ExternalLink size={11} />
+                            </a>
+                          ) : (
+                            <span className="text-slate-300 text-xs font-medium italic">No SLA</span>
+                          )}
+
+                          {org.invoice_url ? (
+                            <a 
+                              href={org.invoice_url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
+                              title="View Invoice"
+                            >
+                              <FileText size={13} /> Invoice <ExternalLink size={11} />
+                            </a>
+                          ) : (
+                            <span className="text-slate-300 text-xs font-medium italic">No Inv</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         {isExpired ? (
@@ -198,7 +244,14 @@ export default function UsersManager() {
                            </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right flex justify-end gap-2 items-center">
+                        <button 
+                           onClick={() => setEditingOrg(org)}
+                           className="p-2 bg-indigo-50 text-indigo-500 hover:bg-indigo-100 rounded-lg transition-colors"
+                           title="Edit Organization"
+                        >
+                           <Pencil size={16} />
+                        </button>
                         <button 
                            onClick={() => handleDeleteOrg(org.uid, org.organization_name)}
                            className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors"
@@ -207,11 +260,10 @@ export default function UsersManager() {
                            <Trash2 size={16} />
                         </button>
                       </td>
-
                     </tr>
-                  )
+                  );
                 }) : (
-                  <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">No organizations found.</td></tr>
+                  <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">No organizations found.</td></tr>
                 )
               ) : (
                 filteredIndividuals.length > 0 ? filteredIndividuals.map(ind => (
@@ -221,13 +273,14 @@ export default function UsersManager() {
                       <div className="font-bold text-slate-600">{ind.full_name}</div>
                     </td>
                     <td className="px-6 py-4">{getRoleBadge(ind.role)}</td>
+                    <td className="px-6 py-4">{getOrganizationName(ind)}</td>
                     <td className="px-6 py-4 font-semibold text-slate-600">{ind.email || 'N/A'}</td>
                     <td className="px-6 py-4 font-semibold text-slate-400">
                       {ind.created_at ? new Date(ind.created_at).toLocaleDateString() : 'N/A'}
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-bold">No individuals found.</td></tr>
+                  <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">No individuals found.</td></tr>
                 )
               )}
             </tbody>
@@ -241,6 +294,15 @@ export default function UsersManager() {
           onSuccess={() => setShowProvisionModal(false)}
         />
       )}
+
+      {editingOrg && (
+        <EditOrgModal 
+          org={editingOrg} 
+          onClose={() => setEditingOrg(null)} 
+          onSuccess={() => setEditingOrg(null)} 
+        />
+      )}
     </div>
   );
 }
+

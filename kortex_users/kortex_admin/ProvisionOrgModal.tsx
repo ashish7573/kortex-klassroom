@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, X, Send, ShieldAlert, CheckCircle2, Copy } from 'lucide-react';
+import { Building2, X, Send, ShieldAlert, CheckCircle2, Copy, Plus, Layers } from 'lucide-react';
 import { auth } from '../../backend_configurations/firebase';
 import { provisionSchoolAccount } from '../../app/actions/provision';
+import { GRADES, SUBJECTS, SECTIONS } from '../../kortex_landing_page/curriculumConfig';
 
 interface ProvisionOrgModalProps {
   onClose: () => void;
@@ -18,8 +19,14 @@ export default function ProvisionOrgModal({ onClose, onSuccess }: ProvisionOrgMo
   const [kortexId, setKortexId] = useState('');
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
-  const [maxTeacherSeats, setMaxTeacherSeats] = useState(10);
-  const [maxStudentSeats, setMaxStudentSeats] = useState(100);
+  
+  // Grade-Section-Subject Combinations State
+  const [approvedCombos, setApprovedCombos] = useState<string[]>(['Grade 1 - Section A - English']);
+  const [selectedGrade, setSelectedGrade] = useState<string>(GRADES[4] || 'Grade 1');
+  const [selectedSection, setSelectedSection] = useState<string>(SECTIONS[0] || 'A');
+  const [selectedSubject, setSelectedSubject] = useState<string>(SUBJECTS[0] || 'English');
+  
+  const [maxStudentSeats, setMaxStudentSeats] = useState<number>(40);
   const [subscriptionEndDate, setSubscriptionEndDate] = useState('');
 
   // Success State
@@ -29,9 +36,42 @@ export default function ProvisionOrgModal({ onClose, onSuccess }: ProvisionOrgMo
 
   useEffect(() => setMounted(true), []);
 
+  const handleAddCombo = () => {
+    const combo = `${selectedGrade} - Section ${selectedSection} - ${selectedSubject}`;
+    if (approvedCombos.includes(combo)) {
+      setErrorMsg(`"${combo}" is already added.`);
+      return;
+    }
+    setErrorMsg('');
+    const updated = [...approvedCombos, combo];
+    setApprovedCombos(updated);
+    setMaxStudentSeats(updated.length * 40);
+  };
+
+  const handleRemoveCombo = (indexToRemove: number) => {
+    const updated = approvedCombos.filter((_, idx) => idx !== indexToRemove);
+    setApprovedCombos(updated);
+    const newMax = updated.length * 40;
+    if (maxStudentSeats > newMax) {
+      setMaxStudentSeats(Math.max(1, newMax));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    if (approvedCombos.length === 0) {
+      setErrorMsg("Please approve at least one Grade-Section-Subject combination.");
+      return;
+    }
+
+    const maxAllowed = approvedCombos.length * 40;
+    if (maxStudentSeats > maxAllowed) {
+      setErrorMsg(`Student seats cannot exceed ${maxAllowed} (Max 40 students per combination for ${approvedCombos.length} combinations).`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -44,8 +84,8 @@ export default function ProvisionOrgModal({ onClose, onSuccess }: ProvisionOrgMo
          kortexId,
          orgName,
          email,
-         maxTeacherSeats,
-         maxStudentSeats,
+         approvedCombos,
+         maxStudentSeats: Number(maxStudentSeats),
          subscriptionEndDate
       });
 
@@ -137,8 +177,10 @@ Ashish & The Kortex Team
 
   if (!mounted) return null;
 
-    return createPortal(
-      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 overflow-y-auto py-8">
+  const maxAllowedStudents = approvedCombos.length * 40;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 overflow-y-auto py-8">
       <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl relative border-4 border-slate-100 p-8 my-auto">
         <button 
           onClick={onClose} 
@@ -204,29 +246,117 @@ Ashish & The Kortex Team
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Teacher Seats *</label>
-              <input
-                type="number"
-                required
-                min={1}
-                value={maxTeacherSeats}
-                onChange={(e) => setMaxTeacherSeats(Number(e.target.value))}
-                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
-              />
+          {/* Grade-Section-Subject Combinations Selector */}
+          <div className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers size={14} className="text-indigo-600" /> Grade-Section-Subject Combinations *
+              </label>
+              <span className="text-[11px] font-black bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-full">
+                {approvedCombos.length} Approved (Max {maxAllowedStudents} Students)
+              </span>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Student Seats *</label>
-              <input
-                type="number"
-                required
-                min={1}
-                value={maxStudentSeats}
-                onChange={(e) => setMaxStudentSeats(Number(e.target.value))}
-                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
-              />
+
+            {/* Dropdowns to add combo: Grade, Section, Subject */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Grade</label>
+                <select
+                  value={selectedGrade}
+                  onChange={(e) => setSelectedGrade(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                >
+                  {GRADES.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Section</label>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                >
+                  {SECTIONS.map(s => (
+                    <option key={s} value={s}>Section {s}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Subject</label>
+                <select
+                  value={selectedSubject}
+                  onChange={(e) => setSelectedSubject(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+                >
+                  {SUBJECTS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleAddCombo}
+                className="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm active:scale-95"
+              >
+                <Plus size={14} /> Add Combination
+              </button>
+            </div>
+
+            {/* List of active combinations */}
+            <div>
+              {approvedCombos.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pt-1">
+                  {approvedCombos.map((combo, idx) => (
+                    <span 
+                      key={idx} 
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-indigo-200 text-indigo-800 rounded-lg text-[11px] font-black shadow-xs"
+                    >
+                      {combo}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCombo(idx)}
+                        className="text-slate-400 hover:text-rose-600 transition-colors"
+                        title="Remove combination"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] font-semibold text-rose-500 bg-rose-50 p-2 rounded-lg border border-rose-100">
+                  No combinations approved. Please add at least one combination.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Student Seats Quota *</label>
+              <span className="text-[11px] font-bold text-indigo-600">
+                Max Allowed: {maxAllowedStudents} ({approvedCombos.length} × 40)
+              </span>
+            </div>
+            <input
+              type="number"
+              required
+              min={1}
+              max={Math.max(1, maxAllowedStudents)}
+              value={maxStudentSeats}
+              onChange={(e) => setMaxStudentSeats(Number(e.target.value))}
+              className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
+            />
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+              Auto-filled to {maxAllowedStudents} students (40 students/combo). Any number below this is allowed.
+            </p>
           </div>
 
           <div>
@@ -242,7 +372,7 @@ Ashish & The Kortex Team
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || approvedCombos.length === 0 || maxStudentSeats > maxAllowedStudents || maxStudentSeats < 1}
             className="w-full py-3.5 mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
           >
             {isSubmitting ? 'Provisioning Account...' : (
@@ -255,3 +385,4 @@ Ashish & The Kortex Team
     document.body
   );
 }
+

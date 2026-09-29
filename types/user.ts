@@ -53,7 +53,7 @@ export interface StudentProfile extends BaseUserProfile {
 export interface TeacherProfile extends BaseUserProfile {
   role: 'teacher';
   org_id: string;
-  subjects: string[];
+  assigned_combos: string[];
   assigned_student_ids: string[];
 }
 
@@ -65,6 +65,10 @@ export interface OrgAdminProfile extends BaseUserProfile {
   license_quota: number;
   active_students_count: number;
   teacher_ids: string[];
+  approved_grade_subject_combos?: string[];
+  agreement_url?: string;
+  invoice_url?: string;
+  subscription_end_date?: string | null;
 }
 
 // 5. Krew Profile (Content creators / internal contributors)

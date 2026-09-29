@@ -9,7 +9,7 @@ export async function provisionSchoolAccount(
     kortexId: string;
     orgName: string;
     email: string;
-    maxTeacherSeats: number;
+    approvedCombos: string[];
     maxStudentSeats: number;
     subscriptionEndDate: string | null;
   }
@@ -25,7 +25,7 @@ export async function provisionSchoolAccount(
       throw new Error("Unauthorized: Only Super Admins can provision organizations.");
     }
 
-    const { kortexId, orgName, email, maxTeacherSeats, maxStudentSeats, subscriptionEndDate } = provisionData;
+    const { kortexId, orgName, email, approvedCombos, maxStudentSeats, subscriptionEndDate } = provisionData;
     const cleanKortexId = kortexId.trim().toUpperCase();
     const cleanEmail = email.trim().toLowerCase();
 
@@ -65,7 +65,7 @@ export async function provisionSchoolAccount(
 
     await adminDb.collection('users').doc(userRecord.uid).set({
       ...profileData,
-      max_teacher_seats: Number(maxTeacherSeats),
+      approved_grade_subject_combos: approvedCombos,
       subscription_end_date: subscriptionEndDate ? new Date(subscriptionEndDate).toISOString() : null,
     });
 
@@ -125,3 +125,49 @@ export async function deleteOrganizationAccount(idToken: string, targetUid: stri
     return { success: false, error: error.message || "Failed to delete organization." };
   }
 }
+
+export async function updateOrganizationAccount(
+  idToken: string, 
+  targetUid: string,
+  updateData: {
+    orgName: string;
+    approvedCombos: string[];
+    maxStudentSeats: number;
+    subscriptionEndDate: string | null;
+    agreementUrl?: string;
+    invoiceUrl?: string;
+  }
+) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const callerDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    
+    if (!callerDoc.exists || callerDoc.data()?.role !== 'admin') {
+      throw new Error("Unauthorized: Only Super Admins can update organizations.");
+    }
+
+    const { orgName, approvedCombos, maxStudentSeats, subscriptionEndDate, agreementUrl, invoiceUrl } = updateData;
+
+    // 1. Update Firebase Auth Display Name
+    await adminAuth.updateUser(targetUid, {
+      displayName: orgName.trim(),
+    });
+
+    // 2. Update Firestore Profile
+    await adminDb.collection('users').doc(targetUid).update({
+      organization_name: orgName.trim(),
+      approved_grade_subject_combos: approvedCombos,
+      license_quota: Number(maxStudentSeats),
+      subscription_end_date: subscriptionEndDate ? new Date(subscriptionEndDate).toISOString() : null,
+      agreement_url: agreementUrl !== undefined ? agreementUrl : null,
+      invoice_url: invoiceUrl !== undefined ? invoiceUrl : null,
+      updated_at: new Date().toISOString()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Update Error:", error);
+    return { success: false, error: error.message || "Failed to update organization." };
+  }
+}
+
