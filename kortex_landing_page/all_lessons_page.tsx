@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  BookOpen, Layers, Gamepad2, Video, ChevronLeft, ChevronUp, ChevronDown, 
+  BookOpen, Layers, Gamepad2, Video, ChevronLeft, ChevronUp, ChevronDown, CheckCircle2, 
   Lightbulb, Target, FileText, Star, Lock, Search, X 
 } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../backend_configurations/firebase';
 import { Card, Button } from './components/SharedUI';
 import { 
@@ -16,17 +16,28 @@ import {
   getTierForTool
 } from './curriculumConfig';
 
-const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
-  const [selectedClass, setSelectedClass] = useState("");
-  const [selectedSubject, setSelectedSubject] = useState("");
+const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, defaultSubject, authProfile }: any) => {
+  const [selectedClass, setSelectedClass] = useState(defaultClass || "");
+  const [selectedSubject, setSelectedSubject] = useState(defaultSubject || "");
   const [searchQuery, setSearchQuery] = useState("");
   const [allLessons, setAllLessons] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [activeLesson, setActiveLesson] = useState(null);
   const [expandedSubTopics, setExpandedSubTopics] = useState({});
+  const [studentProgress, setStudentProgress] = useState<any[]>([]);
 
   const toggleSubTopic = (id: any) => setExpandedSubTopics(prev => ({ ...prev, [id]: !prev[id] }));
+
+  useEffect(() => {
+    if (!authProfile?.uid) return;
+    const unsubscribe = onSnapshot(collection(db, 'users', authProfile.uid, 'progress'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setStudentProgress(data);
+    });
+    return () => unsubscribe();
+  }, [authProfile]);
+
 
   useEffect(() => {
     async function fetchLessons() {
@@ -203,8 +214,41 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                        </div>
                     </div>
                     <div className="p-6 bg-white flex-1 flex flex-col group-hover:bg-slate-50 transition-colors">
+                       
                        <h3 className="text-2xl font-black text-slate-800 mb-2 group-hover:text-sky-600 leading-tight">{lesson.chapter}</h3>
                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mb-4"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{lesson.grade}</span><span>•</span><span>{lesson.subject}</span></div>
+                       {(() => {
+                           const cKey = `${lesson.grade}_${lesson.subject}`.toLowerCase();
+                           const subjProg = studentProgress.find(p => p.id?.toLowerCase() === cKey || p.id?.toLowerCase() === lesson.subject?.toLowerCase());
+                           const compObj = subjProg?.completed_tools || {};
+                           let totalTools = 0;
+                           let completedTools = 0;
+                           if (lesson.subTopics) {
+                               lesson.subTopics.forEach((st: any) => {
+                                  if (st.tools) {
+                                      totalTools += st.tools.length;
+                                      st.tools.forEach((t: any) => { if (compObj[t.id]) completedTools++; });
+                                  }
+                               });
+                           } else if (lesson.flow) {
+                               totalTools += lesson.flow.length;
+                               lesson.flow.forEach((t: any) => { if (compObj[t.id]) completedTools++; });
+                           }
+                           const pct = totalTools > 0 ? Math.round((completedTools / totalTools) * 100) : 0;
+                           
+                           return totalTools > 0 ? (
+                               <div className="mb-4">
+                                   <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider mb-1 text-slate-500">
+                                       <span>Progress</span>
+                                       <span className={pct === 100 ? 'text-emerald-500' : 'text-sky-500'}>{pct}%</span>
+                                   </div>
+                                   <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                       <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${pct}%` }}></div>
+                                   </div>
+                               </div>
+                           ) : null;
+                       })()}
+
                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-600 mt-auto pt-4 border-t border-slate-100">
                           <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-purple-300 transition-colors"><Lightbulb size={14} className="text-purple-500"/> Concepts</span>
                           <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-pink-300 transition-colors"><Video size={14} className="text-pink-500"/> Videos</span>
@@ -239,7 +283,18 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                                  <h3 className="text-lg md:text-xl font-extrabold text-slate-800 leading-tight">{subTopic.title}</h3>
                               </button>
                               <div className="flex items-center gap-3 shrink-0 mt-4 md:mt-0 md:pl-4 self-end md:self-auto">
-                                 <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm hidden sm:block">{subTopic.tools?.length || 0} Tools</span>
+                                 
+                                 {(() => {
+                                     const cKey = `${activeLesson.grade}_${activeLesson.subject}`.toLowerCase();
+                                     const subjProg = studentProgress.find(p => p.id?.toLowerCase() === cKey || p.id?.toLowerCase() === activeLesson.subject?.toLowerCase());
+                                     const compObj = subjProg?.completed_tools || {};
+                                     const tot = subTopic.tools?.length || 0;
+                                     const comp = subTopic.tools?.filter((t: any) => compObj[t.id])?.length || 0;
+                                     if (tot === 0) return <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm hidden sm:block">0 Tools</span>;
+                                     if (comp === tot) return <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 shadow-sm flex items-center gap-1"><CheckCircle2 size={12}/> Completed</span>;
+                                     return <span className="text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-full border border-sky-200 shadow-sm hidden sm:block">{comp}/{tot} Completed</span>;
+                                 })()}
+
                                  <button onClick={() => toggleSubTopic(subTopic.id || sIdx)} className="bg-white p-1 rounded-full shadow-sm border border-slate-200">{isExpanded ? <ChevronUp className="text-slate-400" size={20} /> : <ChevronDown className="text-slate-400" size={20} />}</button>
                               </div>
                            </div>
@@ -263,7 +318,20 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson }: any) => {
                                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">#{index + 1} • {item.content_type || item.type || 'Tool'}</span>
                                                 {item.isPremium && <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1"><Star size={8} className="fill-amber-700"/> Pro</span>}
                                              </div>
-                                             <h4 className="text-lg font-extrabold text-slate-800">{item.title}</h4>
+                                             
+                                             <div className="flex items-center gap-2">
+                                                <h4 className="text-lg font-extrabold text-slate-800">{item.title}</h4>
+                                                {(() => {
+                                                    const cKey = `${activeLesson.grade}_${activeLesson.subject}`.toLowerCase();
+                                                    const subjProg = studentProgress.find(p => p.id?.toLowerCase() === cKey || p.id?.toLowerCase() === activeLesson.subject?.toLowerCase());
+                                                    const toolRecord = subjProg?.completed_tools?.[item.id];
+                                                    if (toolRecord) {
+                                                        return <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={12}/> {toolRecord.best_score !== undefined ? `Score: ${toolRecord.best_score}` : 'Done'}</span>;
+                                                    }
+                                                    return null;
+                                                })()}
+                                             </div>
+
                                           </div>
                                        </div>
                                        <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">

@@ -19,7 +19,7 @@ const getYouTubeEmbedUrl = (url: any) => {
   return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0` : url;
 };
 
-const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
+const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onStepComplete }: any) => {
   const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap((sub: any) => sub.tools || []) : []);
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
   const [copied, setCopied] = useState(false); 
@@ -121,12 +121,25 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
   const isLastStep = currentStep === playlist.length - 1;
 
   // UPDATED: Logic to trap the demo at the end and show the finale
-  const handleNext = () => { 
+  const [finalScore, setFinalScore] = useState<number | undefined>(undefined);
+
+  const handleNext = (data?: any) => {
+      if (data && data.score !== undefined) setFinalScore(data.score);
+      
+      // LOG IMMEDIATE PROGRESS!
+      if (onStepComplete) {
+         onStepComplete({ step: currentStep, score: data?.score !== undefined ? data.score : finalScore });
+      }
+
+      if (!isLoggedIn) {
+          setShowFinale(true);
+          return;
+      }
       if (isLastStep) {
           if (isMasterDemo) {
               setShowFinale(true);
           } else {
-              onFinish();
+              onFinish({ score: data?.score !== undefined ? data.score : finalScore });
           }
       } else {
           setCurrentStep((prev: any) => prev + 1); 
@@ -137,6 +150,46 @@ const LessonPlayer = ({ lesson, initialStep, onClose, onFinish }: any) => {
 
   // --- NEW: THE GRAND FINALE SCREEN ---
   if (showFinale) {
+    if (!isLoggedIn) {
+        return (
+            <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-fade-in font-sans px-4">
+                <div className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 text-center shadow-2xl relative overflow-hidden">
+                    <div className="absolute -top-20 -left-20 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                    <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    
+                    <div className="relative z-10">
+                        <div className="w-20 h-20 bg-gradient-to-br from-sky-400 to-sky-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-sky-500/30">
+                            <Star className="text-white w-10 h-10 fill-white" />
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">Great Job!</h1>
+                        <p className="text-base md:text-lg text-slate-400 font-medium mb-8 max-w-2xl mx-auto">
+                            You've completed this interactive module. Create a free account to unlock your progress report, save your score, and explore the entire Kortex library!
+                        </p>
+    
+                        <div className="flex flex-col gap-4">
+                            <button 
+                                onClick={() => {
+                                    onClose(); 
+                                    const event = new CustomEvent('open-auth-modal', { detail: 'signup' });
+                                    window.dispatchEvent(event);
+                                }}
+                                className="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-4 rounded-xl text-lg shadow-lg hover:-translate-y-1 transition-all"
+                            >
+                                Create Free Account
+                            </button>
+                            <button 
+                                onClick={onClose}
+                                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-4 rounded-xl text-md transition-colors"
+                            >
+                                Close and Return
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     const exploreOptions = [
       { id: 'lessons', label: 'All Lessons', icon: Globe, color: 'text-sky-500' },
       { id: 'conceptualiser', label: 'Conceptualisers', icon: Lightbulb, color: 'text-purple-500' },

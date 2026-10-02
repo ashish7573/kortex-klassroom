@@ -12,7 +12,7 @@ import {
   getSubjectFallbackImage 
 } from './curriculumConfig';
 
-const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool }: any) => {
+const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, authProfile, role, isPro }: any) => {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,15 +129,39 @@ setTierItems(extractedItems);
            <div className={`py-20 text-center ${activeTier.textColor} font-bold animate-pulse`}>Loading modules...</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredItems.length > 0 ? filteredItems.map((item, idx) => (
-               <Card key={idx} className={`hover:${activeTier.borderColor} cursor-pointer group relative p-0 flex flex-col border-b-4 ${activeTier.borderColor}`} onClick={() => {
+            {filteredItems.length > 0 ? filteredItems.map((item, idx) => {
+    // FREEMIUM ENGINE: Depth Restriction
+    // Only unlock first 3 items unless they are Pro or the item is covered by their Org/B2C license
+    let isLockedByDepth = false;
+    if (role === 'student' && !isPro && idx >= 3) {
+       // Check if they have an active org license or b2c license for this subject/grade combo
+       const requiredCombo = `${item.grade}_${item.subject}`;
+       const b2cLicenses = authProfile?.active_b2c_licenses || [];
+       let hasOrgLicense = false;
+       if (authProfile?.org_links) {
+          Object.values(authProfile.org_links).forEach((link: any) => {
+             if (link.assigned_combos?.includes(requiredCombo)) hasOrgLicense = true;
+          });
+       }
+       if (!b2cLicenses.includes(requiredCombo) && !hasOrgLicense) {
+          isLockedByDepth = true;
+       }
+    }
+
+    return (
+               <Card key={idx} className={`${isLockedByDepth ? 'opacity-50 grayscale' : 'hover:'+activeTier.borderColor} cursor-pointer group relative p-0 flex flex-col border-b-4 ${activeTier.borderColor}`} onClick={() => {
+                 if (isLockedByDepth) {
+                    alert("This level is locked! Ask your parents to unlock Kortex Pro or assign this course to continue learning past Level 3.");
+                    return;
+                 }
                  if (item.isPremium) requireAuth(() => onOpenTool(item), `This is a Premium ${activeTier.label}. Sign up for free to access it!`);
                  else onOpenTool(item);
                }}>
                  <div className="relative h-36 w-full bg-slate-200 overflow-hidden">
                     <img src={item.image} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                     <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-transparent to-transparent pointer-events-none"></div>
-                    {item.isPremium && <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm flex items-center gap-1"><Star size={10} className="fill-white" /> PRO</div>}
+                    {item.isPremium && !isLockedByDepth && <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm flex items-center gap-1"><Star size={10} className="fill-white" /> PRO</div>}
+   {isLockedByDepth && <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-[2px] z-10"><div className="bg-slate-900 text-white p-3 rounded-full shadow-xl"><Lock size={24} /></div></div>}
                  </div>
                  <div className="p-5 bg-white flex-1 flex flex-col">
                    <div className="mb-2">
@@ -147,7 +171,8 @@ setTierItems(extractedItems);
                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mt-auto pt-3 border-t border-slate-100"><span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{item.grade}</span><span>•</span><span className="truncate">{item.subject}</span></div>
                  </div>
                </Card>
-            )) : <div className="col-span-full py-16 text-center bg-white rounded-3xl border-2 border-slate-100"><h3 className="text-xl font-bold text-slate-700">No content found</h3></div>}
+            );
+         }) : <div className="col-span-full py-16 text-center bg-white rounded-3xl border-2 border-slate-100"><h3 className="text-xl font-bold text-slate-700">No content found</h3></div>}
           </div>
         )}
       </div>

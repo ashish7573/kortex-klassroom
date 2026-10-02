@@ -8,6 +8,7 @@ import { doc, setDoc, updateDoc, collection, query, where, getDocs } from 'fireb
 import { auth, db } from '../../backend_configurations/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { ParentProfile } from '../../types/user';
+import { generateParentId } from '../../app/actions/student';
 import QuoteInquiryModal from './QuoteInquiryModal';
 import { 
   X, 
@@ -47,6 +48,7 @@ export default function UnifiedAuthModal({
   // Parent Sign Up State
   const [parentName, setParentName] = useState('');
   const [parentEmail, setParentEmail] = useState('');
+  const [parentContact, setParentContact] = useState('');
   const [parentPassword, setParentPassword] = useState('');
   const [parentConfirmPassword, setParentConfirmPassword] = useState('');
 
@@ -70,17 +72,10 @@ export default function UnifiedAuthModal({
     try {
       let emailToAuth = loginIdentifier.trim().toLowerCase();
 
-      // If identifier is not an email, treat as student username
+      // If identifier is not an email, treat as student Kortex ID
       if (!emailToAuth.includes('@')) {
-        const cleanUser = emailToAuth.replace(/[^a-z0-9_]/g, '');
-        const q = query(collection(db, 'users'), where('username', '==', cleanUser));
-        const snap = await getDocs(q);
-
-        if (snap.empty) {
-          throw new Error("Student username not found. Please check with your parent or school.");
-        }
-        const studentDoc = snap.docs[0].data();
-        emailToAuth = studentDoc.email || `${cleanUser}@student.kortex.app`;
+        const cleanId = loginIdentifier.trim().toLowerCase(); // e.g. stu_abc_123
+        emailToAuth = `${cleanId}@student.kortex.app`;
       }
 
       // Single-Device session token setup
@@ -103,7 +98,7 @@ export default function UnifiedAuthModal({
       }
 
       onClose();
-    } catch (err: any) {
+    } catch (err: any /* eslint-disable-line @typescript-eslint/no-explicit-any */) {
       console.error("Sign in failed:", err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
         setErrorMsg("Incorrect credentials. Please verify your email/username and password.");
@@ -125,6 +120,12 @@ export default function UnifiedAuthModal({
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg('');
+
+    if (parentContact.trim().length < 10) {
+      setErrorMsg("Please provide a valid contact number.");
+      setIsLoading(false);
+      return;
+    }
 
     if (parentPassword.length < 6) {
       setErrorMsg("Password must be at least 6 characters.");
@@ -148,22 +149,30 @@ export default function UnifiedAuthModal({
       }
 
       const cred = await createUserWithEmailAndPassword(auth, cleanEmail, parentPassword);
+      const parentKortexId = await generateParentId();
 
       // Initialize Parent Firestore profile
       const parentProfile: ParentProfile = {
         uid: cred.user.uid,
+        kortex_id: parentKortexId,
         email: cleanEmail,
         full_name: parentName.trim(),
         role: 'parent',
+        contact_number: parentContact.trim(),
         children_ids: [],
         status: 'active',
         session_token: sessionToken,
         created_at: new Date().toISOString()
       };
 
-      await setDoc(doc(db, 'users', cred.user.uid), parentProfile);
+      try {
+        await setDoc(doc(db, 'users', cred.user.uid), parentProfile);
+      } catch (err) {
+        await cred.user.delete();
+        throw err;
+      }
       onClose();
-    } catch (err: any) {
+    } catch (err: any /* eslint-disable-line @typescript-eslint/no-explicit-any */) {
       console.error("Parent registration error:", err);
       if (err.code === 'auth/email-already-in-use') {
         setErrorMsg("An account with this email already exists. Please sign in instead.");
@@ -189,7 +198,7 @@ export default function UnifiedAuthModal({
     try {
       await resetPassword(resetEmail.trim().toLowerCase());
       setResetSent(true);
-    } catch (err: any) {
+    } catch (err: any /* eslint-disable-line @typescript-eslint/no-explicit-any */) {
       setErrorMsg(err.message || "Failed to send password reset email.");
     } finally {
       setIsLoading(false);
@@ -272,7 +281,7 @@ export default function UnifiedAuthModal({
                       required
                       value={loginIdentifier}
                       onChange={(e) => setLoginIdentifier(e.target.value)}
-                      placeholder="e.g. parent@email.com or aarav2026"
+                      placeholder="e.g. parent@email.com or STU_ABC_123"
                       className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
                     />
                   </div>
@@ -356,6 +365,17 @@ export default function UnifiedAuthModal({
                     value={parentEmail}
                     onChange={(e) => setParentEmail(e.target.value)}
                     placeholder="parent@example.com"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
+                  />
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Contact Number</label>
+                  <input
+                    type="tel"
+                    required
+                    value={parentContact}
+                    onChange={(e) => setParentContact(e.target.value)}
+                    placeholder="+1 234 567 8900"
                     className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
                   />
                 </div>

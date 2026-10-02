@@ -10,6 +10,7 @@ import { User, Play, LogOut, Search, Star, Menu, X, Type, Target } from 'lucide-
 import { useAuth } from '../hooks/useAuth';
 import { auth, db, googleProvider } from '../backend_configurations/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { consumeHeart, logStudentActivity } from '../app/actions/student';
 import { doc, getDoc, onSnapshot, collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 
 // Re-export initialized Firebase instances for backward compatibility
@@ -330,7 +331,17 @@ function MainApp() {
 useEffect(() => {
     const handleNav = (e: any) => setCurrentView(e.detail);
     window.addEventListener('navigate-tab', handleNav);
-    return () => window.removeEventListener('navigate-tab', handleNav);
+    
+    const handleAuth = (e: any) => {
+       setAuthMode(e.detail || 'signin');
+       setShowAuthModal(true);
+    };
+    window.addEventListener('open-auth-modal', handleAuth);
+    
+    return () => {
+      window.removeEventListener('navigate-tab', handleNav);
+      window.removeEventListener('open-auth-modal', handleAuth);
+    };
   }, []);
 
 
@@ -402,7 +413,55 @@ useEffect(() => {
     setPlayingStep(0);
   };
 
-  const handleOpenFeatured = (item: any) => {
+  const ensureEnergy = async (toolSubject?: string) => {
+    if (role === 'student' && !isPro && authProfile) {
+        // --- B2B / B2C BYPASS CHECK ---
+        if (toolSubject) {
+            let isOwned = false;
+            const matchStr = toolSubject.toLowerCase();
+            
+            // 1. If they belong to an organization, they get unlimited access to their school subjects
+            // For simplicity, we bypass energy if they are in an org, as the org pays a bulk license.
+            if ((authProfile as any).org_ids && (authProfile as any).org_ids.length > 0) {
+                isOwned = true;
+            }
+            
+            // 2. Check B2C licenses
+            if (!isOwned && (authProfile as any).active_b2c_licenses) {
+                isOwned = (authProfile as any).active_b2c_licenses.some((c: string) => c.toLowerCase().includes(matchStr));
+            }
+            
+            if (isOwned) return true;
+        }
+
+        try {
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) return false;
+            if ((authProfile as any).hearts_remaining <= 0) {
+                 setAlertConfig({
+                    title: "Out of Energy!",
+                    message: "You've used all 5 hearts today. Come back tomorrow for more, or ask your parents to unlock Kortex Pro!",
+                    type: "warning"
+                 });
+                 return false;
+            }
+            const result = await consumeHeart(token, authProfile.uid);
+            if (!result.success) {
+                 setAlertConfig({
+                    title: "Out of Energy!",
+                    message: "You've used all your hearts for today.",
+                    type: "warning"
+                 });
+                 return false;
+            }
+        } catch (e) { return false; }
+    }
+    return true;
+  };
+
+  const handleOpenFeatured = async (item: any) => {
+      const hasEnergy = await ensureEnergy(item.subject);
+      if (!hasEnergy) return;
       const playableLesson = {
         chapter: item.chapter_name || item.lessonContext?.chapter || item.title || 'Interactive Module',
         book: item.book || item.lessonContext?.book || 'Kortex Klassroom',
@@ -412,17 +471,38 @@ useEffect(() => {
       setPlayingStep(0);
   };
 
-  const handleStartLesson = (lesson: any, stepIndex: any) => {
+  const handleStartLesson = async (lesson: any, stepIndex: any) => {
+       const toolSubject = lesson.subject || (lesson.flow && lesson.flow[stepIndex]?.subject) || 'unknown';
+       const hasEnergy = await ensureEnergy(toolSubject);
+       if (!hasEnergy) return;
        setPlayingLesson(lesson); 
        setPlayingStep(stepIndex); 
   };
 
   const renderContent = () => {
-    if (currentView === 'lessons') return <LessonsView isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartLesson={handleStartLesson} />;
+    if (currentView?.startsWith('lessons')) {
+        let defaultClass = "";
+        let defaultSubject = "";
+        if (currentView.includes(':')) {
+             const combo = currentView.split(':')[1];
+             if (combo.includes(' - ')) {
+                 const parts = combo.split(' - ');
+                 defaultClass = parts[0].trim();
+                 defaultSubject = parts[parts.length - 1].trim();
+             } else {
+                 const match = combo.match(/grade-(\d+)-(.*)/i);
+                 if (match) {
+                     defaultClass = `Grade ${match[1]}`;
+                     defaultSubject = match[2];
+                 }
+             }
+        }
+        return <LessonsView isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartLesson={handleStartLesson} authProfile={authProfile} role={role} isPro={isPro} defaultClass={defaultClass} defaultSubject={defaultSubject} />;
+    }
     
     const activeTierObj = FIVE_TIERS?.find(t => t.id === currentView);
     if (activeTierObj) {
-      return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onOpenTool={handleOpenFeatured} />;
+      return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onOpenTool={handleOpenFeatured} authProfile={authProfile} role={role} isPro={isPro} />;
     }
 
     if (currentView === 'portal' && authProfile) {
@@ -459,10 +539,36 @@ useEffect(() => {
       
       {playingLesson && (
         <LessonPlayer 
-          lesson={playingLesson} initialStep={playingStep} isPro={true} isLoggedIn={true} 
+          lesson={playingLesson} initialStep={playingStep} isPro={isPro} isLoggedIn={isLoggedIn} 
           onClose={() => setPlayingLesson(null)} 
-          onFinish={() => {
-             // 🎯 TRACKING: Lesson Completed!
+          onStepComplete={async (data: any = {}) => {
+             // Log immediate progress for the specific tool!
+             if (authProfile && authProfile.role === 'student') {
+                try {
+                  const user = auth.currentUser;
+                  if (user) {
+                    const token = await user.getIdToken();
+                    
+                    const tool = playingLesson.flow?.[data.step] || playingLesson;
+                    const toolId = tool.id || tool.title || 'unknown_tool';
+                    const gradeStr = tool.grade ? tool.grade.trim() : 'unknown_grade';
+                    const subjStr = tool.subject ? tool.subject.trim() : 'unknown_subject';
+                    const subjectId = `${gradeStr}_${subjStr}`;
+                    
+                    await logStudentActivity(token, {
+                      toolId: toolId,
+                      chapterName: playingLesson.chapter,
+                      subjectId: subjectId,
+                      score: data.score
+                    });
+                  }
+                } catch (e) {
+                  console.error("Failed to log activity", e);
+                }
+             }
+          }}
+          onFinish={async (data: any = {}) => {
+             // 🎯 TRACKING: Playlist Completed!
              trackEvent('lesson_completed', { chapter: playingLesson.chapter });
              setPlayingLesson(null);
           }} 

@@ -20,6 +20,7 @@ export interface BaseUserProfile {
   status: UserStatus;
   avatar?: string;
   has_completed_onboarding?: boolean; // Used for first-login guards
+  is_pro?: boolean; // Global Pro status
 }
 
 export interface OrgApprovalRequest {
@@ -34,19 +35,68 @@ export interface OrgApprovalRequest {
 export interface ParentProfile extends BaseUserProfile {
   role: 'parent';
   children_ids: string[];
+  contact_number: string;
   pending_org_approvals?: OrgApprovalRequest[];
 }
 
 // 2. Student Profile (Child - created by parent or org admin)
+export interface OrgLinkData {
+  org_name: string;
+  grade: string;
+  section?: string | null;
+  assigned_combos: string[];
+  status: 'pending' | 'approved';
+  requested_at?: string;
+}
+
 export interface StudentProfile extends BaseUserProfile {
   role: 'student';
   username: string;
+  plain_pin?: string;
+  // Independent Learner Data (Used if no org, or as a global baseline)
   grade: string;
+  section?: string | null;
+  active_b2c_licenses: string[]; // Global extra combos bought directly by parent
+
+  // Freemium Engine Data
+  hearts_remaining: number;                // Daily stamina (Default 5)
+  last_heart_reset: string;                // ISO timestamp of last reset
+
+  // Relationship Data
   parent_id: string;                       // Mandatory parent link
-  org_id?: string | null;                 // Optional school/organization link
-  teacher_ids: string[];                   // Linked teachers
-  org_approval_status: 'none' | 'pending' | 'approved';
+  claim_code?: string;                     // Used during handshakes
+  parent_name?: string;                    // Parent's name for easy dashboard reads
+  parent_email?: string;                   // Parent's email for Org Admins
+  emergency_contact?: string | null;       // Emergency contact number
+  teacher_ids: string[];                   // Linked teachers across all orgs
+
+  // Multi-Organization Data
+  org_ids?: string[];                       // Array of active OR pending org IDs for fast querying
+  org_links?: {                            // Detailed mapping per org
+    [orgId: string]: OrgLinkData
+  };
   is_pro?: boolean;
+
+  // Gamification & Progress
+  current_streak_days?: number;
+  last_active_date?: string;
+  total_xp?: number;
+  achievements?: string[];
+}
+
+export interface SubjectProgress {
+  subject_id: string;              
+  xp: number;                      
+  total_time_spent_seconds: number;
+  completed_tools: {
+    [toolId: string]: {
+      chapter_name: string;
+      last_played_at: string;
+      times_completed: number;
+      best_score?: number;         
+    }
+  };
+  last_played_at: string;
 }
 
 // 3. Teacher Profile (Provisioned by Org Admin or Super Admin)
