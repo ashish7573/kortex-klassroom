@@ -86,7 +86,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center relative z-10">
         <div className="space-y-6 text-center md:text-left">
           <div className="inline-flex items-center gap-2 bg-sky-100 text-sky-700 px-4 py-2 rounded-full font-bold text-sm uppercase tracking-wider mb-2 border border-sky-200">
-             <Globe size={16} /> 100% Free & Open Access
+             <Globe size={16} /> Bringing Effectiveness and Efficiency in Education
           </div>
           {/* UPDATED: Headline & Subheadline */}
           <h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 leading-tight tracking-tight">Smarter Tools,<br/><span className="text-sky-500">Stronger Minds.</span></h1>

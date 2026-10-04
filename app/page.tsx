@@ -435,7 +435,7 @@ useEffect(() => {
        if (plays >= 3) {
           setAlertConfig({
              title: "Free Demos Exhausted",
-             message: "You've used all your free guest passes! Create a free account to continue playing.",
+             message: "You've used all your free guest passes for the day! Create a free account to continue playing or check back tomorrow!",
              type: "warning",
              actionLabel: "Sign Up for Free",
              onAction: () => {

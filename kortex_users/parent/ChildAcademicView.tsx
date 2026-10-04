@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { StudentProfile } from '../../types/user';
 import { auth, db } from '../../backend_configurations/firebase';
-import { collection, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useStudentAssignments } from '../../hooks/useStudentAssignments';
 import { getStudentAcademicDetails } from '../../app/actions/student';
 import { Building, AlertCircle, Sparkles, TrendingUp, Clock, CheckCircle2, FileText, BarChart2, Lock, X, ClipboardList, CircleDashed, Award } from 'lucide-react';
 
@@ -50,6 +51,8 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   const [showUpsellModal, setShowUpsellModal] = useState(false);
   type AssignmentStatus = 'pending' | 'submitted' | 'graded';
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentStatus>('pending');
+  const { assignments, loading: loadingAssignments } = useStudentAssignments(child.uid);
+  const filteredAssignments = assignments.filter((a: any) => a.status === assignmentFilter);
   const [progressData, setProgressData] = useState<any[]>([]);
   const [subjectTotals, setSubjectTotals] = useState<Record<string, number>>({});
 
@@ -58,15 +61,10 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   useEffect(() => {
     async function loadTotals() {
       try {
-        const snap = await getDocs(collection(db, 'learning_tools'));
-        const totals: Record<string, number> = {};
-        snap.docs.forEach(doc => {
-          const data = doc.data();
-          const grade = (data.grade || 'unknown').trim().toLowerCase();
-          const subj = (data.subject || 'unknown').trim().toLowerCase();
-          const key = `${grade}_${subj}`;
-          totals[key] = (totals[key] || 0) + 1;
-        });
+        // QUOTA OPTIMIZATION: Read from single aggregation document!
+        const docRef = doc(db, 'metadata', 'curriculum_totals');
+        const docSnap = await getDoc(docRef);
+        const totals = docSnap.exists() ? docSnap.data() : {};
         setSubjectTotals(totals);
       } catch (e) {
         console.error("Error loading tools:", e);
@@ -193,17 +191,66 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
            </div>
         </div>
 
-        <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-10 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4">
-               <ClipboardList size={32} />
-            </div>
-            <h3 className="text-lg font-bold text-slate-700 mb-1">No {assignmentFilter} assignments</h3>
-            <p className="text-sm font-semibold text-slate-500 max-w-sm">
-              {assignmentFilter === 'pending' ? "The student is all caught up! There are no pending tasks right now." : 
-               assignmentFilter === 'submitted' ? "No submitted assignments available." : 
-               "No graded assignments to display."}
-            </p>
-         </div>
+        {loadingAssignments ? (
+           <div className="flex justify-center items-center py-10">
+             <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+           </div>
+        ) : filteredAssignments.length > 0 ? (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {filteredAssignments.map((task: any) => (
+               <div key={task.id} className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                 <div>
+                   <div className="flex justify-between items-start mb-3">
+                     <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-black uppercase tracking-wider">
+                       {task.subject}
+                     </span>
+                     {task.status === 'graded' && <span className="text-emerald-500 font-black text-lg">{task.score}/{task.totalPoints}</span>}
+                   </div>
+                   <h3 className="font-bold text-slate-800 text-lg leading-tight mb-2">{task.title}</h3>
+                   {task.instructions && <p className="text-sm text-slate-500 mb-4 font-semibold">{task.instructions}</p>}
+                 </div>
+                 
+                 <div className="mt-auto border-t border-slate-100 pt-4">
+                   {task.status === 'pending' && (
+                      <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-1.5 text-sm font-bold text-amber-600">
+                           <CircleDashed size={16} /> Due: {task.dueDate}
+                         </div>
+                      </div>
+                   )}
+
+                   {task.status === 'submitted' && (
+                      <div className="flex items-center gap-1.5 text-sm font-bold">
+                         <CheckCircle2 size={16} className={task.isOnTime ? 'text-emerald-500' : 'text-rose-500'} /> 
+                         <span className={task.isOnTime ? 'text-emerald-600' : 'text-rose-600'}>
+                           Submitted {task.submittedDate} {task.isOnTime ? '' : '(Late)'}
+                         </span>
+                      </div>
+                   )}
+
+                   {task.status === 'graded' && (
+                      <div className="flex items-center gap-1.5 text-sm font-bold">
+                         <Award size={16} className="text-emerald-500" /> 
+                         <span className="text-emerald-600">Graded • {task.grade || 'Completed'}</span>
+                      </div>
+                   )}
+                 </div>
+               </div>
+             ))}
+           </div>
+        ) : (
+           <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-10 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4">
+                 <ClipboardList size={32} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-700 mb-1">No {assignmentFilter} assignments</h3>
+              <p className="text-sm font-semibold text-slate-500 max-w-sm">
+                {assignmentFilter === 'pending' ? "The student is all caught up! There are no pending tasks right now." : 
+                 assignmentFilter === 'submitted' ? "No submitted assignments available." : 
+                 "No graded assignments to display."}
+              </p>
+           </div>
+        )}
       </div>
 
 

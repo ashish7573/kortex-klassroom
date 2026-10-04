@@ -1004,7 +1004,7 @@ export async function getStudentAssignments(idToken: string, targetUid?: string)
        // Validate caller is parent of targetUid
        const docSnap = await adminDb.collection('users').doc(studentUid).get();
        const data = docSnap.data();
-       if (data?.role === 'parent' && data?.children?.includes(targetUid)) {
+       if (data?.role === 'parent' && data?.children_ids?.includes(targetUid)) {
            studentUid = targetUid;
        } else {
            throw new Error("Unauthorized to view this student's assignments");

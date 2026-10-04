@@ -7,6 +7,7 @@ import { ArrowLeft, BarChart3, Users, BookOpen, AlertCircle, PlusCircle, PlayCir
 import { auth } from '../../backend_configurations/firebase';
 import { fetchTeacherAssignments } from '../../app/actions/teacher_assignments';
 import AssignmentBuilderModal from './AssignmentBuilderModal';
+import GradeSubmissionsModal from './GradeSubmissionsModal';
 
 interface TeacherClassViewProps {
   profile: TeacherProfile;
@@ -23,6 +24,7 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
   const [activeTab, setActiveTab] = useState<'roster' | 'assignments'>('roster');
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [gradingAssignment, setGradingAssignment] = useState<any>(null);
 
 
   useEffect(() => {
@@ -259,7 +261,7 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
                                </div>
                                <div className="text-xs font-bold text-slate-500 mt-4 flex items-center justify-between">
                                   <span>Assigned to {a.assigned_to?.length || 0} students</span>
-                                  <button className="text-sky-500 hover:text-sky-700 bg-sky-50 px-3 py-1.5 rounded-lg transition-colors">Grade Submissions</button>
+                                  <button onClick={() => setGradingAssignment(a)} className="text-sky-500 hover:text-sky-700 bg-sky-50 px-3 py-1.5 rounded-lg transition-colors">Grade Submissions</button>
                                </div>
                             </div>
                          ))}
@@ -269,6 +271,14 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
              </div>
           )}
         </>
+      )}
+      
+      {gradingAssignment && (
+        <GradeSubmissionsModal 
+          assignment={gradingAssignment} 
+          onClose={() => setGradingAssignment(null)} 
+          onGraded={() => {}} 
+        />
       )}
       
       {showAssignModal && (

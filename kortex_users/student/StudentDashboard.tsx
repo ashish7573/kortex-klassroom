@@ -4,7 +4,7 @@ import { StudentProfile } from '../../types/user';
 import { auth } from '../../backend_configurations/firebase';
 import { checkAndResetDailyHearts, consumeHeart } from '../../app/actions/student';
 import { Sparkles, Trophy, Flame, Play, BookOpen, Lightbulb, Gamepad2, Target, Heart, BatteryCharging, X, Star, History, Award, Book, ClipboardList, CheckCircle2, CircleDashed } from 'lucide-react';
-import { collection, onSnapshot, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore';
 import { getStudentOrgProfiles, markAssignmentAsDone } from '../../app/actions/student';
 import { db } from '../../backend_configurations/firebase';
 import { useStudentAssignments, AssignmentStatus } from '../../hooks/useStudentAssignments';
@@ -182,26 +182,10 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
     async function loadTotals() {
       if (allDisplayCombos.length === 0) return;
       try {
-        const subjectsToFetch = [...new Set(allDisplayCombos.map(c => c.subject))];
-        const totals: Record<string, number> = {};
-        
-        for (const subj of subjectsToFetch) {
-            const q = query(
-               collection(db, 'learning_tools'), 
-               where('subject', 'in', [subj, subj.toLowerCase(), 'Mathematics', 'mathematics', 'Maths', 'maths'])
-            );
-            const snap = await getDocs(q).catch(() => ({ docs: [] }));
-            
-            snap.docs.forEach((doc: any) => {
-              const data = doc.data();
-              const grade = (data.grade || 'unknown').trim().toLowerCase();
-              const dbSubj = (data.subject || 'unknown').trim().toLowerCase();
-              const normalizedSubj = (dbSubj === 'mathematics' || dbSubj === 'maths') ? 'maths' : dbSubj;
-              
-              const key = `${grade}_${normalizedSubj}`;
-              totals[key] = (totals[key] || 0) + 1;
-            });
-        }
+        // QUOTA OPTIMIZATION: Read from single aggregation document!
+        const docRef = doc(db, 'metadata', 'curriculum_totals');
+        const docSnap = await getDoc(docRef);
+        const totals = docSnap.exists() ? docSnap.data() as Record<string, number> : {};
         
         setSubjectTotals(totals);
       } catch (e) {
