@@ -63,6 +63,16 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onSt
       } catch(e) {}
   };
 
+  const [finalScore, setFinalScore] = useState<number | undefined>(undefined);
+  
+  useEffect(() => {
+      if (isDrawingMode && canvasRef.current) {
+          const canvas = canvasRef.current;
+          canvas.width = canvas.offsetWidth;
+          canvas.height = canvas.offsetHeight;
+      }
+  }, [isDrawingMode]);
+
   useEffect(() => {
       if (isTimerActive) {
           timerRef.current = setInterval(() => {
@@ -120,8 +130,6 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onSt
   const progressPercentage = ((currentStep + 1) / playlist.length) * 100;
   const isLastStep = currentStep === playlist.length - 1;
 
-  // UPDATED: Logic to trap the demo at the end and show the finale
-  const [finalScore, setFinalScore] = useState<number | undefined>(undefined);
 
   const handleNext = (data?: any) => {
       if (data && data.score !== undefined) setFinalScore(data.score);
@@ -261,13 +269,6 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onSt
   }
 
 // --- NEW: ANNOTATION DRAWING LOGIC ---
-  useEffect(() => {
-      if (isDrawingMode && canvasRef.current) {
-          const canvas = canvasRef.current;
-          canvas.width = canvas.offsetWidth;
-          canvas.height = canvas.offsetHeight;
-      }
-  }, [isDrawingMode]);
 
   const startDrawing = (e: any) => {
       isDrawing.current = true;
