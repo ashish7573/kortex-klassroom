@@ -1,32 +1,31 @@
 const fs = require('fs');
-const file = 'kortex_users/auth/UnifiedAuthModal.tsx';
-let code = fs.readFileSync(file, 'utf8');
+let code = fs.readFileSync('kortex_users/auth/UnifiedAuthModal.tsx', 'utf8');
 
-const oldLogic = `      // If identifier is not an email, treat as student Kortex ID
-      if (!emailToAuth.includes('@')) {
-        const cleanId = loginIdentifier.trim().toUpperCase(); // e.g. STU_ABC_123
-        const q = query(collection(db, 'users'), where('kortex_id', '==', cleanId));
-        const snap = await getDocs(q);
+code = code.replace(
+  `import { generateParentId } from '../../utils/generators';`,
+  `import { generateParentId } from '../../utils/generators';\nimport { updateUserSessionToken } from '../../app/actions/student';`
+);
 
-        if (snap.empty) {
-          throw new Error("Student ID not found. Please check with your parent or school.");
-        }
-        const studentDoc = snap.docs[0].data();
-        
-        // If the student was provisioned by an Org and hasn't been claimed yet
-        if (studentDoc.parent_id === 'PENDING') {
-          throw new Error("This Student ID has not been claimed by a parent yet.");
-        }
-
-        emailToAuth = studentDoc.email || \`\${cleanId.toLowerCase()}@student.kortex.app\`;
+const oldUpdate = `      // Update session token in Firestore
+      try {
+        await updateDoc(doc(db, 'users', cred.user.uid), {
+          session_token: sessionToken,
+          updated_at: new Date().toISOString()
+        });
+      } catch (err) {
+        console.warn("Profile update warning during sign-in:", err);
       }`;
 
-const newLogic = `      // If identifier is not an email, treat as student Kortex ID
-      if (!emailToAuth.includes('@')) {
-        const cleanId = loginIdentifier.trim().toLowerCase(); // e.g. stu_abc_123
-        emailToAuth = \`\${cleanId}@student.kortex.app\`;
+const newUpdate = `      // Update session token in Firestore (via Server Action to bypass strict security rules)
+      try {
+        const idToken = await cred.user.getIdToken();
+        const res = await updateUserSessionToken(idToken, sessionToken);
+        if (!res.success) {
+           console.warn("Server action session update failed:", res.error);
+        }
+      } catch (err) {
+        console.warn("Profile update warning during sign-in:", err);
       }`;
 
-code = code.replace(oldLogic, newLogic);
-
-fs.writeFileSync(file, code);
+code = code.replace(oldUpdate, newUpdate);
+fs.writeFileSync('kortex_users/auth/UnifiedAuthModal.tsx', code);

@@ -3,7 +3,7 @@ import React from 'react';
 import { UserProfile } from '../types/user';
 import ParentDashboard from './parent/ParentDashboard';
 import StudentDashboard from './student/StudentDashboard';
-import TeacherDashboard from './teacher/TeacherDashboard';
+import TeacherPortal from './teacher/TeacherPortal';
 import OrgAdminDashboard from './org_admin/OrgAdminDashboard';
 import KrewDashboard from './krew/KrewDashboard';
 import KortexAdminDashboard from './kortex_admin/KortexAdminDashboard';
@@ -29,7 +29,7 @@ export default function UserPortalDispatcher({
       return <StudentDashboard profile={profile} onExploreTier={onExploreTier} />;
 
     case 'teacher':
-      return <TeacherDashboard profile={profile} />;
+      return <TeacherPortal profile={profile} />;
 
     case 'org_admin':
       return <OrgAdminDashboard profile={profile} />;

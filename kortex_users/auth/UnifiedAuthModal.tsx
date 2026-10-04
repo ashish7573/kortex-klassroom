@@ -8,7 +8,7 @@ import { doc, setDoc, updateDoc, collection, query, where, getDocs } from 'fireb
 import { auth, db } from '../../backend_configurations/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { ParentProfile } from '../../types/user';
-import { generateParentId } from '../../app/actions/student';
+import { generateParentId, updateUserSessionToken } from '../../app/actions/student';
 import QuoteInquiryModal from './QuoteInquiryModal';
 import { 
   X, 
@@ -87,12 +87,13 @@ export default function UnifiedAuthModal({
 
       const cred = await signInWithEmailAndPassword(auth, emailToAuth, loginPassword);
 
-      // Update session token in Firestore
+      // Update session token in Firestore (via Server Action to bypass strict security rules)
       try {
-        await updateDoc(doc(db, 'users', cred.user.uid), {
-          session_token: sessionToken,
-          updated_at: new Date().toISOString()
-        });
+        const idToken = await cred.user.getIdToken();
+        const res = await updateUserSessionToken(idToken, sessionToken);
+        if (!res.success) {
+           console.warn("Server action session update failed:", res.error);
+        }
       } catch (err) {
         console.warn("Profile update warning during sign-in:", err);
       }

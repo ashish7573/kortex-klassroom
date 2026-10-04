@@ -7,6 +7,7 @@ import { Sparkles, Trophy, Flame, Play, BookOpen, Lightbulb, Gamepad2, Target, H
 import { collection, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { getStudentOrgProfiles } from '../../app/actions/student';
 import { db } from '../../backend_configurations/firebase';
+import { useStudentAssignments, AssignmentStatus } from '../../hooks/useStudentAssignments';
 
 interface StudentDashboardProps {
   profile: StudentProfile;
@@ -28,26 +29,9 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
   // --------------------------------------------------------------------------
   // ASSIGNMENTS STATE (Ready for Backend Integration)
   // --------------------------------------------------------------------------
-  type AssignmentStatus = 'pending' | 'submitted' | 'graded';
-  interface Assignment {
-    id: string;
-    title: string;
-    subject: string;
-    status: AssignmentStatus;
-    dueDate: string;
-    link?: string;
-    submittedDate?: string;
-    isOnTime?: boolean;
-    score?: number;
-    totalPoints?: number;
-    grade?: string;
-  }
-
-  // Currently empty, but the UI is ready to receive data from Firestore
-  const myAssignments: Assignment[] = [];
+  const { assignments, loading: loadingAssignments } = useStudentAssignments(profile.uid);
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentStatus>('pending');
-  
-  const filteredAssignments = myAssignments.filter(a => a.status === assignmentFilter);
+  const filteredAssignments = assignments.filter(a => a.status === assignmentFilter);
 
 
 
@@ -406,7 +390,10 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                              <div className="flex items-center gap-1.5 text-sm font-bold text-amber-600">
                                <CircleDashed size={16} /> Due: {task.dueDate}
                              </div>
-                             <button className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-colors">
+                             <button 
+                               onClick={() => onExploreTier && onExploreTier(`play_tool:${task.link}`)}
+                               className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-colors"
+                             >
                                Open
                              </button>
                           </div>

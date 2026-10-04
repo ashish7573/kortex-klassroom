@@ -967,3 +967,89 @@ export async function getStudentOrgProfiles(idToken: string, orgIds: string[]) {
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
+
+export async function getStudentAssignments(idToken: string, targetUid?: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    let studentUid = decodedToken.uid;
+    
+    if (targetUid && targetUid !== studentUid) {
+       // Validate caller is parent of targetUid
+       const docSnap = await adminDb.collection('users').doc(studentUid).get();
+       const data = docSnap.data();
+       if (data?.role === 'parent' && data?.children?.includes(targetUid)) {
+           studentUid = targetUid;
+       } else {
+           throw new Error("Unauthorized to view this student's assignments");
+       }
+    }
+    
+    // Fetch all active assignments assigned to this student
+    const assignmentsSnap = await adminDb.collection('assignments')
+      .where('assigned_to', 'array-contains', studentUid)
+      .where('status', '==', 'active')
+      .get();
+      
+    const assignmentDocs = assignmentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Fetch student's submissions
+    const subSnap = await adminDb.collection('users').doc(studentUid).collection('submissions').get();
+    const subMap: Record<string, any> = {};
+    subSnap.docs.forEach(doc => {
+       subMap[doc.id] = doc.data();
+    });
+
+    const merged = assignmentDocs.map((a: any) => {
+       const sub = subMap[a.id];
+       let status = sub?.status || 'pending';
+       const dueDateObj = new Date(a.due_date);
+       
+       if (status === 'submitted' && new Date() > dueDateObj) {
+           if (sub?.score !== undefined && sub?.score !== null) {
+               status = 'graded';
+           }
+       }
+       
+       let isOnTime = true;
+       if (sub?.submitted_at) {
+          isOnTime = new Date(sub.submitted_at) <= dueDateObj;
+       } else if (status === 'pending') {
+          isOnTime = new Date() <= dueDateObj;
+       }
+
+       return {
+          id: a.id,
+          title: a.title || 'Untitled',
+          subject: a.chapter_name === 'Unknown' ? (a.tool_type !== 'unknown' ? a.tool_type : 'Task') : (a.chapter_name || a.combo_id),
+          status: status,
+          dueDate: a.due_date,
+          link: a.tool_id,
+          toolType: a.tool_type,
+          submittedDate: sub?.submitted_at ? new Date(sub.submitted_at).toLocaleDateString() : undefined,
+          isOnTime: isOnTime,
+          score: sub?.score,
+          totalPoints: 100,
+          grade: sub?.score === 'N/A' ? 'Completed' : (sub?.score ? sub.score + '/100' : '')
+       };
+    });
+
+    return { success: true, assignments: merged };
+  } catch (error: any) {
+    console.error("Error fetching student assignments:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateUserSessionToken(idToken: string, sessionToken: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    await adminDb.collection('users').doc(decodedToken.uid).update({
+      session_token: sessionToken,
+      updated_at: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating session token:", error);
+    return { success: false, error: error.message };
+  }
+}

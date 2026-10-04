@@ -510,7 +510,38 @@ useEffect(() => {
         <UserPortalDispatcher 
           profile={authProfile} 
           onNavigateHome={() => setCurrentView('home')} 
-          onExploreTier={(tierId: any) => setCurrentView(tierId)}
+          onExploreTier={(tierId: any) => {
+             if (tierId && tierId.startsWith('play_tool:')) {
+                const toolId = tierId.split(':')[1];
+                // We just construct a dummy lesson with the ID, LessonPlayer handles the rest
+                // Wait! LessonPlayer needs the full tool object?
+                // Yes, LessonPlayer expects the flow to have the full objects.
+                // We need to fetch it!
+                import('firebase/firestore').then(({ doc, getDoc }) => {
+                   import('../backend_configurations/firebase').then(async ({ db }) => {
+                      const docSnap = await getDoc(doc(db, 'learning_tools', toolId));
+                      if (docSnap.exists()) {
+                         const toolData = { id: docSnap.id, ...docSnap.data() } as any;
+                         const playableLesson = {
+                            chapter: toolData.chapter_name || toolData.title || 'Interactive Module',
+                            book: toolData.book || 'Kortex Klassroom',
+                            flow: [toolData],
+                            subject: toolData.subject
+                         };
+                         // we must call ensureEnergy
+                         const toolSubject = toolData.subject || 'unknown';
+                         const hasEnergy = await ensureEnergy(toolSubject);
+                         if (hasEnergy) {
+                            setPlayingLesson(playableLesson);
+                            setPlayingStep(0);
+                         }
+                      }
+                   });
+                });
+             } else {
+                setCurrentView(tierId);
+             }
+          }}
           onOpenCMS={() => setCurrentView('home')}
         />
       );
