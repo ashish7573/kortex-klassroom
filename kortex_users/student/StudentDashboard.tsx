@@ -5,7 +5,7 @@ import { auth } from '../../backend_configurations/firebase';
 import { checkAndResetDailyHearts, consumeHeart } from '../../app/actions/student';
 import { Sparkles, Trophy, Flame, Play, BookOpen, Lightbulb, Gamepad2, Target, Heart, BatteryCharging, X, Star, History, Award, Book, ClipboardList, CheckCircle2, CircleDashed } from 'lucide-react';
 import { collection, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import { getStudentOrgProfiles } from '../../app/actions/student';
+import { getStudentOrgProfiles, markAssignmentAsDone } from '../../app/actions/student';
 import { db } from '../../backend_configurations/firebase';
 import { useStudentAssignments, AssignmentStatus } from '../../hooks/useStudentAssignments';
 
@@ -29,9 +29,26 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
   // --------------------------------------------------------------------------
   // ASSIGNMENTS STATE (Ready for Backend Integration)
   // --------------------------------------------------------------------------
-  const { assignments, loading: loadingAssignments } = useStudentAssignments(profile.uid);
+  const { assignments, loading: loadingAssignments, refreshAssignments } = useStudentAssignments(profile.uid);
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentStatus>('pending');
   const filteredAssignments = assignments.filter(a => a.status === assignmentFilter);
+
+  const handleMarkAsDone = async (assignmentId: string) => {
+     try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await markAssignmentAsDone(token, assignmentId);
+        if (res.success) {
+           refreshAssignments();
+           setAssignmentFilter('submitted'); // Auto switch to submitted tab to show them their success
+        } else {
+           alert("Failed to mark as done: " + res.error);
+        }
+     } catch (e: any) {
+        alert(e.message);
+     }
+  };
 
 
 
@@ -381,7 +398,8 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                          </span>
                          {task.status === 'graded' && <span className="text-emerald-500 font-black text-lg">{task.score}/{task.totalPoints}</span>}
                        </div>
-                       <h3 className="font-bold text-slate-800 text-lg leading-tight mb-4">{task.title}</h3>
+                       <h3 className="font-bold text-slate-800 text-lg leading-tight mb-2">{task.title}</h3>
+                       {task.instructions && <p className="text-sm text-slate-500 mb-4 font-semibold">{task.instructions}</p>}
                      </div>
                      
                      <div className="mt-auto border-t border-slate-100 pt-4">
@@ -390,12 +408,29 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                              <div className="flex items-center gap-1.5 text-sm font-bold text-amber-600">
                                <CircleDashed size={16} /> Due: {task.dueDate}
                              </div>
-                             <button 
-                               onClick={() => onExploreTier && onExploreTier(`play_tool:${task.link}`)}
-                               className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-colors"
-                             >
-                               Open
-                             </button>
+                             {task.externalLink ? (
+                               <div className="flex gap-2">
+                                 <button 
+                                   onClick={() => window.open(task.externalLink, '_blank')}
+                                   className="px-3 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-colors"
+                                 >
+                                   Open Link
+                                 </button>
+                                 <button 
+                                   onClick={() => handleMarkAsDone(task.id)}
+                                   className="px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-sm font-bold transition-colors"
+                                 >
+                                   Mark Done
+                                 </button>
+                               </div>
+                             ) : (
+                               <button 
+                                 onClick={() => onExploreTier && onExploreTier(`play_tool:${task.link}`)}
+                                 className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-colors"
+                               >
+                                 Open
+                               </button>
+                             )}
                           </div>
                        )}
 

@@ -10,6 +10,8 @@ export interface CreateAssignmentPayload {
   toolTitle: string;
   dueDate: string;
   assignedStudentIds: string[];
+  instructions?: string;
+  externalLink?: string;
 }
 
 export async function createAssignment(idToken: string, payload: CreateAssignmentPayload) {
@@ -35,6 +37,8 @@ export async function createAssignment(idToken: string, payload: CreateAssignmen
        title: payload.toolTitle || 'Untitled Task',
        due_date: payload.dueDate,
        assigned_to: payload.assignedStudentIds,
+       instructions: payload.instructions || '',
+       external_link: payload.externalLink || '',
        created_at: new Date().toISOString(),
        status: 'active'
     };

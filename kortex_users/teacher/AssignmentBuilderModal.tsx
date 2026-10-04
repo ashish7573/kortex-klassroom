@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { X, ChevronRight, CheckCircle2, Calendar, Users, BookOpen } from 'lucide-react';
+import { X, ChevronRight, CheckCircle2, Calendar, Users, BookOpen, Search, ArrowLeft } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db, auth } from '../../backend_configurations/firebase';
 import { createAssignment } from '../../app/actions/teacher_assignments';
@@ -15,10 +15,20 @@ interface AssignmentBuilderModalProps {
 
 export default function AssignmentBuilderModal({ combo, roster, onClose, onSuccess }: AssignmentBuilderModalProps) {
   const [step, setStep] = useState(1);
-  const [tools, setTools] = useState<any[]>([]);
+  const [allTools, setAllTools] = useState<any[]>([]);
+  const [hierarchy, setHierarchy] = useState<any>({});
   const [loadingTools, setLoadingTools] = useState(true);
   
+  // Drill-down State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [navChapter, setNavChapter] = useState<string | null>(null);
+  const [navSubtopic, setNavSubtopic] = useState<string | null>(null);
+  
   // Selections
+  const [sourceType, setSourceType] = useState<'kortex' | 'external'>('kortex');
+  const [title, setTitle] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [externalLink, setExternalLink] = useState('');
   const [selectedTool, setSelectedTool] = useState<any>(null);
   const [selectedStudents, setSelectedStudents] = useState<string[]>(roster.map(r => r.uid)); // Default all
   const [dueDate, setDueDate] = useState<string>('');
@@ -29,21 +39,28 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
   useEffect(() => {
     async function fetchCurriculum() {
       try {
-        const snap = await getDocs(collection(db, 'learning_tools'));
-        const matched = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter((t: any) => 
+        // Optimized to prevent Quota Exhaustion
+        const q = query(collection(db, 'learning_tools'), where('subject', 'in', [combo.subjectStr, combo.subjectStr.toLowerCase(), 'Mathematics', 'mathematics', 'Maths', 'maths']));
+        const snap = await getDocs(q).catch(() => ({ docs: [] }));
+        
+        const matched = snap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((t: any) => 
           (t.grade || '').trim().toLowerCase() === combo.gradeStr.toLowerCase() &&
-          (t.subject || '').trim().toLowerCase() === combo.subjectStr.toLowerCase()
+          (t.subject || '').trim().toLowerCase() === combo.subjectStr.toLowerCase() || (t.subject || '').trim().toLowerCase() === 'mathematics' && combo.subjectStr.toLowerCase() === 'maths'
         );
         
-        // Group by Chapter for UI
+        setAllTools(matched);
+        
+        // Group by Chapter -> Subtopic for UI
         const grouped = matched.reduce((acc: any, tool: any) => {
-          const ch = tool.chapter_name || 'General';
-          if (!acc[ch]) acc[ch] = [];
-          acc[ch].push(tool);
+          const ch = tool.chapter_name || tool.chapter || 'General';
+          const sub = tool.subtopic_name || tool.subtopic || 'General Subtopic';
+          if (!acc[ch]) acc[ch] = {};
+          if (!acc[ch][sub]) acc[ch][sub] = [];
+          acc[ch][sub].push(tool);
           return acc;
         }, {});
         
-        setTools(grouped);
+        setHierarchy(grouped);
       } catch (e) {
         console.error(e);
       } finally {
@@ -62,11 +79,13 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
   };
 
   const handleSubmit = async () => {
-    if (!selectedTool || selectedStudents.length === 0 || !dueDate) return;
+    if (sourceType === 'kortex' && !selectedTool) { setError("Select a content tool"); return; }
+    if (sourceType === 'external' && (!title || !externalLink)) { setError("Provide a title and link"); return; }
+    if (selectedStudents.length === 0 || !dueDate) { setError("Missing students or deadline"); return; }
+    
+    setSubmitting(true);
+    setError(null);
     try {
-      setSubmitting(true);
-      setError(null);
-      
       const user = auth.currentUser;
       if (!user) throw new Error("Not authenticated");
       const token = await user.getIdToken();
@@ -74,12 +93,14 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
       const res = await createAssignment(token, {
         orgId: combo.orgId,
         comboId: combo.comboId,
-        toolId: selectedTool.id,
-        toolType: selectedTool.type || selectedTool.content_type || 'Task',
-        chapterName: selectedTool.chapter_name || 'Unknown',
-        toolTitle: selectedTool.title || selectedTool.subtopic_name || 'Untitled',
+        toolId: sourceType === 'kortex' ? selectedTool.id : 'external',
+        toolType: sourceType === 'kortex' ? (selectedTool.type || selectedTool.content_type || 'Task') : 'External',
+        chapterName: sourceType === 'kortex' ? (selectedTool.chapter_name || 'Unknown') : 'External Source',
+        toolTitle: title || (sourceType === 'kortex' ? (selectedTool.title || selectedTool.subtopic_name || 'Untitled') : 'Untitled'),
         dueDate: dueDate,
-        assignedStudentIds: selectedStudents
+        assignedStudentIds: selectedStudents,
+        instructions: instructions,
+        externalLink: sourceType === 'external' ? externalLink : ''
       });
       
       if (!res.success) throw new Error(res.error);
@@ -118,16 +139,53 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
 
            {step === 1 && (
               <div className="space-y-6 animate-fade-in">
-                 {loadingTools ? (
-                    <div className="py-20 text-center font-bold text-slate-400 animate-pulse">Loading curriculum...</div>
-                 ) : Object.keys(tools).length === 0 ? (
-                    <div className="py-20 text-center font-bold text-slate-400">No tools found for this curriculum.</div>
-                 ) : (
-                    Object.keys(tools).map(chapter => (
-                       <div key={chapter} className="border-2 border-slate-100 rounded-2xl overflow-hidden">
-                          <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 font-black text-slate-700">{chapter}</div>
-                          <div className="divide-y divide-slate-100">
-                             {tools[chapter].map((tool: any) => (
+                 <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Assignment Title (Optional for Kortex Library)</label>
+                    <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Read Chapter 4" className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-indigo-500" />
+                 </div>
+                 
+                 <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Instructions (Optional)</label>
+                    <textarea value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Write instructions for the students..." className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-semibold text-slate-700 outline-none focus:border-indigo-500 min-h-[100px]"></textarea>
+                 </div>
+                 
+                 <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Content Source</label>
+                    <div className="flex bg-slate-100 p-1 rounded-xl w-full">
+                       <button onClick={() => setSourceType('kortex')} className={`flex-1 py-2 rounded-lg text-sm font-bold capitalize transition-all ${sourceType === 'kortex' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Kortex Library</button>
+                       <button onClick={() => setSourceType('external')} className={`flex-1 py-2 rounded-lg text-sm font-bold capitalize transition-all ${sourceType === 'external' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>External Link</button>
+                    </div>
+                 </div>
+                 
+                 {sourceType === 'external' && (
+                    <div className="animate-fade-in">
+                       <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">URL Link</label>
+                       <input type="url" value={externalLink} onChange={e => setExternalLink(e.target.value)} placeholder="https://youtube.com/..." className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-indigo-500" />
+                    </div>
+                 )}
+                 
+                 {sourceType === 'kortex' && (
+                   <div className="animate-fade-in space-y-4">
+                     <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                           <Search className="h-5 w-5 text-slate-400" />
+                        </div>
+                        <input 
+                           type="text" 
+                           placeholder="Search curriculum..." 
+                           value={searchQuery}
+                           onChange={e => setSearchQuery(e.target.value)}
+                           className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl pl-10 pr-4 py-3 font-bold text-slate-700 outline-none focus:border-indigo-500"
+                        />
+                     </div>
+                     
+                     {loadingTools ? (
+                        <div className="py-10 text-center font-bold text-slate-400 animate-pulse">Loading curriculum...</div>
+                     ) : allTools.length === 0 ? (
+                        <div className="py-10 text-center font-bold text-slate-400">No tools found for this curriculum.</div>
+                     ) : searchQuery ? (
+                        <div className="border-2 border-slate-100 rounded-2xl overflow-hidden divide-y divide-slate-100">
+                           {allTools.filter(t => (t.title || t.subtopic_name || '').toLowerCase().includes(searchQuery.toLowerCase())).map(tool => (
                                 <div 
                                   key={tool.id} 
                                   onClick={() => setSelectedTool(tool)}
@@ -139,15 +197,87 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
                                       </div>
                                       <div>
                                          <p className={`font-bold ${selectedTool?.id === tool.id ? 'text-emerald-800' : 'text-slate-700'}`}>{tool.title || tool.subtopic_name}</p>
-                                         <p className="text-[10px] font-bold text-slate-400 uppercase">{tool.type || 'Activity'}</p>
+                                         <p className="text-[10px] font-bold text-slate-400 uppercase">{tool.chapter_name} • {tool.type || tool.content_type || 'Activity'}</p>
                                       </div>
                                    </div>
                                    {selectedTool?.id === tool.id && <CheckCircle2 className="text-emerald-500" />}
                                 </div>
-                             ))}
-                          </div>
-                       </div>
-                    ))
+                           ))}
+                        </div>
+                     ) : (
+                        <div>
+                           {(navChapter || navSubtopic) && (
+                              <button 
+                                onClick={() => navSubtopic ? setNavSubtopic(null) : setNavChapter(null)}
+                                className="flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors mb-4"
+                              >
+                                 <ArrowLeft size={16} /> Back
+                              </button>
+                           )}
+                           
+                           {!navChapter ? (
+                              <div className="space-y-2">
+                                 {Object.keys(hierarchy).sort((a, b) => {
+                                    const aTool = Object.values(hierarchy[a])[0]?.[0] || {};
+                                    const bTool = Object.values(hierarchy[b])[0]?.[0] || {};
+                                    return (Number(aTool.chapter_number) || 999) - (Number(bTool.chapter_number) || 999);
+                                 }).map(chapter => (
+                                    <div 
+                                      key={chapter} 
+                                      onClick={() => setNavChapter(chapter)}
+                                      className="p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-indigo-300 hover:shadow-sm cursor-pointer flex items-center justify-between transition-all"
+                                    >
+                                       <span className="font-bold text-slate-700">{chapter}</span>
+                                       <ChevronRight size={20} className="text-slate-400" />
+                                    </div>
+                                 ))}
+                              </div>
+                           ) : !navSubtopic ? (
+                              <div className="space-y-2">
+                                 <h4 className="font-black text-slate-800 mb-3">{navChapter}</h4>
+                                 {Object.keys(hierarchy[navChapter] || {}).sort((a, b) => {
+                                    const aTool = hierarchy[navChapter][a]?.[0] || {};
+                                    const bTool = hierarchy[navChapter][b]?.[0] || {};
+                                    return (Number(aTool.subtopic_order) || 999) - (Number(bTool.subtopic_order) || 999);
+                                 }).map(subtopic => (
+                                    <div 
+                                      key={subtopic} 
+                                      onClick={() => setNavSubtopic(subtopic)}
+                                      className="p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-indigo-300 hover:shadow-sm cursor-pointer flex items-center justify-between transition-all"
+                                    >
+                                       <span className="font-bold text-slate-700">{subtopic}</span>
+                                       <ChevronRight size={20} className="text-slate-400" />
+                                    </div>
+                                 ))}
+                              </div>
+                           ) : (
+                              <div className="border-2 border-slate-100 rounded-2xl overflow-hidden divide-y divide-slate-100">
+                                 <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 font-black text-slate-700">{navSubtopic}</div>
+                                 {[...hierarchy[navChapter][navSubtopic]].sort((a: any, b: any) => {
+                                    return (Number(a.content_order || a.orderIndex) || 999) - (Number(b.content_order || b.orderIndex) || 999);
+                                 }).map((tool: any) => (
+                                    <div 
+                                      key={tool.id} 
+                                      onClick={() => setSelectedTool(tool)}
+                                      className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${selectedTool?.id === tool.id ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}
+                                    >
+                                       <div className="flex items-center gap-3">
+                                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedTool?.id === tool.id ? 'bg-emerald-200 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                                             <BookOpen size={20} />
+                                          </div>
+                                          <div>
+                                             <p className={`font-bold ${selectedTool?.id === tool.id ? 'text-emerald-800' : 'text-slate-700'}`}>{tool.title || tool.subtopic_name}</p>
+                                             <p className="text-[10px] font-bold text-slate-400 uppercase">{tool.type || tool.content_type || 'Activity'}</p>
+                                          </div>
+                                       </div>
+                                       {selectedTool?.id === tool.id && <CheckCircle2 className="text-emerald-500" />}
+                                    </div>
+                                 ))}
+                              </div>
+                           )}
+                        </div>
+                     )}
+                   </div>
                  )}
               </div>
            )}
@@ -215,7 +345,7 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
            {step < 3 ? (
               <button 
                 onClick={() => setStep(step + 1)} 
-                disabled={step === 1 && !selectedTool}
+                disabled={step === 1 && (sourceType === 'kortex' ? !selectedTool : (!title.trim() || !externalLink.trim()))}
                 className="flex items-center gap-2 px-6 py-2.5 font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all"
               >
                 Next <ChevronRight size={18} />

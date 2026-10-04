@@ -29,7 +29,7 @@ export default function UserPortalDispatcher({
       return <StudentDashboard profile={profile} onExploreTier={onExploreTier} />;
 
     case 'teacher':
-      return <TeacherPortal profile={profile} />;
+      return <TeacherPortal profile={profile} onExploreTier={onExploreTier} />;
 
     case 'org_admin':
       return <OrgAdminDashboard profile={profile} />;

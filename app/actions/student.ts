@@ -899,6 +899,23 @@ export async function logStudentActivity(
         });
       }
     }
+    
+    // 5. Intercept and auto-complete active assignments for this tool
+    const assignmentSnap = await adminDb.collection('assignments')
+      .where('assigned_to', 'array-contains', studentUid)
+      .where('tool_id', '==', activityData.toolId)
+      .where('status', '==', 'active')
+      .get();
+      
+    assignmentSnap.docs.forEach(doc => {
+       const subRef = studentRef.collection('submissions').doc(doc.id);
+       batch.set(subRef, {
+           assignment_id: doc.id,
+           status: 'submitted',
+           submitted_at: new Date().toISOString(),
+           score: activityData.score !== undefined ? activityData.score : null
+       }, { merge: true });
+    });
 
     await batch.commit();
 
@@ -1029,7 +1046,9 @@ export async function getStudentAssignments(idToken: string, targetUid?: string)
           isOnTime: isOnTime,
           score: sub?.score,
           totalPoints: 100,
-          grade: sub?.score === 'N/A' ? 'Completed' : (sub?.score ? sub.score + '/100' : '')
+          grade: sub?.score === 'N/A' ? 'Completed' : (sub?.score ? sub.score + '/100' : ''),
+          instructions: a.instructions,
+          externalLink: a.external_link
        };
     });
 
@@ -1050,6 +1069,26 @@ export async function updateUserSessionToken(idToken: string, sessionToken: stri
     return { success: true };
   } catch (error: any) {
     console.error("Error updating session token:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function markAssignmentAsDone(idToken: string, assignmentId: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const studentUid = decodedToken.uid;
+    
+    const subRef = adminDb.collection('users').doc(studentUid).collection('submissions').doc(assignmentId);
+    await subRef.set({
+       assignment_id: assignmentId,
+       status: 'submitted',
+       submitted_at: new Date().toISOString(),
+       score: null
+    }, { merge: true });
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error marking assignment as done:", error);
     return { success: false, error: error.message };
   }
 }

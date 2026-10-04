@@ -18,11 +18,14 @@ export interface MergedAssignment {
   score?: number | 'N/A';
   totalPoints?: number;
   grade?: string;
+  instructions?: string;
+  externalLink?: string;
 }
 
 export function useStudentAssignments(studentUid: string) {
   const [assignments, setAssignments] = useState<MergedAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [trigger, setTrigger] = useState(0);
 
   useEffect(() => {
     if (!studentUid) {
@@ -48,7 +51,9 @@ export function useStudentAssignments(studentUid: string) {
     }
 
     loadAssignments();
-  }, [studentUid]);
+  }, [studentUid, trigger]);
 
-  return { assignments, loading };
+  const refreshAssignments = () => setTrigger(t => t + 1);
+
+  return { assignments, loading, refreshAssignments };
 }

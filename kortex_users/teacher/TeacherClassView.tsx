@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { TeacherProfile } from '../../types/user';
 import { TeacherComboData, ClassStudentData, getClassroomRoster } from '../../app/actions/teacher';
-import { ArrowLeft, BarChart3, Users, BookOpen, AlertCircle, PlusCircle } from 'lucide-react';
+import { ArrowLeft, BarChart3, Users, BookOpen, AlertCircle, PlusCircle, PlayCircle } from 'lucide-react';
 import { auth } from '../../backend_configurations/firebase';
 import { fetchTeacherAssignments } from '../../app/actions/teacher_assignments';
 import AssignmentBuilderModal from './AssignmentBuilderModal';
@@ -12,9 +12,10 @@ interface TeacherClassViewProps {
   profile: TeacherProfile;
   combo: TeacherComboData;
   onBack: () => void;
+  onExploreTier?: (tierId: string) => void;
 }
 
-export default function TeacherClassView({ profile, combo, onBack }: TeacherClassViewProps) {
+export default function TeacherClassView({ profile, combo, onBack, onExploreTier }: TeacherClassViewProps) {
   const [roster, setRoster] = useState<ClassStudentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,12 +84,20 @@ export default function TeacherClassView({ profile, combo, onBack }: TeacherClas
             <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">{combo.comboLabel}</p>
           </div>
         </div>
-        <button 
-          onClick={() => setShowAssignModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-95"
-        >
-          <PlusCircle size={18} /> Assign Homework
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => onExploreTier && onExploreTier('lessons:' + combo.comboLabel)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-sky-50 text-sky-600 hover:bg-sky-100 hover:text-sky-700 border-2 border-sky-100 font-bold rounded-xl transition-all active:scale-95"
+          >
+            <PlayCircle size={18} /> Start Learning
+          </button>
+          <button 
+            onClick={() => setShowAssignModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-95"
+          >
+            <PlusCircle size={18} /> Assign Homework
+          </button>
+        </div>
       </div>
 
       {loading ? (
