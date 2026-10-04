@@ -436,10 +436,14 @@ useEffect(() => {
           setAlertConfig({
              title: "Free Demos Exhausted",
              message: "You've used all your free guest passes! Create a free account to continue playing.",
-             type: "warning"
+             type: "warning",
+             actionLabel: "Sign Up for Free",
+             onAction: () => {
+                setAlertConfig(null);
+                setAuthMode('signup');
+                setShowAuthModal(true);
+             }
           } as any);
-          setAuthMode('signup');
-          setShowAuthModal(true);
           return false;
        }
        localStorage.setItem('kortex_guest_plays', (plays + 1).toString());

@@ -47,7 +47,7 @@ export const ProgressBar = ({ label, percentage, colorClass }: any) => (
   </div>
 );
 
-export const GeneralAlertModal = ({ title, message, type = 'info', onClose }: any) => {
+export const GeneralAlertModal = ({ title, message, type = 'info', onClose, actionLabel, onAction }: any) => {
   let Icon = Info; 
   let colorClass = 'text-sky-500';
   let bgClass = 'bg-sky-100';
@@ -77,7 +77,7 @@ export const GeneralAlertModal = ({ title, message, type = 'info', onClose }: an
         </div>
         <h3 className="text-2xl font-black text-slate-800 mb-2">{title}</h3>
         <p className="text-slate-500 font-medium mb-6">{message}</p>
-        <Button className="w-full" onClick={onClose}>Got it</Button>
+        <Button className="w-full" onClick={onAction || onClose}>{actionLabel || 'Got it'}</Button>
       </div>
     </div>
   );

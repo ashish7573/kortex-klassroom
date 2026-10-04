@@ -1,14 +1,7 @@
 const fs = require('fs');
 let code = fs.readFileSync('app/page.tsx', 'utf8');
 
-const oldEnsureEnergy = `  const ensureEnergy = async (toolSubject?: string) => {
-    if (role === 'student' && !isPro && authProfile) {`;
-
-const newEnsureEnergy = `  const ensureEnergy = async (toolSubject?: string) => {
-    // 🔒 GUEST LIMIT CHECK
-    if (!authIsLoggedIn) {
-       const plays = parseInt(localStorage.getItem('kortex_guest_plays') || '0');
-       if (plays >= 3) {
+const oldLogic = `       if (plays >= 3) {
           setAlertConfig({
              title: "Free Demos Exhausted",
              message: "You've used all your free guest passes! Create a free account to continue playing.",
@@ -17,12 +10,22 @@ const newEnsureEnergy = `  const ensureEnergy = async (toolSubject?: string) => 
           setAuthMode('signup');
           setShowAuthModal(true);
           return false;
-       }
-       localStorage.setItem('kortex_guest_plays', (plays + 1).toString());
-       return true;
-    }
+       }`;
 
-    if (role === 'student' && !isPro && authProfile) {`;
+const newLogic = `       if (plays >= 3) {
+          setAlertConfig({
+             title: "Free Demos Exhausted",
+             message: "You've used all your free guest passes! Create a free account to continue playing.",
+             type: "warning",
+             actionLabel: "Sign Up for Free",
+             onAction: () => {
+                setAlertConfig(null);
+                setAuthMode('signup');
+                setShowAuthModal(true);
+             }
+          } as any);
+          return false;
+       }`;
 
-code = code.replace(oldEnsureEnergy, newEnsureEnergy);
+code = code.replace(oldLogic, newLogic);
 fs.writeFileSync('app/page.tsx', code);
