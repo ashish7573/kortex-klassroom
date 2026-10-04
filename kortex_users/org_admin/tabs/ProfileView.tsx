@@ -1,21 +1,39 @@
 import React, { useState } from 'react';
 import { Building2, Mail, Save, Fingerprint } from 'lucide-react';
 import { OrgAdminProfile } from '../../../types/user';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../../backend_configurations/firebase';
 
 export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     organizationName: profile.organization_name,
     orgType: profile.org_type || 'school',
-    address: '123 Education Lane, Learning City', // Mocked as it's not yet in the DB
-    phone: '+1 234 567 8900' // Mocked
+    address: profile.address || '',
+    phone: profile.phone || ''
   });
+  
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: In the future, this would call a server action to update the profile in Firestore
-    setIsEditing(false);
-    alert('Profile updated successfully! (Mocked)');
+    setIsSaving(true);
+    try {
+      const userRef = doc(db, 'users', profile.uid);
+      await updateDoc(userRef, {
+        organization_name: formData.organizationName.trim(),
+        full_name: formData.organizationName.trim(), // Keep full name in sync
+        org_type: formData.orgType,
+        address: formData.address.trim(),
+        phone: formData.phone.trim()
+      });
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Failed to update profile", err);
+      alert("Failed to update profile. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -110,9 +128,10 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
                 </button>
                 <button 
                   type="submit"
-                  className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all flex items-center gap-2"
+                  disabled={isSaving}
+                  className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 text-white font-black rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
-                  <Save size={18} /> Save Changes
+                  <Save size={18} /> {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
              </div>
           ) : (

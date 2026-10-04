@@ -1,5 +1,5 @@
-import QuoteInquiryModal from '../kortex_users/auth/QuoteInquiryModal';
 "use client";
+import QuoteInquiryModal from "../kortex_users/auth/QuoteInquiryModal";
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Image from 'next/image';
@@ -132,7 +132,7 @@ function MainApp() {
       _setRole(authProfile.role);
       setIsLoggedIn(true);
       setIsPro(authIsPro);
-      setUserName(authProfile.full_name || '');
+      setUserName((authProfile as any)?.organization_name || authProfile.full_name || '');
       setUserEmail(authProfile.email || authUser?.email || '');
     } else if (!authUser) {
       _setRole(null);
@@ -251,7 +251,7 @@ function MainApp() {
 
                   setRole(data.role);
                   setIsPro(data.is_pro || data.isPro || false); 
-                  setUserName(data.full_name || ''); 
+                  setUserName(data.organization_name || data.full_name || ''); 
                } else {
                   setUserName(user.displayName || '');
                }

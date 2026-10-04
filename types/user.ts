@@ -111,6 +111,8 @@ export interface TeacherProfile extends BaseUserProfile {
 export interface OrgAdminProfile extends BaseUserProfile {
   role: 'org_admin';
   organization_name: string;
+  address?: string;
+  phone?: string;
   org_type?: 'school' | 'coaching' | 'ngo' | 'other';
   license_quota: number;
   active_students_count: number;
