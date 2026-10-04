@@ -5,7 +5,7 @@ import {
   BookOpen, Layers, Gamepad2, Video, ChevronLeft, ChevronUp, ChevronDown, CheckCircle2, 
   Lightbulb, Target, FileText, Star, Lock, Search, X 
 } from 'lucide-react';
-import { collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../backend_configurations/firebase';
 import { Card, Button } from './components/SharedUI';
 import { 
@@ -42,9 +42,23 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
   useEffect(() => {
     async function fetchLessons() {
       try {
-        // Fetch the new flat collection
-        const snapshot = await getDocs(collection(db, 'learning_tools'));
-        const flatTools = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+        // Fetch the new flat collection (Optimized)
+        let toolsQuery = collection(db, 'learning_tools') as any;
+        if (selectedClass && selectedClass !== '') {
+            toolsQuery = query(collection(db, 'learning_tools'), where('grade', 'in', [selectedClass, selectedClass.toUpperCase(), selectedClass.toLowerCase()]));
+        }
+        
+        const snapshot = await getDocs(toolsQuery).catch(() => ({ docs: [] }));
+        let flatTools = snapshot.docs.map((d: any) => ({id: d.id, ...d.data()}));
+        
+        // If subject is selected, filter in memory
+        if (selectedSubject && selectedSubject !== '') {
+           flatTools = flatTools.filter((t: any) => {
+               const s = (t.subject || '').trim().toLowerCase();
+               const queryS = selectedSubject.toLowerCase();
+               return s === queryS || (queryS === 'maths' && s === 'mathematics') || (queryS === 'mathematics' && s === 'maths');
+           });
+        }
         
         const chaptersMap = {};
 
@@ -134,7 +148,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
     }
     
     fetchLessons();
-  }, []);
+  }, [selectedClass, selectedSubject]);
 
   const filteredLessons = allLessons.filter((lesson: any) => {
     const matchClass = selectedClass ? lesson.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() : true;

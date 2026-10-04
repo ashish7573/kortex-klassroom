@@ -50,7 +50,10 @@ async function generateGlobalStudentId(): Promise<string> {
 }
 
 
-export async function generateParentId(): Promise<string> {
+export async function generateParentId(idToken: string): Promise<string> {
+  // 🔒 PATCH: Block unauthenticated DDOS attacks
+  await adminAuth.verifyIdToken(idToken);
+  
   const counterRef = adminDb.collection('system').doc('parent_counter');
   
   return adminDb.runTransaction(async (transaction) => {
@@ -185,7 +188,6 @@ export async function requestStudentImport(
     }
     
     await studentDoc.ref.update({
-      org_ids: FieldValue.arrayUnion(orgId),
       [`org_links.${orgId}`]: {
         org_name: orgDoc.data()?.organization_name || "Organization",
         grade: importData.grade,
@@ -964,10 +966,18 @@ export async function updateChildPin(idToken: string, childUid: string, newPin: 
 
 export async function getStudentOrgProfiles(idToken: string, orgIds: string[]) {
   try {
-    await adminAuth.verifyIdToken(idToken);
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const callerDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    const callerData = callerDoc.data();
     
     const orgProfiles: Record<string, any> = {};
     for (const orgId of orgIds) {
+      // Security Guard: Prevent scraping. Only allow fetching orgs the user belongs to.
+      if (callerData?.role !== 'admin' && callerData?.role !== 'krew' && 
+          callerData?.org_id !== orgId && !(callerData?.org_ids || []).includes(orgId)) {
+          continue; 
+      }
+      
       const snap = await adminDb.collection('users').doc(orgId).get();
       if (snap.exists) {
          const data = snap.data() as any;
@@ -1007,7 +1017,12 @@ export async function getStudentAssignments(idToken: string, targetUid?: string)
       .where('status', '==', 'active')
       .get();
       
-    const assignmentDocs = assignmentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const assignmentDocs = assignmentsSnap.docs.map(d => {
+       const data = d.data();
+       // PII Sanitization: Do not leak the UIDs of other classmates to the client
+       delete data.assigned_to; 
+       return { id: d.id, ...data };
+    });
 
     // Fetch student's submissions
     const subSnap = await adminDb.collection('users').doc(studentUid).collection('submissions').get();

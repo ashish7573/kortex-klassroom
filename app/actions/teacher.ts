@@ -236,16 +236,33 @@ export async function getTeacherDashboardData(idToken: string) {
        }
     }
 
-    // Fetch Syllabus Progress and Curriculum Totals
-    const toolsSnap = await adminDb.collection('learning_tools').get();
+    // Fetch Curriculum Totals (Optimized)
     const curriculumTotals: Record<string, number> = {};
-    toolsSnap.docs.forEach((doc: any) => {
-        const data = doc.data();
-        const grade = (data.grade || '').trim().toLowerCase();
-        const subj = (data.subject || '').trim().toLowerCase();
-        const key = `${grade}_${subj}`;
-        curriculumTotals[key] = (curriculumTotals[key] || 0) + 1;
-    });
+    
+    // We only need totals for the subjects this teacher actually teaches!
+    const subjectsToFetch = [...new Set(combos.map(c => c.subjectStr))];
+    for (const subj of subjectsToFetch) {
+       // Query by subject to reduce reads
+       const toolsQuery = adminDb.collection('learning_tools')
+          .where('subject', 'in', [subj, subj.toLowerCase(), 'Mathematics', 'mathematics', 'Maths', 'maths']);
+       
+       try {
+           const toolsSnap = await toolsQuery.get();
+           toolsSnap.docs.forEach((doc: any) => {
+               const data = doc.data();
+               const grade = (data.grade || '').trim().toLowerCase();
+               const dbSubj = (data.subject || '').trim().toLowerCase();
+               
+               // Normalize maths to match combo keys
+               const normalizedSubj = (dbSubj === 'mathematics' || dbSubj === 'maths') ? 'maths' : dbSubj;
+               
+               const key = `${grade}_${normalizedSubj}`;
+               curriculumTotals[key] = (curriculumTotals[key] || 0) + 1;
+           });
+       } catch (e) {
+           console.error("Optimized fetch failed, falling back", e);
+       }
+    }
 
     for (const combo of combos) {
         const syllabusDoc = await adminDb.collection('users').doc(teacherUid).collection('syllabus_progress').doc(combo.comboId).get();
@@ -289,6 +306,11 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
     const docSnap = await adminDb.collection('users').doc(teacherUid).get();
     const teacherData = docSnap.data() as any;
     if (teacherData.role !== 'teacher') throw new Error("Unauthorized");
+    
+    // Security Guard: Verify teacher actually belongs to the requested Org
+    if (teacherData.org_id !== orgId && !(teacherData.org_ids && teacherData.org_ids.includes(orgId))) {
+        throw new Error("Unauthorized: Teacher does not belong to this organization");
+    }
     
     const assigned = teacherData.assigned_combos || [];
     if (!assigned.includes(comboId)) throw new Error("Not assigned to this classroom");

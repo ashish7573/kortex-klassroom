@@ -150,7 +150,8 @@ export default function UnifiedAuthModal({
       }
 
       const cred = await createUserWithEmailAndPassword(auth, cleanEmail, parentPassword);
-      const parentKortexId = await generateParentId();
+      const idToken = await cred.user.getIdToken();
+      const parentKortexId = await generateParentId(idToken);
 
       // Initialize Parent Firestore profile
       const parentProfile: ParentProfile = {

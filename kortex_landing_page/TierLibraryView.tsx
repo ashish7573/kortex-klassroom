@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, Lock, Star, X } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../backend_configurations/firebase';
 import { Card } from './components/SharedUI';
 import { 
@@ -23,10 +23,21 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, auth
     async function fetchTierData() {
       setIsLoading(true);
       try {
-        const snapshot = await getDocs(collection(db, 'learning_tools'));
+        let contentTypeMap: Record<string, string> = {
+           'conceptualiser': 'conceptualiser',
+           'theatre': 'video',
+           'dojo': 'quiz',
+           'Notebook': 'pdf',
+           'arcade': 'game'
+        };
+        const targetType = contentTypeMap[activeTier.id];
+        
+        const toolsQuery = targetType ? query(collection(db, 'learning_tools'), where('content_type', '==', targetType)) : query(collection(db, 'learning_tools'));
+        const snapshot = await getDocs(toolsQuery).catch(() => ({ docs: [] }));
+        
         let extractedItems: any[] = [];
         
-        snapshot.docs.forEach(doc => {
+        snapshot.docs.forEach((doc: any) => {
           const item: any = { id: doc.id, ...doc.data() };
           const type = item.content_type?.toLowerCase() || '';
           

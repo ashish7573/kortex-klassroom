@@ -19,13 +19,30 @@ export async function createAssignment(idToken: string, payload: CreateAssignmen
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const teacherUid = decodedToken.uid;
     
-    // Verify teacher
+    // Verify teacher and classroom ownership
     const docSnap = await adminDb.collection('users').doc(teacherUid).get();
     const teacherData = docSnap.data() as any;
     if (teacherData.role !== 'teacher') throw new Error("Unauthorized");
+    
+    const assignedCombos = teacherData.assigned_combos || [];
+    if (!assignedCombos.includes(payload.comboId)) {
+        throw new Error("Unauthorized: You are not assigned to this classroom.");
+    }
 
     // Construct the assignment document
     const assignmentRef = adminDb.collection('assignments').doc();
+
+    let safeExternalLink = payload.externalLink?.trim() || '';
+    if (safeExternalLink) {
+        const lowerLink = safeExternalLink.toLowerCase();
+        if (!lowerLink.startsWith('http://') && !lowerLink.startsWith('https://')) {
+            safeExternalLink = 'https://' + safeExternalLink;
+        }
+        if (safeExternalLink.toLowerCase().includes('javascript:')) {
+            throw new Error("Invalid URL: JavaScript protocols are blocked for security.");
+        }
+    }
+
     const assignmentData = {
        id: assignmentRef.id,
        org_id: payload.orgId,
@@ -38,7 +55,7 @@ export async function createAssignment(idToken: string, payload: CreateAssignmen
        due_date: payload.dueDate,
        assigned_to: payload.assignedStudentIds,
        instructions: payload.instructions || '',
-       external_link: payload.externalLink || '',
+       external_link: safeExternalLink,
        created_at: new Date().toISOString(),
        status: 'active'
     };
@@ -107,9 +124,15 @@ export async function gradeSubmission(idToken: string, studentUid: string, assig
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const teacherUid = decodedToken.uid;
     
-    // Verify teacher
+    // Verify teacher role
     const docSnap = await adminDb.collection('users').doc(teacherUid).get();
     if (docSnap.data()?.role !== 'teacher') throw new Error("Unauthorized");
+    
+    // Security Guard: Verify this teacher actually owns the assignment!
+    const assignmentDoc = await adminDb.collection('assignments').doc(assignmentId).get();
+    if (!assignmentDoc.exists || assignmentDoc.data()?.teacher_uid !== teacherUid) {
+        throw new Error("Unauthorized: You do not have permission to grade this assignment.");
+    }
 
     await adminDb.collection('users').doc(studentUid).collection('submissions').doc(assignmentId).update({
        score: score,
@@ -127,7 +150,14 @@ export async function gradeSubmission(idToken: string, studentUid: string, assig
 export async function revertSubmission(idToken: string, studentUid: string, assignmentId: string) {
   try {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-    if ((await adminDb.collection('users').doc(decodedToken.uid).get()).data()?.role !== 'teacher') throw new Error("Unauthorized");
+    const teacherUid = decodedToken.uid;
+    if ((await adminDb.collection('users').doc(teacherUid).get()).data()?.role !== 'teacher') throw new Error("Unauthorized");
+    
+    // Security Guard: Verify this teacher actually owns the assignment!
+    const assignmentDoc = await adminDb.collection('assignments').doc(assignmentId).get();
+    if (!assignmentDoc.exists || assignmentDoc.data()?.teacher_uid !== teacherUid) {
+        throw new Error("Unauthorized: You do not have permission to revert this assignment.");
+    }
 
     await adminDb.collection('users').doc(studentUid).collection('submissions').doc(assignmentId).update({
        status: 'pending',

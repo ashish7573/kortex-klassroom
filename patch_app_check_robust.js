@@ -1,4 +1,6 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+const fs = require('fs');
+
+const code = `import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { 
@@ -47,3 +49,6 @@ if (typeof window !== "undefined") {
     console.warn("Firebase App Check is missing NEXT_PUBLIC_RECAPTCHA_SITE_KEY");
   }
 }
+`;
+
+fs.writeFileSync('backend_configurations/firebase.ts', code);

@@ -106,7 +106,8 @@ function MainApp() {
     isLoggedIn: authIsLoggedIn, 
     isPro: authIsPro, 
     logout: authLogout, 
-    sessionAlert 
+    sessionAlert,
+    loading: authLoading
   } = useAuth();
 
   const [stage, setStage] = useState<string | null>(null);
@@ -272,7 +273,25 @@ function MainApp() {
 
   // Automatically open shared links
   useEffect(() => {
+    if (authLoading) return; // Wait for auth state to resolve
+
     if (sharedToolId && !playingLesson) {
+      // 🔒 GUEST LIMIT PATCH
+      if (!authIsLoggedIn) {
+         const plays = parseInt(localStorage.getItem('kortex_guest_plays') || '0');
+         if (plays >= 3) {
+            setAlertConfig({
+               title: "Free Demos Exhausted",
+               message: "You've used all your free guest passes! Create a free account to continue playing.",
+               type: "warning"
+            });
+            setAuthMode('signup');
+            setShowAuthModal(true);
+            return;
+         }
+         localStorage.setItem('kortex_guest_plays', (plays + 1).toString());
+      }
+
       const fetchSharedTool = async () => {
         try {
           const docRef = doc(db, 'learning_tools', sharedToolId);
@@ -301,7 +320,7 @@ function MainApp() {
       };
       fetchSharedTool();
     }
-  }, [sharedToolId]);
+  }, [sharedToolId, authLoading, authIsLoggedIn, playingLesson]);
 
   // Vercel-Safe Back Button Listener
   useEffect(() => {

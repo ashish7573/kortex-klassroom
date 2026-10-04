@@ -1,11 +1,9 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+const fs = require('fs');
+
+const code = `import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { 
-  initializeAppCheck, 
-  ReCaptchaEnterpriseProvider, 
-  AppCheck 
-} from "firebase/app-check";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -22,28 +20,21 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
-export let appCheck: AppCheck | undefined;
-
 // Initialize App Check only in the browser
-if (typeof window !== "undefined") {
-  // Safe TypeScript assignment for App Check debug token
-  if (process.env.NODE_ENV !== "production") {
-    (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN: boolean | string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
-      process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG_TOKEN || true;
+if (typeof window !== 'undefined') {
+  if (process.env.NODE_ENV !== 'production') {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
   }
-
-  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-
-  if (siteKey) {
-    try {
-      appCheck = initializeAppCheck(app, {
-        provider: new ReCaptchaEnterpriseProvider(siteKey),
-        isTokenAutoRefreshEnabled: true
-      });
-    } catch (e) {
-      // Gracefully catches "already-initialized" errors caused by Fast Refresh / HMR
-    }
+  
+  if (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
   } else {
     console.warn("Firebase App Check is missing NEXT_PUBLIC_RECAPTCHA_SITE_KEY");
   }
 }
+`;
+
+fs.writeFileSync('backend_configurations/firebase.ts', code);

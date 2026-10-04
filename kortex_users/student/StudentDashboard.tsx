@@ -4,7 +4,7 @@ import { StudentProfile } from '../../types/user';
 import { auth } from '../../backend_configurations/firebase';
 import { checkAndResetDailyHearts, consumeHeart } from '../../app/actions/student';
 import { Sparkles, Trophy, Flame, Play, BookOpen, Lightbulb, Gamepad2, Target, Heart, BatteryCharging, X, Star, History, Award, Book, ClipboardList, CheckCircle2, CircleDashed } from 'lucide-react';
-import { collection, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import { getStudentOrgProfiles, markAssignmentAsDone } from '../../app/actions/student';
 import { db } from '../../backend_configurations/firebase';
 import { useStudentAssignments, AssignmentStatus } from '../../hooks/useStudentAssignments';
@@ -180,23 +180,36 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
 
   useEffect(() => {
     async function loadTotals() {
+      if (allDisplayCombos.length === 0) return;
       try {
-        const snap = await getDocs(collection(db, 'learning_tools'));
+        const subjectsToFetch = [...new Set(allDisplayCombos.map(c => c.subject))];
         const totals: Record<string, number> = {};
-        snap.docs.forEach(doc => {
-          const data = doc.data();
-          const grade = (data.grade || 'unknown').trim().toLowerCase();
-          const subj = (data.subject || 'unknown').trim().toLowerCase();
-          const key = `${grade}_${subj}`;
-          totals[key] = (totals[key] || 0) + 1;
-        });
+        
+        for (const subj of subjectsToFetch) {
+            const q = query(
+               collection(db, 'learning_tools'), 
+               where('subject', 'in', [subj, subj.toLowerCase(), 'Mathematics', 'mathematics', 'Maths', 'maths'])
+            );
+            const snap = await getDocs(q).catch(() => ({ docs: [] }));
+            
+            snap.docs.forEach((doc: any) => {
+              const data = doc.data();
+              const grade = (data.grade || 'unknown').trim().toLowerCase();
+              const dbSubj = (data.subject || 'unknown').trim().toLowerCase();
+              const normalizedSubj = (dbSubj === 'mathematics' || dbSubj === 'maths') ? 'maths' : dbSubj;
+              
+              const key = `${grade}_${normalizedSubj}`;
+              totals[key] = (totals[key] || 0) + 1;
+            });
+        }
+        
         setSubjectTotals(totals);
       } catch (e) {
         console.error("Error loading tools:", e);
       }
     }
     loadTotals();
-  }, []);
+  }, [allDisplayCombos]);
 
   useEffect(() => {
     if (!profile.uid) return;
