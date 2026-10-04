@@ -52,7 +52,7 @@ export async function provisionSchoolAccount(
       uid: userRecord.uid,
       kortex_id: cleanKortexId,
       email: cleanEmail,
-      full_name: "Pending Setup",
+      full_name: orgName.trim(),
       organization_name: orgName.trim(),
       role: 'org_admin',
       created_at: new Date().toISOString(),

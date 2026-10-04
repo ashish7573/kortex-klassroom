@@ -1,3 +1,4 @@
+import QuoteInquiryModal from '../kortex_users/auth/QuoteInquiryModal';
 "use client";
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
@@ -119,6 +120,7 @@ function MainApp() {
   const [userName, setUserName] = useState(''); 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showGlobalQuote, setShowGlobalQuote] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authMessage, setAuthMessage] = useState("Join Kortex Klassroom to unlock all features.");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -276,21 +278,7 @@ function MainApp() {
     if (authLoading) return; // Wait for auth state to resolve
 
     if (sharedToolId && !playingLesson) {
-      // 🔒 GUEST LIMIT PATCH
-      if (!authIsLoggedIn) {
-         const plays = parseInt(localStorage.getItem('kortex_guest_plays') || '0');
-         if (plays >= 3) {
-            setAlertConfig({
-               title: "Free Demos Exhausted",
-               message: "You've used all your free guest passes! Create a free account to continue playing.",
-               type: "warning"
-            });
-            setAuthMode('signup');
-            setShowAuthModal(true);
-            return;
-         }
-         localStorage.setItem('kortex_guest_plays', (plays + 1).toString());
-      }
+      // Limit is now enforced centrally by ensureEnergy inside fetchSharedTool
 
       const fetchSharedTool = async () => {
         try {
@@ -309,6 +297,11 @@ function MainApp() {
           }
 
           if (itemData) {
+            // Check central energy/guest limits
+            const toolSubject = itemData.subject || 'unknown';
+            const hasEnergy = await ensureEnergy(toolSubject);
+            if (!hasEnergy) return;
+            
             setPlayingLesson({
               chapter: itemData.chapter_name || itemData.chapter || itemData.title || 'Interactive Module',
               book: itemData.book || 'Kortex Klassroom',
@@ -356,10 +349,13 @@ useEffect(() => {
        setShowAuthModal(true);
     };
     window.addEventListener('open-auth-modal', handleAuth);
+    const handleQuote = () => setShowGlobalQuote(true);
+    window.addEventListener('open-quote-modal', handleQuote);
     
     return () => {
       window.removeEventListener('navigate-tab', handleNav);
       window.removeEventListener('open-auth-modal', handleAuth);
+      window.removeEventListener('open-quote-modal', handleQuote);
     };
   }, []);
 
@@ -433,6 +429,23 @@ useEffect(() => {
   };
 
   const ensureEnergy = async (toolSubject?: string) => {
+    // 🔒 GUEST LIMIT CHECK
+    if (!authIsLoggedIn) {
+       const plays = parseInt(localStorage.getItem('kortex_guest_plays') || '0');
+       if (plays >= 3) {
+          setAlertConfig({
+             title: "Free Demos Exhausted",
+             message: "You've used all your free guest passes! Create a free account to continue playing.",
+             type: "warning"
+          } as any);
+          setAuthMode('signup');
+          setShowAuthModal(true);
+          return false;
+       }
+       localStorage.setItem('kortex_guest_plays', (plays + 1).toString());
+       return true;
+    }
+
     if (role === 'student' && !isPro && authProfile) {
         // --- B2B / B2C BYPASS CHECK ---
         if (toolSubject) {
@@ -578,6 +591,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-sky-200 relative">
+      {showGlobalQuote && <QuoteInquiryModal onClose={() => setShowGlobalQuote(false)} />}
       {showAuthModal && (
         <UnifiedAuthModal 
           onClose={() => setShowAuthModal(false)} 

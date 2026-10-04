@@ -161,9 +161,9 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onSt
                         <div className="w-20 h-20 bg-gradient-to-br from-sky-400 to-sky-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-sky-500/30">
                             <Star className="text-white w-10 h-10 fill-white" />
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">Great Job!</h1>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">Loved it?</h1>
                         <p className="text-base md:text-lg text-slate-400 font-medium mb-8 max-w-2xl mx-auto">
-                            You've completed this interactive module. Create a free account to unlock your progress report, save your score, and explore the entire Kortex library!
+                            Try considering Signing up for more such Smart Learning Tools for your Child.
                         </p>
     
                         <div className="flex flex-col gap-4">
@@ -175,13 +175,30 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onSt
                                 }}
                                 className="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-4 rounded-xl text-lg shadow-lg hover:-translate-y-1 transition-all"
                             >
-                                Create Free Account
+                                Sign Up
                             </button>
+                            
+                            <div className="relative py-4">
+                               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-700"></div></div>
+                               <div className="relative flex justify-center"><span className="bg-slate-900 px-4 text-sm text-slate-500 font-bold uppercase tracking-wider">Are you an Educator or Institution ?</span></div>
+                            </div>
+                            
+                            <button 
+                                onClick={() => {
+                                    onClose(); 
+                                    const event = new CustomEvent('open-quote-modal');
+                                    window.dispatchEvent(event);
+                                }}
+                                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-4 rounded-xl text-lg shadow-lg hover:-translate-y-1 transition-all"
+                            >
+                                Get Quote
+                            </button>
+
                             <button 
                                 onClick={onClose}
-                                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-4 rounded-xl text-md transition-colors"
+                                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl text-md transition-colors mt-2"
                             >
-                                Close and Return
+                                Close
                             </button>
                         </div>
                     </div>

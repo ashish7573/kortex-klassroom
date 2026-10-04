@@ -43,7 +43,7 @@ export default function QuoteInquiryModal({ onClose }: QuoteInquiryModalProps) {
       setIsSubmitted(true);
     } catch (err: any) {
       console.error("Error submitting quote inquiry:", err);
-      setErrorMsg("Failed to submit inquiry. Please try again or reach out directly.");
+      setErrorMsg("Failed to submit. Please contact us directly at kortexkrew@gmail.com");
     } finally {
       setIsSubmitting(false);
     }

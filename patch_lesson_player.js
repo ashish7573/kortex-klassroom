@@ -1,28 +1,70 @@
 const fs = require('fs');
-const file = 'kortex_landing_page/LessonPlayer.tsx';
-let code = fs.readFileSync(file, 'utf8');
+let code = fs.readFileSync('kortex_landing_page/LessonPlayer.tsx', 'utf8');
 
-// 1. Add onStepComplete to props
-code = code.replace(
-  `export default function LessonPlayer({ lesson, initialStep = 0, isPro = false, isLoggedIn = false, onClose, onFinish }: any) {`,
-  `export default function LessonPlayer({ lesson, initialStep = 0, isPro = false, isLoggedIn = false, onClose, onFinish, onStepComplete }: any) {`
-);
+const oldGuestScreen = `                        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">Great Job!</h1>
+                        <p className="text-base md:text-lg text-slate-400 font-medium mb-8 max-w-2xl mx-auto">
+                            You've completed this interactive module. Create a free account to unlock your progress report, save your score, and explore the entire Kortex library!
+                        </p>
+    
+                        <div className="flex flex-col gap-4">
+                            <button 
+                                onClick={() => {
+                                    onClose(); 
+                                    const event = new CustomEvent('open-auth-modal', { detail: 'signup' });
+                                    window.dispatchEvent(event);
+                                }}
+                                className="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-4 rounded-xl text-lg shadow-lg hover:-translate-y-1 transition-all"
+                            >
+                                Create Free Account
+                            </button>
+                            <button 
+                                onClick={onClose}
+                                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-4 rounded-xl text-md transition-colors"
+                            >
+                                Close and Return
+                            </button>
+                        </div>`;
 
-// 2. Add onStepComplete call inside handleNext
-const oldHandleNext = `  const handleNext = (data?: any) => {
-      if (data && data.score !== undefined) setFinalScore(data.score);
-      if (!isLoggedIn) {`;
+const newGuestScreen = `                        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">Loved it?</h1>
+                        <p className="text-base md:text-lg text-slate-400 font-medium mb-8 max-w-2xl mx-auto">
+                            Try considering Signing up for more such Smart Learning Tools for your Child.
+                        </p>
+    
+                        <div className="flex flex-col gap-4">
+                            <button 
+                                onClick={() => {
+                                    onClose(); 
+                                    const event = new CustomEvent('open-auth-modal', { detail: 'signup' });
+                                    window.dispatchEvent(event);
+                                }}
+                                className="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-4 rounded-xl text-lg shadow-lg hover:-translate-y-1 transition-all"
+                            >
+                                Sign Up
+                            </button>
+                            
+                            <div className="relative py-4">
+                               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-700"></div></div>
+                               <div className="relative flex justify-center"><span className="bg-slate-900 px-4 text-sm text-slate-500 font-bold uppercase tracking-wider">Are you an Educator or Institution ?</span></div>
+                            </div>
+                            
+                            <button 
+                                onClick={() => {
+                                    onClose(); 
+                                    const event = new CustomEvent('open-quote-modal');
+                                    window.dispatchEvent(event);
+                                }}
+                                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-4 rounded-xl text-lg shadow-lg hover:-translate-y-1 transition-all"
+                            >
+                                Get Quote
+                            </button>
 
-const newHandleNext = `  const handleNext = (data?: any) => {
-      if (data && data.score !== undefined) setFinalScore(data.score);
-      
-      // LOG IMMEDIATE PROGRESS!
-      if (onStepComplete) {
-         onStepComplete({ step: currentStep, score: data?.score !== undefined ? data.score : finalScore });
-      }
+                            <button 
+                                onClick={onClose}
+                                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl text-md transition-colors mt-2"
+                            >
+                                Close
+                            </button>
+                        </div>`;
 
-      if (!isLoggedIn) {`;
-
-code = code.replace(oldHandleNext, newHandleNext);
-
-fs.writeFileSync(file, code);
+code = code.replace(oldGuestScreen, newGuestScreen);
+fs.writeFileSync('kortex_landing_page/LessonPlayer.tsx', code);
