@@ -35,6 +35,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // 🔒 FIX: Prevent Turbopack from bundling firebase-admin and crashing on ESM imports
+  serverExternalPackages: ['firebase-admin', 'jwks-rsa', 'jose'],
   // Inject the headers into every single page of the application
   async headers() {
     return [
