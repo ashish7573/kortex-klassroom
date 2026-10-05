@@ -1,4 +1,5 @@
 "use server";
+import { serializeFirebaseData } from "../../utils/serialize";
 
 import { adminDb, adminAuth } from '../../backend_configurations/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -1021,7 +1022,7 @@ export async function getStudentAssignments(idToken: string, targetUid?: string)
        const data = d.data();
        // PII Sanitization: Do not leak the UIDs of other classmates to the client
        delete data.assigned_to; 
-       return { id: d.id, ...data };
+       return serializeFirebaseData({ id: d.id, ...data });
     });
 
     // Fetch student's submissions

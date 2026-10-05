@@ -1,9 +1,9 @@
 
 "use client";
 import React, { useEffect, useState } from 'react';
-import { TeacherProfile } from '../../types/user';
+import { TeacherProfile, TeacherComboData, ClassStudentData } from '../../types/user';
 import { BookOpen, Users, BarChart3, PlusCircle, CheckCircle2, Award, ChevronRight } from 'lucide-react';
-import { getTeacherDashboardData, TeacherComboData } from '../../app/actions/teacher';
+import { getTeacherDashboardData } from '../../app/actions/teacher';
 import { fetchAllTeacherAssignments } from '../../app/actions/teacher_assignments';
 import { auth } from '../../backend_configurations/firebase';
 

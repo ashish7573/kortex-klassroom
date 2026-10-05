@@ -1,18 +1,9 @@
 "use server";
+import { serializeFirebaseData } from "../../utils/serialize";
+import { CreateAssignmentPayload } from '../../types/user';
 import { adminAuth, adminDb } from '../../backend_configurations/firebase-admin';
 
-export interface CreateAssignmentPayload {
-  orgId: string;
-  comboId: string;
-  toolId: string;
-  toolType: string;
-  chapterName: string;
-  toolTitle: string;
-  dueDate: string;
-  assignedStudentIds: string[];
-  instructions?: string;
-  externalLink?: string;
-}
+
 
 export async function createAssignment(idToken: string, payload: CreateAssignmentPayload) {
   try {
@@ -110,7 +101,7 @@ export async function fetchTeacherAssignments(idToken: string, comboId: string) 
         .where('combo_id', '==', comboId)
         .get();
         
-    const assignments = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+    const assignments = snapshot.docs.map(d => serializeFirebaseData({ id: d.id, ...d.data() }));
     assignments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return { success: true, assignments };
   } catch (error: any) {
@@ -181,7 +172,7 @@ export async function fetchAllTeacherAssignments(idToken: string) {
         .where('teacher_uid', '==', teacherUid)
         .get();
         
-    const assignments = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+    const assignments = snapshot.docs.map(d => serializeFirebaseData({ id: d.id, ...d.data() }));
     assignments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return { success: true, assignments };
   } catch (error: any) {
@@ -211,22 +202,46 @@ export async function getAssignmentSubmissions(idToken: string, assignmentId: st
     const assignedUids = assignmentData.assigned_to || [];
     if (assignedUids.length === 0) return { success: true, submissions: [] };
 
-    // Fetch all student profiles and their submission docs in parallel
-    const submissions = await Promise.all(assignedUids.map(async (studentUid: string) => {
-        const studentDocP = adminDb.collection('users').doc(studentUid).get();
-        const subDocP = adminDb.collection('users').doc(studentUid).collection('submissions').doc(assignmentId).get();
-        
-        const [studentDoc, subDoc] = await Promise.all([studentDocP, subDocP]);
+    // --- OPTIMIZED BATCHED READS (No N+1 Loop) ---
+    const chunkArray = (arr: any[], size: number) => Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
+
+    const studentRefs = assignedUids.map((uid: string) => adminDb.collection('users').doc(uid));
+    const subRefs = assignedUids.map((uid: string) => adminDb.collection('users').doc(uid).collection('submissions').doc(assignmentId));
+    
+    const allRefs = [...studentRefs, ...subRefs];
+    const refsChunked = chunkArray(allRefs, 100);
+    
+    const studentsMap = new Map<string, any>();
+    const subsMap = new Map<string, any>();
+
+    for (const chunk of refsChunked) {
+         const docs = await adminDb.getAll(...chunk);
+         for (const docSnap of docs) {
+             const pathParts = docSnap.ref.path.split('/');
+             const uid = pathParts[1];
+             if (pathParts.length === 2) {
+                 // Collection path: users/{uid}
+                 if (docSnap.exists) studentsMap.set(uid, docSnap.data());
+             } else {
+                 // Collection path: users/{uid}/submissions/{assignmentId}
+                 if (docSnap.exists) subsMap.set(uid, docSnap.data());
+             }
+         }
+    }
+
+    const submissions = assignedUids.map((studentUid: string) => {
+        const studentData = studentsMap.get(studentUid) || {};
+        const subData = subsMap.get(studentUid);
         
         return {
            studentUid,
-           studentName: studentDoc.data()?.full_name || 'Unknown Student',
-           status: subDoc.exists ? subDoc.data()?.status : 'pending',
-           score: subDoc.exists ? subDoc.data()?.score : null,
-           submittedAt: subDoc.exists ? subDoc.data()?.submitted_at : null,
-           gradedAt: subDoc.exists ? subDoc.data()?.graded_at : null
+           studentName: studentData.full_name || 'Unknown Student',
+           status: subData ? subData.status : 'pending',
+           score: subData ? subData.score : null,
+           submittedAt: subData ? subData.submitted_at : null,
+           gradedAt: subData ? subData.graded_at : null
         };
-    }));
+    });
 
     return { success: true, submissions };
   } catch (error: any) {

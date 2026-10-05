@@ -1,9 +1,9 @@
 "use client";
 import React, { useState } from 'react';
-import { TeacherProfile } from '../../types/user';
+import { TeacherProfile, TeacherComboData, ClassStudentData } from '../../types/user';
 import TeacherDashboard from './TeacherDashboard';
 import TeacherClassView from './TeacherClassView';
-import { TeacherComboData } from '../../app/actions/teacher';
+
 
 interface TeacherPortalProps {
   profile: TeacherProfile;

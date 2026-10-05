@@ -157,3 +157,47 @@ export interface QuoteInquiry {
   status: 'new' | 'contacted' | 'quoted' | 'account_created' | 'archived';
   created_at: string;
 }
+
+export interface TeacherComboData {
+  id?: string;
+  orgId: string;
+  comboId: string;
+  gradeStr: string;
+  subjectStr: string;
+  comboLabel: string;
+  orgName: string;
+  totalCurriculumTools: number;
+  totalToolsAssigned: number;
+  grade?: string;
+  subject?: string;
+  label?: string;
+}
+
+export interface ClassStudentData {
+  uid: string;
+  name?: string;
+  fullName?: string;
+  pin?: string;
+  kortexId?: string;
+  avatar?: string;
+  completedToolsCount: number;
+  totalTools: number;
+  progressPercentage: number;
+  isPro?: boolean;
+  hearts?: number;
+}
+
+export interface CreateAssignmentPayload {
+  comboId: string;
+  orgId: string;
+  toolId?: string;
+  toolType: string;
+  toolTitle?: string;
+  chapterName?: string;
+  assignedStudentIds?: string[];
+  assignedTo?: string[];
+  dueDate: string;
+  instructions: string;
+  title?: string;
+  externalLink?: string;
+}

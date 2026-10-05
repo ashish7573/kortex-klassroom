@@ -1,7 +1,7 @@
 "use server";
 
 import { adminAuth, adminDb } from '../../backend_configurations/firebase-admin';
-import { TeacherProfile } from '../../types/user';
+import { TeacherProfile, TeacherComboData, ClassStudentData } from '../../types/user';
 import { generateComboId } from '../../kortex_users/org_admin/utils/comboParsers';
 
 export async function provisionTeacherAccount(
@@ -171,16 +171,7 @@ export async function deleteTeacherAccount(idToken: string, targetUid: string) {
   }
 }
 
-export interface TeacherComboData {
-  orgId: string;
-  orgName: string;
-  comboId: string;
-  comboLabel: string;
-  gradeStr: string;
-  subjectStr: string;
-  totalToolsAssigned: number;
-  totalCurriculumTools: number;
-}
+
 
 export async function getTeacherDashboardData(idToken: string) {
   try {
@@ -287,15 +278,7 @@ export async function getTeacherDashboardData(idToken: string) {
   }
 }
 
-export interface ClassStudentData {
-  uid: string;
-  fullName: string;
-  kortexId: string;
-  avatar: string;
-  completedToolsCount: number;
-  totalTools: number;
-  progressPercentage: number;
-}
+
 
 export async function getClassroomRoster(idToken: string, orgId: string, comboId: string, gradeStr: string, subjectStr: string, comboLabel: string) {
   try {
@@ -316,7 +299,6 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
     if (!assigned.includes(comboId)) throw new Error("Not assigned to this classroom");
 
     // Fetch Curriculum Total for this grade/subject (Optimized to prevent Quota Exhaustion)
-    // We filter by subject first to drastically reduce reads.
     const toolsQuery = adminDb.collection('learning_tools').where('subject', 'in', [subjectStr, subjectStr.toLowerCase(), 'Mathematics', 'mathematics', 'Maths', 'maths']);
     const toolsSnap = await toolsQuery.get().catch(() => ({ docs: [] })); // Fallback if IN query fails
     let totalCurriculumTools = 0;
@@ -331,7 +313,6 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
             }
         });
     } else {
-        // Fallback: If the above failed or was empty, we don't crash. We just report 0.
         totalCurriculumTools = 0;
     }
 
@@ -344,25 +325,34 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
     const roster: ClassStudentData[] = [];
     const cKey = `${gradeStr.toLowerCase()}_${subjectStr.toLowerCase()}`;
 
+    // --- OPTIMIZED BATCHED PROGRESS READS ---
+    const studentRefs = studentsSnap.docs.map((doc: any) => adminDb.collection('users').doc(doc.id).collection('progress').doc(cKey));
+    const legacyRefs = studentsSnap.docs.map((doc: any) => adminDb.collection('users').doc(doc.id).collection('progress').doc(subjectStr.toLowerCase()));
+    
+    const chunkArray = (arr: any[], size: number) => Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
+    const progressMap = new Map<string, number>();
+
+    if (studentsSnap.docs.length > 0) {
+        const refsChunked = chunkArray([...studentRefs, ...legacyRefs], 100);
+        for (const chunk of refsChunked) {
+             const docs = await adminDb.getAll(...chunk);
+             for (const pDoc of docs) {
+                 if (pDoc.exists) {
+                      const data = pDoc.data();
+                      const pathParts = pDoc.ref.path.split('/');
+                      const uid = pathParts[1]; // users/{uid}/progress/{cKey}
+                      const completedCount = data?.completed_tools ? Object.keys(data.completed_tools).length : 0;
+                      
+                      const existingCount = progressMap.get(uid) || 0;
+                      progressMap.set(uid, Math.max(existingCount, completedCount));
+                 }
+             }
+        }
+    }
+
     for (const sDoc of studentsSnap.docs) {
        const sData = sDoc.data();
-       
-       // Fetch student's progress for this subject
-       let completedCount = 0;
-       const pDoc = await adminDb.collection('users').doc(sDoc.id).collection('progress').doc(cKey).get();
-       
-       if (pDoc.exists) {
-           const pData = pDoc.data();
-           completedCount = pData?.completed_tools ? Object.keys(pData.completed_tools).length : 0;
-       } else {
-           // Fallback to legacy subject string
-           const pDocLegacy = await adminDb.collection('users').doc(sDoc.id).collection('progress').doc(subjectStr.toLowerCase()).get();
-           if (pDocLegacy.exists) {
-               const pDataLegacy = pDocLegacy.data();
-               completedCount = pDataLegacy?.completed_tools ? Object.keys(pDataLegacy.completed_tools).length : 0;
-           }
-       }
-
+       const completedCount = progressMap.get(sDoc.id) || 0;
        const pct = totalCurriculumTools > 0 ? Math.min(100, Math.round((completedCount / totalCurriculumTools) * 100)) : 0;
 
        roster.push({
@@ -377,15 +367,10 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
     }
 
     // Sort alphabetically
-    roster.sort((a, b) => a.fullName.localeCompare(b.fullName));
-
-    return {
-       success: true,
-       roster,
-       totalCurriculumTools
-    };
+    roster.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
+    
+    return { success: true, roster };
   } catch (error: any) {
-     console.error("Error fetching classroom roster:", error);
-     return { success: false, error: error.message };
+    return { success: false, error: error.message };
   }
 }

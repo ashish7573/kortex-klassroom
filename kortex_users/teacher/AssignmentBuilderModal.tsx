@@ -1,10 +1,11 @@
 "use client";
+import { TeacherComboData, ClassStudentData } from '../../types/user';
 import React, { useState, useEffect } from 'react';
 import { X, ChevronRight, CheckCircle2, Calendar, Users, BookOpen, Search, ArrowLeft } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db, auth } from '../../backend_configurations/firebase';
 import { createAssignment } from '../../app/actions/teacher_assignments';
-import { ClassStudentData, TeacherComboData } from '../../app/actions/teacher';
+
 
 interface AssignmentBuilderModalProps {
   combo: TeacherComboData;
