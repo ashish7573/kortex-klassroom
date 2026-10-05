@@ -26,5 +26,11 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "jwks-rsa": "3.1.0"
+  },
+  "resolutions": {
+    "jwks-rsa": "3.1.0"
   }
 }
