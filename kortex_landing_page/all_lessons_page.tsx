@@ -54,7 +54,14 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
         // Fetch the new flat collection (Optimized)
         let toolsQuery = collection(db, 'learning_tools') as any;
         if (selectedClass && selectedClass !== '') {
-            toolsQuery = query(collection(db, 'learning_tools'), where('grade', 'in', [selectedClass, selectedClass.toUpperCase(), selectedClass.toLowerCase()]));
+            toolsQuery = query(collection(db, 'learning_tools'), where('grade', 'in', [
+                selectedClass, 
+                selectedClass.toUpperCase(), 
+                selectedClass.toLowerCase(), 
+                'All Grades', 
+                'all grades', 
+                'ALL GRADES'
+            ]));
         }
         
         const snapshot = await getDocs(toolsQuery).catch(() => ({ docs: [] }));
@@ -160,7 +167,10 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
   }, [selectedClass, selectedSubject]);
 
   const filteredLessons = allLessons.filter((lesson: any) => {
-    const matchClass = selectedClass ? lesson.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() : true;
+    const matchClass = selectedClass 
+      ? lesson.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() || 
+        lesson.grade?.toLowerCase().trim() === 'all grades'
+      : true;
     const dbSubj = lesson.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : lesson.subject?.toLowerCase().trim();
     const matchSubject = selectedSubject ? dbSubj === selectedSubject.toLowerCase().trim() : true;
     const matchQuery = searchQuery ? lesson.chapter?.toLowerCase().includes(searchQuery.toLowerCase()) || lesson.book?.toLowerCase().includes(searchQuery.toLowerCase()) : true;

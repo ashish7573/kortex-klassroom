@@ -485,13 +485,13 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                  const subjProgress = progressData.find(p => {
                     if (!p.id) return false;
                     const pId = p.id.toLowerCase();
-                    return pId === cKey || pId === cSubj; // Fallback to subject-only if legacy data exists
+                    return pId === cKey || pId === cSubj || pId === `all grades_${cSubj}`; // Fallback to All Grades
                  });
                  const completedCount = subjProgress && subjProgress.completed_tools ? Object.keys(subjProgress.completed_tools).length : 0;
                  const xpEarned = subjProgress ? subjProgress.xp : 0;
                  
                  // Calculate real percentage
-                 const totalTools = subjectTotals[cKey] || 0;
+                 const totalTools = subjectTotals[cKey] || subjectTotals[`all grades_${cSubj}`] || 0;
                  const progressPct = totalTools > 0 ? Math.min(100, Math.round((completedCount / totalTools) * 100)) : 0;
 
                  return (

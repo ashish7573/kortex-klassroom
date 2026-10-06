@@ -42,7 +42,19 @@ export function generateComboId(orgKortexId: string, comboString: string): strin
   const sectionPart = sectionMatch ? sectionMatch[1].toUpperCase() : "X";
 
   // 5. Process Subject (First 3 alphabetical characters)
-  const subjectPart = rawSubject.replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase();
+  let subjectPart = rawSubject.replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase();
+
+  // Smart overrides to prevent collisions for FLN and multi-word subjects
+  const upperRaw = rawSubject.toUpperCase().trim();
+  if (upperRaw.startsWith('FLN ')) {
+     const parts = upperRaw.split(' ');
+     if (parts.length >= 2) {
+       // "FLN MATHS" -> "FLN" + "M" -> "FLNM"
+       subjectPart = "FLN" + parts[1].replace(/[^A-Z]/g, '').substring(0, 1);
+     }
+  } else if (upperRaw.startsWith('CO CURRICULAR') || upperRaw.startsWith('CO-CURRICULAR')) {
+     subjectPart = 'COC';
+  }
 
   // 6. Combine
   return `${orgAbbrev}_${gradePart}${sectionPart}${subjectPart}`;

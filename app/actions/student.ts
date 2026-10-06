@@ -558,18 +558,28 @@ export async function getStudentAcademicDetails(idToken: string, studentUid: str
       const allOrgCombos: string[] = orgData.approved_grade_subject_combos || [];
 
       const defaultPrefix = `${linkData.grade} - Section ${linkData.section || 'A'}`;
-      const defaultComboStrings = allOrgCombos.filter(c => c.startsWith(defaultPrefix));
+      const assignedComboIds = linkData.assigned_combos || [];
       
-      const assignedExtraComboIds = linkData.assigned_combos || [];
-      const extraComboStrings = allOrgCombos.filter(c => {
-        const id = generateComboId(orgKortexId, c);
-        return assignedExtraComboIds.includes(id) && !c.startsWith(defaultPrefix);
-      });
+      let combinedList: { str: string, isExtra: boolean }[] = [];
 
-      const combinedList = [
-        ...defaultComboStrings.map(c => ({ str: c, isExtra: false })),
-        ...extraComboStrings.map(c => ({ str: c, isExtra: true }))
-      ];
+      // Fallback for legacy students who don't have assigned_combos populated yet
+      if (assignedComboIds.length === 0) {
+        const defaultComboStrings = allOrgCombos.filter(c => c.startsWith(defaultPrefix));
+        combinedList = defaultComboStrings.map(c => ({ str: c, isExtra: false }));
+      } else {
+        // New explicit logic: Only include exactly what's in assigned_combos
+        const explicitlyAssignedStrings = allOrgCombos.filter(c => {
+          const id = generateComboId(orgKortexId, c);
+          return assignedComboIds.includes(id);
+        });
+        
+        // We still determine 'isExtra' purely by whether it matches the default grade prefix
+        // just for UI rendering purposes if needed.
+        combinedList = explicitlyAssignedStrings.map(c => ({
+          str: c,
+          isExtra: !c.startsWith(defaultPrefix)
+        }));
+      }
 
       const teachersSnap = await adminDb.collection('users')
         .where('role', '==', 'teacher')
