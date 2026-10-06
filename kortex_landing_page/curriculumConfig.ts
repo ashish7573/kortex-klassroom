@@ -1,19 +1,38 @@
 import { 
   Type, FileText, Calculator, Leaf, Globe, Brain, Activity, 
-  Star, Palette, Music, Monitor, Lightbulb, Video, Target, Gamepad2 
+  Star, Palette, Music, Monitor, Lightbulb, Video, Target, Gamepad2, Beaker 
 } from 'lucide-react';
 
 export const GRADES = [
-  'FLN', 'Balvatika 1', 'Balvatika 2', 'Balvatika 3', 
+  'Balvatika 1', 'Balvatika 2', 'Balvatika 3', 
   'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 
   'Grade 6', 'Grade 7', 'Grade 8'
 ];
 
+export const SUBJECT_CATEGORIES = {
+  CORE: ['English', 'Hindi', 'Maths', 'EVS', 'Science', 'SST'],
+  FOUNDATIONAL: ['FLN English', 'FLN Hindi', 'FLN Maths'],
+  CO_CURRICULAR_AND_SKILLS: ['Computers and AI', 'Mental Training', 'Physical Training and Sports', 'Theatre', 'Art and Craft Forms', 'Music and Dance Forms']
+};
+
+export const GRADE_CORE_MAP: Record<string, string[]> = {
+  'Balvatika 1': ['English', 'Hindi', 'Maths'],
+  'Balvatika 2': ['English', 'Hindi', 'Maths'],
+  'Balvatika 3': ['English', 'Hindi', 'Maths'],
+  'Grade 1': ['English', 'Hindi', 'Maths', 'EVS'],
+  'Grade 2': ['English', 'Hindi', 'Maths', 'EVS'],
+  'Grade 3': ['English', 'Hindi', 'Maths', 'EVS'],
+  'Grade 4': ['English', 'Hindi', 'Maths', 'EVS'],
+  'Grade 5': ['English', 'Hindi', 'Maths', 'EVS'],
+  'Grade 6': ['English', 'Hindi', 'Maths', 'Science', 'SST'],
+  'Grade 7': ['English', 'Hindi', 'Maths', 'Science', 'SST'],
+  'Grade 8': ['English', 'Hindi', 'Maths', 'Science', 'SST'],
+};
+
 export const SUBJECTS = [
-  'English', 'Hindi', 'Maths', 'EVS', 'SST', 
-  'Mental Training', 'Physical Training and Sports', 
-  'Theatre', 'Art and Craft Forms', 'Music and Dance Forms', 
-  'Computers and AI'
+  ...SUBJECT_CATEGORIES.CORE,
+  ...SUBJECT_CATEGORIES.FOUNDATIONAL,
+  ...SUBJECT_CATEGORIES.CO_CURRICULAR_AND_SKILLS
 ];
 
 export const SECTIONS = [
@@ -27,7 +46,11 @@ export const SUBJECT_ICONS: Record<string, { icon: any; color: string }> = {
   'Hindi': { icon: FileText, color: 'text-orange-500' },
   'Maths': { icon: Calculator, color: 'text-rose-500' },
   'EVS': { icon: Leaf, color: 'text-lime-500' },
+  'Science': { icon: Beaker, color: 'text-emerald-400' },
   'SST': { icon: Globe, color: 'text-emerald-500' },
+  'FLN English': { icon: Type, color: 'text-indigo-400' },
+  'FLN Hindi': { icon: FileText, color: 'text-amber-500' },
+  'FLN Maths': { icon: Calculator, color: 'text-rose-400' },
   'Mental Training': { icon: Brain, color: 'text-purple-500' },
   'Physical Training and Sports': { icon: Activity, color: 'text-red-500' },
   'Theatre': { icon: Star, color: 'text-amber-500' },
@@ -42,7 +65,11 @@ export const SUBJECT_IMAGES: Record<string, string> = {
   'Hindi': '/thumbnails/hindi-cover.webp',
   'Maths': '/thumbnails/maths-cover.webp',
   'EVS': '/thumbnails/evs-cover.webp',
+  'Science': '/thumbnails/evs-cover.webp',
   'SST': '/thumbnails/sst-cover.webp',
+  'FLN English': '/thumbnails/english-cover.webp',
+  'FLN Hindi': '/thumbnails/hindi-cover.webp',
+  'FLN Maths': '/thumbnails/maths-cover.webp',
   'Mental Training': '/thumbnails/mental-training-cover.webp',
   'Physical Training and Sports': '/thumbnails/sports-cover.webp',
   'Computers and AI': '/thumbnails/computers-cover.webp',
@@ -87,7 +114,7 @@ export const FIVE_TIERS = [
   { 
     id: 'arcade', label: 'Kortex Arcade', desc: 'Conceptual Games', 
     mainColor: 'bg-lime-500', lightColor: 'bg-lime-50', borderColor: 'border-lime-500', textColor: 'text-lime-600', 
-    icon: Gamepad2, actionText: 'View All Games'
+    icon: Gamepad2, Beaker, actionText: 'View All Games'
   }
 ];
 

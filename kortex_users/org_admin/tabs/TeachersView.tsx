@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { OrgAdminProfile, TeacherProfile } from '../../../types/user';
-import { GraduationCap, UserPlus, Copy, CheckCircle2, X, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { GraduationCap, UserPlus, Copy, CheckCircle2, X, Pencil, Trash2, AlertTriangle, KeyRound } from 'lucide-react';
 import { generateComboId, getOrgAbbreviation } from '../utils/comboParsers';
-import { provisionTeacherAccount, updateTeacherAccount, deleteTeacherAccount } from '../../../app/actions/teacher';
+import { provisionTeacherAccount, updateTeacherAccount, deleteTeacherAccount, generateTeacherPasswordLink } from '../../../app/actions/teacher';
 import { auth, db } from '../../../backend_configurations/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
@@ -34,6 +34,16 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
   
   const orgAbbrev = getOrgAbbreviation(profile.kortex_id);
   const orgCombos = profile.approved_grade_subject_combos || [];
+
+  // Helper: Map of comboId -> { name, kortexId } to grey out already assigned combos
+  const assignedComboMap = new Map<string, { name: string, kortexId: string }>();
+  teachers.forEach(t => {
+    if (t.assigned_combos) {
+      t.assigned_combos.forEach(cid => {
+        assignedComboMap.set(cid, { name: t.full_name, kortexId: t.kortex_id });
+      });
+    }
+  });
 
   // Helper: map a Combo ID back to its friendly name based on org's approved combos
   const getComboLabel = (comboId: string) => {
@@ -158,6 +168,25 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
     }
   };
 
+  
+  const handleResendWelcome = async (teacher: TeacherProfile) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
+      const res = await generateTeacherPasswordLink(token, teacher.email);
+      if (res.success) {
+        const emailTemplate = `Subject: Welcome to Kortex Klassroom - Your Teacher Account\n\nHi ${teacher.full_name},\n\nWelcome to Kortex Klassroom! Your teacher account for ${profile.organization_name} is ready.\n\nHere are your official login details:\nTeacher ID: ${teacher.kortex_id}\nLogin Email: ${teacher.email}\n\nPlease click the secure link below to set your permanent password and access your dashboard:\n${res.link}\n\nBest regards,\n${profile.full_name}\n${profile.organization_name}`;
+        await navigator.clipboard.writeText(emailTemplate);
+        alert('Welcome message and password link copied to clipboard!');
+      } else {
+        alert('Error generating link: ' + res.error);
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+  };
+
   const handleCopyCredentials = () => {
     if (!successData) return;
     const emailTemplate = `Subject: Welcome to Kortex Klassroom - Your Teacher Account\n\nHi there,\n\nWelcome to Kortex Klassroom! Your teacher account for ${profile.organization_name} has been successfully provisioned.\n\nHere are your official login details:\nTeacher ID: ${successData.teacherId}\nLogin Email: ${successData.email}\n\nPlease click the secure link below to set your permanent password and access your dashboard:\n${successData.passwordLink}\n\nIf you have any questions, simply reply to this email.\n\nBest regards,\n${profile.full_name}\n${profile.organization_name}`;
@@ -248,6 +277,9 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
+                        <button onClick={() => handleResendWelcome(t)} className="p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors" title="Copy Welcome & Password Link">
+                          <KeyRound size={16} />
+                        </button>
                         <button onClick={() => openEditModal(t)} className="p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors" title="Edit Teacher">
                           <Pencil size={16} />
                         </button>
@@ -326,23 +358,35 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
                    {orgCombos.length > 0 ? orgCombos.map(combo => {
                       const comboId = generateComboId(profile.kortex_id, combo);
                       const isChecked = newTeacher.assignedCombos.includes(comboId);
+                      const assignedTeacher = assignedComboMap.get(comboId);
+                      const isAssignedToOther = !!assignedTeacher;
+
                       return (
-                        <label key={comboId} className={`flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${isChecked ? 'bg-indigo-50 border-indigo-500' : 'bg-white border-slate-100 hover:border-slate-300'}`}>
+                        <label key={comboId} className={`flex items-center gap-3 p-3 border-2 rounded-xl transition-colors ${
+                          isAssignedToOther ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' :
+                          isChecked ? 'bg-indigo-50 border-indigo-500 cursor-pointer' : 'bg-white border-slate-100 hover:border-slate-300 cursor-pointer'
+                        }`}>
                           <input 
                             type="checkbox" 
-                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 disabled:opacity-50"
                             checked={isChecked} 
+                            disabled={isAssignedToOther}
                             onChange={(e) => {
                               if (e.target.checked) setNewTeacher(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
                               else setNewTeacher(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
                             }} 
                           />
-                          <div>
+                          <div className="flex-1">
                              <span className="font-bold text-slate-800 block leading-tight">{combo}</span>
                              <span className="text-xs text-slate-400 font-mono font-bold">ID: {comboId}</span>
                           </div>
+                          {isAssignedToOther && (
+                            <span className="text-[10px] font-bold bg-slate-200 text-slate-500 px-2 py-1 rounded">
+                              Assigned: {assignedTeacher.name}
+                            </span>
+                          )}
                         </label>
-                      )
+                      );
                    }) : (
                      <div className="p-4 bg-rose-50 text-rose-700 text-sm font-bold rounded-xl border border-rose-100">
                        You do not have any approved combinations.
@@ -400,23 +444,36 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
                    {orgCombos.length > 0 ? orgCombos.map(combo => {
                       const comboId = generateComboId(profile.kortex_id, combo);
                       const isChecked = editData.assignedCombos.includes(comboId);
+                      const assignedTeacher = assignedComboMap.get(comboId);
+                      // In Edit mode, it's ok if it is assigned to the CURRENT teacher
+                      const isAssignedToOther = !!assignedTeacher && assignedTeacher.kortexId !== editingTeacher?.kortex_id;
+
                       return (
-                        <label key={comboId} className={`flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${isChecked ? 'bg-indigo-50 border-indigo-500' : 'bg-white border-slate-100 hover:border-slate-300'}`}>
+                        <label key={comboId} className={`flex items-center gap-3 p-3 border-2 rounded-xl transition-colors ${
+                          isAssignedToOther ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' :
+                          isChecked ? 'bg-indigo-50 border-indigo-500 cursor-pointer' : 'bg-white border-slate-100 hover:border-slate-300 cursor-pointer'
+                        }`}>
                           <input 
                             type="checkbox" 
-                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 disabled:opacity-50"
                             checked={isChecked} 
+                            disabled={isAssignedToOther}
                             onChange={(e) => {
                               if (e.target.checked) setEditData(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
                               else setEditData(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
                             }} 
                           />
-                          <div>
+                          <div className="flex-1">
                              <span className="font-bold text-slate-800 block leading-tight">{combo}</span>
                              <span className="text-xs text-slate-400 font-mono font-bold">ID: {comboId}</span>
                           </div>
+                          {isAssignedToOther && (
+                            <span className="text-[10px] font-bold bg-slate-200 text-slate-500 px-2 py-1 rounded">
+                              Assigned: {assignedTeacher.name}
+                            </span>
+                          )}
                         </label>
-                      )
+                      );
                    }) : (
                      <div className="p-4 bg-rose-50 text-rose-700 text-sm font-bold rounded-xl border border-rose-100">
                        No approved combinations available.

@@ -3,10 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, or, and } from 'firebase/firestore';
 import { db, auth } from '../../../backend_configurations/firebase';
 import { OrgAdminProfile, StudentProfile } from '../../../types/user';
-import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen } from 'lucide-react';
-import { GRADES, SECTIONS } from '../../../kortex_landing_page/curriculumConfig';
+import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen, Download } from 'lucide-react';
+import { GRADES, SECTIONS, SUBJECT_CATEGORIES, GRADE_CORE_MAP } from '../../../kortex_landing_page/curriculumConfig';
 import { generateComboId } from '../utils/comboParsers';
-import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess } from '../../../app/actions/student';
+import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess, bulkProvisionStudents } from '../../../app/actions/student';
 
 export default function StudentsParentsView({ profile }: { profile: OrgAdminProfile }) {
   const [students, setStudents] = useState<StudentProfile[]>([]);
@@ -20,8 +20,23 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+
+  const downloadSampleCsv = () => {
+    const csvContent = "Student Name,Parent Email,Parent Phone\nJohn Doe,john@example.com,+1234567890\nJane Smith,jane@example.com,";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Student_Import_Template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+
   // Forms
-  const [addMode, setAddMode] = useState<'new' | 'import'>('new');
+  const [addMode, setAddMode] = useState<'new' | 'import' | 'bulk'>('new');
   const [studentForm, setStudentForm] = useState({
     nameOrId: '',
     grade: GRADES[4] || 'Grade 1',
@@ -33,6 +48,18 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   const [editingStudent, setEditingStudent] = useState<StudentProfile | null>(null);
   const [revokingStudent, setRevokingStudent] = useState<StudentProfile | null>(null);
   const [viewingSubjectsStudent, setViewingSubjectsStudent] = useState<StudentProfile | null>(null);
+
+  // Pre-check Core Subjects for Bulk Import when Grade changes
+  useEffect(() => {
+    if (addMode === 'bulk') {
+      const coreSubjects = GRADE_CORE_MAP[studentForm.grade] || [];
+      const coreComboIds = coreSubjects.map(subj => 
+        generateComboId(profile.kortex_id || '', `${studentForm.grade} - Section ${studentForm.section} - ${subj}`)
+      );
+      setStudentForm(prev => ({ ...prev, assignedCombos: coreComboIds }));
+    }
+  }, [studentForm.grade, studentForm.section, addMode, profile.kortex_id]);
+
 
   // Real-time listener for Students
   useEffect(() => {
@@ -57,6 +84,66 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
 
     return () => unsubscribe();
   }, [profile.uid]);
+
+  
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!csvFile) {
+      alert("Please select a CSV file.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      const text = await csvFile.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      if (lines.length < 2) {
+        throw new Error("CSV file must contain a header row and at least one student row.");
+      }
+      
+      const students = lines.slice(1).map(line => {
+        const parts = line.split(',');
+        return {
+          fullName: (parts[0] || '').trim(),
+          parentEmail: (parts[1] || '').trim(),
+          parentPhone: (parts[2] || '').trim(),
+        };
+      }).filter(s => s.fullName.length > 0);
+      
+      if (students.length === 0) {
+         throw new Error("No valid student records found in CSV.");
+      }
+
+      if (students.length > 40) {
+         throw new Error(`CSV contains ${students.length} students. A single upload cannot exceed 40 students.`);
+      }
+
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+      const idToken = await user.getIdToken(true);
+
+      const result = await bulkProvisionStudents(
+        idToken,
+        studentForm.grade,
+        studentForm.section,
+        studentForm.assignedCombos,
+        students
+      );
+      
+      if (!result.success) throw new Error(result.error);
+      
+      alert(result.message);
+      setShowAddModal(false);
+      setCsvFile(null);
+      resetForm();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleGenerateOrImport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -352,38 +439,52 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                    onClick={() => setAddMode('import')}
                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${addMode === 'import' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
                  >
-                   Import Existing
+                   Transfer In
+                 </button>
+                 <button 
+                   onClick={() => setAddMode('bulk')}
+                   className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${addMode === 'bulk' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
+                 >
+                   Bulk Upload
                  </button>
                </div>
              </div>
              
              <div className="overflow-y-auto p-6">
-               <form id="studentForm" onSubmit={handleGenerateOrImport} className="space-y-6">
+               
+               <form id="studentForm" onSubmit={addMode === 'bulk' ? handleBulkSubmit : handleGenerateOrImport} className="space-y-6">
                  
                  <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-start gap-3">
                     <Link size={18} className="text-indigo-600 shrink-0 mt-0.5" />
                     <p className="text-[11px] font-bold text-indigo-800 leading-relaxed">
                       {addMode === 'new' 
                         ? 'This ID will be used by the parent to link their child\'s account to your school. Standard subjects for the selected Grade & Section are automatically mapped.'
-                        : 'Enter the student\'s existing Kortex ID. This will send a transfer request to the parent. Once approved, they will be linked to your school.'
+                        : addMode === 'import' 
+                        ? 'Enter the student\'s existing Kortex ID. This will send a transfer request to the parent. Once approved, they will be linked to your school.'
+                        : 'Select the exact Grade, Section, and extra combinations for this batch. Then upload a CSV with Student Name, Parent Email, and Parent Phone. Limit 40 students.'
                       }
                     </p>
                  </div>
 
+
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   <div className="sm:col-span-2">
-                     <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">
-                       {addMode === 'new' ? 'Student Full Name' : 'Existing Student ID'}
-                     </label>
-                     <input 
-                       required 
-                       type="text" 
-                       value={studentForm.nameOrId} 
-                       onChange={e => setStudentForm({...studentForm, nameOrId: e.target.value})} 
-                       className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500 uppercase" 
-                       placeholder={addMode === 'new' ? 'e.g. Aarav Sharma' : 'e.g. STU_XYZ_999'} 
-                     />
-                   </div>
+                   
+                   {addMode !== 'bulk' && (
+                     <div className="sm:col-span-2">
+                       <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">
+                         {addMode === 'new' ? 'Student Full Name' : 'Existing Student ID'}
+                       </label>
+                       <input 
+                         required 
+                         type="text" 
+                         value={studentForm.nameOrId} 
+                         onChange={e => setStudentForm({...studentForm, nameOrId: e.target.value})} 
+                         className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500 uppercase" 
+                         placeholder={addMode === 'new' ? 'e.g. Aarav Sharma' : 'e.g. STU_XYZ_999'} 
+                       />
+                     </div>
+                   )}
+
                    
                    <div>
                      <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Grade</label>
@@ -405,6 +506,94 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                        <input type="text" value={studentForm.emergencyContact} onChange={e => setStudentForm({...studentForm, emergencyContact: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. +91 98765 43210 (Optional)" />
                      </div>
                    )}
+
+                   
+                   {addMode === 'bulk' && (
+                     <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+                       <label className="block text-xs font-bold text-slate-600 mb-4 uppercase">Select Subjects for this Batch</label>
+                       
+                       <div className="space-y-4 mb-6">
+                         {/* Category 1: Core */}
+                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                           <h4 className="text-xs font-bold text-indigo-700 uppercase mb-3 border-b border-indigo-100 pb-2">Core Academics</h4>
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                             {(GRADE_CORE_MAP[studentForm.grade] || []).map(subj => {
+                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
+                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
+                               const isChecked = studentForm.assignedCombos.includes(comboId);
+                               return (
+                                 <label key={comboId} className="flex items-center gap-2 cursor-pointer">
+                                   <input type="checkbox" checked={isChecked} onChange={(e) => {
+                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
+                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
+                                   }} className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
+                                 </label>
+                               );
+                             })}
+                           </div>
+                         </div>
+
+                         {/* Category 2: Foundational */}
+                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                           <h4 className="text-xs font-bold text-amber-700 uppercase mb-3 border-b border-amber-200 pb-2">Foundational (FLN)</h4>
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                             {SUBJECT_CATEGORIES.FOUNDATIONAL.map(subj => {
+                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
+                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
+                               const isChecked = studentForm.assignedCombos.includes(comboId);
+                               return (
+                                 <label key={comboId} className="flex items-center gap-2 cursor-pointer">
+                                   <input type="checkbox" checked={isChecked} onChange={(e) => {
+                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
+                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
+                                   }} className="w-4 h-4 text-amber-600 rounded border-amber-300 focus:ring-amber-500" />
+                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
+                                 </label>
+                               );
+                             })}
+                           </div>
+                         </div>
+
+                         {/* Category 3: Co-Curricular */}
+                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                           <h4 className="text-xs font-bold text-emerald-700 uppercase mb-3 border-b border-emerald-200 pb-2">Co-Curricular & Skills</h4>
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                             {SUBJECT_CATEGORIES.CO_CURRICULAR_AND_SKILLS.map(subj => {
+                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
+                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
+                               const isChecked = studentForm.assignedCombos.includes(comboId);
+                               return (
+                                 <label key={comboId} className="flex items-center gap-2 cursor-pointer">
+                                   <input type="checkbox" checked={isChecked} onChange={(e) => {
+                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
+                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
+                                   }} className="w-4 h-4 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500" />
+                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
+                                 </label>
+                               );
+                             })}
+                           </div>
+                         </div>
+                       </div>
+
+                       <div className="flex items-center justify-between mb-2">
+                         <label className="block text-xs font-bold text-slate-600 uppercase">Upload CSV File</label>
+                         <button type="button" onClick={downloadSampleCsv} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                           <Download size={12} /> Download Sample CSV
+                         </button>
+                       </div>
+                       <input 
+                         required
+                         type="file" 
+                         accept=".csv"
+                         onChange={e => setCsvFile(e.target.files?.[0] || null)} 
+                         className="w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl px-4 py-6 font-bold text-slate-600 outline-none focus:border-indigo-500 cursor-pointer text-center" 
+                       />
+                     </div>
+                   )}
+
+
                  </div>
 
                  {extraCombos.length > 0 && (
@@ -442,7 +631,9 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">Cancel</button>
                <button disabled={isSubmitting} form="studentForm" type="submit" className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black rounded-xl shadow-md transition-all">
-                 {isSubmitting ? 'Processing...' : (addMode === 'new' ? 'Generate ID' : 'Send Transfer Request')}
+                 
+                 {isSubmitting ? 'Processing...' : (addMode === 'new' ? 'Generate ID' : addMode === 'import' ? 'Send Transfer Request' : 'Upload & Provision')}
+
                </button>
              </div>
            </div>

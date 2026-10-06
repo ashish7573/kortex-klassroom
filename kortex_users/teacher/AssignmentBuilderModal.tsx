@@ -45,7 +45,7 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
         const snap = await getDocs(q).catch(() => ({ docs: [] }));
         
         const matched = snap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((t: any) => 
-          (t.grade || '').trim().toLowerCase() === combo.gradeStr.toLowerCase() &&
+          ((t.grade || '').trim().toLowerCase() === combo.gradeStr.toLowerCase() || (t.grade || '').trim().toLowerCase() === 'all grades' || (t.grade || '').trim().toLowerCase() === 'all') &&
           (t.subject || '').trim().toLowerCase() === combo.subjectStr.toLowerCase() || (t.subject || '').trim().toLowerCase() === 'mathematics' && combo.subjectStr.toLowerCase() === 'maths'
         );
         

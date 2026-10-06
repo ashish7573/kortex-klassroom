@@ -300,14 +300,23 @@ export default function UnifiedAuthModal({
                       Forgot?
                     </button>
                   </div>
+                  <div className="relative">
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="Enter password or child PIN"
-                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 pr-12 py-3 font-bold text-slate-700 outline-none focus:border-sky-500 text-sm"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                  </div>
                 </div>
 
                 <button

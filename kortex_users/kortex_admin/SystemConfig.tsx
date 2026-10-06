@@ -4,7 +4,7 @@ import { collection, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../../backend_configurations/firebase';
 import { syncCurriculumTotals } from '../../app/actions/admin';
 import { auth } from '../../backend_configurations/firebase';
-import { DownloadCloud, UploadCloud } from 'lucide-react';
+import { DownloadCloud, UploadCloud, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export default function SystemConfig() {
   const [isLoading, setIsLoading] = useState(false);
@@ -73,8 +73,7 @@ export default function SystemConfig() {
 
           for (let i = 1; i < rows.length; i++) {
              // Basic regex for handling quotes
-             const rowMatch = rows[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-             const row = rowMatch.map(val => val.replace(/^"|"$/g, '').replace(/""/g, '"'));
+             const row = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(val => val.replace(/^"|"$/g, '').replace(/""/g, '"'));
              if (row.length < 2) continue;
 
              const item: any = {};
@@ -89,12 +88,31 @@ export default function SystemConfig() {
                   live.subject !== item.subject ||
                   live.title !== item.title ||
                   live.content_type !== item.content_type ||
-                  (live.video_url || '') !== (item.video_url || '');
+                  (live.chapter_name || live.chapter || '') !== item.chapter_name ||
+                  (live.content_url || live.video_url || '') !== item.video_url ||
+                  (live.gameCode || '') !== item.gameCode ||
+                  (live.quizCode || '') !== item.quizCode;
 
-                if (needsUpdate) toUpdate.push(item);
+                
+                // Ensure correct database field names are written
+                const mappedItem = {
+                  ...item,
+                  content_url: item.video_url,
+                  chapter_name: item.chapter_name
+                };
+                delete mappedItem.video_url; // Use content_url universally
+
+                if (needsUpdate) toUpdate.push(mappedItem);
              } else {
-                toAdd.push(item);
+                const mappedItem = {
+                  ...item,
+                  content_url: item.video_url,
+                  chapter_name: item.chapter_name
+                };
+                delete mappedItem.video_url;
+                toAdd.push(mappedItem);
              }
+  
           }
           
           if (toAdd.length === 0 && toUpdate.length === 0) {
@@ -281,6 +299,7 @@ export default function SystemConfig() {
           </div>
        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             {/* 1. Export CSV */}
              <div className="bg-white border-4 border-slate-100 p-8 rounded-3xl text-center shadow-sm relative flex flex-col items-center justify-center text-slate-800">
                 <DownloadCloud size={64} className="text-emerald-500 mb-6" />
                 <h3 className="text-3xl font-black text-slate-800 mb-4">Export Master CSV</h3>
@@ -288,25 +307,13 @@ export default function SystemConfig() {
                 <button 
                    onClick={handleExportCSV} 
                    disabled={isLoading || isUploadingCSV} 
-                   className="w-full py-4 rounded-xl font-bold text-lg border-b-4 bg-emerald-500 hover:bg-emerald-600 border-emerald-700 text-white active:scale-95 transition-all disabled:opacity-50"
+                   className="w-full py-4 rounded-xl font-bold text-lg border-b-4 bg-emerald-500 hover:bg-emerald-600 border-emerald-700 text-white active:scale-95 transition-all disabled:opacity-50 mt-auto"
                 >
                     {isLoading ? 'Exporting Database...' : 'Download Database'}
                 </button>
              </div>
 
-
-             <div className="bg-white border-4 border-slate-100 p-8 rounded-3xl text-center shadow-sm relative flex flex-col items-center justify-center text-slate-800 md:col-span-2">
-                <h3 className="text-2xl font-black text-slate-800 mb-2">Sync Dashboard Totals</h3>
-                <p className="text-slate-500 font-medium mb-6 text-sm">Force recalculate all progress percentages for Student & Parent Dashboards.</p>
-                <button 
-                   onClick={handleSyncTotals} 
-                   disabled={isLoading || isUploadingCSV} 
-                   className="w-full max-w-sm mx-auto py-3 rounded-xl font-bold border-b-4 bg-indigo-500 hover:bg-indigo-600 border-indigo-700 text-white active:scale-95 transition-all disabled:opacity-50"
-                >
-                   {isLoading ? 'Syncing...' : 'Sync Totals'}
-                </button>
-             </div>
-
+             {/* 2. Sync CSV */}
              <div className="bg-white border-4 border-slate-100 p-8 rounded-3xl text-center shadow-sm relative flex flex-col items-center justify-center text-slate-800">
                 <UploadCloud size={64} className="text-sky-500 mb-6" />
                 <h3 className="text-3xl font-black text-slate-800 mb-4">Sync / Import CSV</h3>
@@ -320,6 +327,20 @@ export default function SystemConfig() {
                        Select CSV to Sync
                    </button>
                 </div>
+             </div>
+
+             {/* 3. Sync Dashboard Totals */}
+             <div className="bg-white border-4 border-slate-100 p-8 rounded-3xl text-center shadow-sm relative flex flex-col items-center justify-center text-slate-800">
+                <CheckCircle2 size={48} className="text-indigo-500 mb-4" />
+                <h3 className="text-2xl font-black text-slate-800 mb-2">Sync Dashboard Totals</h3>
+                <p className="text-slate-500 font-medium mb-6 text-sm">Force recalculate all progress percentages for Student & Parent Dashboards.</p>
+                <button 
+                   onClick={handleSyncTotals} 
+                   disabled={isLoading || isUploadingCSV} 
+                   className="w-full py-4 rounded-xl font-bold border-b-4 bg-indigo-500 hover:bg-indigo-600 border-indigo-700 text-white active:scale-95 transition-all disabled:opacity-50 mt-auto"
+                >
+                   {isLoading ? 'Syncing...' : 'Sync Totals'}
+                </button>
              </div>
           </div>
        )}
