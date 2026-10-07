@@ -27,12 +27,14 @@ import {
 
 interface UnifiedAuthModalProps {
   onClose: () => void;
+  onSuccess?: () => void;
   initialMode?: 'signin' | 'signup';
   authMessage?: string;
 }
 
 export default function UnifiedAuthModal({ 
-  onClose, 
+  onClose,
+  onSuccess,
   initialMode = 'signin',
   authMessage
 }: UnifiedAuthModalProps) {
@@ -98,6 +100,7 @@ export default function UnifiedAuthModal({
         console.warn("Profile update warning during sign-in:", err);
       }
 
+      if (onSuccess) onSuccess();
       onClose();
     } catch (err: any /* eslint-disable-line @typescript-eslint/no-explicit-any */) {
       console.error("Sign in failed:", err);
@@ -173,6 +176,7 @@ export default function UnifiedAuthModal({
         await cred.user.delete();
         throw err;
       }
+      if (onSuccess) onSuccess();
       onClose();
     } catch (err: any /* eslint-disable-line @typescript-eslint/no-explicit-any */) {
       console.error("Parent registration error:", err);

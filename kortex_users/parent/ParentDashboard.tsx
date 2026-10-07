@@ -208,7 +208,7 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
           </div>
           <h3 className="text-xl font-black text-slate-700 mb-2">No Children Added Yet</h3>
           <p className="text-slate-500 font-semibold mb-6 max-w-sm mx-auto">
-            You haven&apos;t added any children to your account. You can create a new Kortex ID for them or claim one provided by their organization.
+            You haven&apos;t added any children to your account yet. Set up a child account to give them access to our interactive learning tools and curriculum!
           </p>
           <button 
             onClick={() => setInternalShowModal(true)}

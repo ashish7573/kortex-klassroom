@@ -47,7 +47,7 @@ export const ProgressBar = ({ label, percentage, colorClass }: any) => (
   </div>
 );
 
-export const GeneralAlertModal = ({ title, message, type = 'info', onClose, actionLabel, onAction }: any) => {
+export const GeneralAlertModal = ({ title, message, type = 'info', onClose, actionLabel, onAction, secondaryActionLabel, onSecondaryAction }: any) => {
   let Icon = Info; 
   let colorClass = 'text-sky-500';
   let bgClass = 'bg-sky-100';
@@ -77,7 +77,14 @@ export const GeneralAlertModal = ({ title, message, type = 'info', onClose, acti
         </div>
         <h3 className="text-2xl font-black text-slate-800 mb-2">{title}</h3>
         <p className="text-slate-500 font-medium mb-6">{message}</p>
-        <Button className="w-full" onClick={onAction || onClose}>{actionLabel || 'Got it'}</Button>
+        <div className="flex flex-col gap-3">
+          <Button className="w-full" onClick={onAction || onClose}>{actionLabel || 'Got it'}</Button>
+          {secondaryActionLabel && (
+             <button onClick={onSecondaryAction || onClose} className="w-full py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">
+               {secondaryActionLabel}
+             </button>
+          )}
+        </div>
       </div>
     </div>
   );

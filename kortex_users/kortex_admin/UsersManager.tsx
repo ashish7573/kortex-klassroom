@@ -5,7 +5,7 @@ import { db } from '../../backend_configurations/firebase';
 import { BaseUserProfile, OrgAdminProfile } from '../../types/user';
 import { 
   Users, Building2, UserPlus, Search, ShieldCheck, X, CheckCircle2, 
-  AlertCircle, Trash2, Pencil, FileText, ExternalLink 
+  AlertCircle, Trash2, Pencil, FileText, ExternalLink, Download, ArrowUpDown, ChevronUp, ChevronDown 
 } from 'lucide-react';
 import ProvisionOrgModal from './ProvisionOrgModal';
 import EditOrgModal from './EditOrgModal';
@@ -18,7 +18,10 @@ export default function UsersManager() {
   const [showProvisionModal, setShowProvisionModal] = useState(false);
   const [editingOrg, setEditingOrg] = useState<OrgAdminProfile | null>(null);
   const [editingIndividual, setEditingIndividual] = useState<any | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [orgFilter, setOrgFilter] = useState<string>('all');
 
   const [organizations, setOrganizations] = useState<OrgAdminProfile[]>([]);
   const [individuals, setIndividuals] = useState<BaseUserProfile[]>([]);
@@ -52,10 +55,60 @@ export default function UsersManager() {
     return () => unsubscribe();
   }, [activeTab]);
 
-  const filteredOrgs = organizations.filter(org => 
+  
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortIndicator = (key: string) => {
+    if (sortConfig?.key === key) {
+       return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="inline ml-1" /> : <ChevronDown size={14} className="inline ml-1" />;
+    }
+    return <ArrowUpDown size={12} className="inline ml-1 opacity-20 group-hover:opacity-100 transition-opacity" />;
+  };
+
+  const exportToCSV = (data: any[], filename: string) => {
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]).filter(key => key !== 'org_links' && key !== 'active_b2c_licenses' && key !== 'children_ids' && key !== 'teacher_ids'); 
+    const csvRows = [];
+    csvRows.push(headers.join(','));
+    for (const row of data) {
+       const values = headers.map(header => {
+          let val = row[header];
+          if (typeof val === 'object') val = JSON.stringify(val);
+          if (val === null || val === undefined) val = '';
+          return `"${String(val).replace('"', '""')}"`;
+       });
+       csvRows.push(values.join(','));
+    }
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', filename);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  let processedOrgs = [...organizations].filter(org => 
     org.organization_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
     org.kortex_id?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  if (sortConfig && activeTab === 'organizations') {
+     processedOrgs.sort((a, b) => {
+        const valA = (a as any)[sortConfig.key] || '';
+        const valB = (b as any)[sortConfig.key] || '';
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+     });
+  }
 
 
   const handleDeleteIndividual = async (uid: string, name: string, role: string) => {
@@ -98,11 +151,64 @@ export default function UsersManager() {
     }
   };
 
-  const filteredIndividuals = individuals.filter(ind => 
-    ind.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    ind.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ind.kortex_id?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const getSortableEmail = (ind: any) => {
+    if (ind.role === 'student' && ind.parent_id && ind.parent_id !== 'PENDING') {
+      const parent = individuals.find(p => p.uid === ind.parent_id);
+      return (parent?.email || '').toLowerCase();
+    }
+    return (ind.email || '').toLowerCase();
+  };
+
+  const getSortableOrgName = (ind: any) => {
+    const orgIds = ind.org_ids || (ind.org_id ? [ind.org_id] : []);
+    if (orgIds.length > 0) {
+      const orgNames = orgIds.map((id: string) => organizations.find(o => o.uid === id)?.organization_name || '').filter(Boolean);
+      return orgNames.join(', ').toLowerCase();
+    }
+    return 'independent';
+  };
+
+  let processedIndividuals = [...individuals].filter(ind => {
+    const searchLower = searchQuery.toLowerCase();
+    const resolvedEmail = getSortableEmail(ind);
+    
+    const matchesSearch = (ind.full_name || '').toLowerCase().includes(searchLower) || 
+                          resolvedEmail.includes(searchLower) ||
+                          (ind.kortex_id || '').toLowerCase().includes(searchLower);
+                          
+    const matchesRole = roleFilter === 'all' || ind.role === roleFilter;
+
+    const orgIds = (ind as any).org_ids || ((ind as any).org_id ? [(ind as any).org_id] : []);
+    const isIndependent = orgIds.length === 0;
+    
+    const matchesOrg = orgFilter === 'all' 
+       ? true 
+       : (orgFilter === 'independent' ? isIndependent : orgIds.includes(orgFilter));
+
+    return matchesSearch && matchesRole && matchesOrg;
+  });
+
+  if (sortConfig && activeTab === 'individuals') {
+     processedIndividuals.sort((a, b) => {
+        let valA = '';
+        let valB = '';
+        
+        if (sortConfig.key === 'email') {
+           valA = getSortableEmail(a);
+           valB = getSortableEmail(b);
+        } else if (sortConfig.key === 'organization') {
+           valA = getSortableOrgName(a);
+           valB = getSortableOrgName(b);
+        } else {
+           valA = String((a as any)[sortConfig.key] || '').toLowerCase();
+           valB = String((b as any)[sortConfig.key] || '').toLowerCase();
+        }
+
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+     });
+  }
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -209,15 +315,49 @@ export default function UsersManager() {
           </button>
         </div>
 
-        <div className="relative w-full md:w-64 shrink-0">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by ID or Name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm font-bold text-slate-700 focus:border-indigo-500 outline-none"
-          />
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          {activeTab === 'individuals' && (
+            <>
+              <select
+                value={orgFilter}
+                onChange={(e) => setOrgFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 h-[38px]"
+              >
+                <option value="all">All Organizations</option>
+                <option value="independent">Independent</option>
+                {organizations.map(org => (
+                  <option key={org.uid} value={org.uid}>{org.organization_name}</option>
+                ))}
+              </select>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 h-[38px]"
+              >
+                <option value="all">All Roles</option>
+                <option value="parent">Parents</option>
+                <option value="student">Students</option>
+                <option value="teacher">Teachers</option>
+              </select>
+            </>
+          )}
+          <div className="relative w-full md:w-64 shrink-0">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by ID or Name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm font-bold text-slate-700 focus:border-indigo-500 outline-none h-[38px]"
+            />
+          </div>
+          <button 
+            onClick={() => exportToCSV(activeTab === 'organizations' ? processedOrgs : processedIndividuals, `${activeTab}_export.csv`)}
+            className="flex items-center justify-center gap-2 px-4 h-[38px] bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold rounded-xl transition-colors border border-emerald-100 shrink-0"
+            title="Download CSV"
+          >
+            <Download size={16} /> <span className="hidden md:inline">CSV</span>
+          </button>
         </div>
       </div>
 
@@ -229,8 +369,8 @@ export default function UsersManager() {
               <tr>
                 {activeTab === 'organizations' ? (
                   <>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Kortex ID / Org Name</th>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Contact Email</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("organization_name")}>Kortex ID / Org Name {sortIndicator("organization_name")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("email")}>Contact Email {sortIndicator("email")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Combos Approved</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Student Seats</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Documents</th>
@@ -239,10 +379,10 @@ export default function UsersManager() {
                   </>
                 ) : (
                   <>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Kortex ID / Name</th>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Role</th>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Organization</th>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Email</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("full_name")}>Kortex ID / Name {sortIndicator("full_name")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("role")}>Role {sortIndicator("role")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("organization")}>Organization {sortIndicator("organization")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("email")}>Email {sortIndicator("email")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Join Date</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
                   </>
@@ -253,7 +393,7 @@ export default function UsersManager() {
               {loading ? (
                 <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading records...</td></tr>
               ) : activeTab === 'organizations' ? (
-                filteredOrgs.length > 0 ? filteredOrgs.map(org => {
+                processedOrgs.length > 0 ? processedOrgs.map(org => {
                   const studentsUsed = org.active_students_count || 0;
                   const maxStudents = org.license_quota || 0;
                   const combosCount = org.approved_grade_subject_combos?.length || 0;
@@ -338,7 +478,7 @@ export default function UsersManager() {
                   <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">No organizations found.</td></tr>
                 )
               ) : (
-                filteredIndividuals.length > 0 ? filteredIndividuals.map(ind => (
+                processedIndividuals.length > 0 ? processedIndividuals.map(ind => (
                   <tr key={ind.uid} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-black text-indigo-900">{ind.kortex_id || 'NO_ID'}</div>

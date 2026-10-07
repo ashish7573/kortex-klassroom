@@ -11,7 +11,7 @@ import { User, Play, LogOut, Search, Star, Menu, X, Type, Target } from 'lucide-
 import { useAuth } from '../hooks/useAuth';
 import { auth, db, googleProvider } from '../backend_configurations/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
-import { consumeHeart, logStudentActivity } from '../app/actions/student';
+import { consumeHeart, checkAndResetDailyHearts, logStudentActivity } from '../app/actions/student';
 import { doc, getDoc, onSnapshot, collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 
 // Re-export initialized Firebase instances for backward compatibility
@@ -126,6 +126,8 @@ function MainApp() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertConfig, setAlertConfig] = useState(null);
 
+  const hasAutoRedirected = useRef(false);
+
   // Synchronize AuthContext reactive profile with local state
   useEffect(() => {
     if (authProfile) {
@@ -134,6 +136,14 @@ function MainApp() {
       setIsPro(authIsPro);
       setUserName((authProfile as any)?.organization_name || authProfile.full_name || '');
       setUserEmail(authProfile.email || authUser?.email || '');
+      
+      // Auto-redirect to dashboard if they land on the homepage and are already logged in
+      if (!hasAutoRedirected.current) {
+         hasAutoRedirected.current = true;
+         if (currentView === 'home' && (!urlView || urlView === 'home')) {
+            _setCurrentView('portal');
+         }
+      }
     } else if (!authUser) {
       _setRole(null);
       setIsLoggedIn(false);
@@ -450,7 +460,7 @@ useEffect(() => {
        return true;
     }
 
-    if (role === 'student' && !isPro && authProfile) {
+    if ((role === 'student' || role === 'parent') && !isPro && authProfile) {
         // --- B2B / B2C BYPASS CHECK ---
         if (toolSubject) {
             let isOwned = false;
@@ -473,21 +483,55 @@ useEffect(() => {
         try {
             const token = await auth.currentUser?.getIdToken();
             if (!token) return false;
-            if ((authProfile as any).hearts_remaining <= 0) {
-                 setAlertConfig({
-                    title: "Out of Energy!",
-                    message: "You've used all 5 hearts today. Come back tomorrow for more, or ask your parents to unlock Kortex Pro!",
-                    type: "warning"
-                 });
+            
+            const syncResult = await checkAndResetDailyHearts(token, authProfile.uid);
+            const currentHearts = syncResult.hearts !== undefined ? syncResult.hearts : ((authProfile as any).hearts_remaining || 0);
+
+            if (currentHearts <= 0) {
+                 if (role === 'parent') {
+                     setAlertConfig({
+                        title: "Out of Energy!",
+                        message: "You've used all 5 hearts today. Come back tomorrow for more, or upgrade to a Kortex Pro account for unlimited access!",
+                        type: "warning",
+                        actionLabel: "Upgrade to Pro",
+                        onAction: () => {
+                           alert("Coming Soon!");
+                           setAlertConfig(null);
+                        },
+                        secondaryActionLabel: "OK",
+                        onSecondaryAction: () => setAlertConfig(null)
+                     } as any);
+                 } else {
+                     setAlertConfig({
+                        title: "Out of Energy!",
+                        message: "You've used all 5 hearts today. Come back tomorrow for more, or ask your parents to unlock Kortex Pro!",
+                        type: "warning"
+                     } as any);
+                 }
                  return false;
             }
             const result = await consumeHeart(token, authProfile.uid);
             if (!result.success) {
-                 setAlertConfig({
-                    title: "Out of Energy!",
-                    message: "You've used all your hearts for today.",
-                    type: "warning"
-                 });
+                 if (role === 'parent') {
+                     setAlertConfig({
+                        title: "Out of Energy!",
+                        message: "You've used all your hearts for today. Upgrade to Kortex Pro for unlimited access!",
+                        type: "warning",
+                        actionLabel: "Upgrade to Pro",
+                        onAction: () => {
+                           alert("Coming Soon!");
+                           setAlertConfig(null);
+                        },
+                        secondaryActionLabel: "OK",
+                        onSecondaryAction: () => setAlertConfig(null)
+                     } as any);
+                 } else {
+                     setAlertConfig({
+                        title: "Out of Energy!",
+                        message: "You've used all your hearts for today.",
+                        type: "warning"
+                     } as any);
+                 }
                  return false;
             }
         } catch (e) { return false; }
@@ -599,6 +643,7 @@ useEffect(() => {
       {showAuthModal && (
         <UnifiedAuthModal 
           onClose={() => setShowAuthModal(false)} 
+          onSuccess={() => _setCurrentView('portal')}
           initialMode={authMode}
           authMessage={authMessage}
         />
@@ -645,9 +690,8 @@ useEffect(() => {
       
       <nav className="bg-white border-b-4 border-sky-500 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
-          
           {/* LEFT: Logo */}
-          <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentView('home'); setStage(null); if (!isLoggedIn) setRole(null); }}>
+          <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentView(isLoggedIn ? 'portal' : 'home'); setStage(null); if (!isLoggedIn) setRole(null); }}>
             <Image src="/logo.svg" alt="Kortex Klassroom Logo" width={200} height={50} priority className="h-10 w-auto rounded-xl -rotate-3" />
             <span className="font-black text-2xl tracking-tight text-slate-800 hidden xl:block">Kortex<span className="text-sky-500"> Klassroom</span></span>
           </div>
@@ -656,14 +700,16 @@ useEffect(() => {
           <div className="flex items-center gap-4 xl:gap-8 ml-auto">
             
             {/* 6 Nav Links (Hidden on mobile) */}
-            <div className="hidden lg:flex items-center gap-4 xl:gap-8 font-extrabold text-slate-500 text-xs text-center leading-tight">
-               <button onClick={() => setCurrentView('lessons')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'lessons' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>All<br/>Lessons</button>
-               <button onClick={() => setCurrentView('conceptualiser')} className={`py-2 px-1 transition-colors hover:text-purple-500 ${currentView === 'conceptualiser' ? 'text-purple-500 border-b-2 border-purple-500' : ''}`}>Interactive<br/>Sandbox</button>
-               <button onClick={() => setCurrentView('theatre')} className={`py-2 px-1 transition-colors hover:text-pink-500 ${currentView === 'theatre' ? 'text-pink-500 border-b-2 border-pink-500' : ''}`}>Kortex<br/>Theatre</button>
-               <button onClick={() => setCurrentView('dojo')} className={`py-2 px-1 transition-colors hover:text-orange-500 ${currentView === 'dojo' ? 'text-orange-500 border-b-2 border-orange-500' : ''}`}>The<br/>Dojo</button>
-               <button onClick={() => setCurrentView('Notebook')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'Notebook' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>The<br/>Notebook</button>
-               <button onClick={() => setCurrentView('arcade')} className={`py-2 px-1 transition-colors hover:text-lime-600 ${currentView === 'arcade' ? 'text-lime-600 border-b-2 border-lime-500' : ''}`}>Kortex<br/>Arcade</button>
-            </div>
+            {role !== 'parent' && (
+              <div className="hidden lg:flex items-center gap-4 xl:gap-8 font-extrabold text-slate-500 text-xs text-center leading-tight">
+                 <button onClick={() => setCurrentView('lessons')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'lessons' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>All<br/>Lessons</button>
+                 <button onClick={() => setCurrentView('conceptualiser')} className={`py-2 px-1 transition-colors hover:text-purple-500 ${currentView === 'conceptualiser' ? 'text-purple-500 border-b-2 border-purple-500' : ''}`}>Interactive<br/>Sandbox</button>
+                 <button onClick={() => setCurrentView('theatre')} className={`py-2 px-1 transition-colors hover:text-pink-500 ${currentView === 'theatre' ? 'text-pink-500 border-b-2 border-pink-500' : ''}`}>Kortex<br/>Theatre</button>
+                 <button onClick={() => setCurrentView('dojo')} className={`py-2 px-1 transition-colors hover:text-orange-500 ${currentView === 'dojo' ? 'text-orange-500 border-b-2 border-orange-500' : ''}`}>The<br/>Dojo</button>
+                 <button onClick={() => setCurrentView('Notebook')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'Notebook' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>The<br/>Notebook</button>
+                 <button onClick={() => setCurrentView('arcade')} className={`py-2 px-1 transition-colors hover:text-lime-600 ${currentView === 'arcade' ? 'text-lime-600 border-b-2 border-lime-500' : ''}`}>Kortex<br/>Arcade</button>
+              </div>
+            )}
 
             {/* Profile & Mobile Menu Toggle */}
             <div className="flex items-center gap-3 shrink-0">
@@ -707,12 +753,16 @@ useEffect(() => {
         {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && (
            <div className="lg:hidden bg-white border-t border-slate-100 p-4 space-y-2 absolute w-full shadow-xl font-bold text-slate-700">
-              <button onClick={() => { setCurrentView('lessons'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'lessons' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>All Lessons</button>
-              <button onClick={() => { setCurrentView('conceptualiser'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'conceptualiser' ? 'text-purple-500 bg-purple-50' : 'hover:bg-slate-50'}`}>Interactive Sandbox</button>
-              <button onClick={() => { setCurrentView('theatre'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'theatre' ? 'text-pink-500 bg-pink-50' : 'hover:bg-slate-50'}`}>Kortex Theatre</button>
-              <button onClick={() => { setCurrentView('dojo'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'dojo' ? 'text-orange-500 bg-orange-50' : 'hover:bg-slate-50'}`}>The Dojo</button>
-              <button onClick={() => { setCurrentView('Notebook'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'Notebook' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>The Notebook</button>
-              <button onClick={() => { setCurrentView('arcade'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'arcade' ? 'text-lime-600 bg-lime-50' : 'hover:bg-slate-50'}`}>Kortex Arcade</button>
+              {role !== 'parent' && (
+                <>
+                  <button onClick={() => { setCurrentView('lessons'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'lessons' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>All Lessons</button>
+                  <button onClick={() => { setCurrentView('conceptualiser'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'conceptualiser' ? 'text-purple-500 bg-purple-50' : 'hover:bg-slate-50'}`}>Interactive Sandbox</button>
+                  <button onClick={() => { setCurrentView('theatre'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'theatre' ? 'text-pink-500 bg-pink-50' : 'hover:bg-slate-50'}`}>Kortex Theatre</button>
+                  <button onClick={() => { setCurrentView('dojo'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'dojo' ? 'text-orange-500 bg-orange-50' : 'hover:bg-slate-50'}`}>The Dojo</button>
+                  <button onClick={() => { setCurrentView('Notebook'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'Notebook' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>The Notebook</button>
+                  <button onClick={() => { setCurrentView('arcade'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'arcade' ? 'text-lime-600 bg-lime-50' : 'hover:bg-slate-50'}`}>Kortex Arcade</button>
+                </>
+              )}
 
               {isLoggedIn ? (
                 <>

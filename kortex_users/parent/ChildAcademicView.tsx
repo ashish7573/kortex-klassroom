@@ -4,7 +4,7 @@ import { StudentProfile } from '../../types/user';
 import { auth, db } from '../../backend_configurations/firebase';
 import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useStudentAssignments } from '../../hooks/useStudentAssignments';
-import { getStudentAcademicDetails } from '../../app/actions/student';
+import { getStudentAcademicDetails, getChildProgressAndTotals } from '../../app/actions/student';
 import { Building, AlertCircle, Sparkles, TrendingUp, Clock, CheckCircle2, FileText, BarChart2, Lock, X, ClipboardList, CircleDashed, Award } from 'lucide-react';
 
 interface ChildAcademicViewProps {
@@ -56,30 +56,23 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   const [progressData, setProgressData] = useState<any[]>([]);
   const [subjectTotals, setSubjectTotals] = useState<Record<string, number>>({});
 
-
-
   useEffect(() => {
-    async function loadTotals() {
+    async function loadProgressAndTotals() {
+      if (!child.uid) return;
       try {
-        // QUOTA OPTIMIZATION: Read from single aggregation document!
-        const docRef = doc(db, 'metadata', 'curriculum_totals');
-        const docSnap = await getDoc(docRef);
-        const totals = docSnap.exists() ? docSnap.data() : {};
-        setSubjectTotals(totals);
+        const user = auth.currentUser;
+        if (!user) return;
+        const idToken = await user.getIdToken();
+        const result = await getChildProgressAndTotals(idToken, child.uid);
+        if (result.success) {
+           setProgressData(result.progressData || []);
+           setSubjectTotals(result.subjectTotals || {});
+        }
       } catch (e) {
-        console.error("Error loading tools:", e);
+        console.error("Error loading child progress:", e);
       }
     }
-    loadTotals();
-  }, []);
-
-  useEffect(() => {
-    if (!child.uid) return;
-    const unsubscribe = onSnapshot(collection(db, 'users', child.uid, 'progress'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setProgressData(data);
-    });
-    return () => unsubscribe();
+    loadProgressAndTotals();
   }, [child.uid]);
 
   useEffect(() => {

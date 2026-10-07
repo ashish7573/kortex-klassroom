@@ -1248,3 +1248,32 @@ export async function bulkProvisionStudents(
     return { success: false, error: error.message };
   }
 }
+export async function getChildProgressAndTotals(idToken: string, childUid: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const parentUid = decodedToken.uid;
+    
+    const studentDoc = await adminDb.collection('users').doc(childUid).get();
+    if (!studentDoc.exists) throw new Error("Student not found.");
+    
+    const studentData = studentDoc.data();
+    if (studentData?.parent_id !== parentUid) {
+      throw new Error("Unauthorized access.");
+    }
+    
+    const progressSnap = await adminDb.collection('users').doc(childUid).collection('progress').get();
+    const progressData = progressSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    const totalsDoc = await adminDb.collection('metadata').doc('curriculum_totals').get();
+    const totals = totalsDoc.exists ? totalsDoc.data() : {};
+    
+    return {
+      success: true,
+      progressData,
+      subjectTotals: totals
+    };
+  } catch (error: any) {
+    console.error("Error fetching child progress:", error);
+    return { success: false, error: error.message };
+  }
+}
