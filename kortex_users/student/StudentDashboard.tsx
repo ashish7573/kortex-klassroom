@@ -365,6 +365,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
           
 
           {/* ASSIGNMENTS SECTION */}
+          {profile.org_ids && profile.org_ids.length > 0 && (
           <div className="mb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
@@ -464,6 +465,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                </div>
             )}
           </div>
+          )}
 
           {/* COMBOS SECTION */}
           <div>
@@ -534,6 +536,17 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div 
+            onClick={() => handleActionClick('lessons')}
+            className={`p-5 rounded-3xl border-2 transition-all cursor-pointer group ${!isPro && hearts <= 0 ? 'bg-slate-50 border-slate-200 opacity-70 grayscale' : 'bg-sky-50 hover:bg-sky-100 border-sky-200 hover:-translate-y-1 hover:shadow-lg text-sky-900'}`}
+          >
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 transition-transform ${!isPro && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-sky-500 text-white group-hover:scale-110'}`}>
+              <BookOpen size={24} />
+            </div>
+            <h3 className="font-black text-lg mb-1">All Lessons</h3>
+            <p className="text-xs font-semibold opacity-80">Browse full curriculum flows</p>
+          </div>
+
+          <div 
             onClick={() => handleActionClick('conceptualiser')}
             className={`p-5 rounded-3xl border-2 transition-all cursor-pointer group ${!isPro && hearts <= 0 ? 'bg-slate-50 border-slate-200 opacity-70 grayscale' : 'bg-purple-50 hover:bg-purple-100 border-purple-200 hover:-translate-y-1 hover:shadow-lg text-purple-900'}`}
           >
@@ -564,17 +577,6 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
             </div>
             <h3 className="font-black text-lg mb-1">Arcade</h3>
             <p className="text-xs font-semibold opacity-80">Learn through gamified challenges</p>
-          </div>
-
-          <div 
-            onClick={() => handleActionClick('lessons')}
-            className={`p-5 rounded-3xl border-2 transition-all cursor-pointer group ${!isPro && hearts <= 0 ? 'bg-slate-50 border-slate-200 opacity-70 grayscale' : 'bg-sky-50 hover:bg-sky-100 border-sky-200 hover:-translate-y-1 hover:shadow-lg text-sky-900'}`}
-          >
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 transition-transform ${!isPro && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-sky-500 text-white group-hover:scale-110'}`}>
-              <BookOpen size={24} />
-            </div>
-            <h3 className="font-black text-lg mb-1">All Lessons</h3>
-            <p className="text-xs font-semibold opacity-80">Browse full curriculum flows</p>
           </div>
         </div>
       </div>

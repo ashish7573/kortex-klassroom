@@ -119,7 +119,44 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
 
   const b2cLicenses = child.active_b2c_licenses || [];
   const isPro = child.is_pro || false;
-  
+
+  // Extract recent activities from progressData
+  const recentActivities: any[] = [];
+  progressData.forEach((subjProgress) => {
+    const tools = subjProgress.completed_tools || {};
+    Object.keys(tools).forEach((toolKey) => {
+      const tool = tools[toolKey];
+      if (tool.last_played_at) {
+        let toolType = 'Learning Activity';
+        if (toolKey.includes('conceptualiser') || toolKey.includes('sandbox')) toolType = 'Interactive Sandbox';
+        else if (toolKey.includes('dojo') || toolKey.includes('quiz')) toolType = 'Dojo Quiz';
+        else if (toolKey.includes('arcade') || toolKey.includes('game')) toolType = 'Arcade Game';
+        else if (toolKey.includes('lesson')) toolType = 'Lesson Flow';
+
+        const rawSubj = subjProgress.id || 'General';
+        const parts = rawSubj.split('_');
+        const displaySubject = parts.length > 1 ? parts.slice(1).join(' ') : rawSubj;
+
+        recentActivities.push({
+          toolKey,
+          chapterName: tool.chapter_name || 'Chapter',
+          subject: displaySubject,
+          toolType,
+          lastPlayedAt: new Date(tool.last_played_at),
+          timesCompleted: tool.times_completed
+        });
+      }
+    });
+  });
+
+  // Sort by most recent
+  recentActivities.sort((a, b) => b.lastPlayedAt.getTime() - a.lastPlayedAt.getTime());
+
+  // Filter for 'today' (in local time)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayActivities = recentActivities.filter(a => a.lastPlayedAt >= today).slice(0, 5);
+
   // Mocked subjects that the child played in the free tier
   const b2cSubjects = [
     { name: "Coding Fundamentals", comboId: "grade3_coding" },
@@ -165,6 +202,7 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
       {/* -------------------------------------------------------------------------- */}
       {/* UNIFIED ASSIGNMENTS SECTION                                                */}
       {/* -------------------------------------------------------------------------- */}
+      {child.org_ids && child.org_ids.length > 0 && (
       <div className="mb-12">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
            <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
@@ -245,6 +283,9 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
            </div>
         )}
       </div>
+      )}
+
+
 
 
       {/* Organizations Map */}
@@ -316,11 +357,85 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
             </div>
           </div>
 
+          {(!child.org_ids || child.org_ids.length === 0) && (
+            <>
+              {/* Screen Time Section */}
+              <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8 relative overflow-hidden">
+                 <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-6">
+                    <Clock className="text-sky-500" size={24} /> Screen Time
+                 </h3>
+                 <div className={!isPro ? "blur-sm opacity-60 select-none grayscale" : ""}>
+                    <div className="flex items-end gap-6 h-32 mb-4">
+                       <div className="w-1/5 bg-sky-200 rounded-t-lg h-[40%]"></div>
+                       <div className="w-1/5 bg-sky-200 rounded-t-lg h-[60%]"></div>
+                       <div className="w-1/5 bg-sky-500 rounded-t-lg h-[80%]"></div>
+                       <div className="w-1/5 bg-sky-200 rounded-t-lg h-[30%]"></div>
+                       <div className="w-1/5 bg-sky-200 rounded-t-lg h-[50%]"></div>
+                    </div>
+                    <div className="flex justify-between text-xs font-bold text-slate-500">
+                       <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span>
+                    </div>
+                 </div>
+
+                 {!isPro && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/40 backdrop-blur-[2px]">
+                       <div className="bg-slate-900/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl flex flex-col items-center shadow-xl text-center">
+                          <Lock size={24} className="text-amber-400 mb-2" />
+                          <h4 className="font-black text-lg mb-1">Screen Time Analytics</h4>
+                          <p className="text-sm font-medium text-slate-300 mb-4 max-w-xs">See exactly how much time your child spends learning.</p>
+                          <button 
+                            onClick={() => alert("Coming soon!")}
+                            className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-black rounded-xl shadow-md transition-all active:scale-95"
+                          >
+                            Unlock Kortex Pro
+                          </button>
+                       </div>
+                    </div>
+                 )}
+              </div>
+
+              {/* Today's Learning Activity */}
+              <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8">
+                 <h3 className="text-xl font-black text-slate-800 mb-4">Today your child learnt...</h3>
+                 {todayActivities.length > 0 ? (
+                   <ul className="space-y-3 mb-6">
+                      {todayActivities.map((act, i) => (
+                        <li key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                           <div className="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center"><Sparkles size={16}/></div>
+                           <div>
+                              <p className="font-bold text-slate-800">{act.toolType}: {act.chapterName}</p>
+                              <p className="text-xs text-slate-500 font-semibold uppercase">{act.subject}</p>
+                           </div>
+                        </li>
+                      ))}
+                   </ul>
+                 ) : (
+                   <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100 mb-6">
+                      <p className="text-slate-500 font-bold">No learning activities recorded yet today.</p>
+                   </div>
+                 )}
+                 
+                 {!isPro && (
+                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-2xl border border-indigo-100 text-center flex flex-col items-center">
+                       <h4 className="text-lg font-black text-indigo-900 mb-2">Track your child's progress</h4>
+                       <p className="text-sm font-semibold text-indigo-700 mb-4 max-w-md">Unlock Kortex Pro to get detailed analytics and track daily learning progress.</p>
+                       <button 
+                         onClick={() => alert("Coming soon!")}
+                         className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md transition-all active:scale-95"
+                       >
+                         Unlock Kortex Pro
+                       </button>
+                    </div>
+                 )}
+              </div>
+            </>
+          )}
+
           <PerformanceBlock 
             title="Independent Progress" 
             icon={<TrendingUp size={24} className="text-purple-600" />} 
             performanceData={independentPerformance}
-            onUnlockClick={() => setShowUpsellModal(true)}
+            onUnlockClick={() => alert("Coming soon!")}
           />
       </div>
 
@@ -355,7 +470,7 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
                </div>
                <button 
                  onClick={() => {
-                   alert("Redirecting to Stripe checkout...");
+                   alert("Coming soon!");
                    setShowUpsellModal(false);
                  }}
                  className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-black rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 text-lg"

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, or, and } from 'firebase/firestore';
 import { db, auth } from '../../../backend_configurations/firebase';
 import { OrgAdminProfile, StudentProfile } from '../../../types/user';
-import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen, Download } from 'lucide-react';
+import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen, Download, Search, Filter, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { GRADES, SECTIONS, SUBJECT_CATEGORIES, GRADE_CORE_MAP } from '../../../kortex_landing_page/curriculumConfig';
 import { generateComboId } from '../utils/comboParsers';
 import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess, bulkProvisionStudents } from '../../../app/actions/student';
@@ -19,6 +19,59 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   const [showSubjectsModal, setShowSubjectsModal] = useState(false);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [gradeFilter, setGradeFilter] = useState('all');
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortIndicator = (key: string) => {
+    if (sortConfig?.key === key) {
+       return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="inline ml-1" /> : <ChevronDown size={14} className="inline ml-1" />;
+    }
+    return <ArrowUpDown size={12} className="inline ml-1 opacity-20 group-hover:opacity-100 transition-opacity" />;
+  };
+
+  let processedStudents = [...students].filter(student => {
+    const matchesSearch = 
+      (student.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (student.kortex_id || '').toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const grade = student.org_links?.[profile.uid]?.grade || student.grade;
+    const matchesGrade = gradeFilter === 'all' || grade === gradeFilter;
+
+    return matchesSearch && matchesGrade;
+  });
+
+  if (sortConfig) {
+     processedStudents.sort((a, b) => {
+        let valA = '';
+        let valB = '';
+        
+        if (sortConfig.key === 'student_id') {
+           valA = (a.kortex_id || '').toLowerCase();
+           valB = (b.kortex_id || '').toLowerCase();
+        } else if (sortConfig.key === 'full_name') {
+           valA = (a.full_name || '').toLowerCase();
+           valB = (b.full_name || '').toLowerCase();
+        } else if (sortConfig.key === 'link_status') {
+           valA = (a.org_links?.[profile.uid]?.status || '').toLowerCase();
+           valB = (b.org_links?.[profile.uid]?.status || '').toLowerCase();
+        }
+        
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+     });
+  }
+
 
   const [csvFile, setCsvFile] = useState<File | null>(null);
 
@@ -307,24 +360,52 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
         </button>
       </div>
 
+      
+      {/* Controls: Search and Filter */}
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end mb-6">
+        <div className="flex-1 w-full max-w-md relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Search by student name or Kortex ID..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-colors"
+          />
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-slate-400" />
+          <select 
+            value={gradeFilter} 
+            onChange={e => setGradeFilter(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-colors"
+          >
+            <option value="all">All Grades</option>
+            {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+      </div>
+      
       {/* Directory Table */}
+
       <div className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
               <tr>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Student ID</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Student Name</th>
+                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("student_id")}>Student ID {sortIndicator("student_id")}</th>
+                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("full_name")}>Student Name {sortIndicator("full_name")}</th>
                 <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Subjects</th>
                 <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Parent Details</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Link Status</th>
+                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("link_status")}>Link Status {sortIndicator("link_status")}</th>
                 <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-bold">Loading students...</td></tr>
-              ) : students.length > 0 ? students.map(student => {
+              ) : processedStudents.length > 0 ? processedStudents.map(student => {
                 const legacyCount = getStudentDefaultCombos(student).length;
                 const assignedCount = student.org_links?.[profile.uid]?.assigned_combos?.length || 0;
                 const totalCount = assignedCount > 0 ? assignedCount : legacyCount;
@@ -509,78 +590,83 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                    )}
 
                    
-                   {addMode === 'bulk' && (
-                     <div className="sm:col-span-2 pt-2 border-t border-slate-100">
-                       <label className="block text-xs font-bold text-slate-600 mb-4 uppercase">Select Subjects for this Batch</label>
-                       
-                       <div className="space-y-4 mb-6">
-                         {/* Category 1: Core */}
-                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                           <h4 className="text-xs font-bold text-indigo-700 uppercase mb-3 border-b border-indigo-100 pb-2">Core Academics</h4>
-                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                             {(GRADE_CORE_MAP[studentForm.grade] || []).map(subj => {
-                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
-                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
-                               const isChecked = studentForm.assignedCombos.includes(comboId);
-                               const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
-                               return (
-                                 <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
-                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
-                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
-                                   }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-indigo-600 focus:ring-indigo-500' : 'text-slate-400 bg-slate-200'}`} />
-                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
-                                 </label>
-                               );
-                             })}
-                           </div>
-                         </div>
+                 </div>
 
-                         {/* Category 2: Foundational */}
-                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                           <h4 className="text-xs font-bold text-amber-700 uppercase mb-3 border-b border-amber-200 pb-2">Foundational (FLN)</h4>
-                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                             {SUBJECT_CATEGORIES.FOUNDATIONAL.map(subj => {
-                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
-                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
-                               const isChecked = studentForm.assignedCombos.includes(comboId);
-                               const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
-                               return (
-                                 <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
-                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
-                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
-                                   }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-amber-600 focus:ring-amber-500' : 'text-slate-400 bg-slate-200'}`} />
-                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
-                                 </label>
-                               );
-                             })}
-                           </div>
-                         </div>
-
-                         {/* Category 3: Co-Curricular */}
-                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                           <h4 className="text-xs font-bold text-emerald-700 uppercase mb-3 border-b border-emerald-200 pb-2">Co-Curricular & Skills</h4>
-                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                             {SUBJECT_CATEGORIES.CO_CURRICULAR_AND_SKILLS.map(subj => {
-                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
-                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
-                               const isChecked = studentForm.assignedCombos.includes(comboId);
-                               const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
-                               return (
-                                 <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
-                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
-                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
-                                   }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-emerald-600 focus:ring-emerald-500' : 'text-slate-400 bg-slate-200'}`} />
-                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
-                                 </label>
-                               );
-                             })}
-                           </div>
-                         </div>
+                 <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+                   <label className="block text-xs font-bold text-slate-600 mb-4 uppercase">
+                     {addMode === 'bulk' ? 'Select Subjects for this Batch' : 'Select Subjects for this Student'}
+                   </label>
+                   
+                   <div className={`space-y-4 ${addMode === 'bulk' ? 'mb-6' : 'mb-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar'}`}>
+                     {/* Category 1: Core */}
+                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                       <h4 className="text-xs font-bold text-indigo-700 uppercase mb-3 border-b border-indigo-100 pb-2">Core Academics</h4>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                         {(GRADE_CORE_MAP[studentForm.grade] || []).map(subj => {
+                           const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
+                           const comboId = generateComboId(profile.kortex_id || '', comboStr);
+                           const isChecked = studentForm.assignedCombos.includes(comboId);
+                           const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
+                           return (
+                             <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                               <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                                 if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
+                                 else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
+                               }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-indigo-600 focus:ring-indigo-500' : 'text-slate-400 bg-slate-200'}`} />
+                               <span className="text-sm font-bold text-slate-700">{subj}</span>
+                             </label>
+                           );
+                         })}
                        </div>
+                     </div>
 
+                     {/* Category 2: Foundational */}
+                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                       <h4 className="text-xs font-bold text-amber-700 uppercase mb-3 border-b border-amber-200 pb-2">Foundational (FLN)</h4>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                         {SUBJECT_CATEGORIES.FOUNDATIONAL.map(subj => {
+                           const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
+                           const comboId = generateComboId(profile.kortex_id || '', comboStr);
+                           const isChecked = studentForm.assignedCombos.includes(comboId);
+                           const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
+                           return (
+                             <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                               <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                                 if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
+                                 else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
+                               }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-amber-600 focus:ring-amber-500' : 'text-slate-400 bg-slate-200'}`} />
+                               <span className="text-sm font-bold text-slate-700">{subj}</span>
+                             </label>
+                           );
+                         })}
+                       </div>
+                     </div>
+
+                     {/* Category 3: Co-Curricular */}
+                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                       <h4 className="text-xs font-bold text-emerald-700 uppercase mb-3 border-b border-emerald-200 pb-2">Co-Curricular & Skills</h4>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                         {SUBJECT_CATEGORIES.CO_CURRICULAR_AND_SKILLS.map(subj => {
+                           const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
+                           const comboId = generateComboId(profile.kortex_id || '', comboStr);
+                           const isChecked = studentForm.assignedCombos.includes(comboId);
+                           const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
+                           return (
+                             <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                               <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                                 if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
+                                 else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
+                               }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-emerald-600 focus:ring-emerald-500' : 'text-slate-400 bg-slate-200'}`} />
+                               <span className="text-sm font-bold text-slate-700">{subj}</span>
+                             </label>
+                           );
+                         })}
+                       </div>
+                     </div>
+                   </div>
+                   
+                   {addMode === 'bulk' && (
+                     <div className="mt-4">
                        <div className="flex items-center justify-between mb-2">
                          <label className="block text-xs font-bold text-slate-600 uppercase">Upload CSV File</label>
                          <button type="button" onClick={downloadSampleCsv} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
@@ -596,81 +682,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                        />
                      </div>
                    )}
-
-
                  </div>
-
-                 <div className="sm:col-span-2 pt-2 border-t border-slate-100">
-                       <label className="block text-xs font-bold text-slate-600 mb-4 uppercase">Select Subjects for this Student</label>
-                       
-                       <div className="space-y-4 mb-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                         {/* Category 1: Core */}
-                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                           <h4 className="text-xs font-bold text-indigo-700 uppercase mb-3 border-b border-indigo-100 pb-2">Core Academics</h4>
-                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                             {(GRADE_CORE_MAP[studentForm.grade] || []).map(subj => {
-                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
-                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
-                               const isChecked = studentForm.assignedCombos.includes(comboId);
-                               const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
-                               return (
-                                 <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
-                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
-                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
-                                   }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-indigo-600 focus:ring-indigo-500' : 'text-slate-400 bg-slate-200'}`} />
-                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
-                                 </label>
-                               );
-                             })}
-                           </div>
-                         </div>
-
-                         {/* Category 2: Foundational */}
-                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                           <h4 className="text-xs font-bold text-amber-700 uppercase mb-3 border-b border-amber-200 pb-2">Foundational (FLN)</h4>
-                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                             {SUBJECT_CATEGORIES.FOUNDATIONAL.map(subj => {
-                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
-                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
-                               const isChecked = studentForm.assignedCombos.includes(comboId);
-                               const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
-                               return (
-                                 <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
-                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
-                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
-                                   }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-amber-600 focus:ring-amber-500' : 'text-slate-400 bg-slate-200'}`} />
-                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
-                                 </label>
-                               );
-                             })}
-                           </div>
-                         </div>
-
-                         {/* Category 3: Co-Curricular */}
-                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                           <h4 className="text-xs font-bold text-emerald-700 uppercase mb-3 border-b border-emerald-200 pb-2">Co-Curricular & Skills</h4>
-                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                             {SUBJECT_CATEGORIES.CO_CURRICULAR_AND_SKILLS.map(subj => {
-                               const comboStr = `${studentForm.grade} - Section ${studentForm.section} - ${subj}`;
-                               const comboId = generateComboId(profile.kortex_id || '', comboStr);
-                               const isChecked = studentForm.assignedCombos.includes(comboId);
-                               const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
-                               return (
-                                 <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
-                                     if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
-                                     else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
-                                   }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-emerald-600 focus:ring-emerald-500' : 'text-slate-400 bg-slate-200'}`} />
-                                   <span className="text-sm font-bold text-slate-700">{subj}</span>
-                                 </label>
-                               );
-                             })}
-                           </div>
-                         </div>
-                       </div>
-                     </div>
                </form>
              </div>
 

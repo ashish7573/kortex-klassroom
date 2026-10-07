@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { OrgAdminProfile, TeacherProfile } from '../../../types/user';
-import { GraduationCap, UserPlus, Copy, CheckCircle2, X, Pencil, Trash2, AlertTriangle, KeyRound } from 'lucide-react';
+import { GraduationCap, UserPlus, Copy, CheckCircle2, X, Pencil, Trash2, AlertTriangle, KeyRound, Search, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { generateComboId, getOrgAbbreviation } from '../utils/comboParsers';
 import { provisionTeacherAccount, updateTeacherAccount, deleteTeacherAccount, generateTeacherPasswordLink } from '../../../app/actions/teacher';
 import { auth, db } from '../../../backend_configurations/firebase';
@@ -31,9 +31,58 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
 
   // State: Delete Modal
   const [deletingTeacher, setDeletingTeacher] = useState<TeacherProfile | null>(null);
-  
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [comboFilter, setComboFilter] = useState('all');
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortIndicator = (key: string) => {
+    if (sortConfig?.key === key) {
+       return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="inline ml-1" /> : <ChevronDown size={14} className="inline ml-1" />;
+    }
+    return <ArrowUpDown size={12} className="inline ml-1 opacity-20 group-hover:opacity-100 transition-opacity" />;
+  };
+
   const orgAbbrev = getOrgAbbreviation(profile.kortex_id);
   const orgCombos = profile.approved_grade_subject_combos || [];
+
+  // Helper: map a Combo ID back to its friendly name based on org's approved combos
+  const getComboLabel = (comboId: string) => {
+    const match = orgCombos.find(c => generateComboId(profile.kortex_id, c) === comboId);
+    return match || comboId;
+  };
+
+  let processedTeachers = [...teachers].filter(t => {
+    const matchesSearch = (t.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+           (t.kortex_id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+           (t.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+           
+    const matchesCombo = comboFilter === 'all' || (t.assigned_combos || []).some(cid => {
+      const label = getComboLabel(cid);
+      return label === comboFilter || cid === comboFilter;
+    });
+
+    return matchesSearch && matchesCombo;
+  });
+
+  if (sortConfig) {
+     processedTeachers.sort((a, b) => {
+        let valA = String((a as any)[sortConfig.key] || '').toLowerCase();
+        let valB = String((b as any)[sortConfig.key] || '').toLowerCase();
+        
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+     });
+  }
 
   // Helper: Map of comboId -> { name, kortexId } to grey out already assigned combos
   const assignedComboMap = new Map<string, { name: string, kortexId: string }>();
@@ -45,11 +94,7 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
     }
   });
 
-  // Helper: map a Combo ID back to its friendly name based on org's approved combos
-  const getComboLabel = (comboId: string) => {
-    const match = orgCombos.find(c => generateComboId(profile.kortex_id, c) === comboId);
-    return match || comboId;
-  };
+
 
   // Live Sync with Firestore
   useEffect(() => {
@@ -228,14 +273,42 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
         </button>
       </div>
 
+      
+      {/* Controls: Search & Filter */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
+        <div className="w-full max-w-md relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Search by name, ID, or email..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-colors"
+          />
+        </div>
+        <div className="w-full sm:w-auto">
+          <select 
+            value={comboFilter}
+            onChange={(e) => setComboFilter(e.target.value)}
+            className="w-full sm:w-auto bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-colors cursor-pointer appearance-none"
+          >
+            <option value="all">All Subjects</option>
+            {orgCombos.map(combo => (
+              <option key={combo} value={combo}>{combo}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Directory Table */}
+
       <div className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
               <tr>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Teacher Name & ID</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Email</th>
+                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("full_name")}>Teacher Name & ID {sortIndicator("full_name")}</th>
+                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("email")}>Email {sortIndicator("email")}</th>
                 <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Assigned Subjects</th>
                 <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
               </tr>
@@ -248,14 +321,14 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
                     <p>Loading Faculty Directory...</p>
                   </td>
                 </tr>
-              ) : teachers.length === 0 ? (
+              ) : processedTeachers.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-bold">
                     No faculty members have been added to this organization yet.
                   </td>
                 </tr>
               ) : (
-                teachers.map(t => (
+                processedTeachers.map(t => (
                   <tr key={t.uid} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-bold text-slate-800">{t.full_name}</div>

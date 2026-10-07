@@ -1277,3 +1277,85 @@ export async function getChildProgressAndTotals(idToken: string, childUid: strin
     return { success: false, error: error.message };
   }
 }
+
+export async function parentUnlinkChildFromOrg(idToken: string, childUid: string, orgId: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const parentUid = decodedToken.uid;
+    
+    const studentRef = adminDb.collection('users').doc(childUid);
+    const studentDoc = await studentRef.get();
+    
+    if (!studentDoc.exists) throw new Error("Student not found.");
+    if (studentDoc.data()?.parent_id !== parentUid) throw new Error("Unauthorized: Not your child.");
+
+    const batch = adminDb.batch();
+    batch.update(studentRef, {
+      org_ids: FieldValue.arrayRemove(orgId),
+      [`org_links.${orgId}`]: FieldValue.delete(),
+      updated_at: new Date().toISOString()
+    });
+
+    const assignmentsSnap = await adminDb.collection('assignments')
+      .where('assigned_to', 'array-contains', childUid)
+      .where('org_id', '==', orgId)
+      .get();
+      
+    assignmentsSnap.docs.forEach(doc => {
+      batch.update(doc.ref, {
+        assigned_to: FieldValue.arrayRemove(childUid)
+      });
+      const subRef = studentRef.collection('submissions').doc(doc.id);
+      batch.delete(subRef);
+    });
+
+    await batch.commit();
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error unlinking child from org:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function parentDeleteChildAccount(idToken: string, childUid: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const parentUid = decodedToken.uid;
+    
+    const studentRef = adminDb.collection('users').doc(childUid);
+    const studentDoc = await studentRef.get();
+    
+    if (!studentDoc.exists) throw new Error("Student not found.");
+    if (studentDoc.data()?.parent_id !== parentUid) throw new Error("Unauthorized: Not your child.");
+
+    const batch = adminDb.batch();
+
+    const assignmentsSnap = await adminDb.collection('assignments')
+      .where('assigned_to', 'array-contains', childUid)
+      .get();
+      
+    assignmentsSnap.docs.forEach(doc => {
+      batch.update(doc.ref, {
+        assigned_to: FieldValue.arrayRemove(childUid)
+      });
+    });
+
+    const parentRef = adminDb.collection('users').doc(parentUid);
+    batch.update(parentRef, {
+      children_ids: FieldValue.arrayRemove(childUid),
+      updated_at: new Date().toISOString()
+    });
+
+    batch.delete(studentRef);
+
+    await batch.commit();
+    
+    await adminAuth.deleteUser(childUid);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error deleting child account:", error);
+    return { success: false, error: error.message };
+  }
+}

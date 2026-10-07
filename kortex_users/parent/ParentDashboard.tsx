@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../backend_configurations/firebase';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { ParentProfile, StudentProfile } from '../../types/user';
 import { 
   Users, Plus, ShieldCheck, Heart, Building, CheckCircle2, 
@@ -9,7 +10,7 @@ import {
 } from 'lucide-react';
 import ChildAcademicView from './ChildAcademicView';
 import AddChildModal from './AddChildModal';
-import { resolveTransferRequest, updateParentProfile } from '../../app/actions/student';
+import { resolveTransferRequest, updateParentProfile, parentUnlinkChildFromOrg, parentDeleteChildAccount } from '../../app/actions/student';
 
 interface ParentDashboardProps {
   profile: ParentProfile;
@@ -26,6 +27,36 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
   const [showCredsFor, setShowCredsFor] = useState<string | null>(null);
   const [newPin, setNewPin] = useState('');
   const [isUpdatingPin, setIsUpdatingPin] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      return alert("New passwords do not match.");
+    }
+    if (passwordForm.newPassword.length < 6) {
+      return alert("New password must be at least 6 characters.");
+    }
+    
+    setIsChangingPassword(true);
+    try {
+      const user = auth.currentUser;
+      if (!user || !user.email) throw new Error("Not authenticated");
+      
+      const credential = EmailAuthProvider.credential(user.email, passwordForm.oldPassword);
+      await reauthenticateWithCredential(user, credential);
+      
+      await updatePassword(user, passwordForm.newPassword);
+      
+      alert("Password updated successfully!");
+      setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err: any) {
+      alert("Error changing password: " + err.message);
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   useEffect(() => {
     if (!profile.uid) return;
@@ -123,6 +154,49 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
       alert(accept ? "Transfer Approved!" : "Transfer Declined.");
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Failed to resolve transfer");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUnlinkOrg = async (childUid: string, orgId: string, orgName: string) => {
+    if (!window.confirm(`Are you sure you want to unlink from ${orgName}? All pending and completed tasks for this organization will be cleared.`)) {
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+      const idToken = await user.getIdToken(true);
+      
+      const result = await parentUnlinkChildFromOrg(idToken, childUid, orgId);
+      if (!result.success) throw new Error(result.error);
+      
+      alert("Successfully unlinked from organization.");
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteAccount = async (childUid: string, childName: string) => {
+    if (!window.confirm(`Are you absolutely sure you want to delete ${childName}'s account? This action cannot be undone.`)) {
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+      const idToken = await user.getIdToken(true);
+      
+      const result = await parentDeleteChildAccount(idToken, childUid);
+      if (!result.success) throw new Error(result.error);
+      
+      alert("Account deleted successfully.");
+      setSelectedChildId('profile');
+    } catch (err: any) {
+      alert("Error: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -272,64 +346,118 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
           {/* Selected Child Dashboard */}
           {/* Render Profile OR Selected Child */}
           {selectedChildId === 'profile' ? (
-             <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8 animate-fade-in max-w-2xl">
-               <div className="flex items-center gap-4 mb-8">
-                 <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center">
-                   <User size={28} className="stroke-[3px]" />
-                 </div>
-                 <div>
-                   <div className="flex items-center gap-3 mb-1">
-                     <h2 className="text-2xl font-black text-slate-800">My Profile</h2>
-                     {profile.kortex_id && (
-                       <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-xs font-black font-mono">
-                         {profile.kortex_id}
-                       </span>
-                     )}
+             <div className="space-y-6 animate-fade-in max-w-2xl">
+               <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8">
+                 <div className="flex items-center gap-4 mb-8">
+                   <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center">
+                     <User size={28} className="stroke-[3px]" />
                    </div>
-                   <p className="text-sm font-semibold text-slate-500">Manage your contact details. Changes instantly sync to organizations.</p>
+                   <div>
+                     <div className="flex items-center gap-3 mb-1">
+                       <h2 className="text-2xl font-black text-slate-800">My Profile</h2>
+                       {profile.kortex_id && (
+                         <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-xs font-black font-mono">
+                           {profile.kortex_id}
+                         </span>
+                       )}
+                     </div>
+                     <p className="text-sm font-semibold text-slate-500">Manage your contact details. Changes instantly sync to organizations.</p>
+                   </div>
                  </div>
+                 
+                 <form onSubmit={handleProfileSubmit} className="space-y-6">
+                   <div>
+                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
+                     <input 
+                       type="text" required
+                       value={profileForm.fullName}
+                       onChange={e => setProfileForm({...profileForm, fullName: e.target.value})}
+                       className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                     />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
+                     <input 
+                       type="email" required
+                       value={profileForm.email}
+                       onChange={e => setProfileForm({...profileForm, email: e.target.value})}
+                       className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                     />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Emergency Contact (Phone)</label>
+                     <input 
+                       type="text" required
+                       value={profileForm.contactNumber}
+                       onChange={e => setProfileForm({...profileForm, contactNumber: e.target.value})}
+                       className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                     />
+                     <p className="text-xs font-semibold text-slate-400 mt-2">This number is securely shared with organizations in case of emergencies.</p>
+                   </div>
+                   <div className="pt-4 border-t-2 border-slate-100">
+                     <button 
+                       type="submit"
+                       disabled={isSavingProfile}
+                       className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+                     >
+                       {isSavingProfile ? <RefreshCw size={18} className="animate-spin" /> : <ShieldCheck size={18} />} 
+                       {isSavingProfile ? 'Syncing securely...' : 'Save & Sync Details'}
+                     </button>
+                   </div>
+                 </form>
                </div>
-               
-               <form onSubmit={handleProfileSubmit} className="space-y-6">
-                 <div>
-                   <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
-                   <input 
-                     type="text" required
-                     value={profileForm.fullName}
-                     onChange={e => setProfileForm({...profileForm, fullName: e.target.value})}
-                     className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
-                   />
+
+               <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8">
+                 <div className="flex items-center gap-4 mb-8">
+                   <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+                     <ShieldCheck size={28} className="stroke-[3px]" />
+                   </div>
+                   <div>
+                     <h2 className="text-2xl font-black text-slate-800">Change Password</h2>
+                     <p className="text-sm font-semibold text-slate-500">Update your parent account password.</p>
+                   </div>
                  </div>
-                 <div>
-                   <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
-                   <input 
-                     type="email" required
-                     value={profileForm.email}
-                     onChange={e => setProfileForm({...profileForm, email: e.target.value})}
-                     className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
-                   />
-                 </div>
-                 <div>
-                   <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Emergency Contact (Phone)</label>
-                   <input 
-                     type="text" required
-                     value={profileForm.contactNumber}
-                     onChange={e => setProfileForm({...profileForm, contactNumber: e.target.value})}
-                     className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
-                   />
-                   <p className="text-xs font-semibold text-slate-400 mt-2">This number is securely shared with organizations in case of emergencies.</p>
-                 </div>
-                 <div className="pt-4 border-t-2 border-slate-100">
-                   <button 
-                     type="submit"
-                     disabled={isSavingProfile}
-                     className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
-                   >
-                     {isSavingProfile ? <RefreshCw size={18} className="animate-spin" /> : <ShieldCheck size={18} />} 
-                     {isSavingProfile ? 'Syncing securely...' : 'Save & Sync Details'}
-                   </button>
-                 </div>
-               </form>
+                 
+                 <form onSubmit={handleChangePassword} className="space-y-6">
+                   <div>
+                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Old Password</label>
+                     <input 
+                       type="password" required
+                       value={passwordForm.oldPassword}
+                       onChange={e => setPasswordForm({...passwordForm, oldPassword: e.target.value})}
+                       className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                     />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">New Password</label>
+                     <input 
+                       type="password" required minLength={6}
+                       value={passwordForm.newPassword}
+                       onChange={e => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                       className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                     />
+                   </div>
+                   <div>
+                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Re-enter New Password</label>
+                     <input 
+                       type="password" required minLength={6}
+                       value={passwordForm.confirmPassword}
+                       onChange={e => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                       className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                     />
+                   </div>
+                   <div className="pt-4 border-t-2 border-slate-100">
+                     <button 
+                       type="submit"
+                       disabled={isChangingPassword}
+                       className="px-8 py-3.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-white font-black rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+                     >
+                       {isChangingPassword ? <RefreshCw size={18} className="animate-spin" /> : <ShieldCheck size={18} />} 
+                       {isChangingPassword ? 'Updating...' : 'Change Password'}
+                     </button>
+                   </div>
+                 </form>
+               </div>
              </div>
           ) : selectedChild ? (
             <div className="space-y-6 animate-fade-in">
@@ -425,6 +553,51 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
 
 
               <ChildAcademicView child={selectedChild} />
+              
+              {/* DANGER ZONE: Unlink and Delete Account */}
+              <div className="bg-red-50 border-2 border-red-100 rounded-3xl p-6 sm:p-8 animate-fade-in mt-6">
+                <h3 className="text-xl font-black text-red-800 mb-4 flex items-center gap-2"><AlertCircle size={24} /> Danger Zone</h3>
+                
+                {selectedChild.org_ids && selectedChild.org_ids.length > 0 && (
+                  <div className="mb-6 border-b-2 border-red-200 pb-6">
+                    <h4 className="font-bold text-red-900 mb-2">Linked Organizations</h4>
+                    <div className="space-y-3">
+                      {Object.entries(selectedChild.org_links || {}).map(([orgId, link]) => (
+                        <div key={orgId} className="flex justify-between items-center bg-white p-3 rounded-xl border border-red-100">
+                          <div>
+                            <p className="font-black text-slate-800">{link.org_name}</p>
+                            <p className="text-xs font-bold text-slate-500">{link.grade} {link.section ? `- ${link.section}` : ''}</p>
+                          </div>
+                          <button 
+                            disabled={isProcessing}
+                            onClick={() => handleUnlinkOrg(selectedChild.uid, orgId, link.org_name)}
+                            className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-black rounded-lg transition-colors"
+                          >
+                            Unlink
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-red-700 mt-3 font-semibold">
+                      Unlinking will remove the child from the organization and clear all pending/completed tasks for that organization. Lesson progress will remain intact.
+                    </p>
+                  </div>
+                )}
+                
+                <div>
+                  <h4 className="font-bold text-red-900 mb-2">Delete Account</h4>
+                  <p className="text-sm text-red-700 font-semibold mb-4">
+                    Permanently delete {selectedChild.full_name}&apos;s account. This action cannot be undone and all lesson progress will be lost.
+                  </p>
+                  <button 
+                    disabled={isProcessing}
+                    onClick={() => handleDeleteAccount(selectedChild.uid, selectedChild.full_name)}
+                    className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md transition-colors"
+                  >
+                    Delete Child Account
+                  </button>
+                </div>
+              </div>
 
             </div>
           ) : null}

@@ -23,23 +23,15 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, auth
     async function fetchTierData() {
       setIsLoading(true);
       try {
-        let contentTypeMap: Record<string, string> = {
-           'conceptualiser': 'conceptualiser',
-           'theatre': 'video',
-           'dojo': 'quiz',
-           'Notebook': 'pdf',
-           'arcade': 'game'
-        };
-        const targetType = contentTypeMap[activeTier.id];
-        
-        const toolsQuery = targetType ? query(collection(db, 'learning_tools'), where('content_type', '==', targetType)) : query(collection(db, 'learning_tools'));
+
+        const toolsQuery = query(collection(db, 'learning_tools'));
         const snapshot = await getDocs(toolsQuery).catch(() => ({ docs: [] }));
         
         let extractedItems: any[] = [];
         
         snapshot.docs.forEach((doc: any) => {
           const item: any = { id: doc.id, ...doc.data() };
-          const type = item.content_type?.toLowerCase() || '';
+          const type = (item.content_type || item.type)?.toLowerCase() || '';
           
           let belongsToTier = false;
           if (activeTier.id === 'conceptualiser' && type === 'conceptualiser') belongsToTier = true;
@@ -49,7 +41,7 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, auth
           else if (activeTier.id === 'arcade' && type === 'game') belongsToTier = true;
 
           // Added && item.is_featured === true to filter out non-featured items
-          if (belongsToTier && item.is_featured === true) {
+          if (belongsToTier) {
              let autoImage = item.image;
 
              // Force YouTube thumbnail priority first for all videos
@@ -141,23 +133,7 @@ setTierItems(extractedItems);
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredItems.length > 0 ? filteredItems.map((item, idx) => {
-    // FREEMIUM ENGINE: Depth Restriction
-    // Only unlock first 3 items unless they are Pro or the item is covered by their Org/B2C license
     let isLockedByDepth = false;
-    if (role === 'student' && !isPro && idx >= 3) {
-       // Check if they have an active org license or b2c license for this subject/grade combo
-       const requiredCombo = `${item.grade}_${item.subject}`;
-       const b2cLicenses = authProfile?.active_b2c_licenses || [];
-       let hasOrgLicense = false;
-       if (authProfile?.org_links) {
-          Object.values(authProfile.org_links).forEach((link: any) => {
-             if (link.assigned_combos?.includes(requiredCombo)) hasOrgLicense = true;
-          });
-       }
-       if (!b2cLicenses.includes(requiredCombo) && !hasOrgLicense) {
-          isLockedByDepth = true;
-       }
-    }
 
     return (
                <Card key={idx} className={`${isLockedByDepth ? 'opacity-50 grayscale' : 'hover:'+activeTier.borderColor} cursor-pointer group relative p-0 flex flex-col border-b-4 ${activeTier.borderColor}`} onClick={() => {
