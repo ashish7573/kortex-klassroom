@@ -619,9 +619,7 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
                     <button onClick={() => setGameKey(prev => prev + 1)} className="flex items-center gap-1 md:gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs md:text-sm bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-xl transition-colors">
                         <RotateCcw size={16} /> <span className="hidden sm:block">Restart</span>
                     </button>
-                    <button onClick={() => onComplete()} className="flex items-center gap-1 md:gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs md:text-sm px-3 py-1.5 rounded-xl transition-colors shadow-sm">
-                        <CheckCircle size={16} /> <span className="hidden sm:block">Finish</span>
-                    </button>
+                    
                 </div>
             </div>
 

@@ -297,7 +297,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
     initAudio();
     playSound('slide');
     if (currentQIdx >= questions.length - 1) {
-      setQuizState('results');
+      if (onComplete) onComplete({ score: score });
     } else {
       const nextQ = questions[currentQIdx + 1];
       setCurrentQIdx(prev => prev + 1);
@@ -368,20 +368,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
     );
   }
 
-  if (quizState === 'results') {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-6">
-         <div className="bg-white p-10 rounded-[3rem] shadow-2xl border-4 border-sky-100 text-center max-w-md w-full">
-            <div className="w-24 h-24 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
-               <Star size={48} className="fill-emerald-500" />
-            </div>
-            <h2 className="text-4xl font-black text-slate-800 mb-2">Quiz Complete!</h2>
-            <p className="text-lg font-bold text-slate-500 mb-8">You scored {score} out of 10.</p>
-            <button onClick={() => setQuizState('menu')} className="w-full py-4 bg-sky-500 hover:bg-sky-400 text-white font-black text-xl rounded-2xl border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 transition-all">Play Again</button>
-         </div>
-      </div>
-    );
-  }
+
 
   const q = questions[currentQIdx];
 

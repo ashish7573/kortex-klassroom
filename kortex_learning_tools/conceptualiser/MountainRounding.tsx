@@ -145,9 +145,7 @@ export default function MountainRounding({ lesson, onComplete = () => {} }: any)
             <span className="text-base md:text-lg font-black text-sky-700">{formatNumber(number)}</span>
           </div>
 
-          <button onClick={() => onComplete()} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black px-3 py-1.5 md:px-5 md:py-2 rounded-xl shadow-md transition-colors flex items-center gap-1.5 active:scale-95 text-sm">
-            <Check size={16} /> <span className="hidden sm:inline">Finish</span>
-          </button>
+          
         </div>
       </header>
 

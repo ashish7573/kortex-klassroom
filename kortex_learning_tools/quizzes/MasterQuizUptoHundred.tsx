@@ -38,6 +38,12 @@ export default function MasterQuizUptoHundred({ lesson, onComplete }: any) {
     const [inputValue, setInputValue] = useState<any>('');
     const [feedback, setFeedback] = useState<'idle' | 'correct' | 'wrong'>('idle');
 
+    useEffect(() => {
+        if (phase === 'menu' && completedCategories.length === CATEGORIES.length) {
+            if (onComplete) onComplete({ score: CATEGORIES.length });
+        }
+    }, [phase, completedCategories, onComplete]);
+
     // --- Audio Engine ---
     const audioCtx = useRef<AudioContext | null>(null);
     
@@ -311,10 +317,10 @@ export default function MasterQuizUptoHundred({ lesson, onComplete }: any) {
                 </div>
 
                 {isAllComplete && (
-                    <div className="shrink-0 pt-4 animate-fade-in-up">
-                        <button onClick={onComplete} className="w-full max-w-md mx-auto flex items-center justify-center gap-2 bg-lime-500 hover:bg-lime-400 text-lime-950 font-black text-xl py-4 rounded-2xl shadow-[0_6px_0_rgb(101,163,13)] active:translate-y-[6px] active:shadow-none transition-all">
-                            Complete Lesson <CheckCircle2 />
-                        </button>
+                    <div className="shrink-0 pt-4 animate-fade-in-up flex justify-center">
+                        <div className="bg-emerald-100 text-emerald-600 font-bold px-6 py-3 rounded-full flex items-center gap-2">
+                           <CheckCircle2 size={20} /> Mastered! Returning to lesson...
+                        </div>
                     </div>
                 )}
             </div>

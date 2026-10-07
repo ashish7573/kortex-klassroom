@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { StudentProfile } from '../../types/user';
 import { auth } from '../../backend_configurations/firebase';
-import { checkAndResetDailyHearts, consumeHeart } from '../../app/actions/student';
+import { checkAndResetDailyHearts, consumeHeart, grantHeart } from '../../app/actions/student';
+import PlaceholderAd from '../../kortex_landing_page/components/PlaceholderAd';
 import { Sparkles, Trophy, Flame, Play, BookOpen, Lightbulb, Gamepad2, Target, Heart, BatteryCharging, X, Star, History, Award, Book, ClipboardList, CheckCircle2, CircleDashed } from 'lucide-react';
 import { collection, onSnapshot, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore';
 import { getStudentOrgProfiles, markAssignmentAsDone } from '../../app/actions/student';
@@ -17,7 +18,26 @@ interface StudentDashboardProps {
 export default function StudentDashboard({ profile, onExploreTier }: StudentDashboardProps) {
   const [hearts, setHearts] = useState(profile.hearts_remaining ?? 5);
   const [showEnergyModal, setShowEnergyModal] = useState(false);
+  const [showHeartAd, setShowHeartAd] = useState(false);
   const [isResetting, setIsResetting] = useState(true);
+
+  const handleAdComplete = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
+      const res = await grantHeart(token, profile.uid);
+      if (res.success) {
+         setHearts(prev => Math.min(5, prev + 1));
+      }
+    } catch (e) {
+      console.error("Failed to grant heart", e);
+    } finally {
+      setShowHeartAd(false);
+      setShowEnergyModal(false);
+    }
+  };
+
   const [progressData, setProgressData] = useState<any[]>([]);
   const [leaderboardTool, setLeaderboardTool] = useState<{ id: string, name: string } | null>(null);
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
@@ -645,6 +665,13 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                  Come back tomorrow for more Free Energy, or ask your parents to unlock <span className="font-black text-sky-600">Unlimited Play</span>!
                </p>
                <button 
+                 onClick={() => setShowHeartAd(true)}
+                 className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 mb-3 flex items-center justify-center gap-2"
+               >
+                 <Heart size={20} className="fill-white" />
+                 Watch ad for 1 Heart
+               </button>
+               <button 
                  onClick={() => setShowEnergyModal(false)}
                  className="w-full py-4 bg-sky-500 hover:bg-sky-600 text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95"
                >
@@ -653,6 +680,14 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
             </div>
           </div>
         </div>
+      )}
+
+      {showHeartAd && (
+        <PlaceholderAd 
+           type="rewarded"
+           onComplete={handleAdComplete} 
+           onSkip={() => setShowHeartAd(false)} 
+        />
       )}
     </div>
   );

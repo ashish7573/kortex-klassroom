@@ -133,12 +133,7 @@ export default function SwarVyanjanConceptualiser({ subtopicId, onComplete }: { 
           </div>
           <h1 className="text-4xl font-black text-slate-800 mb-2">शानदार!</h1>
           <p className="text-slate-500 font-bold mb-8">आपने यह भाग पूरा कर लिया है।</p>
-          <button 
-            onClick={onComplete}
-            className="px-12 py-4 bg-green-500 text-white font-black text-xl rounded-2xl border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all"
-          >
-            अगला पाठ (Next)
-          </button>
+          
         </div>
       </div>
     );

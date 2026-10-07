@@ -454,7 +454,7 @@ export default function ShopConceptualiser({ lesson, onComplete }: any) {
               </div>
               <div className="flex gap-3 md:border-l-2 border-slate-700 md:pl-8 w-full md:w-auto">
                  <button onClick={startGame} className="flex-1 px-4 py-3 bg-slate-800 text-slate-300 font-black text-xs md:text-sm rounded-xl border-b-4 border-slate-700 transition-transform active:translate-y-1">REPLAY</button>
-                 <button onClick={() => onComplete?.()} className="flex-1 px-6 py-3 bg-emerald-500 text-white font-black text-xs md:text-sm rounded-xl border-b-4 border-emerald-700 transition-transform active:translate-y-1">NEXT LESSON</button>
+                 
               </div>
            </div>
         </div>

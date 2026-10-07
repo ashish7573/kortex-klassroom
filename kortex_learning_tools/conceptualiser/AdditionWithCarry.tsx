@@ -286,12 +286,7 @@ export default function AdditionWithCarry({ lesson, onComplete }: any) {
               </div>
               <h2 className="text-4xl font-black text-slate-800 mb-2">Addition Master!</h2>
               <p className="text-slate-500 font-bold text-lg mb-8">You successfully learned how to regroup and carry over!</p>
-              <button 
-                  onClick={onComplete}
-                  className="bg-emerald-500 text-slate-950 px-8 py-4 rounded-2xl font-black tracking-wide shadow-[0_6px_0_rgb(16,185,129)] active:translate-y-[6px] active:shadow-none transition-all flex items-center gap-2"
-              >
-                  Complete Lesson <ChevronRight />
-              </button>
+              
           </div>
       );
   }

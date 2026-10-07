@@ -135,7 +135,10 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   const endGame = useCallback(() => {
     setGameState('gameover');
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-  }, []);
+    if (onComplete) {
+        onComplete({ score });
+    }
+  }, [onComplete, score]);
 
   const earnedStars = score > 150 ? 3 : score > 80 ? 2 : score > 20 ? 1 : 0;
 
@@ -376,9 +379,6 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
             <div className="flex flex-col sm:flex-row gap-4">
               <button onClick={() => {setTargetLetter(''); setTargetImageUrl(''); setGameState('start');}} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all">
                 <RotateCcw className="w-5 h-5" /> Play Again
-              </button>
-              <button onClick={() => onComplete({ score, stars: earnedStars })} className="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-900 font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all border-b-4 border-sky-700 active:translate-y-1 active:border-b-0">
-                Next Step <ArrowRight size={20} />
               </button>
             </div>
           </div>

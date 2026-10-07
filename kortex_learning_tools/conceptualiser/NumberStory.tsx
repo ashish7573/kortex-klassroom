@@ -189,15 +189,7 @@ export default function NumberStory({ lesson, onComplete }: any) {
               >
                 <ChevronRight size={28} />
               </button>
-            ) : (
-              <button 
-                onClick={() => onComplete?.()}
-                className="px-6 h-12 md:h-14 shrink-0 flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 border-b-4 border-emerald-700 text-white font-black transition-all active:translate-y-1 hover:bg-emerald-400"
-              >
-                <Star className="fill-white" size={20} /> 
-                <span className="hidden md:inline">START LEARNING</span>
-              </button>
-            )}
+            ) : null}
 
          </div>
       </div>

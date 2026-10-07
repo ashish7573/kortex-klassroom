@@ -1359,3 +1359,39 @@ export async function parentDeleteChildAccount(idToken: string, childUid: string
     return { success: false, error: error.message };
   }
 }
+
+export async function grantHeart(idToken: string, studentUid: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    
+    // Parent can grant to their children, student to themselves
+    if (decodedToken.role === 'parent') {
+      const parentDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+      const parentData = parentDoc.data();
+      if (!parentData?.children?.includes(studentUid)) {
+        throw new Error("Unauthorized to grant heart for this student");
+      }
+    } else if (decodedToken.uid !== studentUid) {
+      throw new Error("Unauthorized to grant heart for this student");
+    }
+
+    const studentRef = adminDb.collection('users').doc(studentUid);
+    
+    await adminDb.runTransaction(async (transaction: any) => {
+      const doc = await transaction.get(studentRef);
+      if (!doc.exists) throw new Error("Student not found");
+      
+      const currentHearts = doc.data()?.hearts_remaining || 0;
+      if (currentHearts < 5) {
+        transaction.update(studentRef, {
+          hearts_remaining: currentHearts + 1,
+        });
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error granting heart:", error);
+    return { success: false, error: "Failed to grant heart" };
+  }
+}

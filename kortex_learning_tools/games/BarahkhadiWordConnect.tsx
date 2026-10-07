@@ -750,9 +750,15 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
           setFinishOrder(newOrder);
 
           if (numPlayers === 1) {
-              setTimeout(() => setGameState('gameover'), 800);
+              setTimeout(() => {
+                  setGameState('gameover');
+                  if (onComplete) onComplete();
+              }, 800);
           } else if (newOrder.length === numPlayers) {
-              setTimeout(() => setGameState('gameover'), 1500);
+              setTimeout(() => {
+                  setGameState('gameover');
+                  if (onComplete) onComplete();
+              }, 1500);
           }
       }
   };
@@ -760,9 +766,6 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   if (gameState === 'menu') {
     return (
       <div className="w-full h-full min-h-[500px] bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-slate-200 rounded-3xl relative overflow-y-auto">
-        <button onClick={() => onComplete()} className="absolute top-4 right-4 bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white p-3 rounded-full transition-colors z-20">
-           <X size={24} />
-        </button>
 
         <div className="max-w-2xl w-full bg-slate-900 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl my-auto">
           <div className="text-center mb-10">

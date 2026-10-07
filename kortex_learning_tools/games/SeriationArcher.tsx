@@ -231,6 +231,7 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
       const next = [...prev, num];
       if (next.length === 10) {
         setIsGameOver(true);
+        if (onComplete) onComplete();
       }
       return next;
     });

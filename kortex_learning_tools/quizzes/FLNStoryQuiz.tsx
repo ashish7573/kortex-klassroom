@@ -99,7 +99,8 @@ export default function FLNStoryQuiz({ lesson, onComplete = () => {} }: any) {
           setSelectedOption(null);
           setIsAnswered(false);
       } else {
-          setTimeout(() => setGameState('results'), 500);
+          const starsEarned = score === currentStory.quiz.length ? 3 : score > 0 ? 2 : 1;
+          onComplete({ score, stars: starsEarned });
       }
   };
 
@@ -133,61 +134,7 @@ export default function FLNStoryQuiz({ lesson, onComplete = () => {} }: any) {
       );
   }
 
-  // ==========================================
-  // RENDER: RESULTS SCREEN
-  // ==========================================
-  if (gameState === 'results') {
-      const starsEarned = score === currentQuiz.length ? 3 : score > 0 ? 2 : 1;
-      
-      return (
-          <div className="w-full h-[90vh] min-h-[600px] max-w-4xl mx-auto bg-slate-900 rounded-3xl shadow-xl overflow-hidden border-4 border-slate-800 flex flex-col items-center justify-center p-6 text-center relative">
-              
-              {/* Confetti Background for Perfect Score */}
-              {score === currentQuiz.length && (
-                  <>
-                      <style>{`
-                          @keyframes confettiDrop { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
-                          .animate-confetti { animation: confettiDrop linear infinite; }
-                      `}</style>
-                      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden rounded-3xl">
-                          {[...Array(40)].map((_, i) => (
-                              <div key={i} className="absolute animate-confetti" style={{
-                                  left: `${Math.random() * 100}%`, top: `-10%`,
-                                  backgroundColor: ['#f59e0b', '#10b981', '#0ea5e9', '#ec4899', '#a855f7'][Math.floor(Math.random() * 5)],
-                                  width: `${Math.random() * 10 + 5}px`, height: `${Math.random() * 20 + 10}px`,
-                                  animationDelay: `${Math.random() * 2}s`, animationDuration: `${Math.random() * 2 + 2}s`
-                              }} />
-                          ))}
-                      </div>
-                  </>
-              )}
-
-              <div className="bg-amber-400 p-8 rounded-full mb-6 border-8 border-amber-200 shadow-[0_0_50px_rgba(251,191,36,0.5)] z-10">
-                  <Trophy className="w-24 h-24 text-amber-900" />
-              </div>
-              
-              <h1 className="text-4xl md:text-5xl font-black text-white mb-2 z-10">बहुत बढ़िया!</h1>
-              <p className="text-xl md:text-2xl font-bold text-slate-300 mb-8 z-10">
-                  आपने {currentQuiz.length} में से {score} सही उत्तर दिए!
-              </p>
-
-              <div className="flex space-x-4 mb-12 z-10">
-                  {[1, 2, 3].map((starIndex) => (
-                      <Star key={starIndex} className={`w-16 h-16 transition-all duration-500 ${starIndex <= starsEarned ? 'text-yellow-400 fill-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] scale-110' : 'text-slate-700 fill-slate-800'}`} />
-                  ))}
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md z-10">
-                  <button onClick={handleStart} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xl py-4 rounded-2xl transition-colors flex items-center justify-center gap-2">
-                      <RotateCcw size={24} /> फिर से खेलें
-                  </button>
-                  <button onClick={() => onComplete({ score, stars: starsEarned })} className="flex-1 bg-sky-500 hover:bg-sky-400 text-white font-black text-xl py-4 rounded-2xl transition-colors shadow-lg flex items-center justify-center gap-2 border-b-4 border-sky-700 active:translate-y-1 active:border-b-0">
-                      आगे बढ़ें <ArrowRight size={24} />
-                  </button>
-              </div>
-          </div>
-      );
-  }
+  // Internal results screen removed, handled by LessonPlayer wrapper.
 
   // ==========================================
   // RENDER: PLAYING SCREEN

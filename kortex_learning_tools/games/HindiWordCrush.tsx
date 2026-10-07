@@ -429,7 +429,7 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
             const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
             return () => clearInterval(timer);
         } else if (timeLeft === 0 && gameState === 'playing') {
-            setGameState('gameover');
+            if (onComplete) { onComplete({ score: scores.p1 }); } else { setGameState("gameover"); }
         }
     }, [timeLeft, gameState]);
 
@@ -552,7 +552,6 @@ export default function HindiWordCrush({ lesson, onComplete = () => {} }: any) {
                 
                 <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
                     <button onClick={() => setGameState('menu')} className="flex-1 py-3 bg-white border-2 border-slate-200 text-slate-700 font-black rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2"><RotateCcw size={16} /> Play Again</button>
-                    <button onClick={() => onComplete()} className="flex-1 py-3 bg-indigo-500 text-white font-black rounded-xl shadow-md border-b-4 border-indigo-700 active:translate-y-1 transition-all flex items-center justify-center gap-2">Next Lesson <ArrowRight size={16} /></button>
                 </div>
             </div>
         );

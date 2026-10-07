@@ -201,12 +201,14 @@ export default function StoryConceptualiser({ lesson, onComplete = () => {} }: a
           )}
         </button>
 
-        <button 
-          onClick={handleNext}
-          className="flex items-center px-4 py-3 md:px-6 md:py-4 rounded-2xl font-black text-white bg-sky-500 shadow-md shadow-sky-200 hover:bg-sky-600 transition-all border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 text-lg"
-        >
-          {currentPage === currentStory.pages.length - 1 ? 'क्विज़' : 'आगे'} <ChevronRight size={24} className="ml-1" />
-        </button>
+        {currentPage < currentStory.pages.length - 1 && (
+            <button 
+              onClick={handleNext}
+              className="flex items-center px-4 py-3 md:px-6 md:py-4 rounded-2xl font-black text-white bg-sky-500 shadow-md shadow-sky-200 hover:bg-sky-600 transition-all border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 text-lg"
+            >
+              आगे <ChevronRight size={24} className="ml-1" />
+            </button>
+        )}
       </div>
 
     </div>

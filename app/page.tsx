@@ -11,7 +11,7 @@ import { User, Play, LogOut, Search, Star, Menu, X, Type, Target } from 'lucide-
 import { useAuth } from '../hooks/useAuth';
 import { auth, db, googleProvider } from '../backend_configurations/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
-import { consumeHeart, checkAndResetDailyHearts, logStudentActivity } from '../app/actions/student';
+import { consumeHeart, checkAndResetDailyHearts, grantHeart, logStudentActivity } from '../app/actions/student';
 import { doc, getDoc, onSnapshot, collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 
 // Re-export initialized Firebase instances for backward compatibility
@@ -29,6 +29,7 @@ import {
 import { 
   Card, Button, ProgressBar, GeneralAlertModal, WorkInProgressView 
 } from '../kortex_landing_page/components/SharedUI';
+import PlaceholderAd from '../kortex_landing_page/components/PlaceholderAd';
 
 // ============================================================================
 // CORE VIEWS (Static for immediate first-paint)
@@ -125,6 +126,10 @@ function MainApp() {
   const [authMessage, setAuthMessage] = useState("Join Kortex Klassroom to unlock all features.");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertConfig, setAlertConfig] = useState(null);
+  
+  // Ad System States
+  const [showHeartAd, setShowHeartAd] = useState(false);
+  const [pendingLessonResume, setPendingLessonResume] = useState<(() => void) | null>(null);
 
   const hasAutoRedirected = useRef(false);
 
@@ -309,14 +314,18 @@ function MainApp() {
           if (itemData) {
             // Check central energy/guest limits
             const toolSubject = itemData.subject || 'unknown';
-            const hasEnergy = await ensureEnergy(toolSubject);
-            if (!hasEnergy) return;
-            
-            setPlayingLesson({
+            const playableLesson = {
               chapter: itemData.chapter_name || itemData.chapter || itemData.title || 'Interactive Module',
               book: itemData.book || 'Kortex Klassroom',
               flow: [itemData]
+            };
+            const hasEnergy = await ensureEnergy(toolSubject, () => {
+                setPlayingLesson(playableLesson);
+                setPlayingStep(0);
             });
+            if (!hasEnergy) return;
+            
+            setPlayingLesson(playableLesson);
             setPlayingStep(0);
           }
         } catch (error) { console.error("Error fetching shared tool:", error); }
@@ -438,7 +447,7 @@ useEffect(() => {
     setPlayingStep(0);
   };
 
-  const ensureEnergy = async (toolSubject?: string) => {
+  const ensureEnergy = async (toolSubject?: string, resumeCallback?: () => void) => {
     // 🔒 GUEST LIMIT CHECK
     if (!authIsLoggedIn) {
        const plays = parseInt(localStorage.getItem('kortex_guest_plays') || '0');
@@ -487,73 +496,52 @@ useEffect(() => {
             const syncResult = await checkAndResetDailyHearts(token, authProfile.uid);
             const currentHearts = syncResult.hearts !== undefined ? syncResult.hearts : ((authProfile as any).hearts_remaining || 0);
 
-            if (currentHearts <= 0) {
-                 if (role === 'parent') {
-                     setAlertConfig({
-                        title: "Out of Energy!",
-                        message: "You've used all 5 hearts today. Come back tomorrow for more, or upgrade to a Kortex Pro account for unlimited access!",
-                        type: "warning",
-                        actionLabel: "Upgrade to Pro",
-                        onAction: () => {
-                           alert("Coming Soon!");
-                           setAlertConfig(null);
-                        },
-                        secondaryActionLabel: "OK",
-                        onSecondaryAction: () => setAlertConfig(null)
-                     } as any);
-                 } else {
-                     setAlertConfig({
-                        title: "Out of Energy!",
-                        message: "You've used all 5 hearts today. Come back tomorrow for more, or ask your parents to unlock Kortex Pro!",
-                        type: "warning"
-                     } as any);
-                 }
+            if (currentHearts <= 0 || (await consumeHeart(token, authProfile.uid)).success === false) {
+                 setAlertConfig({
+                    title: "Out of Energy!",
+                    message: "You've used all your hearts for today. You can wait until tomorrow, or watch a short video to get 1 Heart right now!",
+                    type: "warning",
+                    actionLabel: "💖 Watch Ad for 1 Heart",
+                    onAction: () => {
+                       setAlertConfig(null);
+                       setShowHeartAd(true);
+                       // We save the callback so when the ad finishes, we resume.
+                       if (resumeCallback) {
+                           setPendingLessonResume(() => resumeCallback);
+                       }
+                    },
+                    secondaryActionLabel: "Maybe Later",
+                    onSecondaryAction: () => setAlertConfig(null)
+                 } as any);
                  return false;
             }
-            const result = await consumeHeart(token, authProfile.uid);
-            if (!result.success) {
-                 if (role === 'parent') {
-                     setAlertConfig({
-                        title: "Out of Energy!",
-                        message: "You've used all your hearts for today. Upgrade to Kortex Pro for unlimited access!",
-                        type: "warning",
-                        actionLabel: "Upgrade to Pro",
-                        onAction: () => {
-                           alert("Coming Soon!");
-                           setAlertConfig(null);
-                        },
-                        secondaryActionLabel: "OK",
-                        onSecondaryAction: () => setAlertConfig(null)
-                     } as any);
-                 } else {
-                     setAlertConfig({
-                        title: "Out of Energy!",
-                        message: "You've used all your hearts for today.",
-                        type: "warning"
-                     } as any);
-                 }
-                 return false;
-            }
+            // Alert handled above
         } catch (e) { return false; }
     }
     return true;
   };
 
   const handleOpenFeatured = async (item: any) => {
-      const hasEnergy = await ensureEnergy(item.subject);
-      if (!hasEnergy) return;
       const playableLesson = {
         chapter: item.chapter_name || item.lessonContext?.chapter || item.title || 'Interactive Module',
         book: item.book || item.lessonContext?.book || 'Kortex Klassroom',
         flow: [item] 
       };
+      const hasEnergy = await ensureEnergy(item.subject, () => {
+          setPlayingLesson(playableLesson);
+          setPlayingStep(0);
+      });
+      if (!hasEnergy) return;
       setPlayingLesson(playableLesson);
       setPlayingStep(0);
   };
 
   const handleStartLesson = async (lesson: any, stepIndex: any) => {
        const toolSubject = lesson.subject || (lesson.flow && lesson.flow[stepIndex]?.subject) || 'unknown';
-       const hasEnergy = await ensureEnergy(toolSubject);
+       const hasEnergy = await ensureEnergy(toolSubject, () => {
+           setPlayingLesson(lesson); 
+           setPlayingStep(stepIndex); 
+       });
        if (!hasEnergy) return;
        setPlayingLesson(lesson); 
        setPlayingStep(stepIndex); 
@@ -610,7 +598,10 @@ useEffect(() => {
                          };
                          // we must call ensureEnergy
                          const toolSubject = toolData.subject || 'unknown';
-                         const hasEnergy = await ensureEnergy(toolSubject);
+                         const hasEnergy = await ensureEnergy(toolSubject, () => {
+                            setPlayingLesson(playableLesson);
+                            setPlayingStep(0);
+                         });
                          if (hasEnergy) {
                             setPlayingLesson(playableLesson);
                             setPlayingStep(0);
@@ -649,6 +640,24 @@ useEffect(() => {
         />
       )}
       {alertConfig && <GeneralAlertModal {...alertConfig} onClose={() => setAlertConfig(null)} />}
+      
+      {showHeartAd && (
+          <PlaceholderAd 
+              type="rewarded"
+              onSkip={() => setShowHeartAd(false)}
+              onComplete={async () => {
+                  setShowHeartAd(false);
+                  if (auth.currentUser && authProfile) {
+                      const token = await auth.currentUser.getIdToken();
+                      await grantHeart(token, authProfile.uid);
+                      if (pendingLessonResume) {
+                          pendingLessonResume();
+                          setPendingLessonResume(null);
+                      }
+                  }
+              }}
+          />
+      )}
       
       {playingLesson && (
         <LessonPlayer 

@@ -153,6 +153,9 @@ export default function AdditionUptoHundred({ lesson, onComplete }: any) {
           } else {
               setPhase('finish');
               playSound('kaching');
+              if (onComplete) {
+                  onComplete();
+              }
           }
       }
   };
@@ -231,12 +234,6 @@ export default function AdditionUptoHundred({ lesson, onComplete }: any) {
               </div>
               <h2 className="text-4xl font-black text-slate-800 mb-2">Audit Complete!</h2>
               <p className="text-slate-500 font-bold text-lg mb-8">You successfully combined all the stock using place value!</p>
-              <button 
-                  onClick={onComplete}
-                  className="bg-lime-500 text-lime-950 px-8 py-4 rounded-2xl font-black tracking-wide shadow-[0_6px_0_rgb(101,163,13)] active:translate-y-[6px] active:shadow-none transition-all flex items-center gap-2"
-              >
-                  Complete Lesson <ChevronRight />
-              </button>
           </div>
       );
   }

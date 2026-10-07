@@ -143,7 +143,7 @@ export default function AppleOrderQuiz({ lesson, onComplete }: any) {
                     playSound('boing');
                     speak(`Next order. Please pack ${orders[nextIndex]} apples.`);
                 } else {
-                    setPhase('done');
+                    onComplete({ score: 10 });
                     playSound('kaching');
                     speak("Amazing! You packed all the orders perfectly. Krishna Fruits is very happy!");
                 }
@@ -223,31 +223,7 @@ export default function AppleOrderQuiz({ lesson, onComplete }: any) {
     }
 
     // ============================================================================
-    // RENDER: DONE SCREEN
-    // ============================================================================
-    if (phase === 'done') {
-        return (
-            <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-lime-50 font-sans overflow-y-auto">
-                <div className="max-w-xl w-full bg-white p-6 md:p-10 rounded-[2rem] shadow-xl border-4 border-lime-300 text-center space-y-6">
-                    <div className="flex justify-center animate-bounce">
-                        <CheckCircle size={80} className="text-lime-500" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight">Shift Complete!</h1>
-                        <p className="text-base text-slate-500 font-medium mt-3">
-                            You successfully packed all 10 orders. You are a base-10 master!
-                        </p>
-                    </div>
-                    <div className="flex gap-4 pt-4">
-                        <button onClick={generateOrders} className="flex-1 bg-sky-500 hover:bg-sky-400 text-white font-black text-lg py-4 rounded-2xl shadow-[0_6px_0_rgb(2,132,199)] active:translate-y-2 active:shadow-none transition-all">Play Again</button>
-                        {onComplete && (
-                            <button onClick={onComplete} className="flex-1 bg-lime-500 hover:bg-lime-400 text-white font-black text-lg py-4 rounded-2xl shadow-[0_6px_0_rgb(101,163,13)] active:translate-y-2 active:shadow-none transition-all flex items-center justify-center gap-2">Next <ArrowRight size={20}/></button>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    }
+  // Internal 'done' screen removed, handled by LessonPlayer wrapper.
 
     // ============================================================================
     // RENDER: PLAYING SCREEN

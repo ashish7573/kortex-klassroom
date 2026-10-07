@@ -166,7 +166,7 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
       lastTimeRef.current = time;
 
       if (!anyAlive && updatedPlayers.length > 0) {
-        setGameState('gameover');
+        if (onComplete) { onComplete(); } else { setGameState("gameover"); }
         return;
       }
     }
@@ -232,9 +232,6 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
   if (gameState === 'menu') {
     return (
       <div className="w-full h-full min-h-[500px] bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-slate-200 rounded-3xl relative overflow-y-auto">
-        <button onClick={() => onComplete()} className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white p-2 md:p-3 rounded-full transition-colors z-20">
-           <X size={20} className="md:w-6 md:h-6" />
-        </button>
 
         <div className="max-w-2xl w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-8 shadow-2xl my-auto">
           <div className="text-center mb-6 sm:mb-10 mt-4 sm:mt-0">
@@ -328,7 +325,6 @@ export default function MathDefenders({ lesson, onComplete = () => {} }: any) {
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
              <button onClick={() => setGameState('menu')} className="flex-1 py-3 sm:py-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-lg sm:text-xl transition-colors">Return to Base</button>
-             <button onClick={() => onComplete()} className="flex-1 py-3 sm:py-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-lg sm:text-xl transition-colors">Exit Lesson</button>
           </div>
         </div>
       </div>

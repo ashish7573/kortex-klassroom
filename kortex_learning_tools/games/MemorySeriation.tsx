@@ -226,7 +226,9 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
       if (newPlayers[playerIdx].currentTarget > 10) {
         newPlayers[playerIdx].isFinished = true;
         newPlayers[playerIdx].finishTime = (Date.now() - startTime) / 1000;
-        if (newPlayers.every(p => p.isFinished)) setUiState('gameover');
+        if (newPlayers.every(p => p.isFinished)) {
+            if (onComplete) { onComplete(); } else { setUiState("gameover"); }
+        }
       }
       setPlayers(newPlayers);
     } else {
@@ -418,7 +420,6 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
 
               <div className="flex gap-4">
                  <button onClick={() => setUiState('menu')} className="flex-1 py-4 bg-slate-100 text-slate-600 font-black rounded-2xl border-b-4 border-slate-300 transition-transform active:translate-y-1">RESTART</button>
-                 <button onClick={() => onComplete?.()} className="flex-1 py-4 bg-sky-500 text-white font-black rounded-2xl border-b-4 border-sky-700 transition-transform active:translate-y-1 shadow-lg">FINISH</button>
               </div>
            </div>
         </div>

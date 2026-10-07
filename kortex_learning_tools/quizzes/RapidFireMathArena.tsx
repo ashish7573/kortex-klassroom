@@ -302,9 +302,15 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
                     if (prev <= 1) {
-                        clearInterval(timerRef.current!);
-                        playSound('buzzer', audioCtxRef);
-                        setPhase('results');
+                        setTimeout(() => {
+                            clearInterval(timerRef.current!);
+                            playSound('buzzer', audioCtxRef);
+                            if (onComplete) {
+                                onComplete({ score: scores[1] || 0 });
+                            } else {
+                                setPhase('results');
+                            }
+                        }, 0);
                         return 0;
                     }
                     if (prev <= 6) playSound('click', audioCtxRef); // Tick down warning
@@ -512,11 +518,6 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
                     <button onClick={() => setPhase('config')} className="bg-slate-800 text-white px-8 py-4 rounded-xl font-black text-lg shadow-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
                         <RotateCcw size={20}/> Play Again
                     </button>
-                    {onComplete && (
-                        <button onClick={onComplete} className="bg-sky-500 text-white px-8 py-4 rounded-xl font-black text-lg shadow-[0_4px_0_rgb(14,165,233)] hover:bg-sky-400 active:translate-y-[4px] active:shadow-none transition-all flex items-center gap-2">
-                            Finish Lesson <ArrowRight size={20}/>
-                        </button>
-                    )}
                 </div>
             </div>
         );

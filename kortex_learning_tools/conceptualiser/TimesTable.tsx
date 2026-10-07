@@ -141,9 +141,7 @@ export default function TimesTable({ lesson, onComplete }: any) {
                     <button onClick={() => setPhase('select')} className="bg-slate-800 text-white px-8 py-4 rounded-xl font-black text-lg shadow-lg hover:bg-slate-700 active:scale-95 transition-all">
                         Build Another
                     </button>
-                    <button onClick={onComplete} className="bg-sky-500 text-white px-8 py-4 rounded-xl font-black text-lg shadow-[0_4px_0_rgb(14,165,233)] hover:bg-sky-400 active:translate-y-[4px] active:shadow-none transition-all flex items-center gap-2">
-                        Complete Lesson <ArrowRight size={20}/>
-                    </button>
+                    
                 </div>
             </div>
         );

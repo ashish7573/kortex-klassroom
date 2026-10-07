@@ -10,6 +10,7 @@ import ConceptualiserRegistry from '../kortex_learning_tools/conceptualiser/00_C
 import GameRegistry from '../kortex_learning_tools/games/00_GameRegistry';
 import QuizRegistry from '../kortex_learning_tools/quizzes/00_QuizRegistry';
 import { Button } from './components/SharedUI';
+import PlaceholderAd from './components/PlaceholderAd';
 
 const getYouTubeEmbedUrl = (url: any) => {
   if (!url) return '';
@@ -19,12 +20,14 @@ const getYouTubeEmbedUrl = (url: any) => {
   return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0` : url;
 };
 
-const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onStepComplete }: any) => {
+const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinish, onStepComplete }: any) => {
   const playlist = lesson.flow || (lesson.subTopics ? lesson.subTopics.flatMap((sub: any) => sub.tools || []) : []);
   const [currentStep, setCurrentStep] = useState(initialStep || 0);
   const [copied, setCopied] = useState(false); 
   
-  // NEW: State to track if we should show the finale screen
+  // NEW: State to track if we should show the finale screen or ad
+  const [showSupportGate, setShowSupportGate] = useState(false);
+  const [showSupportAd, setShowSupportAd] = useState(false);
   const [showFinale, setShowFinale] = useState(false);
   // NEW: Drawing Overlay State & Refs
   const [isDrawingMode, setIsDrawingMode] = useState(false);
@@ -144,10 +147,10 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onSt
           return;
       }
       if (isLastStep) {
-          if (isMasterDemo) {
-              setShowFinale(true);
+          if (!isPro) {
+              setShowSupportGate(true);
           } else {
-              onFinish({ score: data?.score !== undefined ? data.score : finalScore });
+              setShowFinale(true);
           }
       } else {
           setCurrentStep((prev: any) => prev + 1); 
@@ -157,6 +160,61 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onSt
   const handlePrev = () => { if (currentStep > 0) setCurrentStep((prev: any) => prev - 1); };
 
   // --- NEW: THE GRAND FINALE SCREEN ---
+  if (showSupportAd) {
+      return (
+          <PlaceholderAd 
+              type="interstitial"
+              onSkip={() => {
+                  setShowSupportAd(false);
+                  setShowFinale(true);
+              }}
+              onComplete={() => {
+                  setShowSupportAd(false);
+                  setShowFinale(true);
+              }}
+          />
+      );
+  }
+
+  if (showSupportGate) {
+      return (
+          <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-fade-in font-sans px-4">
+              <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-10 text-center shadow-2xl relative overflow-hidden">
+                  <div className="relative z-10">
+                      <div className="w-24 h-24 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30">
+                          <Activity size={48} className="text-white" />
+                      </div>
+                      <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">Calculating Results...</h1>
+                      <p className="text-base text-slate-400 font-medium mb-8 max-w-sm mx-auto">
+                          Kortex Klassroom is kept free through optional ads. Support us by watching a short video!
+                      </p>
+
+                      <div className="flex flex-col gap-3">
+                          <button 
+                              onClick={() => {
+                                  setShowSupportGate(false);
+                                  setShowSupportAd(true);
+                              }}
+                              className="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black text-lg py-4 rounded-2xl shadow-lg border-b-4 border-indigo-700 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+                          >
+                              💖 Watch Ad to Support Us
+                          </button>
+                          <button 
+                              onClick={() => {
+                                  setShowSupportGate(false);
+                                  setShowFinale(true);
+                              }}
+                              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold text-md py-4 rounded-2xl transition-all"
+                          >
+                              Skip for Now
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   if (showFinale) {
     if (!isLoggedIn) {
         return (
@@ -215,52 +273,30 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, onClose, onFinish, onSt
         );
     }
 
-    const exploreOptions = [
-      { id: 'lessons', label: 'All Lessons', icon: Globe, color: 'text-sky-500' },
-      { id: 'conceptualiser', label: 'Conceptualisers', icon: Lightbulb, color: 'text-purple-500' },
-      { id: 'theatre', label: 'Video Lessons', icon: PlayCircle, color: 'text-rose-500' },
-      { id: 'dojo', label: 'Quick Checks', icon: Target, color: 'text-amber-500' },
-      { id: 'Notebook', label: 'Visual Guides', icon: BookOpen, color: 'text-emerald-500' },
-      { id: 'arcade', label: 'Kortex Arcade', icon: Gamepad2, color: 'text-lime-500' },
-    ];
-
     return (
         <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-fade-in font-sans px-4">
-            <div className="max-w-4xl w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 text-center shadow-2xl relative overflow-hidden">
+            <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 text-center shadow-2xl relative overflow-hidden">
                 <div className="absolute -top-20 -left-20 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
                 <div className="relative z-10">
-                    <div className="w-20 h-20 bg-gradient-to-br from-sky-400 to-sky-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-sky-500/30">
-                        <Star className="text-white w-10 h-10 fill-white" />
+                    <div className="w-24 h-24 bg-gradient-to-br from-lime-400 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/30">
+                        <CheckCircle size={48} className="text-white fill-white" />
                     </div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-3 tracking-tight">Demo Complete!</h1>
-                    <p className="text-lg md:text-xl text-slate-400 font-medium mb-10 max-w-2xl mx-auto">
-                        You've seen the future of interactive learning. <br className="hidden md:block" />
-                        <span className="text-sky-400 font-bold">What would you like to explore next?</span>
-                    </p>
-
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {exploreOptions.map(opt => (
-                            <button 
-                                key={opt.id}
-                                onClick={() => {
-                                    onClose(); 
-                                    const event = new CustomEvent('navigate-tab', { detail: opt.id });
-                                    window.dispatchEvent(event);
-                                }}
-                                className="group bg-slate-800 border-2 border-slate-700 hover:border-slate-500 rounded-2xl p-4 md:p-5 flex flex-col items-center gap-3 transition-all hover:-translate-y-1 hover:shadow-xl hover:bg-slate-700/50"
-                            >
-                                <div className={`w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center border border-slate-700 group-hover:scale-110 transition-transform ${opt.color}`}>
-                                    <opt.icon size={24} />
-                                </div>
-                                <span className="text-white font-bold text-sm">{opt.label}</span>
-                            </button>
-                        ))}
-                    </div>
+                    <h1 className="text-4xl font-extrabold text-white mb-3 tracking-tight">Lesson Complete!</h1>
                     
-                    <button onClick={onClose} className="mt-8 text-slate-500 hover:text-slate-300 font-bold uppercase tracking-widest text-xs transition-colors">
-                        Return to Homepage
+                    {finalScore !== undefined && (
+                        <div className="my-6 bg-slate-800 p-4 rounded-2xl border border-slate-700 inline-block">
+                            <span className="text-slate-400 text-xs font-black uppercase tracking-widest block mb-1">Your Score</span>
+                            <span className="text-4xl font-black text-sky-400">{finalScore}</span>
+                        </div>
+                    )}
+
+                    <button 
+                        onClick={() => onFinish({ score: finalScore })}
+                        className="mt-8 w-full bg-sky-500 hover:bg-sky-400 text-white font-black text-lg py-4 rounded-2xl shadow-lg border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 transition-all"
+                    >
+                        Return to Dashboard
                     </button>
                 </div>
             </div>

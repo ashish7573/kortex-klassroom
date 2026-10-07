@@ -229,7 +229,10 @@ export default function SeriationBox({ lesson, onComplete }: any) {
       newPlayers[pIdx] = player;
 
       if (newPlayers.every(p => p.isFinished)) {
-        setTimeout(() => setUiState('gameover'), 600);
+          setTimeout(() => {
+              setUiState('gameover');
+              if (onComplete) onComplete();
+          }, 600);
       }
 
       return newPlayers;
@@ -262,7 +265,12 @@ export default function SeriationBox({ lesson, onComplete }: any) {
         player.tiles = tiles;
         player.moves += 1;
         newPlayers[pIdx] = player;
-        if (newPlayers.every(p => p.isFinished)) setTimeout(() => setUiState('gameover'), 600);
+        if (newPlayers.every(p => p.isFinished)) {
+          setTimeout(() => {
+              setUiState('gameover');
+              if (onComplete) onComplete();
+          }, 600);
+        }
         return newPlayers;
       }
 
@@ -466,7 +474,6 @@ export default function SeriationBox({ lesson, onComplete }: any) {
 
               <div className="flex gap-4">
                  <button onClick={() => setUiState('menu')} className="flex-1 py-4 bg-slate-100 text-slate-600 font-black rounded-2xl border-b-4 border-slate-300 transition-transform active:translate-y-1">RESTART</button>
-                 <button onClick={() => onComplete?.()} className="flex-1 py-4 bg-emerald-500 text-white font-black rounded-2xl border-b-4 border-emerald-700 transition-transform active:translate-y-1 shadow-lg">FINISH</button>
               </div>
            </div>
         </div>

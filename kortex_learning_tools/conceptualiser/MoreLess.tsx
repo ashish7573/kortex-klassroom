@@ -158,9 +158,7 @@ export default function MoreLess({ lesson, onComplete }: any) {
             <button onClick={() => speakNumber(currentCount)} className={`p-2 rounded-xl border-b-4 transition-transform active:translate-y-1 ${isSpeaking ? 'bg-sky-100 border-sky-200 text-sky-500' : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-sky-500'}`}>
               <Volume2 className={`w-5 h-5 md:w-6 md:h-6 ${isSpeaking ? 'animate-pulse' : ''}`} />
             </button>
-            <button onClick={() => onComplete?.()} className="bg-emerald-500 text-white px-4 py-2 rounded-xl font-black border-b-4 border-emerald-700 transition-transform active:translate-y-1 flex items-center gap-2 shadow-sm hover:bg-emerald-400">
-               <Star className="w-4 h-4 fill-white" /> <span className="hidden md:inline">FINISH</span>
-            </button>
+            
           </div>
         )}
       </div>

@@ -111,6 +111,9 @@ export default function TruckLoader({ lesson, onComplete }: any) {
         } else if (phase === 'playing' && timeLeft === 0) {
             playSound('honk');
             setPhase('result');
+            if (onComplete) {
+                onComplete();
+            }
         }
         return () => clearInterval(timer);
     }, [phase, timeLeft]);
@@ -376,7 +379,6 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                     )}
 
                     <button onClick={() => setPhase('start')} className="w-full bg-lime-500 hover:bg-lime-400 text-white font-black text-2xl py-4 rounded-2xl shadow-[0_6px_0_rgb(101,163,13)] active:translate-y-2 active:shadow-none transition-all mb-4">Play Again</button>
-                    {onComplete && <button onClick={onComplete} className="text-slate-400 font-bold hover:text-slate-600 underline">Continue Lesson</button>}
                 </div>
             </div>
         );
