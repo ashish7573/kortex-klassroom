@@ -301,25 +301,25 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
         if (phase === 'playing' && timeLeft > 0) {
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
-                    if (prev <= 1) {
-                        setTimeout(() => {
-                            clearInterval(timerRef.current!);
-                            playSound('buzzer', audioCtxRef);
-                            if (onComplete) {
-                                onComplete({ score: scores[1] || 0 });
-                            } else {
-                                setPhase('results');
-                            }
-                        }, 0);
-                        return 0;
-                    }
-                    if (prev <= 6) playSound('click', audioCtxRef); // Tick down warning
+                    if (prev <= 6 && prev > 1) playSound('click', audioCtxRef); // Tick down warning
                     return prev - 1;
                 });
             }, 1000);
         }
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }, [phase, timeLeft]);
+
+    // Handle Game End
+    useEffect(() => {
+        if (phase === 'playing' && timeLeft === 0) {
+            playSound('buzzer', audioCtxRef);
+            if (onComplete) {
+                onComplete({ score: scores[1] || 0 });
+            } else {
+                setPhase('results');
+            }
+        }
+    }, [timeLeft, phase, onComplete, scores]);
 
     const handleStart = () => {
         if (config.ops.length === 0) return alert("Select at least one operation!");

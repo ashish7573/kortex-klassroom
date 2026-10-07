@@ -382,7 +382,7 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
         );
    
       case 'pdf':
-        let docUrl = currentItem.content_url || '';
+        let docUrl = currentItem.content_url || currentItem.pdfUrl || currentItem.url || currentItem.file_url || currentItem.fileUrl || currentItem.link || currentItem.video_url || '';
         if (docUrl.includes('canva.com') && !docUrl.includes('embed')) {
             docUrl = docUrl.split('?')[0].replace(/\/view.*$/, '') + '/view?embed';
         }

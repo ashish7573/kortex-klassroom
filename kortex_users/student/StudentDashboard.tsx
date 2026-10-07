@@ -686,7 +686,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
         <PlaceholderAd 
            type="rewarded"
            onComplete={handleAdComplete} 
-           onSkip={() => setShowHeartAd(false)} 
+           onSkip={handleAdComplete} 
         />
       )}
     </div>

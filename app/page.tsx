@@ -644,7 +644,17 @@ useEffect(() => {
       {showHeartAd && (
           <PlaceholderAd 
               type="rewarded"
-              onSkip={() => setShowHeartAd(false)}
+              onSkip={async () => {
+                  setShowHeartAd(false);
+                  if (auth.currentUser && authProfile) {
+                      const token = await auth.currentUser.getIdToken();
+                      await grantHeart(token, authProfile.uid);
+                      if (pendingLessonResume) {
+                          pendingLessonResume();
+                          setPendingLessonResume(null);
+                      }
+                  }
+              }}
               onComplete={async () => {
                   setShowHeartAd(false);
                   if (auth.currentUser && authProfile) {
