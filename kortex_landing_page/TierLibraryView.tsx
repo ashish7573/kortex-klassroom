@@ -41,7 +41,7 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, auth
           else if (activeTier.id === 'arcade' && type === 'game') belongsToTier = true;
 
           // Added && item.is_featured === true to filter out non-featured items
-          if (belongsToTier) {
+          if (belongsToTier && item.is_featured === true) {
              let autoImage = item.image;
 
              // Force YouTube thumbnail priority first for all videos
@@ -63,14 +63,23 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, auth
              });
           }
         });
-        // Sort by created_at date (Newest first)
-extractedItems.sort((a: any, b: any) => {
-    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return dateB - dateA; 
-});
+// Sort by created_at date (Newest first)
+        extractedItems.sort((a: any, b: any) => {
+            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return dateB - dateA; 
+        });
 
-setTierItems(extractedItems);
+        // Deduplicate items based on title so tools added to multiple chapters only appear once
+        const seenTitles = new Set();
+        const deduplicatedItems = extractedItems.filter(item => {
+            const titleStr = (item.title || "").toLowerCase().trim();
+            if (seenTitles.has(titleStr)) return false;
+            seenTitles.add(titleStr);
+            return true;
+        });
+
+        setTierItems(deduplicatedItems);
       } catch (error) { console.error(error); } finally { setIsLoading(false); }
     }
     fetchTierData();

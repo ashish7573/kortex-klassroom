@@ -77,6 +77,7 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
     pullStartY: 0,
     pointerX: 0,
     pointerY: 0,
+    scale: 1,
   });
 
   // --- Audio Synthesis Engine (Fixed for SSR) ---
@@ -153,11 +154,18 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
   // --- Game Logic ---
   const initializeGame = useCallback(() => {
     if (typeof window === 'undefined') return;
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const canvas = canvasRef.current;
+    // Use actual dimensions if available, fallback to window
+    const width = canvas ? canvas.clientWidth : window.innerWidth;
+    const height = canvas ? canvas.clientHeight : window.innerHeight;
 
     gameState.current.width = width;
     gameState.current.height = height;
+    
+    // Calculate global visual scale relative to a standard 800x600 view
+    const scaleFactor = Math.max(0.5, Math.min(width, height) / 600);
+    gameState.current.scale = scaleFactor;
+    
     gameState.current.targetNumber = 1;
     gameState.current.isAiming = false;
     
@@ -173,11 +181,12 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
       newBalloons.push({
         id: i,
         number: i,
-        radius: Math.max(30, radius), 
+        radius: Math.max(30 * scaleFactor, radius), 
         x: Math.random() * width,
         y: 0, 
         baseY: height * 0.15 + (Math.random() * height * 0.3), 
-        vx: (isMovingRight ? 1 : -1) * (0.225 + Math.random() * 0.45), 
+        // Speed scales proportionally so it takes the same time to cross any screen
+        vx: (isMovingRight ? 1 : -1) * (0.5 + Math.random() * 0.8) * scaleFactor, 
         color: COLORS[(i - 1) % COLORS.length],
         floatOffset: Math.random() * Math.PI * 2,
         isPopped: false
@@ -189,8 +198,8 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
       newClouds.push({
         x: Math.random() * width,
         y: Math.random() * (height * 0.4),
-        scale: 0.5 + Math.random() * 1.5,
-        speed: 0.2 + Math.random() * 0.6,
+        scale: (0.5 + Math.random() * 1.5) * scaleFactor,
+        speed: (0.2 + Math.random() * 0.6) * scaleFactor,
         opacity: 0.2 + Math.random() * 0.3
       });
     }
@@ -201,10 +210,10 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
     gameState.current.clouds = newClouds;
   }, []);
 
-  const createPopParticles = (x: number, y: number, color: string) => {
+  const createPopParticles = (x: number, y: number, color: string, scale: number) => {
     for (let i = 0; i < 20; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 5 + 2;
+      const speed = (Math.random() * 5 + 2) * scale;
       gameState.current.particles.push({
         x, y,
         vx: Math.cos(angle) * speed,
@@ -222,31 +231,30 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
     setTimeout(() => setErrorFlash(false), 300);
   };
 
-  const handleCorrectHit = useCallback((num: number, x: number, y: number, color: string) => {
+  const handleCorrectHit = useCallback((num: number, x: number, y: number, color: string, scale: number) => {
     playDing();
     speakNumber(num);
-    createPopParticles(x, y, color);
+    createPopParticles(x, y, color, scale);
     
-    setCollectedNumbers(prev => {
-      const next = [...prev, num];
-      if (next.length === 10) {
-        setIsGameOver(true);
-        if (onComplete) onComplete();
-      }
-      return next;
-    });
+    setCollectedNumbers(prev => [...prev, num]);
+    
+    if (num === 10) {
+      setIsGameOver(true);
+      if (onComplete) onComplete();
+    }
     
     setCurrentTarget(prev => {
       const nextNum = prev + 1;
       gameState.current.targetNumber = nextNum; 
       return nextNum;
     });
-  }, []);
+  }, [onComplete]);
 
-  const drawArrow = (ctx: CanvasRenderingContext2D, tipX: number, tipY: number, angle: number) => {
+  const drawArrow = (ctx: CanvasRenderingContext2D, tipX: number, tipY: number, angle: number, scale: number = 1) => {
     ctx.save();
     ctx.translate(tipX, tipY);
     ctx.rotate(angle);
+    ctx.scale(scale, scale);
     ctx.beginPath();
     ctx.moveTo(0, 0); 
     ctx.lineTo(-80, 0); 
@@ -288,21 +296,23 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
       canvas.height = displayHeight;
       state.width = displayWidth;
       state.height = displayHeight;
+      state.scale = Math.max(0.5, Math.min(displayWidth, displayHeight) / 600);
     }
 
     ctx.clearRect(0, 0, state.width, state.height);
+    const scale = state.scale || 1;
 
     const drawMountain = (peakX: number, peakY: number, baseWidth: number, color: string) => {
        ctx.fillStyle = color;
        ctx.beginPath();
-       ctx.moveTo(peakX - baseWidth/2, state.height);
+       ctx.moveTo(peakX - (baseWidth/2 * scale), state.height);
        ctx.lineTo(peakX, peakY);
-       ctx.lineTo(peakX + baseWidth/2, state.height);
+       ctx.lineTo(peakX + (baseWidth/2 * scale), state.height);
        ctx.fill();
     };
-    drawMountain(state.width * 0.2, state.height - 350, 800, '#4A4E69');
-    drawMountain(state.width * 0.8, state.height - 280, 700, '#3A3E59');
-    drawMountain(state.width * 0.5, state.height - 450, 1000, '#22223B');
+    drawMountain(state.width * 0.2, state.height - (350 * scale), 800, '#4A4E69');
+    drawMountain(state.width * 0.8, state.height - (280 * scale), 700, '#3A3E59');
+    drawMountain(state.width * 0.5, state.height - (450 * scale), 1000, '#22223B');
 
     state.clouds.forEach(cloud => {
       cloud.x += cloud.speed;
@@ -326,7 +336,7 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
     state.balloons.forEach(balloon => {
       if (balloon.isPopped) return;
       balloon.x += balloon.vx;
-      balloon.y = balloon.baseY + Math.sin(state.time * 0.6 + balloon.floatOffset) * 15;
+      balloon.y = balloon.baseY + Math.sin(state.time * 0.6 + balloon.floatOffset) * (15 * scale);
       if (balloon.vx > 0 && balloon.x > state.width + balloon.radius) balloon.x = -balloon.radius;
       if (balloon.vx < 0 && balloon.x < -balloon.radius) balloon.x = state.width + balloon.radius;
 
@@ -340,15 +350,15 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
       ctx.fill();
       ctx.beginPath();
       ctx.moveTo(balloon.x, balloon.y + balloon.radius);
-      ctx.lineTo(balloon.x - 6, balloon.y + balloon.radius + 8);
-      ctx.lineTo(balloon.x + 6, balloon.y + balloon.radius + 8);
+      ctx.lineTo(balloon.x - (6 * scale), balloon.y + balloon.radius + (8 * scale));
+      ctx.lineTo(balloon.x + (6 * scale), balloon.y + balloon.radius + (8 * scale));
       ctx.fillStyle = balloon.color;
       ctx.fill();
       ctx.beginPath();
-      ctx.moveTo(balloon.x, balloon.y + balloon.radius + 8);
-      ctx.lineTo(balloon.x, balloon.y + balloon.radius + 25);
+      ctx.moveTo(balloon.x, balloon.y + balloon.radius + (8 * scale));
+      ctx.lineTo(balloon.x, balloon.y + balloon.radius + (25 * scale));
       ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * scale;
       ctx.stroke();
       ctx.fillStyle = 'white';
       ctx.font = `bold ${balloon.radius * 0.8}px 'Nunito', sans-serif`;
@@ -361,29 +371,29 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
       const arrow = state.arrows[i];
       if (!arrow.active) continue;
       arrow.x += arrow.vx;
-      arrow.vy += 0.15; 
+      arrow.vy += 0.15 * scale; 
       arrow.y += arrow.vy;
       arrow.angle = Math.atan2(arrow.vy, arrow.vx);
       if (arrow.x < -100 || arrow.x > state.width + 100 || arrow.y > state.height + 100) {
         arrow.active = false;
         continue;
       }
-      drawArrow(ctx, arrow.x, arrow.y, arrow.angle);
+      drawArrow(ctx, arrow.x, arrow.y, arrow.angle, scale);
       state.balloons.forEach(balloon => {
         if (balloon.isPopped || !arrow.active) return;
         const dx = arrow.x - balloon.x;
         const dy = arrow.y - balloon.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < balloon.radius + 5) {
+        if (dist < balloon.radius + (5 * scale)) {
           arrow.active = false; 
           if (balloon.number === state.targetNumber) {
             balloon.isPopped = true;
-            handleCorrectHit(balloon.number, balloon.x, balloon.y, balloon.color);
+            handleCorrectHit(balloon.number, balloon.x, balloon.y, balloon.color, scale);
           } else {
             triggerError();
             arrow.active = true;
             arrow.vx = -arrow.vx * 0.3;
-            arrow.vy = Math.abs(arrow.vy) * 0.5 + 2; 
+            arrow.vy = Math.abs(arrow.vy) * 0.5 + (2 * scale); 
           }
         }
       });
@@ -391,72 +401,76 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
 
     for (let i = state.particles.length - 1; i >= 0; i--) {
       const p = state.particles[i];
-      p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= 0.02;
+      p.x += p.vx; p.y += p.vy; p.vy += 0.2 * scale; p.life -= 0.02;
       if (p.life <= 0) { state.particles.splice(i, 1); continue; }
       ctx.globalAlpha = p.life;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 4 * scale, 0, Math.PI * 2);
       ctx.fillStyle = p.color;
       ctx.fill();
       ctx.globalAlpha = 1.0;
     }
 
     const bowX = state.width / 2;
-    const bowY = state.height - 120; 
+    const bowY = state.height - (120 * scale); 
 
     ctx.beginPath();
-    ctx.moveTo(bowX - 80, bowY + 20);
-    ctx.quadraticCurveTo(bowX, bowY - 60, bowX + 80, bowY + 20);
+    ctx.moveTo(bowX - (80 * scale), bowY + (20 * scale));
+    ctx.quadraticCurveTo(bowX, bowY - (60 * scale), bowX + (80 * scale), bowY + (20 * scale));
     ctx.strokeStyle = '#7F4F24';
-    ctx.lineWidth = 10;
+    ctx.lineWidth = 10 * scale;
     ctx.lineCap = 'round';
     ctx.stroke();
 
-    const bowLeftX = bowX - 80;
-    const bowLeftY = bowY + 20;
-    const bowRightX = bowX + 80;
-    const bowRightY = bowY + 20;
+    const bowLeftX = bowX - (80 * scale);
+    const bowLeftY = bowY + (20 * scale);
+    const bowRightX = bowX + (80 * scale);
+    const bowRightY = bowY + (20 * scale);
 
     if (state.isAiming) {
       const dx = state.pullStartX - state.pointerX;
       const dy = state.pullStartY - state.pointerY;
       const pullDist = Math.hypot(dx, dy);
       const angle = Math.atan2(dy, dx);
-      const speed = Math.min(pullDist * 0.15, 22);
-      const visualPullDist = Math.min(pullDist, 70); 
+      const normalizedPull = pullDist / scale;
+      const speed = Math.min(normalizedPull * 0.15, 22) * scale;
+      const visualPullDist = Math.min(pullDist, 70 * scale); 
       const pullX = bowX - Math.cos(angle) * visualPullDist;
       const pullY = bowY - Math.sin(angle) * visualPullDist;
+      
       ctx.beginPath();
       ctx.moveTo(bowLeftX, bowLeftY);
       ctx.lineTo(pullX, pullY);
       ctx.lineTo(bowRightX, bowRightY);
       ctx.strokeStyle = '#E0E0E0';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * scale;
       ctx.stroke();
-      const tipX = pullX + Math.cos(angle) * 80;
-      const tipY = pullY + Math.sin(angle) * 80;
+      
+      const tipX = pullX + Math.cos(angle) * (80 * scale);
+      const tipY = pullY + Math.sin(angle) * (80 * scale);
+      
       ctx.beginPath();
-      ctx.setLineDash([8, 8]);
+      ctx.setLineDash([8 * scale, 8 * scale]);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * scale;
       let simX = tipX; let simY = tipY;
       let simVx = Math.cos(angle) * speed; let simVy = Math.sin(angle) * speed;
       ctx.moveTo(simX, simY);
       for (let i = 0; i < 45; i++) { 
-          simVy += 0.15; simX += simVx; simY += simVy;
+          simVy += 0.15 * scale; simX += simVx; simY += simVy;
           if (i % 3 === 0) ctx.lineTo(simX, simY); 
       }
       ctx.stroke();
       ctx.setLineDash([]); 
-      drawArrow(ctx, tipX, tipY, angle);
+      drawArrow(ctx, tipX, tipY, angle, scale);
     } else {
       ctx.beginPath();
       ctx.moveTo(bowLeftX, bowLeftY);
       ctx.lineTo(bowRightX, bowRightY);
       ctx.strokeStyle = '#E0E0E0';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * scale;
       ctx.stroke();
-      drawArrow(ctx, bowX, bowY - 60, -Math.PI / 2);
+      drawArrow(ctx, bowX, bowY - (60 * scale), -Math.PI / 2, scale);
     }
     requestRef.current = requestAnimationFrame(render);
   }, [handleCorrectHit]); 
@@ -492,19 +506,25 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
     state.isAiming = false;
     const canvas = canvasRef.current;
     if (canvas) canvas.releasePointerCapture(e.pointerId);
+    
+    const scale = state.scale || 1;
     const dx = state.pullStartX - state.pointerX;
     const dy = state.pullStartY - state.pointerY;
     const pullDist = Math.hypot(dx, dy);
-    if (pullDist > 15) {
+    
+    if (pullDist > 15 * scale) {
       const angle = Math.atan2(dy, dx);
-      const speed = Math.min(pullDist * 0.15, 22); 
+      const normalizedPull = pullDist / scale;
+      const speed = Math.min(normalizedPull * 0.15, 22) * scale; 
+      
       const bowX = state.width / 2;
-      const bowY = state.height - 120; 
-      const visualPullDist = Math.min(pullDist, 70); 
+      const bowY = state.height - (120 * scale); 
+      const visualPullDist = Math.min(pullDist, 70 * scale); 
       const pullX = bowX - Math.cos(angle) * visualPullDist;
       const pullY = bowY - Math.sin(angle) * visualPullDist;
-      const tipX = pullX + Math.cos(angle) * 80;
-      const tipY = pullY + Math.sin(angle) * 80;
+      const tipX = pullX + Math.cos(angle) * (80 * scale);
+      const tipY = pullY + Math.sin(angle) * (80 * scale);
+      
       playShootSound();
       state.arrows.push({
         id: Date.now(), x: tipX, y: tipY,
@@ -525,7 +545,7 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
   }, [isStarted, initializeGame, render]);
 
   return (
-    <div className={`relative w-full h-screen overflow-hidden bg-gradient-to-b from-blue-400 to-indigo-900 transition-colors duration-200 ${errorFlash ? 'bg-red-900' : ''}`}>
+    <div className={`relative w-full h-full flex flex-col flex-1 min-h-0 overflow-hidden bg-gradient-to-b from-blue-400 to-indigo-900 transition-colors duration-200 ${errorFlash ? 'bg-red-900' : ''}`}>
       <div className="absolute top-0 left-0 w-full p-4 z-10 flex flex-col items-center justify-start pointer-events-none">
         <h1 className="text-white text-xl md:text-3xl font-black tracking-wider mb-2 drop-shadow-md">
           PULL BACK & SHOOT IN ORDER!
@@ -555,10 +575,10 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
 
       {!isStarted && (
         <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20 backdrop-blur-sm">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-md w-[90%] border-8 border-yellow-400">
-            <h2 className="text-3xl font-black text-indigo-900 mb-4">Number Archery</h2>
-            <p className="text-gray-600 mb-8 font-medium">Tap anywhere, <span className="font-bold text-indigo-600">drag backwards</span> to aim, and release to shoot! Pop the balloons in order from 1 to 10.</p>
-            <button onClick={() => setIsStarted(true)} className="w-full py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-2xl text-xl transition-transform active:scale-95 flex items-center justify-center gap-2">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl text-center max-w-md w-[90%] border-8 border-yellow-400 max-h-[90vh] overflow-y-auto flex flex-col justify-center">
+            <h2 className="text-2xl md:text-3xl font-black text-indigo-900 mb-2 md:mb-4">Number Archery</h2>
+            <p className="text-gray-600 mb-4 md:mb-8 font-medium text-sm md:text-base">Tap anywhere, <span className="font-bold text-indigo-600">drag backwards</span> to aim, and release to shoot! Pop the balloons in order from 1 to 10.</p>
+            <button onClick={() => setIsStarted(true)} className="w-full py-3 md:py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-2xl text-lg md:text-xl transition-transform active:scale-95 flex items-center justify-center gap-2 mt-auto">
               <Play fill="white" /> Start Playing
             </button>
           </div>
@@ -567,10 +587,10 @@ export default function SeriationArcher({ lesson, onComplete }: any) {
 
       {isGameOver && (
         <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20 backdrop-blur-sm animate-in fade-in duration-500">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-md w-[90%] border-8 border-green-400 animate-in zoom-in duration-500 delay-150">
-            <h2 className="text-4xl font-black text-green-600 mb-2">You Did It!</h2>
-            <p className="text-gray-600 mb-8 font-bold">You counted all the way to 10!</p>
-            <button onClick={() => { initializeGame(); setIsStarted(false); }} className="w-full py-4 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-2xl text-xl transition-transform active:scale-95 flex items-center justify-center gap-2">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl text-center max-w-md w-[90%] border-8 border-green-400 animate-in zoom-in duration-500 delay-150 max-h-[90vh] overflow-y-auto flex flex-col justify-center">
+            <h2 className="text-3xl md:text-4xl font-black text-green-600 mb-2">You Did It!</h2>
+            <p className="text-gray-600 mb-4 md:mb-8 font-bold text-sm md:text-base">You counted all the way to 10!</p>
+            <button onClick={() => { initializeGame(); setIsStarted(false); }} className="w-full py-3 md:py-4 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-2xl text-lg md:text-xl transition-transform active:scale-95 flex items-center justify-center gap-2 mt-auto">
               <RefreshCcw /> Play Again
             </button>
           </div>

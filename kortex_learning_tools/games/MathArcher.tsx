@@ -42,12 +42,13 @@ export default function MathArcher() {
     state: 'menu',
     width: 800,
     height: 600,
+    scale: 1,
     problem: { text: '', answer: 0 },
     players: [] as any[],
     balloons: [] as any[],
     particles: [] as any[],
     clouds: [] as any[],
-    activePointers: new Map<number, number>() // UPGRADE: Using Map for robust pointer tracking
+    activePointers: new Map<number, number>()
   });
 
   const generateProblem = useCallback(() => {
@@ -141,9 +142,10 @@ export default function MathArcher() {
     }
     answers.sort(() => Math.random() - 0.5); 
 
-    const balloonRadius = isMobile ? 35 : 45;
-    const minY = 120;
-    const maxY = gameRef.current.height - (isMobile ? MOBILE_BOW_OFFSET + 100 : SMARTBOARD_BOW_OFFSET + 100);
+    const scale = gameRef.current.scale || 1;
+    const balloonRadius = (isMobile ? 45 : 45) * scale;
+    const minY = 80 * scale;
+    const maxY = gameRef.current.height * 0.45;
 
     gameRef.current.balloons = answers.map((num, i) => {
       const isRightToLeft = Math.random() > 0.5;
@@ -155,7 +157,7 @@ export default function MathArcher() {
         baseY: Math.random() * (maxY - minY) + minY,
         radius: balloonRadius,
         color: PLAYER_COLORS[i % 4].main, 
-        speed: (Math.random() * 2.5 + 1.5) * (isRightToLeft ? -1 : 1),
+        speed: (Math.random() * 1.0 + 0.4) * (isRightToLeft ? -1 : 1) * scale,
         wobblePhase: Math.random() * Math.PI * 2,
         wobbleSpeed: Math.random() * 0.05 + 0.02
       };
@@ -173,16 +175,26 @@ export default function MathArcher() {
 
   const startGame = useCallback(() => {
     gameRef.current.state = 'playing';
-    gameRef.current.activePointers.clear(); // Reset pointers safely
+    gameRef.current.activePointers.clear(); 
     
-    const sectionWidth = window.innerWidth / settings.playerCount;
+    // Ensure accurate sizing right on start
+    const canvas = canvasRef.current;
+    const w = canvas ? canvas.clientWidth : window.innerWidth;
+    const h = canvas ? canvas.clientHeight : window.innerHeight;
+    const isMobileScale = window.innerWidth < 768;
+    const scale = Math.max(0.4, Math.min(w, h) / (isMobileScale ? 500 : 800));
+    gameRef.current.width = w;
+    gameRef.current.height = h;
+    gameRef.current.scale = scale;
+    
+    const sectionWidth = w / settings.playerCount;
     gameRef.current.players = Array.from({ length: settings.playerCount }).map((_, i) => ({
       id: i,
       color: PLAYER_COLORS[i],
       score: 0,
       lives: 5,
       bowX: (sectionWidth * i) + (sectionWidth / 2),
-      bowY: window.innerHeight - (window.innerWidth < 768 ? MOBILE_BOW_OFFSET : SMARTBOARD_BOW_OFFSET),
+      bowY: h - (120 * scale),
       bowAngle: -Math.PI / 2,
       charge: 0,
       maxCharge: 50,
@@ -217,11 +229,12 @@ export default function MathArcher() {
   }, [settings.playerCount, syncUI]);
 
   const spawnParticles = (x: number, y: number, color: string) => {
+    const scale = gameRef.current.scale || 1;
     for (let i = 0; i < 25; i++) {
       gameRef.current.particles.push({
         x, y,
-        vx: (Math.random() - 0.5) * 12,
-        vy: (Math.random() - 0.5) * 12,
+        vx: (Math.random() - 0.5) * 12 * scale,
+        vy: (Math.random() - 0.5) * 12 * scale,
         life: 1,
         color: color
       });
@@ -231,7 +244,7 @@ export default function MathArcher() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d', { alpha: false }); // Hardware acceleration optimization
+    const ctx = canvas.getContext('2d', { alpha: false }); 
 
     if (gameRef.current.clouds.length === 0) {
       for(let i=0; i<6; i++){
@@ -245,16 +258,22 @@ export default function MathArcher() {
     }
 
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      gameRef.current.width = canvas.width;
-      gameRef.current.height = canvas.height;
+      const w = canvas.clientWidth || window.innerWidth;
+      const h = canvas.clientHeight || window.innerHeight;
+      canvas.width = w;
+      canvas.height = h;
+      gameRef.current.width = w;
+      gameRef.current.height = h;
+      
+      const isMobileScale = window.innerWidth < 768;
+      const scaleFactor = Math.max(0.4, Math.min(w, h) / (isMobileScale ? 500 : 800));
+      gameRef.current.scale = scaleFactor;
       
       if (gameRef.current.players.length > 0) {
-        const sectionWidth = canvas.width / gameRef.current.players.length;
+        const sectionWidth = w / gameRef.current.players.length;
         gameRef.current.players.forEach((p, i) => {
           p.bowX = (sectionWidth * i) + (sectionWidth / 2);
-          p.bowY = canvas.height - (window.innerWidth < 768 ? MOBILE_BOW_OFFSET : SMARTBOARD_BOW_OFFSET);
+          p.bowY = h - (120 * scaleFactor);
         });
       }
     };
@@ -263,19 +282,44 @@ export default function MathArcher() {
 
     const draw = () => {
       if (!ctx) return;
-      const { state, width, height, players, balloons, particles, clouds, problem } = gameRef.current;
+      const canvasEl = canvasRef.current;
+      if (!canvasEl) return;
+      
+      const displayWidth = canvasEl.clientWidth || window.innerWidth;
+      const displayHeight = canvasEl.clientHeight || window.innerHeight;
+      
+      if (canvasEl.width !== displayWidth || canvasEl.height !== displayHeight) {
+        canvasEl.width = displayWidth;
+        canvasEl.height = displayHeight;
+        gameRef.current.width = displayWidth;
+        gameRef.current.height = displayHeight;
+        const isMobileScale = window.innerWidth < 768;
+        gameRef.current.scale = Math.max(0.4, Math.min(displayWidth, displayHeight) / (isMobileScale ? 500 : 800));
+        
+        // Recalculate player positions on size change
+        if (gameRef.current.players.length > 0) {
+          const sectionWidth = displayWidth / gameRef.current.players.length;
+          gameRef.current.players.forEach((p, i) => {
+            p.bowX = (sectionWidth * i) + (sectionWidth / 2);
+            p.bowY = displayHeight - (120 * gameRef.current.scale);
+          });
+        }
+      }
+
+      const { state, width, height, players, balloons, particles, clouds, problem, scale } = gameRef.current;
+      const s = scale || 1;
 
       ctx.fillStyle = '#bae6fd'; 
       ctx.fillRect(0, 0, width, height);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       clouds.forEach(c => {
-        c.x += c.speed;
+        c.x += c.speed * s;
         if (c.x > width + c.size * 2) c.x = -c.size * 2;
         ctx.beginPath();
-        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
-        ctx.arc(c.x + c.size * 0.7, c.y - c.size * 0.4, c.size * 0.8, 0, Math.PI * 2);
-        ctx.arc(c.x + c.size * 1.4, c.y, c.size * 0.9, 0, Math.PI * 2);
+        ctx.arc(c.x, c.y, c.size * s, 0, Math.PI * 2);
+        ctx.arc(c.x + c.size * 0.7 * s, c.y - c.size * 0.4 * s, c.size * 0.8 * s, 0, Math.PI * 2);
+        ctx.arc(c.x + c.size * 1.4 * s, c.y, c.size * 0.9 * s, 0, Math.PI * 2);
         ctx.fill();
       });
 
@@ -294,20 +338,21 @@ export default function MathArcher() {
             let dy = interaction.startY - interaction.currentY;
             let dist = Math.hypot(dx, dy);
 
-            if (dist > 10) { 
+            const normalizedDist = dist / s;
+            if (normalizedDist > 10) { 
               arrow.state = 'nocked';
               let targetAngle = Math.atan2(dy, dx);
               if (targetAngle > 0) targetAngle = targetAngle > Math.PI / 2 ? -Math.PI : 0;
               p.bowAngle = targetAngle;
-              p.charge = Math.min(dist * 0.4, p.maxCharge);
+              p.charge = Math.min(normalizedDist * 0.4, p.maxCharge);
             }
           } else if (!interaction.isDown && arrow.state === 'nocked') {
             if (p.charge > 5) { 
               arrow.state = 'flying';
-              arrow.x = p.bowX - Math.cos(p.bowAngle) * p.charge;
-              arrow.y = p.bowY - Math.sin(p.bowAngle) * p.charge;
-              arrow.vx = Math.cos(p.bowAngle) * (p.charge * 0.8 + 25);
-              arrow.vy = Math.sin(p.bowAngle) * (p.charge * 0.8 + 25);
+              arrow.x = p.bowX - Math.cos(p.bowAngle) * (p.charge * s);
+              arrow.y = p.bowY - Math.sin(p.bowAngle) * (p.charge * s);
+              arrow.vx = Math.cos(p.bowAngle) * (p.charge * 0.8 + 25) * s;
+              arrow.vy = Math.sin(p.bowAngle) * (p.charge * 0.8 + 25) * s;
             } else {
               arrow.state = 'idle'; 
             }
@@ -317,11 +362,11 @@ export default function MathArcher() {
           if (arrow.state === 'idle') {
             arrow.x = p.bowX; arrow.y = p.bowY; arrow.angle = p.bowAngle;
           } else if (arrow.state === 'nocked') {
-            arrow.x = p.bowX - Math.cos(p.bowAngle) * p.charge;
-            arrow.y = p.bowY - Math.sin(p.bowAngle) * p.charge;
+            arrow.x = p.bowX - Math.cos(p.bowAngle) * (p.charge * s);
+            arrow.y = p.bowY - Math.sin(p.bowAngle) * (p.charge * s);
             arrow.angle = p.bowAngle;
           } else if (arrow.state === 'flying') {
-            arrow.vy += 0.2; 
+            arrow.vy += 0.2 * s; 
             arrow.x += arrow.vx;
             arrow.y += arrow.vy;
             arrow.angle = Math.atan2(arrow.vy, arrow.vx);
@@ -339,12 +384,12 @@ export default function MathArcher() {
             ctx.moveTo(interaction.startX, interaction.startY);
             ctx.lineTo(interaction.currentX, interaction.currentY);
             ctx.strokeStyle = p.color.main;
-            ctx.lineWidth = 4;
-            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 4 * s;
+            ctx.setLineDash([5 * s, 5 * s]);
             ctx.stroke();
             
             ctx.beginPath();
-            ctx.arc(interaction.startX, interaction.startY, 25, 0, Math.PI * 2);
+            ctx.arc(interaction.startX, interaction.startY, 25 * s, 0, Math.PI * 2);
             ctx.fillStyle = p.color.main + '40'; 
             ctx.fill();
             ctx.restore();
@@ -353,6 +398,7 @@ export default function MathArcher() {
           ctx.save();
           ctx.translate(p.bowX, p.bowY);
           ctx.rotate(p.bowAngle);
+          ctx.scale(s, s);
 
           ctx.beginPath();
           ctx.moveTo(0, -60);
@@ -378,10 +424,12 @@ export default function MathArcher() {
           if (arrow.state === 'idle' || arrow.state === 'nocked') {
             ctx.translate(p.bowX, p.bowY);
             ctx.rotate(p.bowAngle);
+            ctx.scale(s, s);
             if (arrow.state === 'nocked') ctx.translate(-p.charge, 0); 
           } else if (arrow.state === 'flying') {
             ctx.translate(arrow.x, arrow.y);
             ctx.rotate(arrow.angle);
+            ctx.scale(s, s);
           }
           
           ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(35, 0);
@@ -408,18 +456,18 @@ export default function MathArcher() {
           let b = balloons[i];
           b.x += b.speed;
           b.wobblePhase += b.wobbleSpeed;
-          b.y = b.baseY + Math.sin(b.wobblePhase) * 15;
+          b.y = b.baseY + Math.sin(b.wobblePhase) * (15 * s);
 
           if (b.speed > 0 && b.x > width + b.radius) b.x = -b.radius;
           if (b.speed < 0 && b.x < -b.radius) b.x = width + b.radius;
 
           players.forEach(p => {
             if (p.arrow.state === 'flying' && !collisionDetected) {
-              const tipX = p.arrow.x + Math.cos(p.arrow.angle) * 40;
-              const tipY = p.arrow.y + Math.sin(p.arrow.angle) * 40;
+              const tipX = p.arrow.x + Math.cos(p.arrow.angle) * (40 * s);
+              const tipY = p.arrow.y + Math.sin(p.arrow.angle) * (40 * s);
               const dist = Math.hypot(tipX - b.x, tipY - b.y);
 
-              if (dist < b.radius + 8) {
+              if (dist < b.radius + (8 * s)) {
                 collisionDetected = true; 
                 if (b.number === problem.answer) {
                   spawnParticles(b.x, b.y, b.color);
@@ -443,13 +491,13 @@ export default function MathArcher() {
             ctx.translate(b.x, b.y);
             
             ctx.beginPath(); ctx.moveTo(0, b.radius);
-            ctx.quadraticCurveTo(15, b.radius + 25, -10, b.radius + 50);
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.quadraticCurveTo(15 * s, b.radius + (25 * s), -10 * s, b.radius + (50 * s));
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * s; ctx.stroke();
 
             ctx.fillStyle = b.color;
             ctx.beginPath(); ctx.ellipse(0, 0, b.radius, b.radius * 1.25, 0, 0, Math.PI * 2); ctx.fill();
             
-            ctx.beginPath(); ctx.moveTo(-6, b.radius * 1.2); ctx.lineTo(6, b.radius * 1.2); ctx.lineTo(0, b.radius * 1.4); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-6 * s, b.radius * 1.2); ctx.lineTo(6 * s, b.radius * 1.2); ctx.lineTo(0, b.radius * 1.4); ctx.fill();
 
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
             ctx.beginPath(); ctx.ellipse(-b.radius * 0.35, -b.radius * 0.6, b.radius * 0.25, b.radius * 0.45, Math.PI/5, 0, Math.PI * 2); ctx.fill();
@@ -463,7 +511,7 @@ export default function MathArcher() {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.shadowColor = 'rgba(0,0,0,0.4)';
-            ctx.shadowBlur = 4;
+            ctx.shadowBlur = 4 * s;
             ctx.fillText(numStr, 0, 0);
             ctx.restore();
           }
@@ -471,11 +519,11 @@ export default function MathArcher() {
 
         for (let i = particles.length - 1; i >= 0; i--) {
           let p = particles[i];
-          p.x += p.vx; p.y += p.vy; p.vy += 0.4; p.life -= 0.02;
+          p.x += p.vx; p.y += p.vy; p.vy += 0.4 * s; p.life -= 0.02;
           if (p.life <= 0) { particles.splice(i, 1); continue; }
           ctx.globalAlpha = p.life;
           ctx.fillStyle = p.color;
-          ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 6 * s, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
         }
 
@@ -496,19 +544,26 @@ export default function MathArcher() {
 
   // UPGRADE: Unified Pointer Events (Hardware Accelerated Multi-Touch & Mouse)
   const getPlayerZone = useCallback((clientX: number) => {
-    const sectionWidth = window.innerWidth / settings.playerCount;
+    const canvas = canvasRef.current;
+    const w = canvas ? canvas.clientWidth : window.innerWidth;
+    const sectionWidth = w / settings.playerCount;
     return Math.min(Math.floor(clientX / sectionWidth), settings.playerCount - 1);
   }, [settings.playerCount]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (gameRef.current.state !== 'playing') return;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId); // Lock touch to canvas
+    (e.target as HTMLElement).setPointerCapture(e.pointerId); 
 
-    const pIndex = getPlayerZone(e.clientX);
+    const canvas = canvasRef.current;
+    const rect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const pIndex = getPlayerZone(x);
     const player = gameRef.current.players[pIndex];
     if (player && player.lives > 0) {
       gameRef.current.activePointers.set(e.pointerId, pIndex);
-      player.interaction = { isDown: true, startX: e.clientX, startY: e.clientY, currentX: e.clientX, currentY: e.clientY };
+      player.interaction = { isDown: true, startX: x, startY: y, currentX: x, currentY: y };
     }
   }, [getPlayerZone]);
 
@@ -519,8 +574,10 @@ export default function MathArcher() {
     if (pIndex !== undefined) {
       const player = gameRef.current.players[pIndex];
       if (player && player.interaction.isDown) {
-        player.interaction.currentX = e.clientX;
-        player.interaction.currentY = e.clientY;
+        const canvas = canvasRef.current;
+        const rect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
+        player.interaction.currentX = e.clientX - rect.left;
+        player.interaction.currentY = e.clientY - rect.top;
       }
     }
   }, []);
@@ -537,10 +594,10 @@ export default function MathArcher() {
   }, []);
 
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden select-none bg-sky-200 font-sans touch-none flex flex-col">
+    <div className="relative w-full h-full flex-1 min-h-0 overflow-hidden select-none bg-sky-200 font-sans touch-none flex flex-col">
       <canvas 
         ref={canvasRef} 
-        className="absolute inset-0 z-0 cursor-crosshair block" 
+        className="absolute inset-0 w-full h-full z-0 cursor-crosshair block" 
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

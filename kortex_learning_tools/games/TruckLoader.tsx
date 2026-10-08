@@ -34,6 +34,17 @@ export default function TruckLoader({ lesson, onComplete }: any) {
     const [p1, setP1] = useState<PlayerState>(defaultPlayerState);
     const [p2, setP2] = useState<PlayerState>(defaultPlayerState);
 
+    type DragState = {
+        active: boolean;
+        playerId: 1 | 2;
+        value: number;
+        startX: number;
+        startY: number;
+        currentX: number;
+        currentY: number;
+    };
+    const [drag, setDrag] = useState<DragState | null>(null);
+
     // --- AUDIO ENGINE ---
     const playSound = (type: 'honk' | 'snap' | 'error' | 'click' | 'engine') => {
         if (typeof window === 'undefined') return;
@@ -156,23 +167,49 @@ export default function TruckLoader({ lesson, onComplete }: any) {
     };
 
     // --- DRAG AND DROP HANDLERS ---
-    const handleDragStart = (e: React.DragEvent, playerId: 1 | 2, value: number) => {
+    const handlePointerDown = (e: React.PointerEvent, playerId: 1 | 2, opt: number) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        const target = e.currentTarget;
+        target.setPointerCapture(e.pointerId);
         playSound('click');
-        e.dataTransfer.setData('application/json', JSON.stringify({ playerId, value }));
-        e.dataTransfer.effectAllowed = 'move';
         
-        if (playerId === 1) setP1(prev => ({ ...prev, selectedCargo: value }));
-        else setP2(prev => ({ ...prev, selectedCargo: value }));
+        if (playerId === 1) setP1(prev => ({...prev, selectedCargo: opt}));
+        else setP2(prev => ({...prev, selectedCargo: opt}));
+
+        setDrag({
+            active: true,
+            playerId,
+            value: opt,
+            startX: e.clientX,
+            startY: e.clientY,
+            currentX: e.clientX,
+            currentY: e.clientY,
+        });
     };
 
-    const handleDrop = (e: React.DragEvent, targetPlayerId: 1 | 2) => {
-        e.preventDefault();
-        try {
-            const data = JSON.parse(e.dataTransfer.getData('application/json'));
-            if (data.playerId === targetPlayerId && !isNaN(data.value)) {
-                handlePack(targetPlayerId, data.value);
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!drag?.active) return;
+        setDrag(prev => prev ? { ...prev, currentX: e.clientX, currentY: e.clientY } : null);
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        if (!drag?.active) return;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+
+        const dist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+        
+        if (dist > 15) {
+            const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+            const truckZone = dropTarget?.closest('[data-truck-player]');
+            
+            if (truckZone) {
+                const targetPlayer = Number(truckZone.getAttribute('data-truck-player')) as 1 | 2;
+                if (targetPlayer === drag.playerId) {
+                    handlePack(targetPlayer, drag.value);
+                }
             }
-        } catch (err) { /* Safely ignore bad drops */ }
+        }
+        setDrag(null);
     };
 
     // --- VISUAL COMPONENTS ---
@@ -221,8 +258,8 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                     </div>
                 </div>
 
-                {/* Score UI (Top Right) */}
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-2 border-4 border-slate-200 shadow-md z-40">
+                {/* Score UI */}
+                <div className={`absolute top-4 ${playerId === 1 ? 'left-4' : 'right-4'} bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-2 border-4 border-slate-200 shadow-md z-40`}>
                     <Truck size={18} className={playerId === 1 ? 'text-sky-500' : 'text-purple-500'} />
                     <span className="font-black text-lg md:text-xl text-slate-700 leading-none">{state.score}</span>
                 </div>
@@ -231,8 +268,8 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                 <div className="flex-1 w-full relative z-20">
                     {/* Equation Popup */}
                     {isSuccess && state.droppedCargo && (
-                        <div className="absolute top-[20%] left-1/2 -translate-x-1/2 bg-white/95 px-6 py-2 rounded-full border-4 border-lime-400 shadow-xl z-50 animate-bounce whitespace-nowrap">
-                            <span className="text-2xl md:text-4xl font-black text-slate-700">
+                        <div className="absolute top-[15%] md:top-[20%] left-1/2 -translate-x-1/2 bg-white/95 px-4 md:px-6 py-2 rounded-full border-4 border-lime-400 shadow-xl z-50 animate-bounce whitespace-nowrap">
+                            <span className="text-xl sm:text-2xl md:text-4xl font-black text-slate-700">
                                 <span className="text-sky-500">{state.truckFilled}</span> + <span className="text-amber-500">{state.droppedCargo}</span> = <span className="text-lime-500">10</span>
                             </span>
                         </div>
@@ -240,8 +277,7 @@ export default function TruckLoader({ lesson, onComplete }: any) {
 
                     {/* Truck Engine */}
                     <div className="absolute bottom-[10%] w-full h-[180px] md:h-[220px] flex justify-center items-end"
-                         onDragOver={(e) => e.preventDefault()}
-                         onDrop={(e) => handleDrop(e, playerId)}
+                         data-truck-player={playerId}
                          onClick={() => state.selectedCargo && handlePack(playerId, state.selectedCargo)}>
                         
                         <div className={`relative origin-bottom transform duration-[4000ms] ease-in-out
@@ -296,17 +332,15 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                         {state.options.map((opt, i) => (
                             <div 
                                 key={i}
-                                draggable={state.animState === 'idle'}
-                                onDragStart={(e) => handleDragStart(e, playerId, opt)}
-                                onClick={() => {
-                                    if (state.animState === 'idle') {
-                                        playSound('click');
-                                        if (playerId === 1) setP1(prev => ({...prev, selectedCargo: opt}));
-                                        else setP2(prev => ({...prev, selectedCargo: opt}));
-                                    }
+                                onPointerDown={(e) => {
+                                    if (state.animState === 'idle') handlePointerDown(e, playerId, opt);
                                 }}
-                                className={`w-full h-full min-h-[60px] cursor-grab active:cursor-grabbing p-1.5 md:p-3 rounded-xl md:rounded-2xl border-4 transition-all bg-white flex items-center justify-between gap-1 md:gap-4 overflow-hidden
-                                    ${state.selectedCargo === opt ? 'border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.5)] bg-amber-50 scale-105 z-10' : 'border-slate-200 shadow-sm hover:scale-[1.02]'}`}
+                                onPointerMove={handlePointerMove}
+                                onPointerUp={handlePointerUp}
+                                onPointerCancel={handlePointerUp}
+                                className={`w-full h-full min-h-[50px] md:min-h-[60px] cursor-grab active:cursor-grabbing p-1.5 md:p-3 rounded-xl md:rounded-2xl border-4 transition-all bg-white flex items-center justify-between gap-1 md:gap-4 overflow-hidden touch-none
+                                    ${state.selectedCargo === opt ? 'border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.5)] bg-amber-50 scale-105 z-10' : 'border-slate-200 shadow-sm hover:scale-[1.02]'}
+                                    ${drag?.playerId === playerId && drag?.value === opt ? 'opacity-30 scale-95' : 'opacity-100'}`}
                             >
                                 <span className="text-2xl sm:text-3xl md:text-5xl font-black text-slate-700 pl-1 md:pl-2 pointer-events-none">{opt}</span>
                                 <div className="h-full max-h-[50px] md:max-h-[60px] flex-1 pointer-events-none">
@@ -388,7 +422,7 @@ export default function TruckLoader({ lesson, onComplete }: any) {
     // RENDER: PLAYING SCREEN
     // ============================================================================
     return (
-        <div className="w-full h-full flex font-sans select-none relative min-h-[600px] border-4 border-slate-700 rounded-3xl md:rounded-[2rem] shadow-2xl overflow-hidden">
+        <div className="w-full h-full flex flex-1 min-h-0 font-sans select-none relative border-4 border-slate-700 rounded-3xl md:rounded-[2rem] shadow-2xl overflow-hidden touch-none">
             
             {/* Global Timer (Always Top Center) */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-full px-4 md:px-6 py-1.5 md:py-2 flex items-center gap-2 border-4 border-slate-200 shadow-md z-50">
@@ -401,6 +435,27 @@ export default function TruckLoader({ lesson, onComplete }: any) {
             {/* Split Screen logic handled by mapping */}
             {renderPlayerArea(1, p1)}
             {numPlayers === 2 && renderPlayerArea(2, p2)}
+
+            {/* Drag Overlay */}
+            {drag?.active && (
+                <div 
+                    className="fixed z-[100] pointer-events-none opacity-90 scale-110 shadow-2xl drop-shadow-2xl"
+                    style={{
+                        left: drag.currentX,
+                        top: drag.currentY,
+                        transform: 'translate(-50%, -50%)',
+                        width: '140px',
+                        height: '70px'
+                    }}
+                >
+                    <div className="w-full h-full bg-white rounded-xl border-4 border-amber-400 p-2 flex items-center justify-between">
+                        <span className="text-3xl font-black text-slate-700 pl-2 pointer-events-none">{drag.value}</span>
+                        <div className="h-full flex-1 pointer-events-none pr-1">
+                            <TetrisGrid filled={drag.value} isOption={true} />
+                        </div>
+                    </div>
+                </div>
+            )}
             
             <style dangerouslySetInnerHTML={{__html: `
                 @keyframes shake {

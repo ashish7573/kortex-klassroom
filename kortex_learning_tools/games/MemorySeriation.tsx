@@ -33,54 +33,57 @@ const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b'];
 const NUMBER_NAMES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 
 // --- Subitization Renderers ---
-const renderDots = (num: number) => (
-  // Force the grid to fill the entire card face, padding 10% on all sides
-  <div className="absolute inset-0 p-[10%] grid grid-cols-2 place-items-center gap-1">
-    {Array.from({ length: num }).map((_, i) => (
-      <div key={i} className="w-[8px] h-[8px] sm:w-[10px] sm:h-[10px] md:w-[14px] md:h-[14px] rounded-full bg-slate-800 shadow-sm" />
-    ))}
-  </div>
-);
+const renderDots = (num: number, playerCount: number) => {
+  const dotSize = playerCount >= 3 ? 'w-[6px] h-[6px] md:w-[8px] md:h-[8px]' : 'w-[8px] h-[8px] sm:w-[10px] sm:h-[10px] md:w-[14px] md:h-[14px]';
+  return (
+    <div className="absolute inset-0 p-[10%] grid grid-cols-2 place-items-center gap-0.5 md:gap-1">
+      {Array.from({ length: num }).map((_, i) => (
+        <div key={i} className={`${dotSize} rounded-full bg-slate-800 shadow-sm`} />
+      ))}
+    </div>
+  );
+};
 
-const renderSticks = (num: number) => {
-  // Determine how many full "5-blocks" and how many "remainder" sticks we need
+const renderSticks = (num: number, playerCount: number) => {
   const fullFives = Math.floor(num / 5);
   const remainder = num % 5;
+  const svgClass = playerCount >= 3 ? 'w-4 h-4 md:w-6 md:h-6' : 'w-6 h-6 md:w-8 md:h-8';
+  const remHeight = playerCount >= 3 ? 'h-4 md:h-6' : 'h-6 md:h-8';
 
   return (
-    <div className="absolute inset-0 p-[10%] flex flex-wrap gap-2 md:gap-3 justify-center items-center content-center">
-      
-      {/* 1. Render complete 5-blocks */}
+    <div className="absolute inset-0 p-[10%] flex flex-wrap gap-1 md:gap-2 justify-center items-center content-center">
       {Array.from({ length: fullFives }).map((_, i) => (
-        <svg key={`five-${i}`} viewBox="0 0 40 40" className="w-6 h-6 md:w-8 md:h-8 overflow-visible">
-          {/* 4 Vertical Lines */}
+        <svg key={`five-${i}`} viewBox="0 0 40 40" className={`${svgClass} overflow-visible`}>
           <line x1="5" y1="5" x2="5" y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
           <line x1="15" y1="5" x2="15" y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
           <line x1="25" y1="5" x2="25" y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
           <line x1="35" y1="5" x2="35" y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
-          {/* 1 Diagonal Cross Line */}
           <line x1="0" y1="35" x2="40" y2="5" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
         </svg>
       ))}
-
-      {/* 2. Render any remainder sticks (1, 2, 3, or 4) */}
       {remainder > 0 && (
-        <svg viewBox={`0 0 ${remainder * 10} 40`} className={`h-6 md:h-8 overflow-visible`} style={{ width: `${(remainder * 10 / 40) * 1.5}rem` }}>
+        <svg viewBox={`0 0 ${remainder * 10} 40`} className={`${remHeight} overflow-visible`} style={{ width: `${(remainder * 10 / 40) * 1.5}rem` }}>
           {Array.from({ length: remainder }).map((_, i) => (
             <line key={`rem-${i}`} x1={5 + (i * 10)} y1="5" x2={5 + (i * 10)} y2="35" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
           ))}
         </svg>
       )}
-
     </div>
   );
 };
 
-const CardVisual = ({ card }: { card: CardData }) => {
-  if (card.repType === 'number') return <span className="absolute inset-0 flex items-center justify-center text-2xl md:text-4xl font-black">{card.value}</span>;
-  if (card.repType === 'name') return <span className="absolute inset-0 flex items-center justify-center text-[10px] md:text-sm font-bold uppercase text-center px-1 leading-tight">{NUMBER_NAMES[card.value]}</span>;
-  if (card.repType === 'dots') return renderDots(card.value);
-  if (card.repType === 'sticks') return renderSticks(card.value);
+const CardVisual = ({ card, playerCount }: { card: CardData, playerCount: number }) => {
+  let numSize = "text-2xl md:text-4xl";
+  let nameSize = "text-[10px] md:text-sm";
+  if (playerCount >= 3) {
+      numSize = "text-xl md:text-2xl lg:text-3xl";
+      nameSize = "text-[8px] md:text-[10px] lg:text-xs";
+  }
+
+  if (card.repType === 'number') return <span className={`absolute inset-0 flex items-center justify-center font-black ${numSize}`}>{card.value}</span>;
+  if (card.repType === 'name') return <span className={`absolute inset-0 flex items-center justify-center font-bold uppercase text-center px-1 leading-tight ${nameSize}`}>{NUMBER_NAMES[card.value]}</span>;
+  if (card.repType === 'dots') return renderDots(card.value, playerCount);
+  if (card.repType === 'sticks') return renderSticks(card.value, playerCount);
   return null;
 };
 
@@ -248,10 +251,10 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
   };
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-slate-100 font-sans touch-none select-none">
+    <div className="relative w-full h-full flex flex-col overflow-hidden bg-slate-100 font-sans touch-none select-none">
       
       {/* HEADER */}
-      <div className="h-16 md:h-20 bg-white border-b-4 border-slate-200 flex items-center justify-between px-4 md:px-8 z-30 relative">
+      <div className="h-16 md:h-20 bg-white border-b-4 border-slate-200 flex items-center justify-between px-4 md:px-8 z-30 relative shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-amber-500 p-2 rounded-2xl">
             <Brain className="text-white w-5 h-5 md:w-6 md:h-6" />
@@ -275,7 +278,7 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
       </div>
 
       {/* STAGE (Adjusted to leave room for Lesson Player Footer and use Smartboard Columns) */}
-      <div className={`w-full h-[calc(100vh-140px)] p-2 md:p-4 grid gap-2 md:gap-4 ${
+      <div className={`w-full flex-1 min-h-0 p-2 md:p-4 grid gap-2 md:gap-4 ${
         playerCount === 1 ? 'grid-cols-1' : 
         playerCount === 2 ? 'grid-rows-2 md:grid-cols-2 md:grid-rows-1' :
         playerCount === 3 ? 'grid-cols-3 grid-rows-1' :
@@ -308,16 +311,17 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
               <div className="flex-grow relative w-full h-full mt-10 md:mt-12">
                 {player.cards.map((card, cIdx) => {
                   
-                  // SMARTBOARD REACH FIX: Push cards down into lower 60% for 3+ players
-                  const isMultiplayer = playerCount > 2;
-                  const adjustedY = isMultiplayer ? (card.yOffset * 0.6) + 35 : card.yOffset;
+                  // SMARTBOARD REACH FIX (Relaxed to avoid overlap)
+                  const adjustedY = card.yOffset;
 
                   return (
                     <div 
                       key={cIdx}
                       onClick={() => handleCardClick(pIdx, cIdx)}
-                      // CARD SIZE FIX: Shrunk mobile width to w-14 so they don't overlap as heavily
-                      className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer [perspective:1000px] hover:z-30 w-14 h-20 md:w-20 md:h-28 transition-transform active:scale-95"
+                      // CARD SIZE FIX: dynamic size based on player count to prevent overlap
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer [perspective:1000px] hover:z-30 transition-transform active:scale-95 ${
+                        playerCount >= 3 ? 'w-12 h-16 md:w-16 md:h-24' : 'w-14 h-20 md:w-20 md:h-28'
+                      }`}
                       style={{ 
                         left: `${card.xOffset}%`, 
                         top: `${adjustedY}%`,
@@ -342,7 +346,7 @@ export default function MemorySeriation({ lesson, onComplete }: any) {
                         }`}
                         style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                       >
-                        <CardVisual card={card} />
+                        <CardVisual card={card} playerCount={playerCount} />
                       </div>
                     </div>
                     </div>
