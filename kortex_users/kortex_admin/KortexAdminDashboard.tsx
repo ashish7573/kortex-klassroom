@@ -3,17 +3,18 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../backend_configurations/firebase';
 import { AdminProfile } from '../../types/user';
-import { ShieldAlert, Database, FileText, CheckCircle2, UserCheck, Inbox, Users } from 'lucide-react';
+import { ShieldAlert, Database, FileText, CheckCircle2, UserCheck, Inbox, Users, MessageSquare } from 'lucide-react';
 import UsersManager from './UsersManager';
 import SystemConfig from './SystemConfig';
 import ContentApprovals from './ContentApprovals';
+import UserFeedbackTab from './UserFeedbackTab';
 
 interface KortexAdminDashboardProps {
   profile: AdminProfile;
 }
 
 export default function KortexAdminDashboard({ profile }: KortexAdminDashboardProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'quotes' | 'system' | 'approvals' | 'users'>('quotes');
+  const [activeSubTab, setActiveSubTab] = useState<'quotes' | 'system' | 'approvals' | 'users' | 'feedback'>('quotes');
   const [inquiries, setInquiries] = useState<any[]>([]);
 
   useEffect(() => {
@@ -90,7 +91,24 @@ export default function KortexAdminDashboard({ profile }: KortexAdminDashboardPr
         >
           <Database size={18} /> System & Database Config
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('feedback')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all ${
+            activeSubTab === 'feedback'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <MessageSquare size={18} /> User Feedback
+        </button>
       </div>
+
+      {/* User Feedback View */}
+      {activeSubTab === 'feedback' && (
+        <UserFeedbackTab />
+      )}
 
       {/* Users Manager View */}
       {activeSubTab === 'users' && (
@@ -117,7 +135,7 @@ export default function KortexAdminDashboard({ profile }: KortexAdminDashboardPr
             <UserCheck className="mx-auto text-slate-300 mb-3" size={40} />
             <h4 className="text-base font-bold text-slate-700">No pending quote inquiries</h4>
             <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-              New inquiries submitted through the "Partner With Us" institution form will automatically appear here for one-click account creation.
+              New inquiries submitted through the &quot;Partner With Us&quot; institution form will automatically appear here for one-click account creation.
             </p>
           </div>
         ) : (
@@ -140,7 +158,7 @@ export default function KortexAdminDashboard({ profile }: KortexAdminDashboardPr
                     <p><strong className="text-slate-800">Date:</strong> {new Date(inq.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-700 italic">
-                    "{inq.message}"
+                    &quot;{inq.message}&quot;
                   </div>
                 </div>
                 <div className="flex md:flex-col gap-2 w-full md:w-auto mt-4 md:mt-0">

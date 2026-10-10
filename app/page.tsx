@@ -6,7 +6,8 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 
-import { User, Play, LogOut, Search, Star, Menu, X, Type, Target } from 'lucide-react';
+import { User, Play, LogOut, Search, Star, Menu, X, Type, Target, MessageSquare } from 'lucide-react';
+import ContactUsModal from '../kortex_users/shared/ContactUsModal';
 
 import { useAuth } from '../hooks/useAuth';
 import { auth, db, googleProvider } from '../backend_configurations/firebase';
@@ -121,6 +122,7 @@ function MainApp() {
   const [userName, setUserName] = useState(''); 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showContactUs, setShowContactUs] = useState(false);
   const [showGlobalQuote, setShowGlobalQuote] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authMessage, setAuthMessage] = useState("Join Kortex Klassroom to unlock all features.");
@@ -450,7 +452,10 @@ useEffect(() => {
   const ensureEnergy = async (toolSubject?: string, resumeCallback?: () => void) => {
     // 🔒 GUEST LIMIT CHECK
     if (!authIsLoggedIn) {
-       const plays = parseInt(localStorage.getItem('kortex_guest_plays') || '0');
+       const today = new Date().toISOString().split('T')[0];
+       const guestKey = `kortex_guest_plays_${today}`;
+       const plays = parseInt(localStorage.getItem(guestKey) || '0');
+       
        if (plays >= 3) {
           setAlertConfig({
              title: "Free Demos Exhausted",
@@ -465,7 +470,7 @@ useEffect(() => {
           } as any);
           return false;
        }
-       localStorage.setItem('kortex_guest_plays', (plays + 1).toString());
+       localStorage.setItem(guestKey, (plays + 1).toString());
        return true;
     }
 
@@ -631,6 +636,22 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-sky-200 relative">
       {showGlobalQuote && <QuoteInquiryModal onClose={() => setShowGlobalQuote(false)} />}
+      {showContactUs && <ContactUsModal onClose={() => setShowContactUs(false)} user={authProfile} />}
+      
+      {/* Contact Us FAB (Hidden when learning tool is active) */}
+      {!playingLesson && (
+        <button
+          onClick={() => setShowContactUs(true)}
+          className="fixed bottom-6 right-6 z-40 bg-sky-500 text-white p-4 rounded-full shadow-lg hover:bg-sky-600 transition-all transform hover:scale-105 flex items-center justify-center group"
+          title="Contact Us / Feedback"
+        >
+          <MessageSquare className="w-6 h-6" />
+          <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs group-hover:ml-2 transition-all duration-300 ease-in-out font-semibold">
+            Feedback
+          </span>
+        </button>
+      )}
+
       {showAuthModal && (
         <UnifiedAuthModal 
           onClose={() => setShowAuthModal(false)} 
@@ -740,7 +761,7 @@ useEffect(() => {
                      className="text-right hover:opacity-80 transition-opacity cursor-pointer"
                      title="Open Your User Portal"
                    >
-                     <div className="text-sm font-bold text-slate-800 leading-none">{userName || userEmail.split('@')[0]}</div>
+                     <div className="text-sm font-bold text-slate-800 leading-none">{userName || (userEmail ? userEmail.split('@')[0] : 'User')}</div>
                      <div className="text-xs font-bold text-sky-500 capitalize">{role?.replace('_', ' ')} {isPro ? '(Pro)' : ''}</div>
                    </button>
                    <div 

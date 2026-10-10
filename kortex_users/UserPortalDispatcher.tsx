@@ -1,5 +1,6 @@
 "use client";
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { UserProfile } from '../types/user';
 import ParentDashboard from './parent/ParentDashboard';
 import StudentDashboard from './student/StudentDashboard';
@@ -21,6 +22,31 @@ export default function UserPortalDispatcher({
   onExploreTier,
   onOpenCMS
 }: UserPortalDispatcherProps) {
+  const router = useRouter();
+  const [isClientGuarded, setIsClientGuarded] = useState(false);
+
+  useEffect(() => {
+    // RBAC Route Guard Interceptor
+    if (profile.role === 'parent') {
+      if (profile.phoneVerified === false || profile.phoneVerified === undefined || profile.onboardingStatus === 'PENDING_PHONE') {
+        router.replace('/onboarding/verify-phone');
+        return;
+      }
+    }
+    
+    // Bypass for all other roles (kortex_admin, teacher, organization, student)
+    setIsClientGuarded(true);
+  }, [profile, router]);
+
+  // Trap render while guarding
+  if (!isClientGuarded) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-slate-300 border-t-slate-800 rounded-full"></div>
+      </div>
+    );
+  }
+
   switch (profile.role) {
     case 'parent':
       return <ParentDashboard profile={profile} />;

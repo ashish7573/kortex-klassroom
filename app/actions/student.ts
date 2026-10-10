@@ -319,7 +319,7 @@ export async function provisionChildAccount(
     }
     const parentName = parentDoc.data()?.full_name || "Unknown Parent";
     const parentEmail = parentDoc.data()?.email || "";
-    const parentContact = parentDoc.data()?.contact_number || "";
+    const parentContact = parentDoc.data()?.phone || parentDoc.data()?.contact_number || "";
     
     
 
@@ -399,7 +399,7 @@ export async function claimProvisionedChild(
     }
     const parentName = parentDoc.data()?.full_name || "Unknown Parent";
     const parentEmail = parentDoc.data()?.email || "";
-    const parentContact = parentDoc.data()?.contact_number || "";
+    const parentContact = parentDoc.data()?.phone || parentDoc.data()?.contact_number || "";
     
     const cleanKortexId = claimData.kortexId.toUpperCase().trim();
 
@@ -486,7 +486,7 @@ export async function resolveTransferRequest(
     
     const parentName = parentDoc.data()?.full_name || "Unknown Parent";
     const parentEmail = parentDoc.data()?.email || "";
-    const parentContact = parentDoc.data()?.contact_number || "";
+    const parentContact = parentDoc.data()?.phone || parentDoc.data()?.contact_number || "";
     
     
     const data = studentDoc.data()!;
@@ -783,6 +783,9 @@ export async function updateParentProfile(
     fullName: string;
     contactNumber: string;
     email: string;
+    city?: string;
+    state?: string;
+    country?: string;
   }
 ) {
   try {
@@ -792,18 +795,44 @@ export async function updateParentProfile(
     const parentRef = adminDb.collection('users').doc(parentUid);
     const parentDoc = await parentRef.get();
     
-    if (!parentDoc.exists || parentDoc.data()?.role !== 'parent') {
+    const currentData = parentDoc.data();
+    if (!parentDoc.exists || currentData?.role !== 'parent') {
       throw new Error("Unauthorized: Not a parent.");
     }
     
     const batch = adminDb.batch();
     
-    batch.update(parentRef, {
+    const parentUpdateObj: any = {
       full_name: updateData.fullName,
-      contact_number: updateData.contactNumber,
+      phone: updateData.contactNumber,
       email: updateData.email,
       updated_at: new Date().toISOString()
-    });
+    };
+
+    // If the phone number changed, revoke verification
+    const currentPhone = (currentData?.phone || currentData?.contact_number || '').replace(/\s/g, '');
+    const newPhone = (updateData.contactNumber || '').replace(/\s/g, '');
+    
+    if (currentPhone !== newPhone) {
+      // Check if the user successfully did inline verification which linked the phone to their Auth account
+      const authUser = await adminAuth.getUser(parentUid);
+      const linkedPhone = (authUser.phoneNumber || '').replace(/\s/g, '');
+      
+      if (linkedPhone === newPhone) {
+        parentUpdateObj.phoneVerified = true;
+        parentUpdateObj.onboardingStatus = 'ACTIVE';
+      } else {
+        parentUpdateObj.phoneVerified = false;
+        parentUpdateObj.onboardingStatus = 'PENDING_PHONE';
+      }
+      
+
+    }
+    if (updateData.city !== undefined) parentUpdateObj.city = updateData.city;
+    if (updateData.state !== undefined) parentUpdateObj.state = updateData.state;
+    if (updateData.country !== undefined) parentUpdateObj.country = updateData.country;
+
+    batch.update(parentRef, parentUpdateObj);
     
     // Update all linked children to sync the data for Org Admins!
     const childrenSnap = await adminDb.collection('users').where('parent_id', '==', parentUid).get();
@@ -862,9 +891,12 @@ export async function logStudentActivity(
     
     if (lastActive !== dateString) {
        if (lastActive) {
+         // Strictly compare just the dates at midnight UTC to prevent timezone/hour shifting
+         const todayDate = new Date(dateString);
          const lastDate = new Date(lastActive);
-         const diffTime = Math.abs(today.getTime() - lastDate.getTime());
-         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+         const diffTime = Math.abs(todayDate.getTime() - lastDate.getTime());
+         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+         
          if (diffDays === 1) {
            streak += 1;
          } else {

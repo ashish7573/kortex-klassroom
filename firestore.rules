@@ -1,0 +1,116 @@
+// Last Updated: October 10, 2026
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // 1. HELPER FUNCTIONS
+    // =========================================================================
+    function isAuthenticated() { return request.auth != null; }
+    function getUserData() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function hasRole(role) { return isAuthenticated() && getUserData().role == role; }
+    function isKrewOrAdmin() { return hasRole('krew') || hasRole('admin') || hasRole('super_admin'); }
+
+    function isOrgAdminFor(targetData) {
+      return hasRole('org_admin') && (
+        targetData.get('org_id', '') == request.auth.uid ||
+        request.auth.uid in targetData.get('org_ids', [])
+      );
+    }
+
+    function isPendingTransferToOrg(targetData) {
+      return hasRole('org_admin') && targetData.get('pending_org_id', '') == request.auth.uid;
+    }
+
+    function isParentOf(targetData) {
+      return hasRole('parent') && targetData.get('parent_id', '') == request.auth.uid;
+    }
+
+    // =========================================================================
+    // 2. COLLECTION RULES
+    // =========================================================================
+
+    match /leaderboards/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if false; 
+    }
+
+    match /users/{userId} {
+      allow read: if (isAuthenticated() && request.auth.uid == userId)
+                  || hasRole('admin')
+                  || hasRole('super_admin')
+                  || isOrgAdminFor(resource.data)
+                  || isPendingTransferToOrg(resource.data)
+                  || isParentOf(resource.data);
+      
+      // 🔒 SAST PHASE 1: Prevent Parents from injecting org_id during creation
+      allow create: if hasRole('admin')
+                    || hasRole('super_admin')
+                    || (isOrgAdminFor(request.resource.data) && request.resource.data.role in ['teacher', 'student', 'parent'])
+                    || (isParentOf(request.resource.data) && request.resource.data.role == 'student' && !('org_id' in request.resource.data) && !('org_ids' in request.resource.data))
+                    || (isAuthenticated() && request.auth.uid == userId && request.resource.data.role == 'parent');
+      
+      // 🔒 SAST PHASE 5: Block Client-Side Freemium Tampering (is_pro, hearts_remaining, etc)
+      // (This is the safely condensed block that allows them to edit their phone/address)
+      allow update: if hasRole('admin')
+                    || hasRole('super_admin')
+                    || (
+                        isAuthenticated() 
+                        && request.auth.uid == userId 
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                              'role', 
+                              'org_id', 
+                              'org_ids', 
+                              'is_pro', 
+                              'active_b2c_licenses', 
+                              'hearts_remaining',
+                              'last_heart_reset'
+                        ])
+                    )
+                    || (isOrgAdminFor(resource.data) && isOrgAdminFor(request.resource.data) && request.resource.data.role == resource.data.role)
+                    || (isPendingTransferToOrg(resource.data) && isOrgAdminFor(request.resource.data) && request.resource.data.role == resource.data.role && !('pending_org_id' in request.resource.data))
+                    || (isParentOf(resource.data) && isParentOf(request.resource.data) && request.resource.data.role == resource.data.role && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['org_id', 'org_ids']));
+      
+      // 🔒 SAST PHASE 1: Prevent client-side Org Admin deletes to prevent data loss. Must use backend action.
+      allow delete: if hasRole('admin') || hasRole('super_admin');
+
+      match /{subcollection}/{document=**} {
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+        allow read: if isParentOf(get(/databases/$(database)/documents/users/$(userId)).data);
+        allow write: if false; 
+      }
+    }
+
+    match /learning_tools/{document=**} {
+      // ✅ FIX: Restored to `if true` to allow frictionless Guest Mode from Instagram links
+      allow read: if true; 
+      allow write, delete: if isKrewOrAdmin();
+    }
+
+    match /content_requests/{document=**} {
+      allow read, write: if isKrewOrAdmin();
+    }
+
+    // ✅ FIX: Allow guests to submit Quote Inquiries (but block reading/modifying)
+    match /quote_inquiries/{document=**} {
+      allow create: if true;
+      allow read, update, delete: if isKrewOrAdmin();
+    }
+    
+    match /analytics_events/{document=**} {
+      allow create: if true;
+      allow read, update, delete: if isKrewOrAdmin();
+    }
+
+    // ✅ ADDED: Rules for user_feedbacks tab
+    match /user_feedbacks/{feedbackId} {
+      allow create: if false; // Creation is handled securely via Server Actions (backend)
+      allow read, update: if isKrewOrAdmin(); // Allows admins to read and resolve feedbacks
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  } 
+}
+

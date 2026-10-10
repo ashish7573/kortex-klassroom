@@ -3,10 +3,13 @@ import React, { useState } from 'react';
 import { auth } from '../../backend_configurations/firebase';
 import { X, Sparkles, UserPlus, CheckCircle2, Copy, Check, KeyRound, Link } from 'lucide-react';
 import { provisionChildAccount, claimProvisionedChild } from '../../app/actions/student';
+import RequireMobileModal from './RequireMobileModal';
 
 interface AddChildModalProps {
   onClose: () => void;
   onChildCreated: (childId: string) => void;
+  parentContactNumber?: string;
+  onContactUpdate?: (mobile: string) => Promise<void>;
 }
 
 const GRADES = [
@@ -15,7 +18,7 @@ const GRADES = [
   'Grade 6', 'Grade 7', 'Grade 8'
 ];
 
-export default function AddChildModal({ onClose, onChildCreated }: AddChildModalProps) {
+export default function AddChildModal({ onClose, onChildCreated, parentContactNumber, onContactUpdate }: AddChildModalProps) {
   const [mode, setMode] = useState<'new' | 'claim'>('new');
   
   // New
@@ -32,6 +35,44 @@ export default function AddChildModal({ onClose, onChildCreated }: AddChildModal
   const [errorMsg, setErrorMsg] = useState('');
   const [createdCredentials, setCreatedCredentials] = useState<{ studentId: string; pin: string } | null>(null);
   const [hasCopied, setHasCopied] = useState(false);
+
+  const [showMobileModal, setShowMobileModal] = useState(false);
+
+  const executeAction = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Authentication error. Please log in again.");
+      
+      const idToken = await user.getIdToken(true);
+      let result;
+      
+      if (mode === 'new') {
+        result = await provisionChildAccount(idToken, {
+          fullName: childName.trim(),
+          grade: 'Unassigned',
+          pin: pin
+        });
+      } else {
+        result = await claimProvisionedChild(idToken, {
+          kortexId: claimId.trim(),
+          claimCode: claimCode.trim(),
+          pin: pin
+        });
+      }
+      
+      if (!result.success || !result.studentId || !result.uid) {
+        throw new Error(result.error || "Failed to process request.");
+      }
+
+      setCreatedCredentials({ studentId: result.studentId, pin });
+      onChildCreated(result.uid);
+    } catch (err: unknown) {
+      console.error("Error processing child account:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Failed to process request.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,40 +103,13 @@ export default function AddChildModal({ onClose, onChildCreated }: AddChildModal
       return;
     }
 
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("Authentication error. Please log in again.");
-      
-      const idToken = await user.getIdToken(true);
-      
-      let result;
-      
-      if (mode === 'new') {
-        result = await provisionChildAccount(idToken, {
-          fullName: childName.trim(),
-          grade: 'Unassigned',
-          pin: pin
-        });
-      } else {
-        result = await claimProvisionedChild(idToken, {
-          kortexId: claimId.trim(),
-          claimCode: claimCode.trim(),
-          pin: pin
-        });
-      }
-      
-      if (!result.success || !result.studentId || !result.uid) {
-        throw new Error(result.error || "Failed to process request.");
-      }
-
-      setCreatedCredentials({ studentId: result.studentId, pin });
-      onChildCreated(result.uid);
-    } catch (err: unknown) {
-      console.error("Error processing child account:", err);
-      setErrorMsg(err instanceof Error ? err.message : "Failed to process request.");
-    } finally {
+    if (mode === 'claim' && (!parentContactNumber || parentContactNumber.trim() === '')) {
+      setShowMobileModal(true);
       setIsSubmitting(false);
+      return;
     }
+
+    await executeAction();
   };
 
   const copyCredentials = () => {
@@ -284,6 +298,19 @@ export default function AddChildModal({ onClose, onChildCreated }: AddChildModal
           )}
         </div>
       </div>
+
+      <RequireMobileModal 
+        isOpen={showMobileModal}
+        onClose={() => setShowMobileModal(false)}
+        onSubmit={async (mobile) => {
+          if (onContactUpdate) {
+            await onContactUpdate(mobile);
+          }
+          setShowMobileModal(false);
+          setIsSubmitting(true);
+          await executeAction();
+        }}
+      />
     </div>
   );
 }

@@ -369,6 +369,7 @@ export default function UsersManager() {
               <tr>
                 {activeTab === 'organizations' ? (
                   <>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider w-16 text-center">S.No.</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("organization_name")}>Kortex ID / Org Name {sortIndicator("organization_name")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("email")}>Contact Email {sortIndicator("email")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Combos Approved</th>
@@ -379,11 +380,12 @@ export default function UsersManager() {
                   </>
                 ) : (
                   <>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider w-16 text-center">S.No.</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("full_name")}>Kortex ID / Name {sortIndicator("full_name")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("role")}>Role {sortIndicator("role")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("organization")}>Organization {sortIndicator("organization")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("email")}>Email {sortIndicator("email")}</th>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Join Date</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("created_at")}>Join Date {sortIndicator("created_at")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
                   </>
                 )}
@@ -391,9 +393,9 @@ export default function UsersManager() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading records...</td></tr>
+                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">Loading records...</td></tr>
               ) : activeTab === 'organizations' ? (
-                processedOrgs.length > 0 ? processedOrgs.map(org => {
+                processedOrgs.length > 0 ? processedOrgs.map((org, index) => {
                   const studentsUsed = org.active_students_count || 0;
                   const maxStudents = org.license_quota || 0;
                   const combosCount = org.approved_grade_subject_combos?.length || 0;
@@ -401,6 +403,7 @@ export default function UsersManager() {
 
                   return (
                     <tr key={org.uid} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
                       <td className="px-6 py-4">
                         <div className="font-black text-indigo-900">{org.kortex_id || 'NO_ID'}</div>
                         <div className="font-bold text-slate-600">{org.organization_name}</div>
@@ -475,11 +478,12 @@ export default function UsersManager() {
                     </tr>
                   );
                 }) : (
-                  <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">No organizations found.</td></tr>
+                  <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">No organizations found.</td></tr>
                 )
               ) : (
-                processedIndividuals.length > 0 ? processedIndividuals.map(ind => (
+                processedIndividuals.length > 0 ? processedIndividuals.map((ind, index) => (
                   <tr key={ind.uid} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
                     <td className="px-6 py-4">
                       <div className="font-black text-indigo-900">{ind.kortex_id || 'NO_ID'}</div>
                       <div className="font-bold text-slate-600">{ind.full_name}</div>
@@ -510,7 +514,7 @@ export default function UsersManager() {
 
                   </tr>
                 )) : (
-                  <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">No individuals found.</td></tr>
+                  <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">No individuals found.</td></tr>
                 )
               )}
             </tbody>

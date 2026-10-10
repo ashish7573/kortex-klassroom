@@ -284,6 +284,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
     // If they have a school organization or premium b2c license, they likely don't use hearts for those specific tasks, 
     // but for exploring the global catalog (the 5 tiers), we apply the stamina system unless they are "Pro" (unlimited).
     const isPro = profile.is_pro || (profile.org_ids && profile.org_ids.length > 0) || false;
+  const proStatusText = profile.is_pro ? 'Parent Pro' : (profile.org_ids && profile.org_ids.length > 0 ? 'Organisation Pro' : null);
 
     
     if (!isPro && hearts <= 0) {
@@ -295,6 +296,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
   };
 
   const isPro = profile.is_pro || (profile.org_ids && profile.org_ids.length > 0) || false;
+  const proStatusText = profile.is_pro ? 'Parent Pro' : (profile.org_ids && profile.org_ids.length > 0 ? 'Organisation Pro' : null);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 animate-fade-in relative">
@@ -341,18 +343,18 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
           <div className="bg-black/30 backdrop-blur-md border border-white/20 rounded-3xl p-5 md:w-64 shrink-0 shadow-inner">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-black uppercase tracking-widest text-white/90">Daily Energy</h3>
-              {(isPro || (profile.org_ids && profile.org_ids.length > 0)) ? (
-                <span className="px-2 py-0.5 bg-yellow-400/20 text-yellow-300 border border-yellow-400/50 rounded-lg text-[10px] font-black uppercase">Unlimited</span>
+              {proStatusText ? (
+                <span className="px-2 py-0.5 bg-yellow-400/20 text-yellow-300 border border-yellow-400/50 rounded-lg text-[10px] font-black uppercase">{proStatusText}</span>
               ) : (
                 <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/50 rounded-lg text-[10px] font-black uppercase">{hearts}/5 Remaining</span>
               )}
             </div>
             
             <div className="flex justify-between items-center bg-black/20 rounded-2xl p-3">
-              {(isPro || (profile.org_ids && profile.org_ids.length > 0)) ? (
+              {proStatusText ? (
                  <div className="w-full flex items-center justify-center gap-2 py-1 text-yellow-400">
                     <Sparkles size={24} className="animate-pulse" />
-                    <span className="font-black tracking-widest">SCHOOL PRO</span>
+                    <span className="font-black tracking-widest uppercase">{proStatusText}</span>
                  </div>
               ) : (
                 [1, 2, 3, 4, 5].map((num) => (
@@ -365,7 +367,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
               )}
             </div>
             
-            {!(isPro || (profile.org_ids && profile.org_ids.length > 0)) && (
+            {!proStatusText && (
               <p className="text-[10px] text-center text-white/60 font-bold mt-3">
                 Energy resets automatically tomorrow!
               </p>

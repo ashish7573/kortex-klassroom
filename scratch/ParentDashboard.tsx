@@ -24,28 +24,19 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
   const [selectedChildId, setSelectedChildId] = useState<string>('profile');
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const initialContact = profile.phone || (profile as any).contact_number || '';
-  const knownCodes = ['+91', '+1', '+44', '+61', '+971', '+65', '+49', '+33', '+81', '+86', '+55', '+52', '+27', '+64', '+966', '+34', '+39', '+7', '+82', '+62'];
-  
+  const initialContact = (profile as any).contact_number || '';
   let initCountryCode = '+91';
   let initMobile = initialContact;
-  
   if (initialContact.startsWith('+')) {
     const spaceIdx = initialContact.indexOf(' ');
     if (spaceIdx > 0) {
       initCountryCode = initialContact.slice(0, spaceIdx);
       initMobile = initialContact.slice(spaceIdx + 1);
-    } else {
-      const sortedKnownCodes = [...knownCodes].sort((a, b) => b.length - a.length);
-      const matchedCode = sortedKnownCodes.find(code => initialContact.startsWith(code));
-      if (matchedCode) {
-        initCountryCode = matchedCode;
-        initMobile = initialContact.slice(matchedCode.length);
-      }
     }
   }
 
   // If the initial country code isn't in our curated list, set it to 'other' and put the value in customCountryCode
+  const knownCodes = ['+91', '+1', '+44', '+61', '+971', '+65', '+49', '+33', '+81', '+86', '+55', '+52', '+27', '+64', '+966', '+34', '+39', '+7', '+82', '+62'];
   let defaultCountryCode = initCountryCode;
   let defaultCustomCode = '';
   if (!knownCodes.includes(initCountryCode)) {
@@ -97,7 +88,7 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
 
 
   const isProfileComplete = () => {
-    return !!(profile.full_name && profile.email && (profile.phone || (profile as any).contact_number) && (profile as any).city && (profile as any).state && (profile as any).country);
+    return !!(profile.full_name && profile.email && profile.contact_number && (profile as any).city && (profile as any).state && (profile as any).country);
   };
 
   const [showMobileModal, setShowMobileModal] = useState(false);
@@ -268,7 +259,7 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
   };
 
   const isPhoneChanged = () => {
-    const originalPhone = (profile.phone || (profile as any).contact_number || '').replace(/\s/g, '');
+    const originalPhone = (profile.contact_number || '').replace(/\s/g, '');
     return getDerivedCurrentPhone() !== originalPhone;
   };
 
@@ -297,7 +288,10 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Failed to send OTP.");
-      // Do not clear recaptchaVerifier here, let it be reused
+      if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.clear();
+        (window as any).recaptchaVerifier = undefined;
+      }
     } finally {
       setOtpLoading(false);
     }
@@ -368,7 +362,7 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
       alert("Profile updated successfully! All your linked children have been synced with the organizations.");
       
       // If the phone number changed but was NOT inline verified, they must be trapped.
-      const currentPhone = (profile.phone || (profile as any).contact_number || '').replace(/\s/g, '');
+      const currentPhone = (profile.contact_number || '').replace(/\s/g, '');
       const newPhone = payload.contactNumber.replace(/\s/g, '');
       if (currentPhone !== newPhone && inlineVerifiedPhone !== newPhone) {
         window.location.href = '/';
@@ -817,7 +811,10 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
                              onClick={() => {
                                setOtpMode(false);
                                setConfirmationResult(null);
-                               // Do not clear recaptchaVerifier here, let it be reused
+                               if ((window as any).recaptchaVerifier) {
+                                 (window as any).recaptchaVerifier.clear();
+                                 (window as any).recaptchaVerifier = undefined;
+                               }
                              }}
                              className="text-xs font-bold text-slate-400 hover:text-slate-600"
                            >

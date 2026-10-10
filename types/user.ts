@@ -21,6 +21,11 @@ export interface BaseUserProfile {
   avatar?: string;
   has_completed_onboarding?: boolean; // Used for first-login guards
   is_pro?: boolean; // Global Pro status
+  
+  // Phase 1: Auth & Onboarding Overhaul fields
+  phone?: string | null;
+  phoneVerified?: boolean;
+  onboardingStatus?: 'PENDING_PHONE' | 'ACTIVE';
 }
 
 export interface OrgApprovalRequest {
@@ -35,8 +40,11 @@ export interface OrgApprovalRequest {
 export interface ParentProfile extends BaseUserProfile {
   role: 'parent';
   children_ids: string[];
-  contact_number: string;
+  phone: string;
   pending_org_approvals?: OrgApprovalRequest[];
+  city?: string;
+  state?: string;
+  country?: string;
 }
 
 // 2. Student Profile (Child - created by parent or org admin)

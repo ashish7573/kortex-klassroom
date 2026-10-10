@@ -33,3 +33,47 @@ export async function syncCurriculumTotals(idToken: string) {
     return { success: false, error: error.message };
   }
 }
+
+export async function createOrganization(idToken: string, orgData: any) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const adminUid = decodedToken.uid;
+    
+    // Verify admin role
+    const docSnap = await adminDb.collection('users').doc(adminUid).get();
+    const data = docSnap.data();
+    if (data?.role !== 'admin') {
+      throw new Error("Unauthorized: Only admins can create organizations.");
+    }
+    
+    // Create Auth User
+    const newAuthUser = await adminAuth.createUser({
+      email: orgData.email,
+      displayName: orgData.organization_name,
+      // No phone required. No password provided here.
+    });
+
+    // Generate Password Reset Link
+    const resetLink = await adminAuth.generatePasswordResetLink(orgData.email);
+    // TODO: Dispatch resetLink to orgData.email via email provider
+
+    // Create Firestore Document
+    await adminDb.collection('users').doc(newAuthUser.uid).set({
+      uid: newAuthUser.uid,
+      role: 'org_admin',
+      email: orgData.email,
+      full_name: orgData.organization_name,
+      organization_name: orgData.organization_name,
+      created_at: new Date().toISOString(),
+      status: 'active',
+      phone: null,
+      phoneVerified: false, 
+      onboardingStatus: 'ACTIVE',
+      ...orgData
+    });
+
+    return { success: true, uid: newAuthUser.uid, message: "Organization created." };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

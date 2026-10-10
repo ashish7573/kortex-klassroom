@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Building2, Mail, Save, Fingerprint } from 'lucide-react';
 import { OrgAdminProfile } from '../../../types/user';
 import { doc, updateDoc } from 'firebase/firestore';
+import { RecaptchaVerifier, signInWithPhoneNumber, linkWithPhoneNumber } from 'firebase/auth';
+import { auth } from '../../../backend_configurations/firebase';
 import { db } from '../../../backend_configurations/firebase';
 
 export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
@@ -14,19 +16,75 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
   });
   
   const [isSaving, setIsSaving] = useState(false);
+  
+  // OTP Verification State
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [confResult, setConfResult] = useState<any>(null);
+  const [otpLoading, setOtpLoading] = useState(false);
+
+  const handleVerifyPhone = async () => {
+    if (!profile.phone || !auth.currentUser) return;
+    setOtpLoading(true);
+    try {
+      if (!(window as any).recaptchaVerifierOrg) {
+        (window as any).recaptchaVerifierOrg = new RecaptchaVerifier(auth, 'org-recaptcha', { size: 'invisible' });
+      }
+      const appVerifier = (window as any).recaptchaVerifierOrg;
+      const res = await linkWithPhoneNumber(auth.currentUser, profile.phone, appVerifier);
+      setConfResult(res);
+      setShowOtpModal(true);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to send OTP. Ensure the phone number includes a country code (e.g. +91...).");
+      if ((window as any).recaptchaVerifierOrg) {
+        (window as any).recaptchaVerifierOrg.clear();
+        (window as any).recaptchaVerifierOrg = undefined;
+      }
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleConfirmOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confResult) return;
+    setOtpLoading(true);
+    try {
+      await confResult.confirm(otp);
+      const userRef = doc(db, 'users', profile.uid);
+      await updateDoc(userRef, { phoneVerified: true });
+      alert("Phone Verified Successfully!");
+      setShowOtpModal(false);
+      // Let parent state update or mutate locally (in a real app, we'd trigger a reload or context update)
+    } catch (err) {
+      console.error(err);
+      alert("Invalid OTP");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
       const userRef = doc(db, 'users', profile.uid);
-      await updateDoc(userRef, {
+      const updateData: any = {
         organization_name: formData.organizationName.trim(),
         full_name: formData.organizationName.trim(), // Keep full name in sync
         org_type: formData.orgType,
         address: formData.address.trim(),
         phone: formData.phone.trim()
-      });
+      };
+
+      // Check if phone changed
+      if (profile.phone !== formData.phone.trim()) {
+        updateData.phoneVerified = false;
+        updateData.onboardingStatus = 'PENDING_PHONE';
+      }
+
+      await updateDoc(userRef, updateData);
       setIsEditing(false);
     } catch (err) {
       console.error("Failed to update profile", err);
@@ -95,13 +153,31 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
           </div>
           <div>
              <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Contact Phone</label>
-             <input 
-               type="text" 
-               disabled={!isEditing}
-               value={formData.phone}
-               onChange={(e) => setFormData({...formData, phone: e.target.value})}
-               className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500" 
-             />
+             <div className="flex gap-2">
+               <input 
+                 type="text" 
+                 disabled={!isEditing}
+                 value={formData.phone}
+                 onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                 className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500" 
+               />
+               {!isEditing && profile.phone && !profile.phoneVerified && (
+                 <button
+                   type="button"
+                   onClick={handleVerifyPhone}
+                   disabled={otpLoading}
+                   className="px-4 py-3 bg-emerald-500 text-white font-bold rounded-xl shadow-md text-xs hover:bg-emerald-600 disabled:opacity-50"
+                 >
+                   {otpLoading ? '...' : 'Verify'}
+                 </button>
+               )}
+               {!isEditing && profile.phoneVerified && (
+                 <span className="px-4 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-xl text-xs flex items-center">
+                   ✓ Verified
+                 </span>
+               )}
+             </div>
+             <div id="org-recaptcha" className="mt-2"></div>
           </div>
         </div>
 
@@ -145,6 +221,41 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
           )}
         </div>
       </form>
+
+      {/* Inline OTP Modal for Org */}
+      {showOtpModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative text-center">
+            <h3 className="text-xl font-black text-slate-800 mb-2">Enter OTP</h3>
+            <p className="text-xs text-slate-400 mb-6">Sent to {profile.phone}</p>
+            <form onSubmit={handleConfirmOtp} className="space-y-4">
+              <input
+                type="text"
+                required
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="123456"
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 text-center tracking-widest text-lg"
+              />
+              <button
+                type="submit"
+                disabled={otpLoading || otp.length < 6}
+                className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl shadow-md disabled:opacity-50"
+              >
+                {otpLoading ? 'Verifying...' : 'Confirm'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowOtpModal(false); setOtp(''); }}
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 py-2"
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
