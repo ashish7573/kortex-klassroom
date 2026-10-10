@@ -5,13 +5,14 @@ import { db } from '../../backend_configurations/firebase';
 import { BaseUserProfile, OrgAdminProfile } from '../../types/user';
 import { 
   Users, Building2, UserPlus, Search, ShieldCheck, X, CheckCircle2, 
-  AlertCircle, Trash2, Pencil, FileText, ExternalLink, Download, ArrowUpDown, ChevronUp, ChevronDown 
+  AlertCircle, Trash2, RotateCcw, Pencil, FileText, ExternalLink, Download, ArrowUpDown, ChevronUp, ChevronDown 
 } from 'lucide-react';
 import ProvisionOrgModal from './ProvisionOrgModal';
 import EditOrgModal from './EditOrgModal';
 import { auth } from '../../backend_configurations/firebase';
 import { deleteOrganizationAccount } from '../../app/actions/provision';
-import { deleteIndividualUser, updateIndividualUser } from '../../app/actions/student';
+import { updateIndividualUser } from '../../app/actions/student';
+import { softDeleteUser, restoreUser } from '../../app/actions/userManagement';
 
 export default function UsersManager() {
   const [activeTab, setActiveTab] = useState<'organizations' | 'individuals'>('organizations');
@@ -112,42 +113,39 @@ export default function UsersManager() {
 
 
   const handleDeleteIndividual = async (uid: string, name: string, role: string) => {
-    if (!confirm(`Are you sure you want to completely delete ${name}? ${role === 'parent' ? '\n\nWARNING: Deleting a Parent will ALSO delete all their child accounts!' : ''}`)) return;
-    
+    if (!confirm(`Are you sure you want to soft-delete ${name}?`)) return;
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) return;
-      const result = await deleteIndividualUser(idToken, uid, role);
+      const result = await softDeleteUser(idToken, uid);
       if (!result.success) throw new Error(result.error);
-      
-      // Update local state
-      setIndividuals(prev => {
-        if (role === 'parent') {
-           // Remove the parent and their children
-           return prev.filter(p => p.uid !== uid && (p as any).parent_id !== uid);
-        }
-        return prev.filter(p => p.uid !== uid);
-      });
-      alert(`Successfully deleted ${name}.`);
+      // No local state update needed; onSnapshot handles it!
     } catch (err: any) {
       alert("Failed to delete: " + err.message);
     }
   };
 
   const handleDeleteOrg = async (uid: string, orgName: string) => {
-    if (!window.confirm(`Are you sure you want to permanently delete the organization: "${orgName}"?`)) return;
-    
+    if (!window.confirm(`Are you sure you want to soft-delete the organization: "${orgName}"?`)) return;
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("No ID Token found. Please relogin.");
-      
-      const result = await deleteOrganizationAccount(idToken, uid);
+      const result = await softDeleteUser(idToken, uid);
       if (!result.success) throw new Error(result.error);
-      
-      alert(`Successfully deleted "${orgName}".`);
     } catch (err: unknown) {
-      console.error(err);
       alert(err instanceof Error ? err.message : "Failed to delete organization.");
+    }
+  };
+
+  const handleRestoreUser = async (uid: string, name: string) => {
+    if (!confirm(`Restore access for ${name}?`)) return;
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      const result = await restoreUser(idToken, uid);
+      if (!result.success) throw new Error(result.error);
+    } catch (err: any) {
+      alert("Failed to restore: " + err.message);
     }
   };
 
@@ -386,6 +384,7 @@ export default function UsersManager() {
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("organization")}>Organization {sortIndicator("organization")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("email")}>Email {sortIndicator("email")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("created_at")}>Join Date {sortIndicator("created_at")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("subscription_end_date")}>Pro Renewal {sortIndicator("subscription_end_date")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
                   </>
                 )}
@@ -449,8 +448,12 @@ export default function UsersManager() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        {isExpired ? (
-                           <span className="px-3 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-lg uppercase flex items-center gap-1 w-fit">
+                        {org.accountStatus === 'DELETED' ? (
+                          <span className="px-3 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-lg uppercase flex items-center gap-1 w-fit">
+                            <AlertCircle size={12}/> Deleted
+                          </span>
+                        ) : isExpired ? (
+                           <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-lg uppercase flex items-center gap-1 w-fit">
                              <AlertCircle size={12}/> Expired
                            </span>
                         ) : (
@@ -467,13 +470,23 @@ export default function UsersManager() {
                         >
                            <Pencil size={16} />
                         </button>
-                        <button 
-                           onClick={() => handleDeleteOrg(org.uid, org.organization_name)}
-                           className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors"
-                           title="Delete Organization"
-                        >
-                           <Trash2 size={16} />
-                        </button>
+                        {org.accountStatus === 'DELETED' ? (
+                          <button 
+                             onClick={() => handleRestoreUser(org.uid, org.organization_name)}
+                             className="p-2 bg-emerald-50 text-emerald-500 hover:bg-emerald-100 rounded-lg transition-colors"
+                             title="Restore Organization"
+                          >
+                             <RotateCcw size={16} />
+                          </button>
+                        ) : (
+                          <button 
+                             onClick={() => handleDeleteOrg(org.uid, org.organization_name)}
+                             className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors"
+                             title="Delete Organization"
+                          >
+                             <Trash2 size={16} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -486,7 +499,12 @@ export default function UsersManager() {
                     <td className="px-6 py-4 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
                     <td className="px-6 py-4">
                       <div className="font-black text-indigo-900">{ind.kortex_id || 'NO_ID'}</div>
-                      <div className="font-bold text-slate-600">{ind.full_name}</div>
+                      <div className="font-bold text-slate-600 flex items-center gap-2">
+                        {ind.full_name}
+                        {ind.accountStatus === 'DELETED' && (
+                          <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[10px] font-black uppercase tracking-wider">Deleted</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">{getRoleBadge(ind.role)}</td>
                     <td className="px-6 py-4">{getOrganizationName(ind)}</td>
@@ -494,6 +512,18 @@ export default function UsersManager() {
 
                     <td className="px-6 py-4 font-semibold text-slate-400">
                       {ind.created_at ? new Date(ind.created_at).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4">
+                      {ind.is_pro ? (
+                        <div className="flex flex-col">
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-black rounded-md uppercase border border-amber-200 w-fit">Pro</span>
+                          <span className="text-[10px] font-bold text-slate-500 mt-1">
+                            {ind.subscription_end_date ? new Date(ind.subscription_end_date).toLocaleDateString() : 'No expiry'}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs font-bold italic">Free</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right flex justify-end gap-2 items-center">
                         <button 
@@ -503,13 +533,23 @@ export default function UsersManager() {
                         >
                            <Pencil size={16} />
                         </button>
-                        <button 
-                           onClick={() => handleDeleteIndividual(ind.uid, ind.full_name || 'User', ind.role)}
-                           className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors"
-                           title="Delete User"
-                        >
-                           <Trash2 size={16} />
-                        </button>
+                        {ind.accountStatus === 'DELETED' ? (
+                          <button 
+                             onClick={() => handleRestoreUser(ind.uid, ind.full_name || 'User')}
+                             className="p-2 bg-emerald-50 text-emerald-500 hover:bg-emerald-100 rounded-lg transition-colors"
+                             title="Restore User"
+                          >
+                             <RotateCcw size={16} />
+                          </button>
+                        ) : (
+                          <button 
+                             onClick={() => handleDeleteIndividual(ind.uid, ind.full_name || 'User', ind.role)}
+                             className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors"
+                             title="Delete User"
+                          >
+                             <Trash2 size={16} />
+                          </button>
+                        )}
                     </td>
 
                   </tr>
@@ -556,7 +596,8 @@ function EditIndividualModal({ user, onClose, onSuccess }: { user: any; onClose:
     full_name: user.full_name || '',
     email: user.email || '',
     kortex_id: user.kortex_id || '',
-    is_pro: user.is_pro || false
+    is_pro: user.is_pro || false,
+    subscription_end_date: user.subscription_end_date || ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -631,14 +672,28 @@ function EditIndividualModal({ user, onClose, onSuccess }: { user: any; onClose:
             </div>
             
             {(user.role === 'parent' || user.role === 'student') && (
-              <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-xl border border-amber-100 cursor-pointer" onClick={() => setFormData({...formData, is_pro: !formData.is_pro})}>
-                <div className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${formData.is_pro ? 'bg-amber-500 text-white' : 'bg-white border-2 border-amber-200'}`}>
-                  {formData.is_pro && <CheckCircle2 size={16} />}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-xl border border-amber-100 cursor-pointer" onClick={() => setFormData({...formData, is_pro: !formData.is_pro})}>
+                  <div className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${formData.is_pro ? 'bg-amber-500 text-white' : 'bg-white border-2 border-amber-200'}`}>
+                    {formData.is_pro && <CheckCircle2 size={16} />}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-amber-900">Kortex Pro Account</h4>
+                    <p className="text-xs font-semibold text-amber-700/70">Grants unlimited hearts and full curriculum access</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-amber-900">Kortex Pro Account</h4>
-                  <p className="text-xs font-semibold text-amber-700/70">Grants unlimited hearts and full curriculum access</p>
-                </div>
+                
+                {formData.is_pro && (
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Subscription Renewal Date</label>
+                    <input 
+                      type="date"
+                      value={formData.subscription_end_date}
+                      onChange={e => setFormData({...formData, subscription_end_date: e.target.value})}
+                      className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-indigo-500 focus:bg-white outline-none font-semibold text-slate-700 transition-all"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </form>

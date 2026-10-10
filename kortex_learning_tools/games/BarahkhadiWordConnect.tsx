@@ -306,8 +306,8 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
     const updateMousePos = (e: React.PointerEvent | React.TouchEvent) => {
         if (!wheelRef.current) return;
         const rect = wheelRef.current.getBoundingClientRect();
-        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.PointerEvent).clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.PointerEvent).clientY;
+        const clientX = 'changedTouches' in e ? e.changedTouches[0].clientX : (e as React.PointerEvent).clientX;
+        const clientY = 'changedTouches' in e ? e.changedTouches[0].clientY : (e as React.PointerEvent).clientY;
         const xPct = ((clientX - rect.left) / rect.width) * 100;
         const yPct = ((clientY - rect.top) / rect.height) * 100;
         setMousePos({ x: xPct, y: yPct });
@@ -319,8 +319,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         // Added .closest() so it works even if the finger hits the text span inside the node
         const targetNode = el?.closest ? el.closest('[data-node-id]') : el;
         const nodeIdStr = targetNode?.getAttribute ? targetNode.getAttribute('data-node-id') : null;
+        const boardIdStr = targetNode?.getAttribute ? targetNode.getAttribute('data-board-id') : null;
         
-        if (nodeIdStr) {
+        if (nodeIdStr && boardIdStr === theme.id.toString()) {
             const actualNodeIndex = parseInt(nodeIdStr);
             // FIX: Check the real-time Ref instead of the delayed React state
             if (!selectedNodesRef.current.includes(actualNodeIndex)) {
@@ -349,7 +350,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
         }
         
         updateMousePos(e);
-        processMoveCollision(e.touches[0].clientX, e.touches[0].clientY);
+        processMoveCollision(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
     };
 
     // RESTORED: Your exact original Pointer Up
@@ -496,7 +497,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 </div>
 
-                <div className="h-[50%] w-full flex flex-col items-center justify-start shrink-0 relative">
+                <div className="h-[40%] w-full flex flex-col items-center justify-start shrink-0 relative">
                     <div className="h-[20%] w-full flex items-center justify-center shrink-0">
                         <div className={`px-4 py-1.5 rounded-full border-b-2 shadow-xl flex items-center justify-center min-w-[80px] sm:min-w-[100px] transition-all duration-300 ${currentWord ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} ${bubbleClass}`}>
                             <span className="text-lg sm:text-xl font-black tracking-widest">{currentWord}</span>
@@ -517,7 +518,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 </div>
 
-                <div className="h-[30%] w-full flex items-center justify-center shrink-0 relative p-2 sm:p-4">
+                <div className="h-[40%] w-full flex items-center justify-center shrink-0 relative p-2 sm:p-4">
                     <div className="h-full aspect-square max-w-full relative flex items-center justify-center">
                         <div className="absolute inset-0 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 z-0 m-1 sm:m-2"></div>
                         <div className="absolute inset-1 sm:inset-2 z-10" ref={wheelRef}>
@@ -554,9 +555,10 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                     <div 
                                         key={actualNodeIndex}
                                         data-node-id={actualNodeIndex}
+                                        data-board-id={theme.id}
                                         onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
                                         onTouchStart={(e) => handlePointerDown(e, actualNodeIndex)}
-                                        className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2
+                                        className={`absolute w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2
                                             ${isSelected
                                                 ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
                                                 : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
@@ -680,6 +682,7 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                 <div 
                                     key={actualNodeIndex}
                                     data-node-id={actualNodeIndex}
+                                    data-board-id={theme.id}
                                     onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
                                     className={`absolute rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16
                                         ${isSelected 
@@ -844,20 +847,22 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   }
 
   return (
-    <div className="w-full h-[90vh] min-h-[650px] flex flex-row bg-slate-950 font-sans select-none overflow-hidden rounded-3xl shadow-2xl relative">
+    <div className="w-full h-[90vh] min-h-[650px] flex flex-col md:flex-row bg-slate-950 font-sans select-none overflow-hidden rounded-3xl shadow-2xl relative">
         {numPlayers > 1 && (
-            <button onClick={() => setGameState('menu')} className="absolute top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors">
+            <button onClick={() => setGameState('menu')} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors">
                 <Home size={14} /> <span className="font-bold text-xs uppercase tracking-widest">Menu</span>
             </button>
         )}
         {PLAYER_THEMES.slice(0, numPlayers).map((theme, index) => (
-            <PlayerBoard 
-                key={theme.id} theme={theme} 
-                levelData={levelsData.length > 0 ? levelsData[index] : null} 
-                isMultiplayer={numPlayers > 1} isMobile={isMobile}
-                finishOrder={finishOrder} 
-                onFinish={handlePlayerFinish} onHome={() => setGameState('menu')}
-            />
+            <div key={theme.id} className={`flex-1 flex w-full h-full min-h-0 ${index === 0 && numPlayers === 2 ? 'rotate-180 md:rotate-0' : ''}`}>
+                <PlayerBoard 
+                    theme={theme} 
+                    levelData={levelsData.length > 0 ? levelsData[index] : null} 
+                    isMultiplayer={numPlayers > 1} isMobile={isMobile}
+                    finishOrder={finishOrder} 
+                    onFinish={handlePlayerFinish} onHome={() => setGameState('menu')}
+                />
+            </div>
         ))}
     </div>
   );

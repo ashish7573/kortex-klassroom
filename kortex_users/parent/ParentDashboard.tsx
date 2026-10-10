@@ -645,11 +645,21 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
                      <User size={28} className="stroke-[3px]" />
                    </div>
                    <div>
-                     <div className="flex items-center gap-3 mb-1">
+                     <div className="flex flex-wrap items-center gap-3 mb-1">
                        <h2 className="text-2xl font-black text-slate-800">My Profile</h2>
                        {profile.kortex_id && (
                          <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-xs font-black font-mono">
                            {profile.kortex_id}
+                         </span>
+                       )}
+                       {profile.is_pro && (
+                         <span className="px-3 py-1 bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-black uppercase flex items-center gap-1.5">
+                           PRO ACCOUNT
+                           {profile.subscription_end_date && (
+                             <span className="opacity-75 font-bold normal-case text-[10px]">
+                               (Renews: {new Date(profile.subscription_end_date).toLocaleDateString()})
+                             </span>
+                           )}
                          </span>
                        )}
                      </div>
@@ -827,7 +837,7 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
                        </div>
                      )}
                      
-                     <p className="text-xs font-semibold text-slate-400 mt-2">This number is securely shared with organizations in case of emergencies.</p>
+                     <p className="text-xs font-semibold text-slate-400 mt-2">This number is securely shared with organizations (eg. school) in case of emergencies.</p>
                    </div>
                    <div className="pt-4 border-t-2 border-slate-100">
                      <button 
@@ -916,6 +926,16 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
                        ) : (
                          <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-xs font-bold flex items-center gap-1.5">
                            <ShieldCheck size={14} /> Independent Learner
+                         </span>
+                       )}
+                       {selectedChild.is_pro && (
+                         <span className="px-3 py-1 bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-black uppercase flex items-center gap-1.5">
+                           PRO ACCOUNT
+                           {selectedChild.subscription_end_date && (
+                             <span className="opacity-75 font-bold normal-case text-[10px]">
+                               (Renews: {new Date(selectedChild.subscription_end_date).toLocaleDateString()})
+                             </span>
+                           )}
                          </span>
                        )}
                      </div>

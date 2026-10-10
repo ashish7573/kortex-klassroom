@@ -353,6 +353,9 @@ export async function provisionChildAccount(
       hearts_remaining: 5,
       last_heart_reset: new Date().toISOString(),
       status: 'active',
+      accountStatus: 'ACTIVE',
+      deletedBy: null,
+      deletedAt: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -444,6 +447,9 @@ export async function claimProvisionedChild(
       emergency_contact: parentContact,
       plain_pin: claimData.pin,
       status: 'active',
+      accountStatus: 'ACTIVE',
+      deletedBy: null,
+      deletedAt: null,
       updated_at: new Date().toISOString()
     });
     

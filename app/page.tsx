@@ -562,6 +562,8 @@ useEffect(() => {
                  const parts = combo.split(' - ');
                  defaultClass = parts[0].trim();
                  defaultSubject = parts[parts.length - 1].trim();
+             } else if (SUBJECTS.includes(combo)) {
+                 defaultSubject = combo;
              } else {
                  const match = combo.match(/grade-(\d+)-(.*)/i);
                  if (match) {
@@ -629,6 +631,10 @@ useEffect(() => {
       onTryDemo={handleStartDemo} 
       onNavigateToTier={(tierId: any) => setCurrentView(tierId)} 
       onNavigateToLessons={() => setCurrentView('lessons')} 
+      onNavigateToSubject={(subject: string) => {
+        setCurrentView(`lessons:${subject}`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }}
       onOpenFeatured={handleOpenFeatured}
     />;
   };
@@ -843,7 +849,9 @@ useEffect(() => {
         @keyframes blob { 0% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } 100% { transform: translate(0px, 0px) scale(1); } }
         .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; } .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
         .animate-blob { animation: blob 7s infinite; } .animation-delay-2000 { animation-delay: 2s; } .animation-delay-4000 { animation-delay: 4s; }
-        @keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-33.333%); } } .animate-marquee { animation: marquee 35s linear infinite; }
+        @keyframes marquee { 0% { transform: translateX(0%); } 100% { transform: translateX(-33.333%); } } 
+        .animate-marquee { animation: marquee 35s linear infinite; }
+        .group:hover .group-hover-pause { animation-play-state: paused !important; }
         .hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
     </div>

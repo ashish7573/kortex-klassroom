@@ -21,11 +21,17 @@ export interface BaseUserProfile {
   avatar?: string;
   has_completed_onboarding?: boolean; // Used for first-login guards
   is_pro?: boolean; // Global Pro status
+  subscription_end_date?: string | null; // Track B2C / individual pro renewal date
   
   // Phase 1: Auth & Onboarding Overhaul fields
   phone?: string | null;
   phoneVerified?: boolean;
   onboardingStatus?: 'PENDING_PHONE' | 'ACTIVE';
+
+  // Soft Delete (Tombstoning) Architecture fields
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
+  deletedBy?: 'parent' | 'organization' | 'kortex_admin' | 'self' | null;
+  deletedAt?: string | null;
 }
 
 export interface OrgApprovalRequest {

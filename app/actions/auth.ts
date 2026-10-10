@@ -50,6 +50,9 @@ export async function completeRegistration(userData: {
       onboardingStatus: 'ACTIVE',
       created_at: new Date().toISOString(),
       status: 'active',
+      accountStatus: 'ACTIVE',
+      deletedBy: null,
+      deletedAt: null,
       children_ids: [],
     });
 

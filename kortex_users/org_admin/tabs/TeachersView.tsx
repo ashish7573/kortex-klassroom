@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { OrgAdminProfile, TeacherProfile } from '../../../types/user';
-import { GraduationCap, UserPlus, Copy, CheckCircle2, X, Pencil, Trash2, AlertTriangle, KeyRound, Search, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { GraduationCap, UserPlus, Copy, CheckCircle2, X, Pencil, Trash2, RotateCcw, AlertTriangle, KeyRound, Search, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { generateComboId, getOrgAbbreviation } from '../utils/comboParsers';
-import { provisionTeacherAccount, updateTeacherAccount, deleteTeacherAccount, generateTeacherPasswordLink } from '../../../app/actions/teacher';
+import { provisionTeacherAccount, updateTeacherAccount, generateTeacherPasswordLink } from '../../../app/actions/teacher';
+import { softDeleteUser, restoreUser } from '../../../app/actions/userManagement';
 import { auth, db } from '../../../backend_configurations/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
@@ -202,8 +203,8 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Authentication failed. Please relogin.");
-
-      const result = await deleteTeacherAccount(idToken, deletingTeacher.uid);
+      
+      const result = await softDeleteUser(idToken, deletingTeacher.uid);
       if (!result.success) throw new Error(result.error);
       
       setDeletingTeacher(null);
@@ -213,7 +214,22 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
     }
   };
 
-  
+  const handleRestoreTeacher = async (uid: string, name: string) => {
+    if (!confirm(`Are you sure you want to restore the teacher account for ${name}?`)) return;
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Authentication failed. Please relogin.");
+
+      const result = await restoreUser(idToken, uid);
+      if (!result.success) {
+        alert("Failed to restore teacher: " + result.error);
+      }
+    } catch (error: any) {
+      alert("Error: " + error.message);
+    }
+  };
+
+
   const handleResendWelcome = async (teacher: TeacherProfile) => {
     try {
       const user = auth.currentUser;
@@ -331,7 +347,12 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
                 processedTeachers.map(t => (
                   <tr key={t.uid} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-bold text-slate-800">{t.full_name}</div>
+                      <div className="font-bold text-slate-800 flex items-center gap-2">
+                        {t.full_name}
+                        {t.accountStatus === 'DELETED' && (
+                          <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[10px] font-black uppercase tracking-wider">Deleted</span>
+                        )}
+                      </div>
                       <div className="font-bold text-xs text-indigo-500 font-mono mt-0.5">{t.kortex_id}</div>
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-500">{t.email}</td>
@@ -356,9 +377,15 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
                         <button onClick={() => openEditModal(t)} className="p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors" title="Edit Teacher">
                           <Pencil size={16} />
                         </button>
-                        <button onClick={() => setDeletingTeacher(t)} className="p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors" title="Delete Teacher">
-                          <Trash2 size={16} />
-                        </button>
+                        {t.accountStatus === 'DELETED' ? (
+                          <button onClick={() => handleRestoreTeacher(t.uid, t.full_name)} className="p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors" title="Restore Teacher">
+                            <RotateCcw size={16} />
+                          </button>
+                        ) : (
+                          <button onClick={() => setDeletingTeacher(t)} className="p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors" title="Delete Teacher">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

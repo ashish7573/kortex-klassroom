@@ -418,7 +418,12 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="font-bold text-slate-800">{student.full_name}</div>
+                    <div className="font-bold text-slate-800 flex items-center gap-2">
+                      {student.full_name}
+                      {student.accountStatus === 'DELETED' && (
+                         <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[10px] font-black uppercase tracking-wider">Deleted</span>
+                      )}
+                    </div>
                     <div className="font-semibold text-slate-400 text-xs">
                       {student.org_links?.[profile.uid]?.grade || student.grade} {(student.org_links?.[profile.uid]?.section || student.section) && `- Sec ${student.org_links?.[profile.uid]?.section || student.section}`}
                     </div>

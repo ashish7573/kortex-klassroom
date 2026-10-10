@@ -152,28 +152,38 @@ export default function ShopConceptualiser({ lesson, onComplete }: any) {
     } catch (err) {}
 
     if (activeItem) {
-      let droppedOnSlot: number | null = null;
+      let droppedNearSlots = false;
       
       slotRefs.current.forEach((ref, index) => {
-        if (!ref) return;
+        if (!ref || index >= activeItem.cost) return;
         const rect = ref.getBoundingClientRect();
-        const padding = 25; 
+        const padding = 80; // Massive padding so they just need to drop it generally in the desk area
         if (e.clientX >= rect.left - padding && e.clientX <= rect.right + padding &&
             e.clientY >= rect.top - padding && e.clientY <= rect.bottom + padding) {
-          droppedOnSlot = index;
+          droppedNearSlots = true;
         }
       });
 
-      if (droppedOnSlot !== null) {
-        const slotOccupied = coins.some(c => c.status === 'desk' && c.slotIndex === droppedOnSlot && c.id !== activeDragId);
+      if (droppedNearSlots) {
+        // Auto-snap to the first available empty slot
+        const usedSlots = coins.filter(c => c.status === 'desk' && c.id !== activeDragId).map(c => c.slotIndex);
+        let firstEmptySlot: number | null = null;
+        for (let i = 0; i < activeItem.cost; i++) {
+          if (!usedSlots.includes(i)) {
+            firstEmptySlot = i;
+            break;
+          }
+        }
         
-        if (!slotOccupied) {
-          setCoins(prev => prev.map(c => c.id === activeDragId ? { ...c, status: 'desk', slotIndex: droppedOnSlot } : c));
+        if (firstEmptySlot !== null) {
+          setCoins(prev => prev.map(c => c.id === activeDragId ? { ...c, status: 'desk', slotIndex: firstEmptySlot } : c));
           playSound('pop');
           
           const coinsOnDeskCount = coins.filter(c => c.status === 'desk' && c.id !== activeDragId).length + 1;
           speakNumber(coinsOnDeskCount);
         } else {
+          // If all slots are full, slide it back
+          setCoins(prev => prev.map(c => c.id === activeDragId ? { ...c, status: 'wallet', slotIndex: null } : c));
           playSound('slide'); 
         }
       } else {

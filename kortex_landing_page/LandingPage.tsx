@@ -15,7 +15,7 @@ import {
   TESTIMONIALS 
 } from './curriculumConfig';
 
-const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured }: any) => {
+const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured, onNavigateToSubject }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
   const [activeTierId, setActiveTierId] = useState('conceptualiser');
   const [tierData, setTierData] = useState({ conceptualiser: [], theatre: [], dojo: [], Notebook: [], arcade: [] });
@@ -119,12 +119,21 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
     </div>
 
     {/* Marquee */}
-    <div className="w-full bg-white border-y-4 border-slate-100 py-4 overflow-hidden relative flex items-center z-30 shadow-sm">
-      <div className="flex animate-marquee w-max hover:[animation-play-state:paused]">
+    <div className="w-full bg-white border-y-4 border-slate-100 py-4 overflow-hidden relative flex items-center z-30 shadow-sm group">
+      <div className="flex animate-marquee w-max group-hover-pause">
         {[...SUBJECTS, ...SUBJECTS, ...SUBJECTS].map((subject: any, idx: any) => {
           const subjectData = SUBJECT_ICONS[subject] || { icon: Star, color: 'text-slate-400' };
           const Icon = subjectData.icon;
-          return (<div key={idx} className="mx-3 px-5 py-2 bg-slate-50 border-2 border-slate-200 rounded-full font-black text-slate-500 text-xs uppercase tracking-wider flex-shrink-0 flex items-center gap-2 cursor-default shadow-sm"><Icon size={16} className={subjectData.color} />{subject}</div>);
+          return (
+             <button 
+                key={idx} 
+                onClick={() => onNavigateToSubject && onNavigateToSubject(subject)}
+                className="mx-3 px-5 py-2 bg-slate-50 border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700 transition-all rounded-full font-black text-slate-500 text-xs uppercase tracking-wider flex-shrink-0 flex items-center gap-2 shadow-sm cursor-pointer"
+             >
+                <Icon size={16} className={subjectData.color} />
+                {subject}
+             </button>
+          );
         })}
       </div>
     </div>

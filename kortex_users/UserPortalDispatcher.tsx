@@ -1,6 +1,8 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'firebase/auth';
+import { auth } from '../backend_configurations/firebase';
 import { UserProfile } from '../types/user';
 import ParentDashboard from './parent/ParentDashboard';
 import StudentDashboard from './student/StudentDashboard';
@@ -26,6 +28,11 @@ export default function UserPortalDispatcher({
   const [isClientGuarded, setIsClientGuarded] = useState(false);
 
   useEffect(() => {
+    if (profile.accountStatus === 'DELETED') {
+      signOut(auth).catch(console.error);
+      return;
+    }
+
     // RBAC Route Guard Interceptor
     if (profile.role === 'parent') {
       if (profile.phoneVerified === false || profile.phoneVerified === undefined || profile.onboardingStatus === 'PENDING_PHONE') {
@@ -43,6 +50,20 @@ export default function UserPortalDispatcher({
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-slate-300 border-t-slate-800 rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (profile.accountStatus === 'DELETED') {
+    return (
+      <div className="flex flex-col h-[50vh] items-center justify-center text-center p-8 animate-fade-in">
+        <div className="w-16 h-16 bg-red-100 text-red-500 flex items-center justify-center rounded-2xl mb-4">
+          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-black text-slate-800 mb-2">Account Deleted</h2>
+        <p className="text-slate-500 font-medium max-w-md">This account has been deleted by your administrator. Please contact support to restore access.</p>
       </div>
     );
   }

@@ -64,7 +64,7 @@ service cloud.firestore {
                               'is_pro', 
                               'active_b2c_licenses', 
                               'hearts_remaining',
-                              'last_heart_reset'
+                              'last_heart_reset', 'accountStatus', 'deletedBy', 'deletedAt'
                         ])
                     )
                     || (isOrgAdminFor(resource.data) && isOrgAdminFor(request.resource.data) && request.resource.data.role == resource.data.role)
