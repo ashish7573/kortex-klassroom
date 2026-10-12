@@ -149,7 +149,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
           answer: ansMoreLess,
           questionText: `What is one ${isMore ? 'more' : 'less'} than ${n}?`,
           options: getOptions(ansMoreLess, limit),
-          data: { n, isMore, emoji }
+          data: { n, isMore, emoji, totalMax: limit }
         };
 
       case 'count':
@@ -198,17 +198,39 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
         };
 
       case 'pick':
-        const maxTargets = Math.min(limit, 12); // Prevent overcrowding
-        n = Math.floor(Math.random() * (maxTargets - 1)) + 2; 
-        const distractorCount = Math.floor(Math.random() * 4) + 3; 
-        let items = Array(n).fill(true).concat(Array(distractorCount).fill(false));
+        const targetEmoji = getRandomEmoji();
+        // Number to pick: between 2 and 5 (or up to 7 for limit 20)
+        const maxPick = limit === 10 ? 5 : 7;
+        n = Math.floor(Math.random() * (maxPick - 1)) + 2; 
+
+        // Strictly MORE target objects than n so the child has to choose n out of many
+        const extraTargets = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4 extra targets
+        const totalTargets = n + extraTargets; 
+
+        // 20 items in total (5 columns x 4 rows) fills the screen space nicely
+        const totalGridItems = 20;
+        const remainingSlots = Math.max(4, totalGridItems - totalTargets);
+
+        // Pick 3 to 4 distinct distractor emojis (making a mix of 4 to 5 unique object types on screen)
+        const availableDistractors = shuffleArray(EMOJI_POOL.filter(e => e !== targetEmoji));
+        const numDistractorTypes = Math.floor(Math.random() * 2) + 3; // 3 or 4 distractor types
+        const distractorEmojis = availableDistractors.slice(0, numDistractorTypes);
+
+        let items: { emoji: string; isTarget: boolean }[] = [];
+        for (let i = 0; i < totalTargets; i++) {
+          items.push({ emoji: targetEmoji, isTarget: true });
+        }
+        for (let i = 0; i < remainingSlots; i++) {
+          const dEmoji = distractorEmojis[i % distractorEmojis.length];
+          items.push({ emoji: dEmoji, isTarget: false });
+        }
         items = shuffleArray(items);
-        const dEmoji = getRandomEmoji();
+
         return {
           type: 'pick',
           answer: n,
-          questionText: `Pick out exactly ${n} ${emoji}s.`,
-          data: { n, items, targetEmoji: emoji, distractorEmoji: dEmoji === emoji ? '🧊' : dEmoji }
+          questionText: `Pick out exactly ${n} ${targetEmoji}s.`,
+          data: { n, items, targetEmoji, totalTargets, totalItems: items.length }
         };
 
       case 'audio':
@@ -257,7 +279,7 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
     const q = questions[currentQIdx];
     let isCorrect = false;
 
-    if (userAnswer === null) {
+    if (userAnswer === null || (Array.isArray(userAnswer) && userAnswer.length === 0)) {
       playSound('error');
       showWarningMsg("Please provide an answer first!");
       return;
@@ -268,13 +290,18 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
       isCorrect = coloredCount === q.answer;
       if (!isCorrect) showWarningMsg(coloredCount > q.answer ? "Too many colored!" : "Not enough colored!");
     } else if (q.type === 'pick') {
-      const selectedIndices: number[] = userAnswer;
-      const allCorrectObjects = selectedIndices.every((idx: number) => q.data.items[idx] === true);
-      if (selectedIndices.length === q.answer && allCorrectObjects) {
+      const selectedIndices: number[] = userAnswer || [];
+      const hasWrongItem = selectedIndices.some((idx: number) => !q.data.items[idx]?.isTarget);
+      if (!hasWrongItem && selectedIndices.length === q.answer) {
         isCorrect = true;
       } else {
-        if (!allCorrectObjects) showWarningMsg("You picked the wrong item!");
-        else showWarningMsg(`You need exactly ${q.answer}!`);
+        if (hasWrongItem) {
+          showWarningMsg("You picked the wrong item!");
+        } else if (selectedIndices.length > q.answer) {
+          showWarningMsg(`Too many! You need exactly ${q.answer}.`);
+        } else {
+          showWarningMsg(`Not enough! You need exactly ${q.answer}.`);
+        }
       }
     } else {
       isCorrect = userAnswer === q.answer;
@@ -311,58 +338,77 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
 
   if (quizState === 'menu') {
     return (
-      <div className="w-full h-full flex flex-col bg-slate-50 font-sans min-h-0 overflow-y-auto">
-        <div className="p-6 md:p-10 text-center shrink-0">
-          <div className="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-sky-200"><BrainCircuit size={40} className="text-sky-500" /></div>
-          <h1 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight mb-2">Master Quiz</h1>
-          <p className="text-slate-500 font-bold">Select your limits and skills to practice!</p>
-        </div>
-        
-        <div className="flex-1 min-h-0 max-w-4xl mx-auto w-full px-4 pb-10 flex flex-col gap-6">
-           
-           {/* Limit Selector */}
-           <div className="w-full bg-white rounded-[2rem] p-2 flex gap-2 border-4 border-slate-200 shadow-sm">
-             <button 
-               onClick={() => { playSound('click'); setNumberLimit(10); }}
-               className={`flex-1 py-4 text-xl md:text-2xl font-black rounded-xl transition-all ${numberLimit === 10 ? 'bg-amber-100 text-amber-600 border-2 border-amber-300 shadow-inner' : 'text-slate-400 hover:bg-slate-50'}`}
-             >
-               Up to 10
-             </button>
-             <button 
-               onClick={() => { playSound('click'); setNumberLimit(20); }}
-               className={`flex-1 py-4 text-xl md:text-2xl font-black rounded-xl transition-all ${numberLimit === 20 ? 'bg-rose-100 text-rose-600 border-2 border-rose-300 shadow-inner' : 'text-slate-400 hover:bg-slate-50'}`}
-             >
-               Up to 20
-             </button>
-           </div>
-
-           <button onClick={() => startGame('random')} className="w-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white p-6 md:p-8 rounded-[2rem] shadow-xl border-b-[8px] border-indigo-700 hover:border-b-[4px] hover:translate-y-1 transition-all flex flex-col md:flex-row items-center justify-center gap-4 group">
-              <Sparkles size={48} className="group-hover:animate-pulse" />
-              <div className="text-center md:text-left">
-                 <h2 className="text-2xl md:text-4xl font-black">Play Random Mix</h2>
-                 <p className="text-sky-100 font-bold text-sm md:text-base opacity-90">10 surprise questions across all skills!</p>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 font-sans min-h-0 p-2 sm:p-4 md:p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+        <div className="w-full max-w-2xl flex flex-col justify-center gap-2 sm:gap-2.5 md:gap-4 my-auto">
+          {/* Header */}
+          <div className="text-center shrink-0 flex flex-col items-center">
+            <div className="flex items-center justify-center gap-2 sm:gap-2.5 mb-0.5">
+              <div className="w-7 h-7 sm:w-9 sm:h-9 md:w-11 md:h-11 bg-sky-100 rounded-xl md:rounded-2xl flex items-center justify-center border-2 border-sky-200 shadow-sm shrink-0">
+                <BrainCircuit className="text-sky-500 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
               </div>
-           </button>
+              <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-slate-800 tracking-tight leading-none">
+                Master Quiz
+              </h1>
+            </div>
+            <p className="text-[11px] sm:text-xs md:text-sm text-slate-500 font-bold leading-tight">
+              Select your limits and skills to practice!
+            </p>
+          </div>
+          
+          {/* Limit Selector */}
+          <div className="w-full bg-white rounded-xl sm:rounded-2xl p-1 sm:p-1.5 flex gap-1.5 sm:gap-2 border-2 sm:border-3 border-slate-200 shadow-sm shrink-0">
+            <button 
+              onClick={() => { playSound('click'); setNumberLimit(10); }}
+              className={`flex-1 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm md:text-base font-black rounded-lg sm:rounded-xl transition-all active:scale-[0.98] ${numberLimit === 10 ? 'bg-amber-100 text-amber-700 border-2 border-amber-300 shadow-inner' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+            >
+              Up to 10
+            </button>
+            <button 
+              onClick={() => { playSound('click'); setNumberLimit(20); }}
+              className={`flex-1 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm md:text-base font-black rounded-lg sm:rounded-xl transition-all active:scale-[0.98] ${numberLimit === 20 ? 'bg-rose-100 text-rose-700 border-2 border-rose-300 shadow-inner' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+            >
+              Up to 20
+            </button>
+          </div>
 
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              {[
-                { id: 'before_after', label: 'Before & After', icon: ArrowLeftRight, color: 'text-rose-500', bg: 'bg-rose-100', border: 'border-rose-200' },
-                { id: 'one_more_less', label: '1 More / 1 Less', icon: PlusSquareIcon, color: 'text-amber-500', bg: 'bg-amber-100', border: 'border-amber-200' },
-                { id: 'count', label: 'How Many?', icon: LayoutGrid, color: 'text-emerald-500', bg: 'bg-emerald-100', border: 'border-emerald-200' },
-                { id: 'series', label: 'Missing Series', icon: ListOrdered, color: 'text-purple-500', bg: 'bg-purple-100', border: 'border-purple-200' },
-                { id: 'compare', label: 'Compare', icon: Target, color: 'text-orange-500', bg: 'bg-orange-100', border: 'border-orange-200' },
-                { id: 'color', label: 'Color Shapes', icon: Palette, color: 'text-pink-500', bg: 'bg-pink-100', border: 'border-pink-200' },
-                { id: 'pick', label: 'Pick Objects', icon: MousePointerClick, color: 'text-cyan-500', bg: 'bg-cyan-100', border: 'border-cyan-200' },
-                { id: 'audio', label: 'Audio Match', icon: Volume2, color: 'text-indigo-500', bg: 'bg-indigo-100', border: 'border-indigo-200' },
-              ].map((btn) => (
-                <button key={btn.id} onClick={() => startGame(btn.id as QuizMode)} className={`p-4 rounded-2xl border-b-4 transition-all active:translate-y-1 bg-white hover:bg-slate-50 border-slate-200 flex flex-col items-center gap-3 shadow-sm`}>
-                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center border-2 ${btn.bg} ${btn.color} ${btn.border}`}>
-                     <btn.icon size={24} />
-                   </div>
-                   <span className="font-black text-slate-700 text-xs md:text-sm text-center leading-tight">{btn.label}</span>
-                </button>
-              ))}
-           </div>
+          {/* Random Mix Button */}
+          <button 
+            onClick={() => startGame('random')} 
+            className="w-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white py-2 px-3 sm:py-2.5 sm:px-4 md:py-3 md:px-5 rounded-xl sm:rounded-2xl shadow-md border-b-[3px] sm:border-b-4 border-indigo-700 hover:border-b-[2px] active:translate-y-0.5 transition-all flex items-center justify-center gap-2.5 sm:gap-3.5 group shrink-0"
+          >
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-amber-300 group-hover:animate-pulse shrink-0" />
+            <div className="text-left flex flex-col">
+              <h2 className="text-xs sm:text-sm md:text-base font-black leading-tight">Play Random Mix</h2>
+              <p className="text-[10px] sm:text-xs text-sky-100 font-semibold opacity-95 leading-tight">10 surprise questions across all skills!</p>
+            </div>
+          </button>
+
+          {/* Mode Grid */}
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:gap-3 w-full shrink-0">
+            {[
+              { id: 'before_after', label: 'Before & After', icon: ArrowLeftRight, color: 'text-rose-500', bg: 'bg-rose-100', border: 'border-rose-200' },
+              { id: 'one_more_less', label: '1 More / 1 Less', icon: PlusSquareIcon, color: 'text-amber-500', bg: 'bg-amber-100', border: 'border-amber-200' },
+              { id: 'count', label: 'How Many?', icon: LayoutGrid, color: 'text-emerald-500', bg: 'bg-emerald-100', border: 'border-emerald-200' },
+              { id: 'series', label: 'Missing Series', icon: ListOrdered, color: 'text-purple-500', bg: 'bg-purple-100', border: 'border-purple-200' },
+              { id: 'compare', label: 'Compare', icon: Target, color: 'text-orange-500', bg: 'bg-orange-100', border: 'border-orange-200' },
+              { id: 'color', label: 'Color Shapes', icon: Palette, color: 'text-pink-500', bg: 'bg-pink-100', border: 'border-pink-200' },
+              { id: 'pick', label: 'Pick Objects', icon: MousePointerClick, color: 'text-cyan-500', bg: 'bg-cyan-100', border: 'border-cyan-200' },
+              { id: 'audio', label: 'Audio Match', icon: Volume2, color: 'text-indigo-500', bg: 'bg-indigo-100', border: 'border-indigo-200' },
+            ].map((btn) => (
+              <button 
+                key={btn.id} 
+                onClick={() => startGame(btn.id as QuizMode)} 
+                className="p-1 sm:p-1.5 md:p-2.5 rounded-xl sm:rounded-2xl border-b-[3px] md:border-b-4 transition-all active:translate-y-0.5 active:border-b-0 bg-white hover:bg-slate-50 border-slate-200 flex flex-col items-center justify-center gap-1 sm:gap-1.5 md:gap-2 shadow-sm group"
+              >
+                <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg sm:rounded-xl flex items-center justify-center border-2 ${btn.bg} ${btn.color} ${btn.border} shrink-0 group-hover:scale-105 transition-transform`}>
+                  <btn.icon size={16} className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+                </div>
+                <span className="font-black text-slate-700 text-[9px] sm:text-[11px] md:text-xs text-center leading-tight line-clamp-2 px-0.5">
+                  {btn.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -413,21 +459,34 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
       case 'one_more_less':
       case 'count':
         // Dynamically scale icons down if there are a lot of them
-        const iconSize = q.data.totalMax > 12 ? 'text-3xl md:text-4xl' : 'text-5xl md:text-6xl';
+        const iconSize = (q.data.totalMax > 12 || q.data.n > 8) ? 'text-2xl sm:text-3xl md:text-4xl' : 'text-4xl sm:text-5xl md:text-6xl';
         
         return (
-          <div className="flex flex-col items-center gap-8 w-full">
-             <div className="bg-white p-6 rounded-3xl border-4 border-slate-100 shadow-sm flex flex-wrap justify-center items-center gap-2 md:gap-4 w-full max-w-2xl min-h-[150px]">
-                {Array.from({length: q.data.n}).map((_, i) => (
-                  <span key={i} className={`${iconSize} animate-fade-in drop-shadow-sm`} style={{animationDelay: `${i*0.02}s`}}>{q.data.emoji}</span>
-                ))}
+          <div className="flex flex-col items-center gap-6 md:gap-8 w-full max-w-2xl mx-auto">
+             <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl border-4 border-slate-100 shadow-sm flex flex-wrap justify-center items-center gap-2 md:gap-4 w-full max-w-2xl min-h-[120px] sm:min-h-[150px]">
+                {Array.from({length: q.data.n}).map((_, i) => {
+                  const isStruckThrough = q.type === 'one_more_less' && !q.data.isMore && i === q.data.n - 1;
+                  if (isStruckThrough) {
+                    return (
+                      <div key={i} className="relative inline-flex items-center justify-center p-1 sm:p-1.5 rounded-xl border-2 border-dashed border-rose-300 bg-rose-50/50 animate-fade-in drop-shadow-sm" style={{animationDelay: `${i*0.02}s`}} title="1 less (taken away)">
+                        <span className={`${iconSize} opacity-50`}>{q.data.emoji}</span>
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-[115%] h-1 sm:h-1.5 md:h-2 bg-rose-500 rounded-full -rotate-45 shadow-sm"></div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <span key={i} className={`${iconSize} animate-fade-in drop-shadow-sm`} style={{animationDelay: `${i*0.02}s`}}>{q.data.emoji}</span>
+                  );
+                })}
                 {q.type === 'one_more_less' && q.data.isMore && (
-                  <span className={`${iconSize} opacity-30 drop-shadow-sm border-2 border-dashed border-slate-300 rounded-xl`}>{q.data.emoji}</span>
+                  <span className={`${iconSize} opacity-30 drop-shadow-sm border-2 border-dashed border-slate-300 rounded-xl p-1`} title="1 more (added)">{q.data.emoji}</span>
                 )}
              </div>
-             <div className="flex flex-wrap justify-center gap-4 w-full max-w-lg">
+             <div className="flex flex-wrap justify-center gap-3 sm:gap-4 w-full max-w-lg">
                {q.options?.map(opt => (
-                 <button key={opt} onClick={() => { if(!isMatchFound){ playSound('pop'); setUserAnswer(opt); } }} className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl text-2xl md:text-3xl font-black border-b-4 transition-all active:translate-y-1 ${userAnswer === opt ? 'bg-sky-500 text-white border-sky-700 scale-110' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>{opt}</button>
+                 <button key={opt} onClick={() => { if(!isMatchFound){ playSound('pop'); setUserAnswer(opt); } }} className={`w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl text-2xl md:text-3xl font-black border-b-4 transition-all active:translate-y-1 ${userAnswer === opt ? 'bg-sky-500 text-white border-sky-700 scale-110' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>{opt}</button>
                ))}
              </div>
           </div>
@@ -514,9 +573,9 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
 
       case 'pick':
         return (
-          <div className="flex flex-col items-center gap-6 w-full max-w-2xl">
-             <div className="flex flex-wrap justify-center gap-3 md:gap-4 bg-white p-6 md:p-10 rounded-[2rem] border-4 border-slate-100 shadow-sm">
-                {q.data.items.map((isTarget: boolean, i: number) => {
+          <div className="flex flex-col items-center gap-2 sm:gap-3 w-full max-w-lg mx-auto">
+             <div className="grid grid-cols-5 gap-1.5 sm:gap-2 md:gap-2.5 bg-white p-2.5 sm:p-3.5 md:p-4 rounded-2xl md:rounded-[2rem] border-2 sm:border-4 border-slate-100 shadow-sm w-full max-w-[340px] sm:max-w-[400px] md:max-w-[460px] mx-auto justify-items-center items-center">
+                {q.data.items.map((item: { emoji: string; isTarget: boolean }, i: number) => {
                   const isSelected = userAnswer ? userAnswer.includes(i) : false;
                   return (
                     <button 
@@ -529,15 +588,20 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
                         else newArr.push(i);
                         setUserAnswer(newArr);
                       }}
-                      className={`w-14 h-14 md:w-20 md:h-20 rounded-2xl text-3xl md:text-5xl flex items-center justify-center transition-all border-b-4 
-                        ${isSelected ? 'bg-cyan-100 border-cyan-400 shadow-inner scale-95' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                      className={`w-10 h-10 sm:w-11 sm:h-11 md:w-13 md:h-13 rounded-xl sm:rounded-2xl text-xl sm:text-2xl md:text-3xl flex items-center justify-center transition-all border-b-2 sm:border-b-[3px] active:scale-90 select-none
+                        ${isSelected ? 'bg-cyan-100 border-cyan-400 ring-2 ring-cyan-300 shadow-inner scale-95' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:scale-105'}`}
+                      title={`Select ${item.emoji}`}
                     >
-                      {isTarget ? q.data.targetEmoji : q.data.distractorEmoji}
+                      <span className="drop-shadow-sm pointer-events-none">{item.emoji}</span>
                     </button>
-                  )
+                  );
                 })}
              </div>
-             <p className="text-slate-400 font-bold text-sm">Picked: {userAnswer ? userAnswer.length : 0}</p>
+             <div className="flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full font-bold text-xs sm:text-sm text-slate-600 shadow-inner">
+               <span>Target: <strong className="text-sky-600 font-black">{q.answer} {q.data.targetEmoji}</strong></span>
+               <span className="text-slate-300">•</span>
+               <span>Picked: <strong className={`font-black ${userAnswer?.length === q.answer ? 'text-emerald-600' : 'text-slate-700'}`}>{userAnswer ? userAnswer.length : 0}</strong></span>
+             </div>
           </div>
         );
 
@@ -584,16 +648,16 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
       </div>
 
       {/* PLAY AREA (flex-1 min-h-0) */}
-      <div className="flex-1 min-h-0 relative flex flex-col p-4 md:p-8 overflow-y-auto">
+      <div className="flex-1 min-h-0 relative flex flex-col p-2 sm:p-4 md:p-6 overflow-y-auto">
          {/* Question Text */}
-         <div className="shrink-0 text-center mb-6 md:mb-10">
-            <h3 className="text-2xl md:text-4xl font-black text-slate-800 tracking-tight max-w-2xl mx-auto leading-tight">
+         <div className="shrink-0 text-center py-1 sm:py-2 md:py-3 z-10">
+            <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 tracking-tight max-w-2xl mx-auto leading-tight">
               {q.questionText}
             </h3>
          </div>
 
          {/* Dynamic Content */}
-         <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 pb-8">
+         <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 my-auto py-1">
             {renderPlayArea()}
          </div>
 
@@ -641,9 +705,9 @@ export default function MasterQuizUptoTen({ lesson, onComplete }: any) {
 }
 
 // Dummy Icon for the UI list since PlusSquare isn't imported
-function PlusSquareIcon(props: any) {
+function PlusSquareIcon({ size = 24, className, ...props }: any) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
       <rect width="18" height="18" x="3" y="3" rx="2" />
       <path d="M8 12h8" />
       <path d="M12 8v8" />

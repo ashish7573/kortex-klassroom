@@ -216,28 +216,28 @@ const PlayerBoard = ({ config, isActive, onScoreChange, audioCtxRef, isFlipped, 
     if (questions.length === 0) return <div className="flex-1 bg-slate-900"></div>;
 
     return (
-        <div className={`flex-1 flex flex-col p-4 w-full h-full relative ${isFlipped ? 'rotate-180 bg-slate-800' : 'bg-slate-900'}`}>
-            <div className="flex justify-between items-center mb-4 shrink-0 px-2">
-                <span className="text-slate-500 font-black uppercase tracking-widest text-xs md:text-sm">Player {playerId}</span>
-                <div className="bg-sky-500/20 border-2 border-sky-500 text-sky-400 font-black px-4 py-1 rounded-full text-sm md:text-lg">Score: {score}</div>
+        <div className={`flex-1 flex flex-col p-2 sm:p-4 w-full h-full relative ${isFlipped ? 'rotate-180 bg-slate-800' : 'bg-slate-900'}`}>
+            <div className="flex justify-between items-center mb-1.5 sm:mb-3 shrink-0 px-1 sm:px-2">
+                <span className="text-slate-500 font-black uppercase tracking-widest text-[10px] sm:text-xs md:text-sm">Player {playerId}</span>
+                <div className="bg-sky-500/20 border-2 border-sky-500 text-sky-400 font-black px-3 sm:px-4 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm md:text-lg">Score: {score}</div>
             </div>
 
-            <div className="flex-1 flex gap-2 md:gap-4 w-full max-w-4xl mx-auto h-full min-h-0">
+            <div className="flex-1 flex gap-1.5 sm:gap-3 md:gap-4 w-full max-w-4xl mx-auto h-full min-h-0">
                 {/* Questions Column */}
-                <div className="flex-1 flex flex-col gap-2 md:gap-4 h-full">
+                <div className="flex-1 flex flex-col gap-1.5 sm:gap-3 md:gap-4 h-full">
                     {questions.map((q) => {
                         const isSelected = selectedQ === q.id;
                         const isMatched = matchedIds.includes(q.id);
                         const isWrong = wrongIds.includes(q.id);
                         let styles = "bg-slate-800 border-slate-700 text-white hover:bg-slate-700";
-                        if (isSelected) styles = "bg-sky-600 border-sky-400 text-white shadow-[0_0_15px_rgba(56,189,248,0.5)] scale-105";
+                        if (isSelected) styles = "bg-sky-600 border-sky-400 text-white shadow-[0_0_15px_rgba(56,189,248,0.5)] scale-102";
                         if (isMatched) styles = "bg-emerald-500 border-emerald-400 text-white scale-95 opacity-0 pointer-events-none"; 
                         if (isWrong && isSelected) styles = "bg-rose-600 border-rose-400 text-white animate-pulse shadow-[0_0_15px_rgba(225,29,72,0.5)]";
 
                         return (
                             <button 
                                 key={`q-${q.id}`} onClick={() => handleQClick(q.id)}
-                                className={`flex-1 rounded-2xl border-4 font-black text-lg md:text-3xl lg:text-4xl transition-all duration-300 flex items-center justify-center shadow-md ${styles}`}
+                                className={`flex-1 rounded-xl sm:rounded-2xl border-2 sm:border-4 font-black text-base sm:text-2xl md:text-3xl lg:text-4xl transition-all duration-300 flex items-center justify-center shadow-md ${styles}`}
                             >
                                 {q.qText}
                             </button>
@@ -246,20 +246,20 @@ const PlayerBoard = ({ config, isActive, onScoreChange, audioCtxRef, isFlipped, 
                 </div>
 
                 {/* Answers Column */}
-                <div className="flex-1 flex flex-col gap-2 md:gap-4 h-full">
+                <div className="flex-1 flex flex-col gap-1.5 sm:gap-3 md:gap-4 h-full">
                     {answers.map((a) => {
                         const isSelected = selectedA === a.id;
                         const isMatched = matchedIds.includes(a.id);
                         const isWrong = wrongIds.includes(a.id);
                         let styles = "bg-slate-800 border-slate-700 text-sky-400 hover:bg-slate-700";
-                        if (isSelected) styles = "bg-sky-600 border-sky-400 text-white shadow-[0_0_15px_rgba(56,189,248,0.5)] scale-105";
+                        if (isSelected) styles = "bg-sky-600 border-sky-400 text-white shadow-[0_0_15px_rgba(56,189,248,0.5)] scale-102";
                         if (isMatched) styles = "bg-emerald-500 border-emerald-400 text-white scale-95 opacity-0 pointer-events-none"; 
                         if (isWrong && isSelected) styles = "bg-rose-600 border-rose-400 text-white animate-pulse shadow-[0_0_15px_rgba(225,29,72,0.5)]";
 
                         return (
                             <button 
                                 key={`a-${a.id}`} onClick={() => handleAClick(a.id)}
-                                className={`flex-1 rounded-2xl border-4 font-black text-xl md:text-4xl lg:text-5xl transition-all duration-300 flex items-center justify-center shadow-md ${styles}`}
+                                className={`flex-1 rounded-xl sm:rounded-2xl border-2 sm:border-4 font-black text-base sm:text-2xl md:text-3xl lg:text-5xl transition-all duration-300 flex items-center justify-center shadow-md ${styles}`}
                             >
                                 {a.aText}
                             </button>
@@ -359,22 +359,22 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
         const availablePlayers = isMobile ? [1, 2] : [1, 2, 3];
 
         return (
-            <div className="w-full h-full min-h-[600px] flex flex-col bg-slate-900 font-sans md:rounded-3xl p-6 relative overflow-y-auto selection:bg-sky-500/30 text-white">
-                <div className="text-center mb-8 shrink-0 animate-fade-in-up">
-                    <div className="bg-sky-500 w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(14,165,233,0.5)] transform rotate-12">
-                        <Zap size={32} className="text-white" />
+            <div className="w-full h-full flex flex-col bg-slate-900 font-sans md:rounded-3xl p-3 sm:p-5 md:p-6 relative overflow-y-auto selection:bg-sky-500/30 text-white">
+                <div className="text-center mb-2 sm:mb-4 shrink-0 animate-fade-in-up">
+                    <div className="bg-sky-500 w-10 h-10 sm:w-14 sm:h-14 mx-auto rounded-xl sm:rounded-2xl flex items-center justify-center mb-1.5 sm:mb-3 shadow-[0_0_20px_rgba(14,165,233,0.5)] transform rotate-12">
+                        <Zap className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
                     </div>
-                    <h1 className="text-3xl md:text-5xl font-black tracking-tight mb-2">Rapid-Fire Arena</h1>
-                    <p className="text-slate-400 font-bold text-lg">Configure your match settings!</p>
+                    <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight mb-0.5 sm:mb-1">Rapid-Fire Arena</h1>
+                    <p className="text-slate-400 font-bold text-xs sm:text-base">Configure your match settings!</p>
                 </div>
 
-                <div className="flex-1 flex flex-col items-center max-w-3xl mx-auto w-full gap-6">
+                <div className="flex-1 flex flex-col items-center max-w-3xl mx-auto w-full gap-2.5 sm:gap-4 min-h-0">
                     {/* Operations */}
-                    <div className="w-full bg-slate-800 p-4 md:p-6 rounded-3xl border-2 border-slate-700">
-                        <h3 className="text-slate-400 font-black uppercase tracking-widest text-xs mb-4 flex items-center gap-2"><Zap size={14}/> 1. Select Operations</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="w-full bg-slate-800 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700">
+                        <h3 className="text-slate-400 font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 flex items-center gap-1.5"><Zap size={14}/> 1. Select Operations</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2.5">
                             {OP_BUTTONS.map(btn => (
-                                <button key={btn.op} onClick={() => toggleOp(btn.op)} className={`p-2 md:p-3 rounded-xl border-4 font-black transition-all flex items-center justify-center text-sm md:text-base gap-2 ${config.ops.includes(btn.op) ? `${btn.color} border-white shadow-lg` : 'bg-slate-900 border-slate-700 text-slate-500 hover:border-slate-500'}`}>
+                                <button key={btn.op} onClick={() => toggleOp(btn.op)} className={`p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border-2 sm:border-4 font-black transition-all flex items-center justify-center text-xs sm:text-sm md:text-base gap-1.5 ${config.ops.includes(btn.op) ? `${btn.color} border-white shadow-lg` : 'bg-slate-900 border-slate-700 text-slate-500 hover:border-slate-500'}`}>
                                     {btn.label}
                                 </button>
                             ))}
@@ -382,22 +382,22 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
                     </div>
 
                     {/* Digits & Players */}
-                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-slate-800 p-4 rounded-3xl border-2 border-slate-700">
-                            <h3 className="text-slate-400 font-black uppercase tracking-widest text-xs mb-4 flex items-center gap-2"><Hash size={14}/> 2. Digits</h3>
-                            <div className="flex gap-2">
+                    <div className="w-full grid grid-cols-2 gap-2 sm:gap-4">
+                        <div className="bg-slate-800 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700">
+                            <h3 className="text-slate-400 font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 flex items-center gap-1.5"><Hash size={14}/> 2. Digits</h3>
+                            <div className="flex gap-1.5 sm:gap-2">
                                 {[1, 2].map(d => (
-                                    <button key={d} onClick={() => { playSound('click', audioCtxRef); setConfig(p => ({ ...p, digits: d as Digits })); }} className={`flex-1 py-3 rounded-xl border-4 font-black transition-all ${config.digits === d ? 'bg-sky-500 border-white shadow-lg' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
+                                    <button key={d} onClick={() => { playSound('click', audioCtxRef); setConfig(p => ({ ...p, digits: d as Digits })); }} className={`flex-1 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl border-2 sm:border-4 font-black text-xs sm:text-base transition-all ${config.digits === d ? 'bg-sky-500 border-white shadow-lg' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
                                         {d}-Digit
                                     </button>
                                 ))}
                             </div>
                         </div>
-                        <div className="bg-slate-800 p-4 rounded-3xl border-2 border-slate-700">
-                            <h3 className="text-slate-400 font-black uppercase tracking-widest text-xs mb-4 flex items-center gap-2"><Users size={14}/> 3. Players</h3>
-                            <div className="flex gap-2">
+                        <div className="bg-slate-800 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700">
+                            <h3 className="text-slate-400 font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 flex items-center gap-1.5"><Users size={14}/> 3. Players</h3>
+                            <div className="flex gap-1.5 sm:gap-2">
                                 {availablePlayers.map(p => (
-                                    <button key={p} onClick={() => { playSound('click', audioCtxRef); setConfig(prev => ({ ...prev, players: p as Players })); }} className={`flex-1 py-3 rounded-xl border-4 font-black transition-all ${config.players === p ? 'bg-fuchsia-500 border-white shadow-lg' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
+                                    <button key={p} onClick={() => { playSound('click', audioCtxRef); setConfig(prev => ({ ...prev, players: p as Players })); }} className={`flex-1 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl border-2 sm:border-4 font-black text-xs sm:text-base transition-all ${config.players === p ? 'bg-fuchsia-500 border-white shadow-lg' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
                                         {p} Player
                                     </button>
                                 ))}
@@ -406,11 +406,11 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
                     </div>
 
                     {/* Time Limit */}
-                    <div className="w-full bg-slate-800 p-4 rounded-3xl border-2 border-slate-700">
-                        <h3 className="text-slate-400 font-black uppercase tracking-widest text-xs mb-4 flex items-center gap-2"><Clock size={14}/> 4. Time Limit</h3>
-                        <div className="flex gap-2">
+                    <div className="w-full bg-slate-800 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700">
+                        <h3 className="text-slate-400 font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 flex items-center gap-1.5"><Clock size={14}/> 4. Time Limit</h3>
+                        <div className="flex gap-1.5 sm:gap-2">
                             {[30, 60, 120].map(t => (
-                                <button key={t} onClick={() => { playSound('click', audioCtxRef); setConfig(p => ({ ...p, time: t as TimeLimit })); }} className={`flex-1 py-3 rounded-xl border-4 font-black transition-all ${config.time === t ? 'bg-emerald-500 border-white shadow-lg' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
+                                <button key={t} onClick={() => { playSound('click', audioCtxRef); setConfig(p => ({ ...p, time: t as TimeLimit })); }} className={`flex-1 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl border-2 sm:border-4 font-black text-xs sm:text-base transition-all ${config.time === t ? 'bg-emerald-500 border-white shadow-lg' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
                                     {t} sec
                                 </button>
                             ))}
@@ -418,9 +418,9 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
                     </div>
                 </div>
 
-                <div className="mt-8 flex justify-center shrink-0">
-                    <button onClick={handleStart} className="w-full max-w-sm bg-sky-500 text-white px-8 py-5 rounded-2xl font-black text-xl shadow-[0_6px_0_rgb(14,165,233)] hover:bg-sky-400 active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center gap-3">
-                        <Play fill="currentColor" /> Enter Arena
+                <div className="mt-3 sm:mt-5 flex justify-center shrink-0 pb-1">
+                    <button onClick={handleStart} className="w-full max-w-sm bg-sky-500 text-white px-6 sm:px-8 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl font-black text-base sm:text-xl shadow-[0_4px_0_rgb(14,165,233)] hover:bg-sky-400 active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2 sm:gap-3">
+                        <Play className="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" /> Enter Arena
                     </button>
                 </div>
             </div>
@@ -454,14 +454,14 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
             return (
                 <div className="w-full h-full flex flex-col font-sans md:rounded-3xl overflow-hidden relative bg-black selection:bg-sky-500/30">
                     {/* Global Header Timer */}
-                    <div className="shrink-0 h-16 bg-slate-800 border-b-4 border-slate-700 flex items-center justify-center z-20 relative">
-                        <div className={`px-6 py-2 rounded-full border-4 border-slate-900 flex items-center justify-center font-black text-xl transition-colors duration-300 shadow-md ${timeLeft <= 10 ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-400 text-slate-900'}`}>
-                            <Clock size={20} className="mr-2"/> {timeLeft} Seconds Left
+                    <div className="shrink-0 h-12 sm:h-16 bg-slate-800 border-b-2 sm:border-b-4 border-slate-700 flex items-center justify-center z-20 relative">
+                        <div className={`px-4 sm:px-6 py-1 sm:py-2 rounded-full border-2 sm:border-4 border-slate-900 flex items-center justify-center font-black text-sm sm:text-xl transition-colors duration-300 shadow-md ${timeLeft <= 10 ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-400 text-slate-900'}`}>
+                            <Clock size={18} className="mr-1.5 sm:mr-2"/> {timeLeft} Seconds Left
                         </div>
                     </div>
                     
                     {/* Vertical Player Columns */}
-                    <div className="flex-1 flex flex-row divide-x-8 divide-slate-950 min-h-0">
+                    <div className="flex-1 flex flex-row divide-x-4 sm:divide-x-8 divide-slate-950 min-h-0">
                         {Array.from({ length: config.players }).map((_, i) => (
                             <PlayerBoard key={i+1} config={config} isActive={true} onScoreChange={handleScoreChange} audioCtxRef={audioCtxRef} isFlipped={false} playerId={i+1} />
                         ))}
@@ -498,25 +498,25 @@ export default function RapidFireArena({ lesson, onComplete }: any) {
         }
 
         return (
-            <div className="w-full h-full min-h-[600px] flex flex-col items-center justify-center bg-slate-900 font-sans md:rounded-3xl p-6 text-center animate-fade-in-up">
-                <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6 shadow-xl bg-amber-500 border-4 border-white text-white animate-bounce">
-                    <Trophy size={64} />
+            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 font-sans md:rounded-3xl p-4 sm:p-6 text-center animate-fade-in-up overflow-y-auto">
+                <div className="w-16 h-16 sm:w-28 sm:h-28 rounded-full flex items-center justify-center mb-3 sm:mb-5 shadow-xl bg-amber-500 border-2 sm:border-4 border-white text-white animate-bounce">
+                    <Trophy className="w-8 h-8 sm:w-14 sm:h-14" />
                 </div>
-                <h2 className={`text-4xl md:text-6xl font-black mb-2 ${winnerColor}`}>{winnerText}</h2>
-                <p className="text-slate-400 font-bold text-xl mb-12">Great matching skills!</p>
+                <h2 className={`text-2xl sm:text-5xl md:text-6xl font-black mb-1 sm:mb-2 ${winnerColor}`}>{winnerText}</h2>
+                <p className="text-slate-400 font-bold text-sm sm:text-xl mb-4 sm:mb-8">Great matching skills!</p>
                 
-                <div className="flex flex-col md:flex-row gap-6 mb-12 flex-wrap justify-center">
+                <div className="flex flex-row gap-3 sm:gap-6 mb-4 sm:mb-8 flex-wrap justify-center">
                     {Array.from({ length: config.players }).map((_, i) => (
-                        <div key={i+1} className="bg-slate-800 border-4 border-slate-700 px-8 py-6 rounded-3xl flex flex-col items-center shadow-lg">
-                            <span className="text-slate-500 font-black uppercase tracking-widest text-sm mb-2">Player {i+1} Score</span>
-                            <span className="text-5xl font-black text-white">{scores[i+1]}</span>
+                        <div key={i+1} className="bg-slate-800 border-2 sm:border-4 border-slate-700 px-4 sm:px-8 py-3 sm:py-6 rounded-2xl sm:rounded-3xl flex flex-col items-center shadow-lg min-w-[100px] sm:min-w-[140px]">
+                            <span className="text-slate-500 font-black uppercase tracking-widest text-[10px] sm:text-sm mb-1 sm:mb-2">Player {i+1} Score</span>
+                            <span className="text-3xl sm:text-5xl font-black text-white">{scores[i+1]}</span>
                         </div>
                     ))}
                 </div>
 
                 <div className="flex gap-4">
-                    <button onClick={() => setPhase('config')} className="bg-slate-800 text-white px-8 py-4 rounded-xl font-black text-lg shadow-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
-                        <RotateCcw size={20}/> Play Again
+                    <button onClick={() => setPhase('config')} className="bg-slate-800 text-white px-6 sm:px-8 py-2.5 sm:py-4 rounded-xl font-black text-base sm:text-lg shadow-lg hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-2">
+                        <RotateCcw size={18}/> Play Again
                     </button>
                 </div>
             </div>

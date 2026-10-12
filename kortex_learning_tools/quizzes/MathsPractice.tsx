@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Settings, RefreshCcw, Eye, EyeOff, Calculator, FileText, CheckCircle2, Globe } from 'lucide-react';
+import { Settings, RefreshCcw, Eye, EyeOff, Calculator, FileText, CheckCircle2, Globe, ArrowRight } from 'lucide-react';
 
 // --- TYPES ---
 type Format = 'numerical' | 'word';
@@ -554,7 +554,7 @@ const StepByStepDivision = ({ a, b, answer, remainder }: { a: number, b: number,
 
 
 // --- MAIN COMPONENT ---
-export default function MathsPractice() {
+export default function MathsPractice({ lesson, onComplete }: any) {
     const [phase, setPhase] = useState<'config' | 'quiz'>('config');
     const [config, setConfig] = useState<Config>({
         format: 'numerical',
@@ -704,47 +704,47 @@ export default function MathsPractice() {
     };
 
     return (
-        <div className="w-full h-full font-sans select-none flex flex-col items-center overflow-y-auto relative bg-slate-50">
+        <div className="w-full h-full font-sans select-none flex flex-col items-center overflow-hidden relative bg-slate-50">
 
             {/* --- CONFIGURATION PHASE --- */}
             {phase === 'config' && (
-                <div className="w-full max-w-4xl flex-1 flex flex-col items-center justify-center p-4 md:p-6 space-y-4 animate-in fade-in zoom-in duration-300 my-auto overflow-y-auto">
+                <div className="w-full max-w-4xl flex-1 flex flex-col items-center justify-start sm:justify-center p-3 sm:p-5 md:p-6 space-y-3 sm:space-y-4 animate-in fade-in zoom-in duration-300 overflow-y-auto">
 
-                    <div className="text-center space-y-1 mb-2 mt-4 md:mt-0">
-                        <div className="flex justify-center mb-2">
-                            <div className="bg-indigo-100 p-3 rounded-full text-indigo-600">
-                                <Calculator size={36} />
+                    <div className="text-center space-y-0.5 sm:space-y-1 mb-1 sm:mb-2 shrink-0">
+                        <div className="flex justify-center mb-1.5 sm:mb-2">
+                            <div className="bg-indigo-100 p-2 sm:p-2.5 rounded-full text-indigo-600 shadow-xs">
+                                <Calculator className="w-6 h-6 sm:w-8 sm:h-8" />
                             </div>
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight">Practice Generator</h1>
-                        <p className="text-sm md:text-base text-slate-500 font-medium">Select multiple parameters to instantly build a custom worksheet.</p>
+                        <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Practice Generator</h1>
+                        <p className="text-xs sm:text-sm text-slate-500 font-medium">Select parameters to instantly build a custom worksheet.</p>
                     </div>
 
-                    <div className="w-full bg-white p-6 rounded-[2rem] shadow-sm border-2 border-slate-200 space-y-6">
+                    <div className="w-full bg-white p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl shadow-sm border-2 border-slate-200 space-y-3 sm:space-y-4 shrink-0">
 
                         {/* 1. Format */}
                         <div>
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">1. Select Format</h3>
-                            <div className="flex gap-4">
-                                <button onClick={() => setConfig({...config, format: 'numerical'})} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-4 font-bold text-sm transition-all ${config.format === 'numerical' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
-                                    <Calculator size={18}/> Numerical Grid
+                            <h3 className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 sm:mb-2">1. Select Format</h3>
+                            <div className="flex gap-2 sm:gap-3">
+                                <button onClick={() => setConfig({...config, format: 'numerical'})} className={`flex-1 flex items-center justify-center gap-1.5 py-2 sm:py-2.5 rounded-xl border-2 sm:border-3 font-bold text-xs sm:text-sm transition-all ${config.format === 'numerical' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-xs' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
+                                    <Calculator size={16}/> Numerical Grid
                                 </button>
-                                <button onClick={() => setConfig({...config, format: 'word'})} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-4 font-bold text-sm transition-all ${config.format === 'word' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
-                                    <FileText size={18}/> Word Problems
+                                <button onClick={() => setConfig({...config, format: 'word'})} className={`flex-1 flex items-center justify-center gap-1.5 py-2 sm:py-2.5 rounded-xl border-2 sm:border-3 font-bold text-xs sm:text-sm transition-all ${config.format === 'word' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-xs' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
+                                    <FileText size={16}/> Word Problems
                                 </button>
                             </div>
                         </div>
 
                         {/* 2. Multiple Operations */}
                         <div>
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">2. Arithmetic Operations (Select Multiple)</h3>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <h3 className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 sm:mb-2">2. Arithmetic Operations (Select Multiple)</h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
                                 {(['add_no_carry', 'add_carry', 'sub_no_borrow', 'sub_borrow', 'multiply', 'divide'] as Operation[]).map(op => {
                                     const isSelected = config.operations.includes(op);
                                     return (
-                                    <button key={op} onClick={() => toggleOperation(op)} className={`py-3 px-4 rounded-xl border-4 font-bold text-sm text-left transition-all flex items-center justify-between ${isSelected ? 'bg-sky-50 border-sky-500 text-sky-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:border-sky-300'}`}>
-                                        {getOpLabel(op)}
-                                        {isSelected && <CheckCircle2 size={18} className="text-sky-500"/>}
+                                    <button key={op} onClick={() => toggleOperation(op)} className={`py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-lg sm:rounded-xl border-2 sm:border-3 font-bold text-xs sm:text-sm text-left transition-all flex items-center justify-between ${isSelected ? 'bg-sky-50 border-sky-500 text-sky-700 shadow-xs' : 'bg-white border-slate-200 text-slate-500 hover:border-sky-300'}`}>
+                                        <span className="truncate">{getOpLabel(op)}</span>
+                                        {isSelected && <CheckCircle2 size={16} className="text-sky-500 shrink-0 ml-1"/>}
                                     </button>
                                     );
                                 })}
@@ -752,35 +752,35 @@ export default function MathsPractice() {
                         </div>
 
                         {/* 3. Independent Digits */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
                             <div>
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">3. Top Number Digits</h3>
-                                <div className="flex gap-2">
+                                <h3 className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1 sm:mb-1.5 truncate">3. Top Digits</h3>
+                                <div className="flex gap-1.5">
                                     {([1, 2, 3, 4] as Digits[]).map(d => (
-                                        <button key={d} onClick={() => setConfig({...config, digitsA: d})} className={`flex-1 py-2.5 rounded-lg border-4 font-black text-lg transition-all ${config.digitsA === d ? 'bg-rose-50 border-rose-500 text-rose-700' : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300'}`}>
+                                        <button key={d} onClick={() => setConfig({...config, digitsA: d})} className={`flex-1 py-1.5 sm:py-2 rounded-lg border-2 sm:border-3 font-black text-sm sm:text-base transition-all ${config.digitsA === d ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-xs' : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300'}`}>
                                             {d}
                                         </button>
                                     ))}
                                 </div>
-                                <p className="text-[10px] font-bold text-slate-400 mt-2">Multiplicand / Dividend</p>
                             </div>
                             <div>
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">4. Bottom Number Digits</h3>
-                                <div className="flex gap-2">
+                                <h3 className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1 sm:mb-1.5 truncate">4. Bottom Digits</h3>
+                                <div className="flex gap-1.5">
                                     {([1, 2, 3, 4] as Digits[]).map(d => (
-                                        <button key={d} onClick={() => setConfig({...config, digitsB: d})} className={`flex-1 py-2.5 rounded-lg border-4 font-black text-lg transition-all ${config.digitsB === d ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-slate-200 text-slate-400 hover:border-amber-300'}`}>
+                                        <button key={d} onClick={() => setConfig({...config, digitsB: d})} className={`flex-1 py-1.5 sm:py-2 rounded-lg border-2 sm:border-3 font-black text-sm sm:text-base transition-all ${config.digitsB === d ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-xs' : 'bg-white border-slate-200 text-slate-400 hover:border-amber-300'}`}>
                                             {d}
                                         </button>
                                     ))}
                                 </div>
-                                <p className="text-[10px] font-bold text-slate-400 mt-2">Multiplier / Divisor</p>
                             </div>
                         </div>
 
                         {/* 5. Question Count */}
                         <div>
-                            <div className="flex justify-between items-center mb-3">
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">5. Total Questions: <span className="text-indigo-500">{config.questionCount}</span></h3>
+                            <div className="flex justify-between items-center mb-1">
+                                <h3 className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest">
+                                    5. Total Questions: <span className="text-indigo-600 font-black">{config.questionCount}</span>
+                                </h3>
                             </div>
                             <input 
                                 type="range" min="1" max="15" 
@@ -788,66 +788,78 @@ export default function MathsPractice() {
                                 onChange={(e) => setConfig({...config, questionCount: parseInt(e.target.value)})}
                                 className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                             />
-                            <div className="flex justify-between text-xs font-bold text-slate-400 mt-2">
+                            <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-1">
                                 <span>1</span><span>15</span>
                             </div>
                         </div>
 
                     </div>
 
-                    <button onClick={handleStart} className="w-full max-w-md bg-slate-800 hover:bg-slate-700 text-white font-black text-xl py-4 rounded-2xl shadow-[0_4px_0_rgb(15,23,42)] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 mb-8">
-                        <Settings size={20} /> GENERATE WORKSHEET
+                    <button onClick={handleStart} className="w-full max-w-md bg-slate-800 hover:bg-slate-700 text-white font-black text-sm sm:text-base md:text-lg py-3 sm:py-3.5 px-6 rounded-xl sm:rounded-2xl shadow-md border-b-4 border-slate-950 active:translate-y-1 active:border-b-0 transition-all flex items-center justify-center gap-2 shrink-0">
+                        <Settings size={18} /> GENERATE WORKSHEET
                     </button>
                 </div>
             )}
 
             {/* --- QUIZ PHASE (WITH MATH GRID BACKGROUND) --- */}
             {phase === 'quiz' && (
-                <div className="w-full max-w-6xl mx-auto flex flex-col flex-1 animate-in slide-in-from-bottom-4 duration-500 relative bg-[linear-gradient(#e5e7eb_1px,transparent_1px),linear-gradient(90deg,#e5e7eb_1px,transparent_1px)] bg-[size:24px_24px] md:bg-[size:32px_32px]">
+                <div className="w-full h-full flex flex-col flex-1 animate-in slide-in-from-bottom-2 duration-300 relative overflow-hidden bg-[linear-gradient(#e5e7eb_1px,transparent_1px),linear-gradient(90deg,#e5e7eb_1px,transparent_1px)] bg-[size:24px_24px] md:bg-[size:32px_32px]">
 
                     {/* Header */}
-                    <div className="w-full flex items-center justify-between p-3 md:p-4 bg-white/95 backdrop-blur-md border-b-4 border-slate-200 sticky top-0 z-40 shadow-sm shrink-0">
-                        <button onClick={() => setPhase('config')} className="text-slate-500 hover:text-indigo-600 font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-slate-200 hover:bg-indigo-50 transition-colors text-sm">
-                            <Settings size={16} /> <span className="hidden sm:inline">Settings</span>
+                    <div className="w-full flex items-center justify-between p-2 sm:p-3 bg-white/95 backdrop-blur-md border-b-2 border-slate-200 shadow-xs shrink-0 z-40">
+                        <button onClick={() => setPhase('config')} className="text-slate-600 hover:text-indigo-600 font-bold flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg border-2 border-slate-200 hover:bg-indigo-50 transition-colors text-xs sm:text-sm">
+                            <Settings size={15} /> <span>Settings</span>
                         </button>
 
-                        <div className="text-center">
-                            <h2 className="text-base md:text-xl font-black text-slate-800 leading-tight">
-                                Mixed Practice Worksheet
+                        <div className="text-center min-w-0 px-2">
+                            <h2 className="text-xs sm:text-base md:text-lg font-black text-slate-800 leading-tight truncate">
+                                {lesson?.title || 'Mixed Practice Worksheet'}
                             </h2>
-                            <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">{config.questionCount} Questions</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{config.questionCount} Questions</p>
                         </div>
 
-                        {/* Dynamic Language Selector */}
-                        <div className="relative group">
-                            <select 
-                                value={language} 
-                                onChange={(e) => setLanguage(e.target.value as Language)}
-                                className="appearance-none bg-slate-100 border-2 border-slate-200 text-slate-700 font-bold text-xs md:text-sm py-2 pl-8 pr-8 rounded-lg outline-none focus:border-indigo-400 cursor-pointer"
-                            >
-                                <option value="en">English</option>
-                                <option value="hi">Hindi</option>
-                                <option value="fr">French</option>
-                                <option value="es">Spanish</option>
-                            </select>
-                            <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                        <div className="flex items-center gap-2">
+                            {/* Dynamic Language Selector */}
+                            <div className="relative">
+                                <select 
+                                    value={language} 
+                                    onChange={(e) => setLanguage(e.target.value as Language)}
+                                    className="appearance-none bg-slate-100 border-2 border-slate-200 text-slate-700 font-bold text-xs py-1.5 pl-6 pr-6 rounded-lg outline-none focus:border-indigo-400 cursor-pointer"
+                                >
+                                    <option value="en">EN</option>
+                                    <option value="hi">HI</option>
+                                    <option value="fr">FR</option>
+                                    <option value="es">ES</option>
+                                </select>
+                                <Globe className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
+                            </div>
+
+                            {onComplete && (
+                                <button 
+                                    onClick={() => onComplete({ score: config.questionCount, maxScore: config.questionCount })}
+                                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs py-1.5 px-3 rounded-lg border-b-2 border-emerald-700 flex items-center gap-1 active:scale-95 transition-all shadow-xs"
+                                    title="Finish and return to course"
+                                >
+                                    <span className="hidden sm:inline">Finish</span> <ArrowRight size={14} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
                     {/* Problem Board (Scrollable Area) */}
-                    <div className="w-full p-4 md:p-8 flex-1 overflow-y-auto">
+                    <div className="w-full p-3 sm:p-6 md:p-8 flex-1 overflow-y-auto">
                         {config.format === 'numerical' ? (
                             // NUMERICAL GRID WITH STEP-BY-STEP PROCEDURAL ANSWERS
-                            <div className="flex flex-wrap justify-center gap-4 md:gap-8 w-full mx-auto pb-28">
+                            <div className="flex flex-wrap justify-center gap-3 sm:gap-6 md:gap-8 w-full max-w-6xl mx-auto pb-4">
                                 {problems.map((p, i) => (
-                                    <div key={p.id} className="flex flex-col items-center bg-white/90 backdrop-blur-sm p-4 md:p-6 rounded-[2rem] border-4 border-slate-200 shadow-md hover:border-indigo-300 transition-colors relative group min-h-[160px] md:min-h-[220px] w-auto min-w-[220px]">
-                                        <div className="absolute top-[-10px] left-4 bg-indigo-500 text-white font-black px-3 py-1 rounded-full text-xs shadow-sm border-2 border-white">Q{i + 1}</div>
+                                    <div key={p.id} className="flex flex-col items-center bg-white/95 backdrop-blur-xs p-3 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border-2 sm:border-4 border-slate-200 shadow-sm hover:border-indigo-300 transition-colors relative group min-h-[140px] md:min-h-[200px] w-full max-w-[300px] sm:max-w-none sm:w-auto sm:min-w-[200px]">
+                                        <div className="absolute top-[-10px] left-3 sm:left-4 bg-indigo-500 text-white font-black px-2.5 py-0.5 rounded-full text-xs shadow-xs border-2 border-white">Q{i + 1}</div>
 
-                                        <div className="w-full pt-4 h-full flex flex-col justify-end overflow-x-auto hide-scrollbar">
+                                        <div className="w-full pt-3 h-full flex flex-col justify-end overflow-x-auto hide-scrollbar">
                                             {!showAnswers ? (
                                                 <div className="flex flex-col items-end w-full">
                                                     {p.operation === 'divide' ? (
-                                                        <div className="flex items-center text-xl md:text-2xl font-mono text-slate-800 font-bold">
+                                                        <div className="flex items-center text-lg sm:text-xl md:text-2xl font-mono text-slate-800 font-bold">
                                                             <span className="text-sky-600 mr-2">{p.b}</span>
                                                             <div className="border-l-2 border-t-2 border-slate-800 pl-2 pt-1 tracking-widest">{p.a}</div>
                                                         </div>
@@ -855,11 +867,11 @@ export default function MathsPractice() {
                                                         <>
                                                             <GridRow value={p.a} padTo={Math.max(p.a.toString().length, p.b.toString().length)} />
                                                             <div className="flex items-center">
-                                                                <span className="text-sky-500 font-black mr-2 text-xl">{p.opSymbol}</span>
+                                                                <span className="text-sky-500 font-black mr-2 text-lg sm:text-xl">{p.opSymbol}</span>
                                                                 <GridRow value={p.b} padTo={Math.max(p.a.toString().length, p.b.toString().length)} />
                                                             </div>
                                                             <div className="w-full border-b-[3px] border-slate-800 my-1"></div>
-                                                            <div className="h-8 md:h-10 w-full bg-slate-50 border-2 border-dashed border-slate-200 rounded mt-1"></div>
+                                                            <div className="h-7 sm:h-8 md:h-10 w-full bg-slate-50 border-2 border-dashed border-slate-200 rounded mt-1"></div>
                                                         </>
                                                     )}
                                                 </div>
@@ -877,24 +889,24 @@ export default function MathsPractice() {
                             </div>
                         ) : (
                             // WORD PROBLEM LIST
-                            <div className="flex flex-col gap-4 md:gap-6 w-full max-w-4xl mx-auto pb-28">
+                            <div className="flex flex-col gap-3 sm:gap-4 md:gap-6 w-full max-w-4xl mx-auto pb-4">
                                 {problems.map((p, i) => (
-                                    <div key={p.id} className="bg-white/95 backdrop-blur-sm p-6 md:p-8 rounded-[2rem] border-4 border-slate-200 shadow-md relative">
-                                        <div className="absolute top-0 left-0 bg-indigo-500 text-white font-black px-4 py-1 rounded-br-xl rounded-tl-[1.8rem] text-sm shadow-sm">Q{i + 1}</div>
+                                    <div key={p.id} className="bg-white/95 backdrop-blur-xs p-4 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl border-2 sm:border-4 border-slate-200 shadow-sm relative">
+                                        <div className="absolute top-0 left-0 bg-indigo-500 text-white font-black px-3 py-0.5 rounded-br-xl rounded-tl-xl text-xs sm:text-sm shadow-xs">Q{i + 1}</div>
 
-                                        <p className="text-lg md:text-2xl font-bold text-slate-700 leading-relaxed mt-4">
+                                        <p className="text-base sm:text-lg md:text-2xl font-bold text-slate-700 leading-relaxed mt-2 sm:mt-3">
                                             {p.wordData && getWordProblemText(p.a, p.b, p.operation, p.wordData, language)}
                                         </p>
 
-                                        <div className={`mt-4 transition-all duration-500 ${showAnswers ? 'opacity-100 max-h-96' : 'opacity-0 max-h-0 overflow-hidden'}`}>
-                                            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 bg-emerald-50 p-4 md:p-6 rounded-2xl border-4 border-emerald-100">
-                                                <div className="bg-white px-4 py-2 rounded-xl border-2 border-slate-200 shadow-sm">
-                                                    <span className="font-mono text-xl md:text-2xl font-black tracking-widest text-slate-600">{p.a} {p.opSymbol} {p.b}</span>
+                                        <div className={`mt-3 sm:mt-4 transition-all duration-300 ${showAnswers ? 'opacity-100 max-h-96' : 'opacity-0 max-h-0 overflow-hidden'}`}>
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 bg-emerald-50 p-3 sm:p-5 rounded-xl sm:rounded-2xl border-2 sm:border-4 border-emerald-100">
+                                                <div className="bg-white px-3 py-1.5 rounded-lg border-2 border-slate-200 shadow-xs">
+                                                    <span className="font-mono text-lg sm:text-xl md:text-2xl font-black tracking-widest text-slate-600">{p.a} {p.opSymbol} {p.b}</span>
                                                 </div>
-                                                <div className="hidden md:block w-8 border-t-4 border-dashed border-emerald-200"></div>
+                                                <div className="hidden sm:block w-6 border-t-2 sm:border-t-4 border-dashed border-emerald-200"></div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-slate-400 font-bold uppercase tracking-widest text-sm">Answer:</span>
-                                                    <span className="text-3xl md:text-4xl font-black text-emerald-600">
+                                                    <span className="text-slate-400 font-bold uppercase tracking-widest text-xs sm:text-sm">Answer:</span>
+                                                    <span className="text-2xl sm:text-3xl md:text-4xl font-black text-emerald-600">
                                                         {p.operation === 'divide' ? `Q: ${p.answer}  Rem: ${p.remainder}` : p.answer}
                                                     </span>
                                                 </div>
@@ -907,21 +919,25 @@ export default function MathsPractice() {
                     </div>
 
                     {/* Sticky Bottom Controls */}
-                    <div className="sticky bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t-4 border-slate-200 p-3 md:p-4 z-50 flex justify-center shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)] mt-auto">
-                        <div className="w-full max-w-4xl flex justify-between items-center gap-4">
+                    <div className="w-full bg-white/95 backdrop-blur-md border-t-2 sm:border-t-3 border-slate-200 p-2 sm:p-3 md:p-4 z-40 flex justify-center shadow-md shrink-0">
+                        <div className="w-full max-w-4xl flex justify-between items-center gap-2 sm:gap-4">
                             <button 
                                 onClick={handleNewQuestions}
-                                className="flex-1 bg-purple-100 hover:bg-purple-200 text-purple-700 border-4 border-purple-200 font-black text-sm md:text-xl px-4 py-3 md:py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                                className="flex-1 bg-purple-100 hover:bg-purple-200 text-purple-700 border-2 sm:border-4 border-purple-200 font-black text-xs sm:text-sm md:text-base px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl flex items-center justify-center gap-1.5 sm:gap-2 transition-all active:scale-95 shadow-xs"
                             >
-                                <RefreshCcw size={24} className="shrink-0" /> <span className="hidden sm:inline">Generate</span> New
+                                <RefreshCcw size={18} className="shrink-0" /> <span>Generate New</span>
                             </button>
 
                             <button 
                                 onClick={() => setShowAnswers(!showAnswers)}
-                                className={`flex-[2] font-black text-base md:text-2xl px-6 py-3 md:py-4 rounded-2xl border-[4px] flex items-center justify-center gap-3 transition-all active:scale-95
-                                    ${showAnswers ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-lime-400 text-lime-950 border-lime-500 shadow-[0_6px_0_#84cc16] hover:translate-y-1 hover:shadow-none'}`}
+                                className={`flex-[2] font-black text-xs sm:text-sm md:text-lg px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl border-2 sm:border-4 flex items-center justify-center gap-1.5 sm:gap-2 transition-all active:scale-95 shadow-xs
+                                    ${showAnswers ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-lime-400 text-lime-950 border-lime-500 shadow-xs hover:bg-lime-300'}`}
                             >
-                                {showAnswers ? <><EyeOff size={28} className="shrink-0"/> Hide Answers</> : <><Eye size={28} className="shrink-0"/> Show Procedure & Answers</>}
+                                {showAnswers ? (
+                                    <><EyeOff size={18} className="shrink-0"/> Hide Answers</>
+                                ) : (
+                                    <><Eye size={18} className="shrink-0"/> Show Procedure & Answers</>
+                                )}
                             </button>
                         </div>
                     </div>

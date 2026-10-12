@@ -193,19 +193,31 @@ export default function LongMultiplicationIntro({ lesson, onComplete }: any) {
 
                 {/* Left: Dispensers (Moved to bottom order on mobile, bigger touch targets) */}
                 <div className="flex-1 flex justify-center md:justify-start w-full order-2 md:order-1">
-                    <div className="flex gap-4 md:gap-2 items-center bg-slate-800 p-3 rounded-xl border border-slate-700">
+                    <div className="flex gap-4 md:gap-3 items-center bg-slate-800 p-2 md:p-3 rounded-xl border border-slate-700">
                         <button 
                             onClick={() => handleAddBlock(100)} disabled={phase !== 'build_blocks'}
-                            className="w-16 h-16 md:w-12 md:h-12 bg-pink-500 rounded-lg md:rounded-sm shadow-md flex items-center justify-center font-black text-white text-sm md:text-xs disabled:opacity-30 transition-transform active:scale-95"
-                        >100</button>
+                            className="flex flex-col items-center justify-center p-1.5 bg-slate-700/60 hover:bg-slate-700 rounded-xl border border-slate-600 disabled:opacity-30 transition-transform active:scale-95 min-w-[56px]"
+                            title="Add 100"
+                        >
+                            <img src="/assets/maths/FLN/Hundred.svg" alt="100" className="w-[50px] h-[50px] md:w-[60px] md:h-[60px] object-contain drop-shadow" />
+                            <span className="text-[10px] font-black text-slate-300 mt-0.5">100</span>
+                        </button>
                         <button 
                             onClick={() => handleAddBlock(10)} disabled={phase !== 'build_blocks'}
-                            className="w-8 h-16 md:w-5 md:h-12 bg-emerald-500 rounded-md md:rounded-sm shadow-md flex items-center justify-center font-black text-white text-[10px] md:text-[8px] disabled:opacity-30 transition-transform active:scale-95"
-                        >10</button>
+                            className="flex flex-col items-center justify-center p-1.5 bg-slate-700/60 hover:bg-slate-700 rounded-xl border border-slate-600 disabled:opacity-30 transition-transform active:scale-95 min-w-[42px]"
+                            title="Add 10"
+                        >
+                            <img src="/assets/maths/FLN/Ten.svg" alt="10" className="h-[50px] md:h-[60px] w-auto object-contain drop-shadow" />
+                            <span className="text-[10px] font-black text-slate-300 mt-0.5">10</span>
+                        </button>
                         <button 
                             onClick={() => handleAddBlock(1)} disabled={phase !== 'build_blocks'}
-                            className="w-10 h-10 md:w-5 md:h-5 bg-sky-500 rounded-md md:rounded-sm shadow-md flex items-center justify-center font-black text-white text-[10px] md:text-[8px] disabled:opacity-30 transition-transform active:scale-95"
-                        >1</button>
+                            className="flex flex-col items-center justify-center p-1.5 bg-slate-700/60 hover:bg-slate-700 rounded-xl border border-slate-600 disabled:opacity-30 transition-transform active:scale-95 min-w-[36px]"
+                            title="Add 1"
+                        >
+                            <img src="/assets/maths/FLN/One.svg" alt="1" className="w-3 h-3 md:w-3.5 md:h-3.5 object-contain drop-shadow my-auto" />
+                            <span className="text-[10px] font-black text-slate-300 mt-0.5">1</span>
+                        </button>
                     </div>
                 </div>
 
@@ -232,39 +244,51 @@ export default function LongMultiplicationIntro({ lesson, onComplete }: any) {
                     {/* Blocks Canvas */}
                     <div className="flex-1 flex flex-col gap-4 mt-4 overflow-y-auto pt-2">
                         {/* Hundreds */}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-2 items-end">
                             {hunds.map((b, i) => (
-                                <div key={i} className="w-10 h-10 md:w-12 md:h-12 bg-pink-500 flex items-center justify-center font-black text-white text-[10px] shadow-sm animate-fade-in-up">100</div>
+                                <img key={b.id || i} src="/assets/maths/FLN/Hundred.svg" alt="100" className="w-[70px] h-[80px] md:w-[80px] md:h-[100px] object-contain drop-shadow-md animate-fade-in-up" />
                             ))}
                         </div>
                         {/* Tens */}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-2 items-end">
                             {phase === 'combine_blocks' && tens.length >= 10 ? (
                                 <>
                                     {/* The glowing grouped tens */}
-                                    <div onClick={() => handleTapCombine(10)} className="p-1 border-2 border-dashed border-emerald-400 bg-emerald-400/20 animate-pulse cursor-pointer rounded-lg flex flex-wrap gap-1 hover:bg-emerald-400/40 transition-colors">
-                                        {tens.slice(0, 10).map((b, i) => <div key={i} className="w-3 h-10 md:w-4 md:h-12 bg-emerald-500 flex items-center justify-center font-black text-white text-[8px] shadow-sm">10</div>)}
+                                    <div onClick={() => handleTapCombine(10)} className="p-1.5 border-2 border-dashed border-emerald-400 bg-emerald-400/20 animate-pulse cursor-pointer rounded-xl flex flex-wrap gap-1 items-end hover:bg-emerald-400/40 transition-colors" title="Tap to combine 10 Tens into 100!">
+                                        {tens.slice(0, 10).map((b, i) => (
+                                            <img key={b.id || i} src="/assets/maths/FLN/Ten.svg" alt="10" className="h-[60px] md:h-[70px] w-auto object-contain drop-shadow" />
+                                        ))}
                                     </div>
                                     {/* The rest of the tens */}
-                                    {tens.slice(10).map((b, i) => <div key={i} className="w-3 h-10 md:w-4 md:h-12 bg-emerald-500 flex items-center justify-center font-black text-white text-[8px] shadow-sm animate-fade-in-up">10</div>)}
+                                    {tens.slice(10).map((b, i) => (
+                                        <img key={b.id || i} src="/assets/maths/FLN/Ten.svg" alt="10" className="h-[60px] md:h-[70px] w-auto object-contain drop-shadow animate-fade-in-up" />
+                                    ))}
                                 </>
                             ) : (
-                                tens.map((b, i) => <div key={i} className="w-3 h-10 md:w-4 md:h-12 bg-emerald-500 flex items-center justify-center font-black text-white text-[8px] shadow-sm animate-fade-in-up">10</div>)
+                                tens.map((b, i) => (
+                                    <img key={b.id || i} src="/assets/maths/FLN/Ten.svg" alt="10" className="h-[60px] md:h-[70px] w-auto object-contain drop-shadow animate-fade-in-up" />
+                                ))
                             )}
                         </div>
                         {/* Ones */}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5 items-end">
                             {phase === 'combine_blocks' && ones.length >= 10 ? (
                                 <>
                                     {/* The glowing grouped ones */}
-                                    <div onClick={() => handleTapCombine(1)} className="p-1 border-2 border-dashed border-sky-400 bg-sky-400/20 animate-pulse cursor-pointer rounded-lg flex flex-wrap gap-1 hover:bg-sky-400/40 transition-colors">
-                                        {ones.slice(0, 10).map((b, i) => <div key={i} className="w-3 h-3 md:w-4 md:h-4 bg-sky-500 flex items-center justify-center font-black text-white text-[6px] shadow-sm">1</div>)}
+                                    <div onClick={() => handleTapCombine(1)} className="p-1.5 border-2 border-dashed border-sky-400 bg-sky-400/20 animate-pulse cursor-pointer rounded-xl flex flex-wrap gap-1 items-center hover:bg-sky-400/40 transition-colors" title="Tap to combine 10 Ones into 10!">
+                                        {ones.slice(0, 10).map((b, i) => (
+                                            <img key={b.id || i} src="/assets/maths/FLN/One.svg" alt="1" className="w-2.5 h-2.5 md:w-3 md:h-3 object-contain drop-shadow" />
+                                        ))}
                                     </div>
                                     {/* The rest of the ones */}
-                                    {ones.slice(10).map((b, i) => <div key={i} className="w-3 h-3 md:w-4 md:h-4 bg-sky-500 flex items-center justify-center font-black text-white text-[6px] shadow-sm animate-fade-in-up">1</div>)}
+                                    {ones.slice(10).map((b, i) => (
+                                        <img key={b.id || i} src="/assets/maths/FLN/One.svg" alt="1" className="w-2.5 h-2.5 md:w-3 md:h-3 object-contain drop-shadow animate-fade-in-up" />
+                                    ))}
                                 </>
                             ) : (
-                                ones.map((b, i) => <div key={i} className="w-3 h-3 md:w-4 md:h-4 bg-sky-500 flex items-center justify-center font-black text-white text-[6px] shadow-sm animate-fade-in-up">1</div>)
+                                ones.map((b, i) => (
+                                    <img key={b.id || i} src="/assets/maths/FLN/One.svg" alt="1" className="w-2.5 h-2.5 md:w-3 md:h-3 object-contain drop-shadow animate-fade-in-up" />
+                                ))
                             )}
                         </div>
                     </div>

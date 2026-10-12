@@ -1,26 +1,30 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Trophy, ArrowRight, Volume2, RotateCcw, FileEdit, CheckCircle, Star } from 'lucide-react';
+import { Play, Trophy, ArrowRight, Volume2, RotateCcw, FileEdit, CheckCircle, Star, Sparkles, BookOpen } from 'lucide-react';
 import { getWordsForSubtopic, getWordData, HINDI_WORDS } from '@/kortex_library/HindiWordDictionary';
-// Import central audio engine
 import { HINDI_ASSETS, getBarahkhadiAudio } from '@/kortex_library/SwarVyanjanDictionary';
 
-// --- HELPER: Smart Image Fallback ---
+// --- HELPER: Smart Image Fallback with Error Reset ---
 const SmartImage = ({ wordData, className, emojiSize }: { wordData: any, className: string, emojiSize: string }) => {
   const [hasError, setHasError] = useState(false);
-  if (hasError || !wordData.imageUrl) {
+
+  useEffect(() => {
+    setHasError(false);
+  }, [wordData?.imageUrl, wordData?.word]);
+
+  if (hasError || !wordData?.imageUrl) {
     return (
-      <div className={`flex items-center justify-center bg-slate-100 rounded-xl shadow-sm ${className}`}>
-        <span className={emojiSize}>{wordData.emoji || '🖼️'}</span>
+      <div className={`flex items-center justify-center bg-slate-100 rounded-xl shadow-xs ${className}`}>
+        <span className={emojiSize}>{wordData?.emoji || '🖼️'}</span>
       </div>
     );
   }
   return (
     <img 
       src={wordData.imageUrl} 
-      alt={wordData.english} 
+      alt={wordData.english || wordData.word || 'Word'} 
       onError={() => setHasError(true)}
-      className={`object-contain bg-white rounded-xl shadow-sm ${className}`}
+      className={`object-contain bg-white rounded-xl shadow-xs ${className}`}
     />
   );
 };
@@ -29,6 +33,7 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
   const [gameState, setGameState] = useState<'start' | 'playing' | 'completed'>('start'); 
   const [questions, setQuestions] = useState<any[]>([]);
   const [playedCards, setPlayedCards] = useState<number[]>([]);
+  const [currentlyPlayingIdx, setCurrentlyPlayingIdx] = useState<number | null>(null);
   const [isRevealed, setIsRevealed] = useState(false);
 
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -42,16 +47,16 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
     // SMART ROUTER ENGINE
     // ==========================================
     
-    // NEW: Chapter 5 (Barahkhadi) - Pulls every single word from the dictionary
+    // Chapter 5 (Barahkhadi) - Pulls from dictionary
     if (subtopicId.includes('barahkhadi')) {
         pool = Object.keys(HINDI_WORDS).map(w => getWordData(w)).filter(Boolean);
     } 
-    // EXISTING: Chapter 4 (Matra) - Pulls specific matra words
+    // Chapter 4 (Matra) - Pulls specific matra words
     else if (subtopicId.includes('matra')) {
         const dictionaryKey = subtopicId.replace('dictation-', 'wb-');
         pool = getWordsForSubtopic(dictionaryKey);
     } 
-    // EXISTING: Chapter 3 (Amatrik) - Pulls based on word length
+    // Chapter 3 (Amatrik) - Pulls based on word length
     else {
         let wordLength = 2; 
         if (lesson?.subtopic && lesson.subtopic.includes('3')) wordLength = 3;
@@ -73,9 +78,25 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
     setQuestions(selected);
   }, [lesson]);
 
+  // Hindi TTS Fallback if audio files are missing
+  const speakHindi = (text: string) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'hi-IN';
+      utterance.rate = 0.8;
+      utterance.onend = () => setCurrentlyPlayingIdx(null);
+      utterance.onerror = () => setCurrentlyPlayingIdx(null);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setCurrentlyPlayingIdx(null);
+    }
+  };
+
   // 2. Audio Handler (Universal Bulletproof Engine)
   const playDictationAudio = (idx: number, wordText: string) => {
     if (!wordText) return;
+    setCurrentlyPlayingIdx(idx);
     
     try {
         let audioPath = '';
@@ -105,6 +126,8 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
             }
             const audio = new Audio(audioPath);
             activeAudioRef.current = audio;
+
+            audio.onended = () => setCurrentlyPlayingIdx(null);
             
             // Bulletproof Fallback just in case of extension mismatch
             audio.onerror = () => {
@@ -114,15 +137,21 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
                     
                 const fallbackAudio = new Audio(fallbackPath);
                 activeAudioRef.current = fallbackAudio;
-                fallbackAudio.play().catch(e => console.warn("Audio missing in both formats for:", wordText));
+                fallbackAudio.onended = () => setCurrentlyPlayingIdx(null);
+                fallbackAudio.play().catch(() => {
+                  speakHindi(wordText);
+                });
             };
 
-            audio.play().catch(e => console.warn("Browser blocked audio for:", wordText));
+            audio.play().catch(() => {
+              speakHindi(wordText);
+            });
         } else {
-            console.warn("No audio found in any dictionary for:", wordText);
+            speakHindi(wordText);
         }
     } catch (error) {
         console.error("Audio playback error:", error);
+        speakHindi(wordText);
     }
     
     // Mark card as played
@@ -134,56 +163,103 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
   const handleRetake = () => {
     setGameState('start');
     setPlayedCards([]);
+    setCurrentlyPlayingIdx(null);
     setIsRevealed(false);
     setQuestions(prev => [...prev].sort(() => 0.5 - Math.random()));
   };
 
-  if (questions.length === 0) return <div className="p-10 text-center font-bold text-rose-500">Error: Dictionary Words Not Found</div>;
+  if (questions.length === 0) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center font-bold text-rose-500">
+        शब्द डिक्शनरी लोड नहीं हो सकी (Dictionary Words Not Found)
+      </div>
+    );
+  }
 
   // ==========================================
-  // RENDER: START SCREEN
+  // RENDER: START SCREEN (Zero-Scroll Responsive Fit)
   // ==========================================
   if (gameState === 'start') {
     return (
-      <div className="w-full h-full min-h-[500px] max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-6 md:p-12 flex flex-col items-center justify-center text-center">
-        <div className="bg-sky-100 w-32 h-32 rounded-full flex items-center justify-center mb-8 shadow-inner overflow-hidden border-4 border-sky-50">
-          <FileEdit className="w-16 h-16 text-sky-500" />
+      <div className="w-full h-full max-w-3xl mx-auto bg-white rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-100 p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center text-center overflow-hidden">
+        
+        {/* Animated Icon */}
+        <div className="bg-sky-100 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mb-3 sm:mb-4 shadow-inner border-4 border-sky-50 shrink-0">
+          <FileEdit className="w-8 h-8 sm:w-10 sm:h-10 text-sky-500 animate-pulse" />
         </div>
-        <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-4">{lesson.title || 'श्रुतलेख (Dictation)'}</h2>
-        <p className="text-base md:text-xl font-bold text-slate-500 mb-8 max-w-lg">
-          Listen to the sound and write the words in your notebook!
+
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-800 mb-1.5 shrink-0">
+          {lesson?.title || 'श्रुतलेख (Dictation)'}
+        </h2>
+        
+        <p className="text-xs sm:text-sm md:text-base font-bold text-slate-500 mb-4 max-w-md shrink-0">
+          Listen to each word carefully and write it down in your notebook!
         </p>
-        <button onClick={() => setGameState('playing')} className="w-full md:w-auto bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white font-bold text-xl md:text-2xl py-4 px-12 rounded-2xl shadow-lg shadow-sky-200 active:scale-95 transition-all flex items-center justify-center gap-3">
-          <Play className="fill-white w-6 h-6" /> Start Dictation
+
+        {/* Instructions Badge */}
+        <div className="w-full max-w-md bg-sky-50/80 border-2 border-sky-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 mb-4 sm:mb-6 text-left space-y-1.5 sm:space-y-2 text-xs sm:text-sm font-bold text-sky-900 shadow-xs shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-sky-500 text-white text-[10px] sm:text-xs font-black flex items-center justify-center shrink-0">1</span>
+            <span>कॉपी और पेंसिल तैयार रखें (Keep notebook & pencil ready)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-sky-500 text-white text-[10px] sm:text-xs font-black flex items-center justify-center shrink-0">2</span>
+            <span>कार्ड पर टैप करके शब्द सुनें (Tap each card to listen)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-sky-500 text-white text-[10px] sm:text-xs font-black flex items-center justify-center shrink-0">3</span>
+            <span>अंत में उत्तर देखकर जांचें (Reveal answers to check spelling)</span>
+          </div>
+        </div>
+
+        <button 
+          onClick={() => setGameState('playing')} 
+          className="w-full sm:w-auto bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white font-black text-sm sm:text-base md:text-lg py-3 sm:py-3.5 px-8 sm:px-12 rounded-xl sm:rounded-2xl shadow-md border-b-4 border-sky-700 active:translate-y-1 active:border-b-0 transition-all flex items-center justify-center gap-2 shrink-0"
+        >
+          <Play className="fill-white w-4 h-4 sm:w-5 sm:h-5" /> श्रुतलेख शुरू करें (Start Dictation)
         </button>
       </div>
     );
   }
 
   // ==========================================
-  // RENDER: COMPLETED SCREEN
+  // RENDER: COMPLETED SCREEN (Zero-Scroll Responsive Fit)
   // ==========================================
   if (gameState === 'completed') {
     return (
-      <div className="w-full h-full min-h-[500px] max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-6 md:p-12 flex flex-col items-center justify-center text-center overflow-y-auto">
-        <div className="bg-emerald-50 p-6 rounded-full mb-6 border-4 border-emerald-100">
-          <Trophy className="w-16 h-16 md:w-20 md:h-20 text-emerald-500" />
+      <div className="w-full h-full max-w-3xl mx-auto bg-white rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-100 p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center text-center overflow-hidden">
+        <div className="bg-emerald-50 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mb-3 sm:mb-4 border-4 border-emerald-100 shadow-inner shrink-0">
+          <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-500 animate-bounce" />
         </div>
-        <h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-2">Great Job!</h2>
-        <p className="text-lg md:text-xl font-bold text-slate-500 mb-8">You completed the dictation exercise.</p>
         
-        <div className="flex space-x-2 md:space-x-4 mb-10">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-800 mb-1 shrink-0">
+          शानदार काम! (Great Job!)
+        </h2>
+        <p className="text-xs sm:text-sm md:text-base font-bold text-slate-500 mb-4 shrink-0">
+          You successfully completed all 10 dictation words.
+        </p>
+        
+        <div className="flex space-x-2 sm:space-x-3 mb-5 shrink-0">
           {[1, 2, 3].map((starIndex) => (
-            <Star key={starIndex} className={`w-12 h-12 md:w-16 md:h-16 transition-all duration-500 transform text-yellow-400 fill-yellow-400 scale-110 drop-shadow-md`} />
+            <Star key={starIndex} className="w-9 h-9 sm:w-12 sm:h-12 text-amber-400 fill-amber-400 drop-shadow-md animate-pulse" />
           ))}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <button onClick={handleRetake} className="w-full sm:w-auto bg-white hover:bg-slate-50 text-slate-700 font-bold text-lg md:text-xl py-4 px-8 rounded-xl md:rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2 border-2 border-slate-200">
-            <RotateCcw className="w-6 h-6 text-slate-400" /><span>Play Again</span>
+        <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 w-full sm:w-auto shrink-0">
+          <button 
+            onClick={handleRetake} 
+            className="w-full sm:w-auto bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm md:text-base py-2.5 sm:py-3 px-6 sm:px-8 rounded-xl sm:rounded-2xl transition-all shadow-xs flex items-center justify-center gap-2 border-2 border-slate-200 active:scale-95"
+          >
+            <RotateCcw size={18} className="text-slate-400" />
+            <span>फिर से करें (Play Again)</span>
           </button>
-          <button onClick={() => onComplete({ score: 10, stars: 3 })} className="w-full sm:w-auto bg-sky-500 hover:bg-sky-600 text-white font-bold text-lg md:text-xl py-4 px-12 rounded-xl md:rounded-2xl transition-colors shadow-sm flex items-center justify-center space-x-2 border-b-4 border-sky-700 active:border-b-0 active:translate-y-1">
-            <span>Finish Chapter</span><ArrowRight className="w-6 h-6" />
+          
+          <button 
+            onClick={() => onComplete({ score: 10, stars: 3, maxScore: 10 })} 
+            className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs sm:text-sm md:text-base py-2.5 sm:py-3 px-8 sm:px-10 rounded-xl sm:rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 border-b-4 border-emerald-700 active:translate-y-1 active:border-b-0"
+          >
+            <span>अध्याय पूरा करें (Finish Lesson)</span>
+            <ArrowRight size={18} />
           </button>
         </div>
       </div>
@@ -191,73 +267,160 @@ export default function HindiWordDictation({ lesson, onComplete = () => {} }: an
   }
 
   // ==========================================
-  // RENDER: PLAYING SCREEN
+  // RENDER: PLAYING SCREEN (Responsive 10-Card Board)
   // ==========================================
   return (
-    <div className="w-full h-full max-w-5xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
+    <div className="w-full h-full max-w-5xl mx-auto bg-white rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden">
       
-      {/* Header */}
-      <div className="px-6 md:px-10 pt-6 pb-4 border-b-2 border-slate-50 flex justify-between items-center shrink-0">
-         <div>
-           <h2 className="text-2xl md:text-3xl font-black text-slate-800">{lesson.title || 'श्रुतलेख'}</h2>
-           <p className="text-slate-500 font-bold text-sm md:text-base mt-1">Tap the cards to listen. Write the words in your notebook!</p>
+      {/* 1. Header Bar */}
+      <div className="px-3 sm:px-6 py-2 sm:py-2.5 border-b-2 border-slate-100 flex justify-between items-center shrink-0 bg-slate-50/50">
+         <div className="flex items-center gap-2 min-w-0">
+           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sky-500 text-white flex items-center justify-center shrink-0">
+              <FileEdit size={16} />
+           </div>
+           <div className="min-w-0">
+             <h2 className="text-sm sm:text-lg md:text-xl font-black text-slate-800 leading-tight truncate">
+               {lesson?.title || 'श्रुतलेख (Dictation)'}
+             </h2>
+             <p className="text-[10px] sm:text-xs text-slate-500 font-bold leading-none hidden sm:block">
+               Listen to the sound and write the words in your notebook!
+             </p>
+           </div>
+         </div>
+
+         {/* Listened Counter Pill */}
+         <div className="flex items-center gap-1.5 bg-white border-2 border-slate-200 px-2.5 sm:px-3 py-1 rounded-full shadow-xs shrink-0">
+            <span className={`w-2 h-2 rounded-full ${playedCards.length === 10 ? 'bg-emerald-500' : 'bg-sky-500 animate-pulse'}`}></span>
+            <span className="text-[11px] sm:text-xs font-black text-slate-700">
+              {playedCards.length} / 10
+            </span>
+            <span className="text-[10px] font-bold text-slate-400 hidden sm:inline">
+              सुने गए
+            </span>
          </div>
       </div>
 
-      {/* 10 Card Grid */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-10 bg-slate-50/50">
-         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-6">
-            {questions.map((q, idx) => (
-               <button
-                 key={idx}
-                 onClick={() => playDictationAudio(idx, q.word)}
-                 className={`relative w-full aspect-square rounded-[1.5rem] md:rounded-[2rem] border-4 transition-all duration-300 flex flex-col items-center justify-center shadow-sm group p-2
-                    ${isRevealed 
-                       ? `bg-lime-50 border-lime-200 text-lime-800` 
-                       : playedCards.includes(idx)
-                          ? `bg-sky-50 border-sky-300 text-sky-600`
-                          : `bg-white border-slate-200 text-slate-400 hover:border-sky-300 hover:shadow-md hover:-translate-y-1`
-                    }
-                 `}
-               >
-                 {isRevealed ? (
-                    <div className="flex flex-col items-center justify-center h-full w-full animate-in zoom-in">
-                        <SmartImage wordData={q} className="w-12 h-12 md:w-16 md:h-16 mb-1 md:mb-2 border-none shadow-none bg-transparent" emojiSize="text-3xl" />
-                        <span className="text-xl md:text-3xl font-black tracking-tight">{q.word}</span>
-                    </div>
-                 ) : (
-                    <>
-                       <Volume2 size={40} className={`mb-2 md:w-12 md:h-12 ${playedCards.includes(idx) ? 'opacity-100' : 'opacity-40 group-hover:opacity-100 group-hover:text-sky-500 transition-opacity'}`} />
-                       <span className="font-black text-sm md:text-lg">Word {idx + 1}</span>
-                       {playedCards.includes(idx) && <CheckCircle className="absolute top-2 right-2 md:top-3 md:right-3 text-sky-500 bg-white rounded-full w-5 h-5 md:w-6 md:h-6" />}
-                    </>
-                 )}
-               </button>
-            ))}
+      {/* 2. The 10 Card Grid (Fits seamlessly on Mobile in 2 cols x 5 rows without scrolling!) */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-50/40 flex flex-col justify-center">
+         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 md:gap-4 max-w-4xl mx-auto w-full">
+            {questions.map((q, idx) => {
+               const isPlaying = currentlyPlayingIdx === idx;
+               const isPlayed = playedCards.includes(idx);
+
+               return (
+                 <button
+                   key={idx}
+                   onClick={() => playDictationAudio(idx, q.word)}
+                   className={`relative w-full h-12 sm:h-auto sm:aspect-square rounded-xl sm:rounded-2xl border-2 sm:border-3 transition-all duration-200 flex items-center sm:flex-col sm:justify-center shadow-xs group px-2 sm:p-2 cursor-pointer select-none active:scale-95
+                      ${isRevealed 
+                         ? 'bg-lime-50 border-lime-300 text-lime-900 shadow-xs' 
+                         : isPlaying
+                            ? 'bg-sky-100 border-sky-500 text-sky-800 ring-2 ring-sky-300 shadow-md scale-[1.02]'
+                            : isPlayed
+                               ? 'bg-sky-50/80 border-sky-200 text-sky-700'
+                               : 'bg-white border-slate-200 text-slate-500 hover:border-sky-300 hover:bg-slate-50'
+                      }
+                   `}
+                   title={isRevealed ? q.word : `Play Word ${idx + 1}`}
+                 >
+                   {isRevealed ? (
+                      // REVEALED STATE: Shows Picture & Hindi Word
+                      <div className="flex items-center sm:flex-col sm:justify-center w-full h-full gap-2 sm:gap-1 animate-in zoom-in-95 duration-200">
+                          <SmartImage 
+                            wordData={q} 
+                            className="w-8 h-8 sm:w-11 sm:h-11 md:w-14 md:h-14 border-none shadow-none bg-transparent shrink-0" 
+                            emojiSize="text-xl sm:text-2xl md:text-3xl" 
+                          />
+                          <div className="flex-1 sm:flex-initial text-left sm:text-center min-w-0">
+                            <span className="text-sm sm:text-base md:text-xl font-black tracking-tight text-lime-950 block truncate">
+                              {q.word}
+                            </span>
+                            {q.english && (
+                              <span className="text-[9px] sm:text-[10px] font-bold text-lime-700/80 block truncate">
+                                {q.english}
+                              </span>
+                            )}
+                          </div>
+                      </div>
+                   ) : (
+                      // UNREVEALED STATE: Audio Speaker & Word Number
+                      <div className="flex items-center sm:flex-col sm:justify-center w-full h-full gap-2 sm:gap-1">
+                          <div className={`w-7 h-7 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg sm:rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                              isPlaying 
+                                ? 'bg-sky-500 text-white animate-pulse' 
+                                : isPlayed 
+                                    ? 'bg-sky-100 text-sky-600' 
+                                    : 'bg-slate-100 text-slate-400 group-hover:text-sky-500 group-hover:bg-sky-50'
+                          }`}>
+                            <Volume2 size={16} className="sm:hidden" />
+                            <Volume2 size={24} className="hidden sm:block md:hidden" />
+                            <Volume2 size={28} className="hidden md:block" />
+                          </div>
+
+                          <div className="flex-1 sm:flex-initial text-left sm:text-center min-w-0">
+                            <span className="font-black text-xs sm:text-sm md:text-base text-slate-700 block truncate">
+                              Word {idx + 1}
+                            </span>
+                            <span className="text-[10px] sm:text-xs font-bold text-slate-400 block truncate">
+                              शब्द {idx + 1}
+                            </span>
+                          </div>
+
+                          {/* Listened Checkmark Badge */}
+                          {isPlayed && (
+                            <div className="sm:absolute sm:top-1.5 sm:right-1.5 shrink-0">
+                              <CheckCircle className="text-emerald-500 bg-white rounded-full w-4 h-4 sm:w-4 sm:h-4 md:w-5 md:h-5 shadow-xs" />
+                            </div>
+                          )}
+                      </div>
+                   )}
+                 </button>
+               );
+            })}
          </div>
       </div>
 
-      {/* Footer Area */}
-      <div className="p-4 md:p-6 border-t-2 border-slate-50 flex justify-center bg-white shrink-0">
+      {/* 3. Action Footer Bar */}
+      <div className="p-2 sm:p-3 md:p-4 border-t-2 border-slate-100 flex justify-center bg-white shrink-0">
          {!isRevealed ? (
             <button 
               onClick={() => setIsRevealed(true)}
               disabled={playedCards.length === 0}
-              className="w-full md:w-auto bg-purple-500 hover:bg-purple-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black text-lg md:text-xl py-4 px-12 rounded-2xl shadow-sm border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all"
+              className={`w-full sm:w-auto font-black text-xs sm:text-sm md:text-base py-2.5 sm:py-3 px-6 sm:px-12 rounded-xl sm:rounded-2xl shadow-sm border-b-4 transition-all flex items-center justify-center gap-2 ${
+                playedCards.length > 0
+                  ? 'bg-purple-600 hover:bg-purple-500 border-purple-800 text-white active:translate-y-1 active:border-b-0'
+                  : 'bg-slate-200 border-slate-300 text-slate-400 cursor-not-allowed opacity-70'
+              }`}
             >
-               Reveal Answers
+               <Sparkles size={16} />
+               <span>उत्तर देखें (Reveal Answers)</span>
+               {playedCards.length < 10 && (
+                  <span className="text-[10px] sm:text-xs opacity-80 font-normal">
+                    ({playedCards.length}/10 सुने गए)
+                  </span>
+               )}
             </button>
          ) : (
-            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 w-full md:w-auto">
-               <button onClick={handleRetake} className="w-full md:w-auto bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 font-black text-lg md:text-xl py-4 px-8 rounded-xl md:rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-all">
-                  <RotateCcw size={20} className="md:w-6 md:h-6" /> Play Again
+            <div className="flex flex-row gap-2 sm:gap-3 w-full sm:w-auto justify-center">
+               <button 
+                 onClick={handleRetake} 
+                 className="flex-1 sm:flex-initial bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm md:text-base py-2 sm:py-2.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-95"
+               >
+                  <RotateCcw size={16} className="text-slate-400" /> 
+                  <span>Play Again</span>
                </button>
-               <button onClick={() => setGameState('completed')} className="w-full md:w-auto bg-sky-500 hover:bg-sky-600 text-white font-black text-lg md:text-xl py-4 px-12 rounded-xl md:rounded-2xl shadow-sm border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2">
-                  Next Step <ArrowRight size={20} className="md:w-6 md:h-6" />
+               
+               <button 
+                 onClick={() => setGameState('completed')} 
+                 className="flex-1 sm:flex-initial bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs sm:text-sm md:text-base py-2 sm:py-2.5 px-6 sm:px-10 rounded-xl sm:rounded-2xl shadow-sm border-b-4 border-emerald-700 active:translate-y-1 active:border-b-0 transition-all flex items-center justify-center gap-1.5"
+               >
+                  <span>Next Step</span> 
+                  <ArrowRight size={16} />
                </button>
             </div>
          )}
       </div>
+
     </div>
-  )
+  );
 }

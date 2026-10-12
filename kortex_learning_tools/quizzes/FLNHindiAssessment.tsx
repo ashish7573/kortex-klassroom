@@ -7,15 +7,15 @@ const SmartImage = ({ src, alt, className, fallbackText }: { src: string, alt: s
   const [hasError, setHasError] = useState(false);
   if (hasError || !src) {
     return (
-      <div className={`flex items-center justify-center bg-slate-100 rounded-2xl border-4 border-slate-200 shadow-sm ${className}`}>
-        <span className="text-4xl md:text-5xl font-black text-slate-400 opacity-50">{fallbackText || '🖼️'}</span>
+      <div className={`flex items-center justify-center bg-slate-100 rounded-2xl border-2 border-slate-200 shadow-sm ${className}`}>
+        <span className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-400 opacity-50">{fallbackText || '🖼️'}</span>
       </div>
     );
   }
   return <img src={src} alt={alt} onError={() => setHasError(true)} className={className} />;
 };
 
-// Import your existing data dictionaries
+// Import existing data dictionaries
 import { HINDI_ASSETS, SUBTOPIC_MAP, getBarahkhadiAudio } from '@/kortex_library/SwarVyanjanDictionary';
 import { getWordsForSubtopic, getWordData, WORD_SUBTOPIC_MAP } from '@/kortex_library/HindiWordDictionary';
 import { STORIES_DATA } from '@/kortex_library/FLNStories';
@@ -120,8 +120,6 @@ export default function FLNHindiAssessment({ onComplete }: any) {
     setTestPhase('LEVEL_3');
   };
 
- 
-
   // Level 4/5: Story Reading
   const generateStoryLevel = () => {
     const randomStory = STORIES_DATA[Math.floor(Math.random() * STORIES_DATA.length)];
@@ -223,9 +221,9 @@ export default function FLNHindiAssessment({ onComplete }: any) {
 
   const handleReset = () => {
      try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContext) {
-            const ctx = new AudioContext();
+        const WinAudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (WinAudioContext) {
+            const ctx = new WinAudioContext();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain); gain.connect(ctx.destination);
@@ -255,20 +253,23 @@ export default function FLNHindiAssessment({ onComplete }: any) {
   
   if (testPhase === 'START') {
     return (
-      <div className="w-full h-full min-h-[500px] max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 p-8 md:p-16 flex flex-col items-center justify-center text-center font-sans">
-        <div className="bg-sky-100 w-32 h-32 rounded-full flex items-center justify-center mb-8 border-4 border-sky-50 shadow-inner">
-          <FileEdit className="w-16 h-16 text-sky-500" />
+      <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-100 p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center text-center font-sans overflow-y-auto">
+        <div className="bg-sky-100 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mb-3 sm:mb-4 border-2 sm:border-4 border-sky-50 shadow-inner shrink-0">
+          <FileEdit className="w-8 h-8 sm:w-10 sm:h-10 text-sky-500" />
         </div>
-        <h1 className="text-4xl md:text-5xl font-black text-slate-800 mb-4">हिंदी पठन मूल्यांकन</h1>
-        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 mb-8 max-w-lg text-left">
-           <h3 className="font-black text-amber-600 mb-2 flex items-center gap-2"><AlertCircle size={20}/> महत्वपूर्ण निर्देश:</h3>
-           <ul className="text-slate-600 font-bold text-sm space-y-2 list-disc pl-5">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-800 mb-2 sm:mb-3">हिंदी पठन मूल्यांकन</h1>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 mb-4 sm:mb-6 max-w-md text-left w-full shadow-sm">
+           <h3 className="font-black text-amber-700 text-xs sm:text-sm mb-1.5 flex items-center gap-1.5"><AlertCircle size={16}/> महत्वपूर्ण निर्देश:</h3>
+           <ul className="text-slate-600 font-bold text-xs sm:text-sm space-y-1 list-disc pl-4">
              <li>यह मूल्यांकन शिक्षक या अभिभावक की उपस्थिति में ही किया जाना चाहिए।</li>
              <li>कुछ प्रश्नों में बच्चे को सुनकर कॉपी (कागज़) पर लिखना होगा।</li>
              <li>कृपया छात्र को उत्तर न बताएं।</li>
            </ul>
         </div>
-        <button onClick={generateLevel2} className="w-full md:w-auto bg-sky-500 hover:bg-sky-600 text-white font-black text-2xl py-4 px-12 rounded-2xl shadow-lg border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 transition-all">
+        <button 
+          onClick={generateLevel2} 
+          className="w-full sm:w-auto bg-sky-500 hover:bg-sky-600 text-white font-black text-lg sm:text-xl py-3 px-8 sm:px-12 rounded-xl shadow-md border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 transition-all"
+        >
           असेसमेंट शुरू करें (Start)
         </button>
       </div>
@@ -277,36 +278,49 @@ export default function FLNHindiAssessment({ onComplete }: any) {
 
   if (testPhase === 'RESULT') {
     return (
-      <div className="w-full h-full min-h-[500px] max-w-4xl mx-auto bg-slate-50 rounded-3xl shadow-sm border-2 border-slate-100 p-8 md:p-16 flex flex-col items-center justify-center text-center font-sans">
-        <Trophy className="w-24 h-24 text-emerald-500 mb-6 drop-shadow-md" />
-        <h2 className="text-3xl font-black text-slate-800 mb-2">मूल्यांकन पूर्ण हुआ</h2>
-        <p className="text-lg font-bold text-slate-500 mb-8">Assessment Complete</p>
+      <div className="w-full h-full max-w-4xl mx-auto bg-slate-50 rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-100 p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center text-center font-sans overflow-y-auto">
+        <Trophy className="w-14 h-14 sm:w-18 sm:h-18 text-emerald-500 mb-2 sm:mb-3 drop-shadow-md shrink-0 animate-bounce" />
+        <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mb-0.5">मूल्यांकन पूर्ण हुआ</h2>
+        <p className="text-xs sm:text-sm font-bold text-slate-500 mb-3 sm:mb-5">Assessment Complete</p>
         
-       <div className="bg-white border-4 border-sky-100 rounded-3xl p-8 w-full max-w-xl shadow-sm">
-           <p className="text-sm font-black text-sky-500 uppercase tracking-widest mb-6 border-b-2 border-sky-50 pb-4">छात्र का स्तर (Student Level)</p>
+        <div className="bg-white border-2 border-sky-100 rounded-2xl p-4 sm:p-6 w-full max-w-md shadow-sm mb-4 sm:mb-6">
+           <p className="text-xs font-black text-sky-500 uppercase tracking-widest mb-3 border-b border-sky-50 pb-2">छात्र का स्तर (Student Level)</p>
            
            {finalResult && finalResult.includes('"') ? (
                <div className="flex flex-col items-center justify-center text-center">
-                  <span className="block text-xl font-bold text-slate-600 mb-4">
+                  <span className="block text-sm sm:text-base font-bold text-slate-600 mb-2">
                      {finalResult.split('"')[0]}
                   </span>
                   
-                  <span className="block text-2xl md:text-3xl font-black text-sky-600 mb-4 px-6 py-4 bg-sky-50 rounded-2xl border-2 border-sky-200 shadow-inner w-full">
+                  <span className="block text-lg sm:text-xl md:text-2xl font-black text-sky-600 mb-2 px-4 py-2 bg-sky-50 rounded-xl border border-sky-200 shadow-inner w-full">
                      {finalResult.split('"')[1]}
                   </span>
                   
-                  <span className="block text-xl font-bold text-slate-600">
+                  <span className="block text-sm sm:text-base font-bold text-slate-600">
                      {finalResult.split('"')[2]}
                   </span>
                </div>
            ) : (
-               <h3 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight">{finalResult}</h3>
+               <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-800 leading-tight">{finalResult}</h3>
            )}
         </div>
 
-        <button onClick={handleReset} className="mt-12 bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 font-black text-lg py-3 px-8 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2">
-          <RotateCcw size={20} /> नया असेसमेंट शुरू करें
-        </button>
+        <div className="flex gap-3 flex-wrap justify-center w-full max-w-md">
+          <button 
+            onClick={handleReset} 
+            className="flex-1 bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 font-black text-sm sm:text-base py-2.5 px-5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
+          >
+            <RotateCcw size={16} /> नया असेसमेंट
+          </button>
+          {onComplete && (
+            <button 
+              onClick={() => onComplete({ result: finalResult })} 
+              className="flex-1 bg-emerald-500 hover:bg-emerald-600 border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 text-white font-black text-sm sm:text-base py-2.5 px-5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+            >
+              पूर्ण करें <ArrowRight size={16} />
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -315,78 +329,90 @@ export default function FLNHindiAssessment({ onComplete }: any) {
   const q = questions[currentQIndex];
   
   return (
-    <div className="w-full h-full min-h-[500px] max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden font-sans relative">
+    <div className="w-full h-full max-w-4xl mx-auto bg-white rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-100 flex flex-col overflow-hidden font-sans relative">
       <audio ref={audioRef} />
       
       {/* Progress Header */}
-      <div className="bg-slate-50 border-b-2 border-slate-100 p-4 flex justify-between items-center shrink-0">
-         <span className="font-black text-slate-500 uppercase tracking-wider text-xs">Phase: {testPhase.replace('_', ' ')}</span>
-         <span className="bg-white border border-slate-200 px-3 py-1 rounded-full text-xs font-bold text-slate-600">प्रश्न {currentQIndex + 1} / {questions.length}</span>
+      <div className="bg-slate-50 border-b border-slate-100 px-3 sm:px-4 py-2 sm:py-2.5 flex justify-between items-center shrink-0">
+         <span className="font-black text-slate-500 uppercase tracking-wider text-xs">स्तर: {testPhase.replace('_', ' ')}</span>
+         <span className="bg-white border border-slate-200 px-2.5 py-0.5 rounded-full text-xs font-bold text-slate-600">प्रश्न {currentQIndex + 1} / {questions.length}</span>
       </div>
 
-      <div className="flex-1 p-4 md:p-10 flex flex-col items-center justify-start md:justify-center relative overflow-y-auto min-h-0">
+      <div className="flex-1 p-3 sm:p-4 md:p-6 flex flex-col items-center justify-center relative overflow-y-auto min-h-0">
         
         {/* --- TYPE 1: DICTATION (Teacher Verified) --- */}
         {q.type === 'dictation' && (
-          <div className="text-center w-full max-w-md">
+          <div className="text-center w-full max-w-md flex flex-col items-center justify-center my-auto">
              {q.mode === 'barahkhadi' ? (
-                 <div className="mb-6 flex flex-col items-center justify-center">
-                     <div className="w-24 h-24 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-5xl font-black border-4 border-purple-200 shadow-inner mb-4">
+                 <div className="mb-3 sm:mb-4 flex flex-col items-center justify-center w-full">
+                     <div className="w-16 h-16 sm:w-20 sm:h-20 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-3xl sm:text-4xl font-black border-2 sm:border-4 border-purple-200 shadow-inner mb-2 sm:mb-3">
                          {q.target}
                      </div>
-                     <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-4 w-full text-center shadow-sm">
-                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Hint (मात्राएँ)</p>
-                         <p className="text-lg md:text-xl font-black text-slate-700 tracking-widest">आ इ ई उ ऊ ए ऐ ओ औ अं अः</p>
+                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 sm:p-3 w-full text-center shadow-sm">
+                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">संकेत (मात्राएँ)</p>
+                         <p className="text-sm sm:text-base md:text-lg font-black text-slate-700 tracking-wider">आ इ ई उ ऊ ए ऐ ओ औ अं अः</p>
                      </div>
                  </div>
              ) : (
-                 <Volume2 size={64} className="mx-auto text-sky-500 mb-6 opacity-50" />
+                 <Volume2 size={48} className="mx-auto text-sky-500 mb-2 sm:mb-3 opacity-50 shrink-0" />
              )}
              
-             <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-4">
+             <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 mb-3 sm:mb-4">
                  {q.mode === 'barahkhadi' ? `अपनी कॉपी में '${q.target}' की बारहखड़ी लिखें` : 'आवाज़ सुनें और कॉपी में लिखें'}
              </h2>
              
              {q.mode !== 'barahkhadi' && (
-               <button onClick={() => playAudio(q.target, q.mode)} className="bg-sky-100 hover:bg-sky-200 text-sky-600 font-bold py-3 px-8 rounded-full mb-8 flex items-center justify-center gap-2 mx-auto transition-colors shadow-sm">
-                  <Play size={20} className="fill-current"/> आवाज़ सुनें (Play)
+               <button 
+                 onClick={() => playAudio(q.target, q.mode)} 
+                 className="bg-sky-100 hover:bg-sky-200 text-sky-600 font-bold py-2 sm:py-2.5 px-6 rounded-full mb-4 sm:mb-6 flex items-center justify-center gap-2 mx-auto transition-colors shadow-sm text-xs sm:text-sm active:scale-95"
+               >
+                  <Play size={16} className="fill-current"/> आवाज़ सुनें (Play)
                </button>
              )}
 
-             <button onClick={() => setShowTeacherVerify(true)} className={`w-full ${q.mode === 'barahkhadi' ? 'mt-4 ' : ''}bg-purple-500 hover:bg-purple-600 text-white font-black py-4 rounded-2xl shadow-sm border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all`}>
+             <button 
+               onClick={() => setShowTeacherVerify(true)} 
+               className={`w-full ${q.mode === 'barahkhadi' ? 'mt-2 ' : ''}bg-purple-500 hover:bg-purple-600 text-white font-black py-3 sm:py-3.5 rounded-xl shadow-sm border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all text-sm sm:text-base`}
+             >
                 शिक्षक जाँच करें (Teacher Verify)
              </button>
 
              {/* TEACHER OVERRIDE MODAL */}
              {showTeacherVerify && (
-               <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fade-in text-center">
-                  <AlertCircle size={48} className="text-amber-500 mb-4" />
-                  <h3 className="text-2xl font-black text-slate-800 mb-2">शिक्षक सत्यापन (Teacher Check)</h3>
+               <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-4 sm:p-6 animate-fade-in text-center overflow-y-auto">
+                  <AlertCircle size={36} className="text-amber-500 mb-2 shrink-0" />
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-800 mb-1">शिक्षक सत्यापन (Teacher Check)</h3>
                   
-                  <p className={`text-lg font-bold text-slate-600 ${q.mode === 'barahkhadi' ? 'mb-4' : 'mb-8'}`}>
+                  <p className={`text-sm sm:text-base font-bold text-slate-600 ${q.mode === 'barahkhadi' ? 'mb-2' : 'mb-4 sm:mb-6'}`}>
                     क्या छात्र ने अपनी कॉपी में 
-                    <span className="text-sky-600 text-2xl font-black mx-2">
+                    <span className="text-sky-600 text-xl sm:text-2xl font-black mx-1 sm:mx-2">
                         {q.mode === 'barahkhadi' ? `'${q.target}' की बारहखड़ी` : `"${q.target}"`}
                     </span> 
                     सही {q.mode === 'barahkhadi' ? 'लिखी' : 'लिखा'} है?
                   </p>
 
-                  {/* NEW: Specific Instruction for Barahkhadi Verification */}
+                  {/* Specific Instruction for Barahkhadi Verification */}
                   {q.mode === 'barahkhadi' && (
-                     <div className="bg-sky-50 border-2 border-sky-200 rounded-xl p-4 mb-8 w-full max-w-sm text-left shadow-inner">
-                        <p className="text-sm font-bold text-sky-800 leading-relaxed">
-                          <AlertCircle size={16} className="inline mb-0.5 mr-1" />
-                          <b>शिक्षक ध्यान दें (Note):</b> बारहखड़ी में अधिकतम 1 गलती माफ़ है। यदि छात्र ने 1 से अधिक गलती की है, तभी 'गलत' चुनें।
+                     <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 sm:p-3 mb-4 w-full max-w-sm text-left shadow-inner">
+                        <p className="text-xs font-bold text-sky-800 leading-relaxed">
+                          <AlertCircle size={14} className="inline mb-0.5 mr-1" />
+                          <b>शिक्षक ध्यान दें:</b> बारहखड़ी में अधिकतम 1 गलती माफ़ है। यदि छात्र ने 1 से अधिक गलती की है, तभी 'गलत' चुनें।
                         </p>
                      </div>
                   )}
                   
-                  <div className="flex gap-4 w-full max-w-sm">
-                     <button onClick={() => handleAnswer(false)} className="flex-1 bg-white border-2 border-rose-200 hover:bg-rose-50 text-rose-600 font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
-                       <XCircle size={20}/> गलत
+                  <div className="flex gap-3 w-full max-w-sm">
+                     <button 
+                       onClick={() => handleAnswer(false)} 
+                       className="flex-1 bg-white border-2 border-rose-200 hover:bg-rose-50 text-rose-600 font-black py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm sm:text-base"
+                     >
+                       <XCircle size={18}/> गलत
                      </button>
-                     <button onClick={() => handleAnswer(true)} className="flex-1 bg-emerald-500 border-b-4 border-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
-                       <CheckCircle size={20}/> सही
+                     <button 
+                       onClick={() => handleAnswer(true)} 
+                       className="flex-1 bg-emerald-500 border-b-4 border-emerald-700 hover:bg-emerald-600 text-white font-black py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm sm:text-base active:translate-y-1 active:border-b-0"
+                     >
+                       <CheckCircle size={18}/> सही
                      </button>
                   </div>
                </div>
@@ -396,34 +422,46 @@ export default function FLNHindiAssessment({ onComplete }: any) {
 
         {/* --- TYPE 2: STORY FLUENCY (Teacher Verified) --- */}
         {q.type === 'fluency' && (
-          <div className="text-center w-full max-w-2xl flex flex-col h-full md:h-auto pb-4 md:pb-0">
-             <BookOpen size={40} className="mx-auto text-sky-500 mb-3 shrink-0 hidden md:block" />
+          <div className="text-center w-full max-w-2xl flex flex-col h-full pb-1">
+             <BookOpen size={32} className="mx-auto text-sky-500 mb-1.5 shrink-0 hidden sm:block" />
              
              {/* Scrollable Story Box */}
-             <div className="bg-sky-50 border-2 border-sky-100 rounded-2xl p-5 md:p-8 mb-4 md:mb-8 flex-1 overflow-y-auto min-h-0 shadow-inner">
-               <p className="text-xl md:text-3xl font-bold text-slate-800 leading-relaxed text-justify">{q.text}</p>
+             <div className="bg-sky-50 border border-sky-100 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 mb-2 sm:mb-4 flex-1 overflow-y-auto min-h-0 shadow-inner">
+               <p className="text-base sm:text-xl md:text-2xl font-bold text-slate-800 leading-relaxed text-justify">{q.text}</p>
              </div>
              
              {/* Pinned Button */}
-             <button onClick={() => setShowTeacherVerify(true)} className="w-full shrink-0 bg-purple-500 hover:bg-purple-600 text-white font-black py-4 rounded-2xl shadow-sm border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all mt-auto">
+             <button 
+               onClick={() => setShowTeacherVerify(true)} 
+               className="w-full shrink-0 bg-purple-500 hover:bg-purple-600 text-white font-black py-2.5 sm:py-3.5 rounded-xl shadow-sm border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all text-sm sm:text-base"
+             >
                 शिक्षक मूल्यांकन करें (Teacher Evaluate)
              </button>
 
              {/* TEACHER OVERRIDE MODAL (Scroll-safe for small phones) */}
              {showTeacherVerify && (
-               <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-start md:justify-center p-6 animate-fade-in text-center overflow-y-auto">
+               <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-4 sm:p-6 animate-fade-in text-center overflow-y-auto">
                   <div className="my-auto w-full max-w-md flex flex-col items-center">
-                    <h3 className="text-2xl font-black text-slate-800 mb-2">पठन मूल्यांकन (Fluency Check)</h3>
-                    <p className="text-lg font-bold text-slate-600 mb-6">छात्र ने कहानी कैसे पढ़ी?</p>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-800 mb-1">पठन मूल्यांकन (Fluency Check)</h3>
+                    <p className="text-sm sm:text-base font-bold text-slate-600 mb-4 sm:mb-5">छात्र ने कहानी कैसे पढ़ी?</p>
                     
-                    <div className="flex flex-col gap-3 w-full">
-                       <button onClick={() => { setStoryFluency(true); handleAnswer(true); }} className="w-full bg-emerald-500 border-b-4 border-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm">
+                    <div className="flex flex-col gap-2.5 w-full">
+                       <button 
+                         onClick={() => { setStoryFluency(true); handleAnswer(true); }} 
+                         className="w-full bg-emerald-500 border-b-4 border-emerald-700 hover:bg-emerald-600 text-white font-black py-2.5 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-sm sm:text-base active:translate-y-1 active:border-b-0"
+                       >
                          धाराप्रवाह पढ़ी (Read Fluently)
                        </button>
-                       <button onClick={() => { setStoryFluency(false); handleAnswer(true); }} className="w-full bg-amber-500 border-b-4 border-amber-700 hover:bg-amber-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm">
+                       <button 
+                         onClick={() => { setStoryFluency(false); handleAnswer(true); }} 
+                         className="w-full bg-amber-500 border-b-4 border-amber-700 hover:bg-amber-600 text-white font-black py-2.5 sm:py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm text-sm sm:text-base active:translate-y-1 active:border-b-0"
+                       >
                          अटक-अटक कर पढ़ी (Read with Hesitation)
                        </button>
-                       <button onClick={() => handleAnswer(false)} className="w-full bg-white border-2 border-rose-200 text-rose-600 font-black py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-rose-50 transition-colors mt-2 shadow-sm">
+                       <button 
+                         onClick={() => handleAnswer(false)} 
+                         className="w-full bg-white border-2 border-rose-200 text-rose-600 font-black py-2 sm:py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-rose-50 transition-colors mt-1 shadow-sm text-sm sm:text-base"
+                       >
                          नहीं पढ़ सका (Could not read)
                        </button>
                     </div>
@@ -435,24 +473,28 @@ export default function FLNHindiAssessment({ onComplete }: any) {
 
         {/* --- TYPE 3: MCQ (Auto Graded) --- */}
         {(q.type === 'mcq' || q.type === 'mcq_story') && (
-           <div className="w-full flex flex-col md:flex-row gap-8 items-center justify-center h-full">
+           <div className="w-full h-full flex flex-col md:flex-row gap-3 sm:gap-4 md:gap-6 items-stretch justify-center max-w-3xl">
               
               {/* Question Context Area */}
-              <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-[2rem] border-2 border-slate-100 py-8 px-4 min-h-[250px]">
-                 {q.type === 'mcq_story' && <h3 className="text-3xl font-black text-slate-800 text-center">{q.question}</h3>}
-                 {q.mode === 'image_to_letter' && <SmartImage src={HINDI_ASSETS[q.target]?.examples?.[0]?.image} fallbackText={q.target} className="w-48 h-48 object-contain" alt="Question" />}
-                 {q.mode === 'image_to_word' && <SmartImage src={q.target.imageUrl} fallbackText={q.target.word} className="w-48 h-48 object-contain" alt="Question" />}
-                 {q.mode === 'letter_to_image' && <span className="text-[8rem] font-black text-slate-800">{q.target}</span>}
-                 {q.mode === 'word_to_image' && <span className="text-6xl font-black text-slate-800">{q.target.word}</span>}
+              <div className="flex-1 md:flex-initial md:w-1/2 flex flex-col items-center justify-center bg-slate-50 rounded-2xl border border-slate-200 p-3 sm:p-5 min-h-0 shadow-inner">
+                 {q.type === 'mcq_story' && <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 text-center leading-snug">{q.question}</h3>}
+                 {q.mode === 'image_to_letter' && <SmartImage src={HINDI_ASSETS[q.target]?.examples?.[0]?.image} fallbackText={q.target} className="max-h-28 sm:max-h-36 md:max-h-44 w-auto object-contain" alt="Question" />}
+                 {q.mode === 'image_to_word' && <SmartImage src={q.target.imageUrl} fallbackText={q.target.word} className="max-h-28 sm:max-h-36 md:max-h-44 w-auto object-contain" alt="Question" />}
+                 {q.mode === 'letter_to_image' && <span className="text-5xl sm:text-6xl md:text-8xl font-black text-slate-800">{q.target}</span>}
+                 {q.mode === 'word_to_image' && <span className="text-3xl sm:text-4xl md:text-6xl font-black text-slate-800">{q.target.word}</span>}
                  {(q.mode === 'audio_to_letter' || q.mode === 'audio_to_word') && (
-                    <button onClick={() => playAudio(q.target?.word || q.target, q.mode.includes('word') ? 'word' : 'letter')} className="w-40 h-40 bg-white rounded-full shadow-xl border-8 border-sky-100 flex items-center justify-center active:scale-95 transition-transform">
-                       <Volume2 className="w-20 h-20 text-sky-500" />
+                    <button 
+                      onClick={() => playAudio(q.target?.word || q.target, q.mode.includes('word') ? 'word' : 'letter')} 
+                      className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 bg-white rounded-full shadow-lg border-4 sm:border-6 border-sky-100 flex items-center justify-center active:scale-95 transition-transform"
+                      title="Click to hear sound"
+                    >
+                       <Volume2 className="w-12 h-12 sm:w-14 sm:h-14 md:w-18 md:h-18 text-sky-500" />
                     </button>
                  )}
               </div>
 
               {/* Options Area */}
-              <div className="w-full md:w-1/2 grid grid-cols-2 gap-3">
+              <div className="w-full md:w-1/2 grid grid-cols-2 gap-2 sm:gap-3 shrink-0 md:shrink md:flex-1">
                  {q.options.map((opt: any, idx: number) => {
                     const isCorrect = q.type === 'mcq_story' ? opt === q.target : (opt.word || opt) === (q.target.word || q.target);
                     
@@ -460,16 +502,16 @@ export default function FLNHindiAssessment({ onComplete }: any) {
                       <button
                         key={idx}
                         onClick={() => handleAnswer(isCorrect)}
-                        className="relative py-6 rounded-2xl border-4 border-slate-100 bg-white hover:border-sky-300 hover:shadow-md transition-all flex items-center justify-center min-h-[120px]"
+                        className="py-2.5 sm:py-4 px-2 rounded-xl sm:rounded-2xl border-2 sm:border-4 border-slate-100 bg-white hover:border-sky-300 hover:shadow-md transition-all flex items-center justify-center min-h-[56px] sm:min-h-[70px] md:min-h-[85px] active:scale-95"
                       >
                          {q.type === 'mcq_story' || q.mode === 'image_to_letter' || q.mode === 'audio_to_letter' ? (
-                            <span className="text-4xl font-black text-slate-800 text-center px-2">{opt}</span>
+                            <span className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-800 text-center px-1">{opt}</span>
                          ) : q.mode === 'image_to_word' || q.mode === 'audio_to_word' ? (
-                            <span className="text-4xl font-black text-slate-800">{opt.word}</span>
+                            <span className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-800">{opt.word}</span>
                          ) : q.mode === 'letter_to_image' ? (
-                            <SmartImage src={HINDI_ASSETS[opt]?.examples?.[0]?.image} fallbackText={opt} className="w-20 h-20 object-contain" alt="option" />
+                            <SmartImage src={HINDI_ASSETS[opt]?.examples?.[0]?.image} fallbackText={opt} className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain" alt="option" />
                          ) : (
-                            <SmartImage src={opt.imageUrl} fallbackText={opt.word} className="w-20 h-20 object-contain" alt="option" />
+                            <SmartImage src={opt.imageUrl} fallbackText={opt.word} className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain" alt="option" />
                          )}
                       </button>
                     )
