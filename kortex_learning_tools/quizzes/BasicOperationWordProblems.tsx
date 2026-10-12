@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
     Settings2, Volume2, RotateCcw, CheckCircle2, ArrowRight, 
-    Award, Sparkles, Scissors, Calculator, Layers, Check
+    Award, Sparkles, Scissors, Calculator, Layers, Check,
+    Package, Undo2
 } from 'lucide-react';
 
 // ============================================================================
@@ -56,6 +57,11 @@ interface ProblemData {
     units: string;
 }
 
+interface SubtractionItem {
+    id: string;
+    isCrossed: boolean;
+}
+
 const TOTAL_QUESTIONS = 5;
 
 interface Props {
@@ -63,6 +69,181 @@ interface Props {
     lesson?: unknown;
     onComplete?: (result: { score: number; maxScore: number }) => void;
 }
+
+// ============================================================================
+// VISUAL COMPONENTS: BUNDLE OF 10 & ONES
+// ============================================================================
+
+interface TenBundleProps {
+    emoji: string;
+    isMoney: boolean;
+    isCrossed?: boolean;
+    onClick?: () => void;
+    onUnbundle?: () => void;
+    className?: string;
+}
+
+const TenBundle = ({ 
+    emoji, 
+    isMoney, 
+    isCrossed = false, 
+    onClick, 
+    onUnbundle,
+    className = "" 
+}: TenBundleProps) => {
+    const handleTap = onUnbundle || onClick;
+
+    if (isMoney) {
+        return (
+            <div 
+                onClick={handleTap}
+                className={`relative flex items-center justify-center p-1 sm:p-1.5 rounded-lg border-2 transition-all select-none
+                    ${isCrossed ? 'bg-rose-950/40 border-rose-500/50 opacity-50 grayscale' : 'bg-emerald-950/40 border-emerald-400 hover:border-emerald-300 shadow-sm'}
+                    ${handleTap ? 'cursor-pointer hover:scale-105 active:scale-95' : ''} ${className}`}
+                title={onUnbundle ? "Tap to change note" : undefined}
+            >
+                <div className="flex items-center gap-1">
+                    <span className="text-base sm:text-lg">💵</span>
+                    <span className="text-[10px] sm:text-xs font-black text-emerald-300">₹10</span>
+                </div>
+                {isCrossed && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-full h-0.5 bg-rose-500 -rotate-25 rounded-full shadow-md"></div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div 
+            onClick={handleTap}
+            className={`relative flex items-center justify-center p-1 rounded-lg border-2 transition-all select-none
+                ${isCrossed ? 'bg-rose-950/40 border-rose-500/50 opacity-50 grayscale' : 'bg-amber-950/40 border-amber-400/80 hover:border-amber-300 shadow-sm'}
+                ${handleTap ? 'cursor-pointer hover:scale-105 active:scale-95' : ''} ${className}`}
+            title={onUnbundle ? "Tap to unbundle" : undefined}
+        >
+            {/* Visual 2x5 array of 10 items packed tightly inside the bundle (no number 10, no unbundle text) */}
+            <div className="grid grid-cols-5 gap-0.5 p-0.5 bg-slate-900/90 rounded-md border border-amber-400/40">
+                {Array.from({ length: 10 }).map((_, i) => (
+                    <span key={i} className="text-[10px] sm:text-xs leading-none flex items-center justify-center">
+                        {emoji}
+                    </span>
+                ))}
+            </div>
+
+            {isCrossed && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-full h-0.5 bg-rose-500 -rotate-25 rounded-full shadow-md"></div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+interface OneItemProps {
+    emoji: string;
+    isMoney: boolean;
+    isCrossed?: boolean;
+    onClick?: () => void;
+    className?: string;
+}
+
+const OneItem = ({ emoji, isMoney, isCrossed = false, onClick, className = "" }: OneItemProps) => {
+    return (
+        <div 
+            onClick={onClick}
+            className={`relative flex items-center justify-center p-0.5 sm:p-1 rounded-md border transition-all select-none min-w-[22px] sm:min-w-[28px] min-h-[22px] sm:min-h-[28px]
+                ${isCrossed ? 'bg-rose-950/40 border-rose-500/50 opacity-50 grayscale' : 'bg-slate-800/90 border-slate-700 hover:border-amber-400 shadow-xs'}
+                ${onClick ? 'cursor-pointer hover:scale-110 active:scale-95' : ''} ${className}`}
+            title={isCrossed ? "Crossed out 1" : "1"}
+        >
+            <span className={`text-base sm:text-lg transition-transform ${isCrossed ? 'grayscale' : ''}`}>
+                {isMoney ? '🪙' : emoji}
+            </span>
+            {isCrossed && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-full h-0.5 bg-rose-500 -rotate-45 shadow-sm"></div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+interface TensAndOnesGroupProps {
+    count: number;
+    emoji: string;
+    isMoney: boolean;
+    badgeColor?: 'emerald' | 'sky' | 'amber' | 'purple' | 'rose';
+    className?: string;
+    header?: React.ReactNode;
+}
+
+const TensAndOnesGroup = ({
+    count,
+    emoji,
+    isMoney,
+    badgeColor = 'amber',
+    className = "",
+    header
+}: TensAndOnesGroupProps) => {
+    const tens = Math.floor(count / 10);
+    const ones = count % 10;
+
+    const borderColor = {
+        emerald: 'border-emerald-500/40',
+        sky: 'border-sky-500/40',
+        amber: 'border-amber-500/40',
+        purple: 'border-purple-500/40',
+        rose: 'border-rose-500/80 bg-rose-950/40 shadow-rose-950/50'
+    }[badgeColor];
+
+    return (
+        <div className={`flex-1 h-full w-full min-h-0 bg-slate-900/90 rounded-2xl border-2 ${borderColor} p-2 sm:p-2.5 flex flex-col items-center justify-between shadow-md transition-all ${className}`}>
+            {header && (
+                <div className="shrink-0 mb-1 w-full flex items-center justify-center">
+                    {header}
+                </div>
+            )}
+            {/* Visual Content: Horizontally divided (Bundles on Top, Loose items on Bottom) */}
+            <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center gap-1.5 p-1 overflow-y-auto">
+                {/* Top: Bundles of 10 */}
+                {tens > 0 && (
+                    <div className="w-full flex flex-wrap items-center justify-center gap-2 shrink-0">
+                        {Array.from({ length: tens }).map((_, i) => (
+                            <TenBundle key={i} emoji={emoji} isMoney={isMoney} />
+                        ))}
+                    </div>
+                )}
+
+                {/* Horizontal divider line if both bundles and loose items exist */}
+                {tens > 0 && ones > 0 && (
+                    <div className="w-3/4 max-w-[220px] h-[1.5px] bg-slate-700/80 shrink-0 my-0.5 rounded-full"></div>
+                )}
+
+                {/* Bottom: Loose items */}
+                {ones > 0 && (
+                    <div className="w-full flex flex-wrap items-center justify-center gap-1.5 shrink-0">
+                        {Array.from({ length: ones }).map((_, i) => (
+                            <OneItem key={i} emoji={emoji} isMoney={isMoney} />
+                        ))}
+                    </div>
+                )}
+
+                {/* Zero case */}
+                {count === 0 && (
+                    <div className="flex-1 flex items-center justify-center py-1">
+                        <span className="text-sm font-black text-slate-500 px-3 py-1 rounded-lg bg-slate-800/60 border border-slate-700/60">0</span>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 export default function BasicOperationWordProblems({ onComplete }: Props) {
     // Config State
@@ -75,8 +256,19 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
     const [score, setScore] = useState(0);
     const [problem, setProblem] = useState<ProblemData | null>(null);
 
-    // Interactive Visual Model State
-    const [crossedItems, setCrossedItems] = useState<Set<number>>(new Set());
+    // Pictorial Area Operation Selection State
+    const [selectedOp, setSelectedOp] = useState<Operation | null>(null);
+    const [wrongOp, setWrongOp] = useState<Operation | null>(null);
+
+    // Interactive Action States for Operations
+    const [additionGrouped, setAdditionGrouped] = useState(false);
+    const [multRepeatedCount, setMultRepeatedCount] = useState(1);
+    const [multGrouped, setMultGrouped] = useState(false);
+    const [divEachCount, setDivEachCount] = useState(0);
+
+    // Subtraction Interactive State (Tens bundles & Loose Ones)
+    const [subTens, setSubTens] = useState<SubtractionItem[]>([]);
+    const [subOnes, setSubOnes] = useState<SubtractionItem[]>([]);
 
     // Equation Slots Input State
     const [inputA, setInputA] = useState<string>("");
@@ -127,8 +319,8 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
                 osc.stop(ctx.currentTime + 0.09);
             } else if (type === 'kaching') {
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(987.77, ctx.currentTime); // B5
-                osc.frequency.setValueAtTime(1318.51, ctx.currentTime + 0.08); // E6
+                osc.frequency.setValueAtTime(987.77, ctx.currentTime);
+                osc.frequency.setValueAtTime(1318.51, ctx.currentTime + 0.08);
                 gain.gain.setValueAtTime(0.15, ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
                 osc.start(ctx.currentTime);
@@ -151,7 +343,7 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
                 osc.stop(ctx.currentTime + 0.2);
             } else if (type === 'success') {
                 const now = ctx.currentTime;
-                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                const notes = [523.25, 659.25, 783.99, 1046.50];
                 notes.forEach((freq, idx) => {
                     const noteOsc = ctx.createOscillator();
                     const noteGain = ctx.createGain();
@@ -186,7 +378,6 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
 
     // --- PROBLEM GENERATION LOGIC ---
     const generateNewProblem = useCallback((): ProblemData => {
-        // 1. Determine Operation
         let op: Operation = '+';
         if (configOp === 'mixed') {
             const ops: Operation[] = ['+', '-', '×', '÷'];
@@ -203,7 +394,7 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
         if (op === '+') {
             if (max === 10) {
                 ans = Math.floor(Math.random() * 8) + 3; // 3..10
-                a = Math.floor(Math.random() * (ans - 1)) + 1; // 1..ans-1
+                a = Math.floor(Math.random() * (ans - 1)) + 1;
                 b = ans - a;
             } else if (max === 20) {
                 ans = Math.floor(Math.random() * 11) + 10; // 10..20
@@ -230,7 +421,6 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
             }
         } else if (op === '×') {
             if (max === 10) {
-                // Products <= 10: 2x2, 2x3, 2x4, 2x5, 3x2, 3x3
                 const pairs = [[2, 2], [2, 3], [3, 2], [2, 4], [4, 2], [2, 5], [5, 2], [3, 3]];
                 const pair = pairs[Math.floor(Math.random() * pairs.length)];
                 a = pair[0];
@@ -246,7 +436,6 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
                 b = pair[1];
                 ans = a * b;
             } else {
-                // Up to 100: tables up to 10
                 a = Math.floor(Math.random() * 7) + 3; // 3..9
                 b = Math.floor(Math.random() * 8) + 2; // 2..9
                 ans = a * b;
@@ -339,21 +528,23 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
         };
     }, [configOp, configRange]);
 
-    // Start New Session
-    const handleStartPractice = () => {
-        playSound('whoosh');
-        setQuestionIndex(0);
-        setScore(0);
-        const firstProb = generateNewProblem();
-        setProblem(firstProb);
-        resetQuestionState();
-        setPhase('playing');
-        speak(firstProb.fullText);
-    };
-
     // Reset State for Next Question
-    const resetQuestionState = () => {
-        setCrossedItems(new Set());
+    const resetQuestionState = (prob?: ProblemData) => {
+        const targetProb = prob || problem;
+        if (targetProb) {
+            const tensCount = Math.floor(targetProb.a / 10);
+            const onesCount = targetProb.a % 10;
+            setSubTens(Array.from({ length: tensCount }, (_, i) => ({ id: `ten-${i}`, isCrossed: false })));
+            setSubOnes(Array.from({ length: onesCount }, (_, i) => ({ id: `one-${i}`, isCrossed: false })));
+        }
+
+        // Reset Pictorial Operation & Interactive Actions
+        setSelectedOp(null);
+        setWrongOp(null);
+        setAdditionGrouped(false);
+        setMultRepeatedCount(1);
+        setMultGrouped(false);
+        setDivEachCount(0);
 
         // Clear equation input slots
         setInputA("");
@@ -364,6 +555,35 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
         setFeedback('idle');
     };
 
+    // Select Operation in Pictorial Area
+    const handleSelectPictorialOp = (op: Operation) => {
+        if (!problem) return;
+        if (op !== problem.op) {
+            playSound('error');
+            setWrongOp(op);
+            setTimeout(() => setWrongOp(null), 700);
+            return;
+        }
+        playSound('kaching');
+        setSelectedOp(op);
+        setInputOp(op);
+        if (inputA === "") setActiveSlot('numA');
+        else if (inputB === "") setActiveSlot('numB');
+        else if (inputAns === "") setActiveSlot('ans');
+    };
+
+    // Start New Session
+    const handleStartPractice = () => {
+        playSound('whoosh');
+        setQuestionIndex(0);
+        setScore(0);
+        const firstProb = generateNewProblem();
+        setProblem(firstProb);
+        resetQuestionState(firstProb);
+        setPhase('playing');
+        speak(firstProb.fullText);
+    };
+
     // Load Next Question
     const handleNextQuestion = () => {
         playSound('whoosh');
@@ -372,13 +592,122 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
             setQuestionIndex(nextIdx);
             const nextProb = generateNewProblem();
             setProblem(nextProb);
-            resetQuestionState();
+            resetQuestionState(nextProb);
             speak(nextProb.fullText);
         } else {
             playSound('success');
             setPhase('completed');
             onComplete?.({ score: score, maxScore: TOTAL_QUESTIONS });
         }
+    };
+
+    // --- SUBTRACTION VISUAL ACTIONS ---
+
+    // Toggle cut on a 1-item
+    const handleToggleOneCross = (idx: number) => {
+        playSound('snip');
+        setSubOnes(prev => prev.map((o, i) => i === idx ? { ...o, isCrossed: !o.isCrossed } : o));
+    };
+
+    // Unbundle a specific Ten bundle upon tap into 10 loose items
+    const handleUnbundleSpecificTen = (idx: number) => {
+        playSound('snip');
+        setSubTens(prev => prev.filter((_, i) => i !== idx));
+        const newOnes: SubtractionItem[] = Array.from({ length: 10 }, (_, i) => ({
+            id: `unbundled-${Date.now()}-${i}`,
+            isCrossed: false
+        }));
+        setSubOnes(prev => [...prev, ...newOnes]);
+    };
+
+    // Rebundle 10 loose Ones back into 1 Ten
+    const handleRebundleOnes = () => {
+        const uncrossedCount = subOnes.filter(o => !o.isCrossed).length;
+        if (uncrossedCount < 10) return;
+        playSound('pop');
+        let removed = 0;
+        const remainingOnes = subOnes.filter(o => {
+            if (!o.isCrossed && removed < 10) {
+                removed++;
+                return false;
+            }
+            return true;
+        });
+        setSubOnes(remainingOnes);
+        setSubTens(prev => [...prev, { id: `rebundled-${Date.now()}`, isCrossed: false }]);
+    };
+
+    // Auto Cut target B items
+    const handleAutoCut = () => {
+        if (!problem) return;
+        playSound('snip');
+        const targetCut = problem.b;
+        let currentTens = subTens.map(t => ({ ...t, isCrossed: false }));
+        let currentOnes = subOnes.map(o => ({ ...o, isCrossed: false }));
+
+        const targetTens = Math.floor(targetCut / 10);
+        const targetOnes = targetCut % 10;
+
+        // Unbundle tens if we don't have enough loose ones to cover targetOnes
+        while (currentOnes.length < targetOnes && currentTens.length > targetTens) {
+            currentTens.pop();
+            for (let i = 0; i < 10; i++) {
+                currentOnes.push({ id: `autocut-unbundled-${Date.now()}-${i}`, isCrossed: false });
+            }
+        }
+
+        // Cross out tens
+        let tensCut = 0;
+        currentTens = currentTens.map(t => {
+            if (tensCut < targetTens) {
+                tensCut++;
+                return { ...t, isCrossed: true };
+            }
+            return t;
+        });
+
+        // Cross out ones
+        let onesCut = 0;
+        currentOnes = currentOnes.map(o => {
+            if (onesCut < targetOnes) {
+                onesCut++;
+                return { ...o, isCrossed: true };
+            }
+            return o;
+        });
+
+        setSubTens(currentTens);
+        setSubOnes(currentOnes);
+    };
+
+    // Reset Cuts
+    const handleResetCuts = () => {
+        playSound('click');
+        setSubTens(prev => prev.map(t => ({ ...t, isCrossed: false })));
+        setSubOnes(prev => prev.map(o => ({ ...o, isCrossed: false })));
+    };
+
+    // --- DIVISION VISUAL ACTIONS ---
+
+    // Distribute 1 to each part/tray
+    const handleDistributeStep = () => {
+        if (!problem) return;
+        const remaining = problem.a - (divEachCount * problem.b);
+        if (remaining < problem.b) return;
+        const nextCount = divEachCount + 1;
+        const nextRemaining = problem.a - (nextCount * problem.b);
+        setDivEachCount(nextCount);
+        if (nextRemaining < problem.b) {
+            playSound('kaching');
+        } else {
+            playSound('pop');
+        }
+    };
+
+    // Reset division distribution
+    const handleResetDiv = () => {
+        playSound('pop');
+        setDivEachCount(0);
     };
 
     // Auto-advance equation slots when typed
@@ -414,12 +743,10 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
             if (activeSlot === 'numA') {
                 const nextVal = (inputA + char).slice(0, 3);
                 setInputA(nextVal);
-                // If reaches problem's length, advance to op
                 if (nextVal.length >= problem.a.toString().length) {
                     setActiveSlot('op');
                 }
             } else if (activeSlot === 'op') {
-                // If user enters number while on op slot, auto advance to numB
                 setActiveSlot('numB');
                 setInputB(char);
             } else if (activeSlot === 'numB') {
@@ -434,17 +761,6 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
         }
     };
 
-    // Toggle cut / cross on subtraction items
-    const handleToggleCross = (index: number) => {
-        playSound('snip');
-        setCrossedItems(prev => {
-            const next = new Set(prev);
-            if (next.has(index)) next.delete(index);
-            else next.add(index);
-            return next;
-        });
-    };
-
     // Check Answer
     const handleCheckAnswer = () => {
         if (!problem || feedback === 'correct') return;
@@ -453,16 +769,13 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
         const valB = parseInt(inputB);
         const valAns = parseInt(inputAns);
 
-        // Verification logic
         const isOpCorrect = inputOp === problem.op;
         const isAnsCorrect = valAns === problem.ans;
         
         let isNumbersCorrect = false;
         if (problem.op === '+' || problem.op === '×') {
-            // Commutative: A + B or B + A
             isNumbersCorrect = (valA === problem.a && valB === problem.b) || (valA === problem.b && valB === problem.a);
         } else {
-            // Non-commutative: A - B or A ÷ B
             isNumbersCorrect = valA === problem.a && valB === problem.b;
         }
 
@@ -505,6 +818,14 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [phase, feedback]);
 
+    // Subtraction live calculations
+    const totalCut = (subTens.filter(t => t.isCrossed).length * 10) + subOnes.filter(o => o.isCrossed).length;
+    const remainingCount = problem ? Math.max(0, problem.a - totalCut) : 0;
+    const uncrossedOnesCount = subOnes.filter(o => !o.isCrossed).length;
+
+    // Addition regrouping check
+    const isAdditionRegrouping = problem && problem.op === '+' && ((problem.a % 10) + (problem.b % 10) >= 10);
+
     // ============================================================================
     // RENDER: PHASE 1 - CONFIGURATION
     // ============================================================================
@@ -529,7 +850,7 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
                             Basic Operations Word Problems
                         </h1>
                         <p className="text-xs text-slate-400 font-medium">
-                            Read real-world stories, explore visual models & build equations
+                            Read stories, explore visual models, and build math equations
                         </p>
                     </div>
 
@@ -602,7 +923,7 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
     }
 
     // ============================================================================
-    // RENDER: PHASE 3 - VICTORY / COMPLETION SCREEN
+    // RENDER: PHASE 3 - VICTORY SCREEN
     // ============================================================================
     if (phase === 'completed') {
         return (
@@ -614,7 +935,7 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
 
                     <div>
                         <h2 className="text-xl sm:text-3xl font-black text-white">Story Problem Champion!</h2>
-                        <p className="text-xs sm:text-sm text-slate-400 font-medium mt-1">You solved math stories with visual models!</p>
+                        <p className="text-xs sm:text-sm text-slate-400 font-medium mt-1">You solved all math stories with visual models and equations!</p>
                     </div>
 
                     <div className="bg-slate-900/80 py-3 px-4 rounded-xl border border-slate-700 flex items-center justify-around">
@@ -654,6 +975,8 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
     // RENDER: PHASE 2 - ACTIVE PLAYING (100% Zero-Scroll Viewport Responsive)
     // ============================================================================
     if (!problem) return null;
+
+    const isMoney = problem.theme.category === 'money';
 
     return (
         <div className="w-full h-full flex flex-col bg-slate-900 font-sans text-white select-none overflow-hidden relative">
@@ -697,8 +1020,8 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
                 </div>
             </div>
 
-            {/* 2. STORY BANNER CARD (Compact, High-Contrast Story Reader) */}
-            <div className="shrink-0 bg-slate-950/80 border-b border-slate-800 px-3 py-2 flex items-center justify-between gap-2 z-20">
+            {/* 2. STORY BANNER CARD (Compact Story Reader) */}
+            <div className="shrink-0 bg-slate-950/80 border-b border-slate-800 px-3 py-1.5 sm:py-2 flex items-center justify-between gap-2 z-20">
                 <div className="flex-1 flex items-center gap-2 overflow-hidden">
                     <div className="text-xl sm:text-2xl shrink-0 p-1 bg-slate-900 rounded-xl border border-slate-800 shadow-inner">
                         {problem.theme.emoji}
@@ -713,240 +1036,409 @@ export default function BasicOperationWordProblems({ onComplete }: Props) {
                     </div>
                 </div>
 
-                <div className="hidden md:flex items-center gap-1.5 text-[11px] text-slate-400 font-medium shrink-0 bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-800">
-                    <Layers size={13} className="text-sky-400" />
-                    <span>CPA Model & Equation</span>
-                </div>
             </div>
 
-            {/* 3. MAIN WORKSPACE: VISUAL CONCRETE-PICTORIAL MODEL (Flex-1, Zero-Scroll) */}
+            {/* 3. MAIN WORKSPACE: INTERACTIVE PICTORIAL MODEL (Flex-1, Zero-Scroll) */}
             <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-center p-2 sm:p-3 overflow-hidden">
                 <div className="w-full max-w-4xl h-full flex flex-col justify-center items-center gap-2">
                     
                     {/* Visual Model Container */}
-                    <div className="w-full flex-1 min-h-0 bg-slate-950/60 rounded-2xl border-2 border-slate-800 p-2 sm:p-3 flex flex-col justify-center items-center shadow-inner relative overflow-hidden">
+                    <div className="w-full flex-1 min-h-0 bg-slate-950/60 rounded-2xl border-2 border-slate-800 p-2 sm:p-2.5 flex flex-col justify-center items-center shadow-inner relative overflow-hidden">
                         
-                        {/* A) ADDITION MODEL (Group A + Group B = Total) */}
-                        {problem.op === '+' && (
-                            <div className="w-full h-full flex items-center justify-center gap-2 sm:gap-4 overflow-y-auto hide-scrollbar">
-                                {/* Group A */}
-                                <div className="flex-1 max-w-[220px] bg-slate-900/90 rounded-xl border-2 border-emerald-500/40 p-2 flex flex-col items-center justify-between shadow-md">
-                                    <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">
-                                        Group 1 ({problem.a})
-                                    </span>
-                                    <div className="flex flex-wrap items-center justify-center gap-1 p-1 max-h-32 overflow-y-auto hide-scrollbar">
-                                        {Array.from({ length: Math.min(problem.a, 30) }).map((_, i) => (
-                                            <span key={i} className="text-xl sm:text-2xl hover:scale-110 transition-transform">
-                                                {problem.theme.emoji}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <span className="text-xs font-black text-white bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/40">
-                                        {problem.a} {problem.units}
-                                    </span>
-                                </div>
-
-                                <div className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center font-black text-amber-400 text-lg shrink-0 shadow-sm">
-                                    +
-                                </div>
-
-                                {/* Group B */}
-                                <div className="flex-1 max-w-[220px] bg-slate-900/90 rounded-xl border-2 border-sky-500/40 p-2 flex flex-col items-center justify-between shadow-md">
-                                    <span className="text-[10px] font-black uppercase text-sky-400 tracking-wider">
-                                        Group 2 ({problem.b})
-                                    </span>
-                                    <div className="flex flex-wrap items-center justify-center gap-1 p-1 max-h-32 overflow-y-auto hide-scrollbar">
-                                        {Array.from({ length: Math.min(problem.b, 30) }).map((_, i) => (
-                                            <span key={i} className="text-xl sm:text-2xl hover:scale-110 transition-transform">
-                                                {problem.theme.emoji}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <span className="text-xs font-black text-white bg-sky-500/20 px-2 py-0.5 rounded-full border border-sky-500/40">
-                                        {problem.b} {problem.units}
-                                    </span>
-                                </div>
-
-                                <div className="w-8 h-8 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center font-black text-slate-400 text-lg shrink-0 shadow-sm hidden sm:flex">
-                                    =
-                                </div>
-
-                                {/* Total Combined Preview */}
-                                <div className="flex-1 max-w-[220px] bg-slate-900/90 rounded-xl border-2 border-amber-500/40 p-2 flex-col items-center justify-between shadow-md hidden sm:flex">
-                                    <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">
-                                        Total Combined
-                                    </span>
-                                    <div className="flex flex-wrap items-center justify-center gap-1 p-1 max-h-32 overflow-y-auto hide-scrollbar">
-                                        {Array.from({ length: Math.min(problem.ans, 30) }).map((_, i) => (
-                                            <span key={i} className="text-xl sm:text-2xl opacity-80">
-                                                {problem.theme.emoji}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <span className="text-xs font-black text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40">
-                                        ? {problem.units}
-                                    </span>
+                        {/* PHASE A: OPERATION SELECTION (Child chooses from 4 symbols) */}
+                        {selectedOp === null ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center p-3 select-none">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-xl w-full">
+                                    {[
+                                        { op: '+' as Operation, symbol: '+', bg: 'bg-emerald-500/10 hover:bg-emerald-500/25 border-emerald-500/40 hover:border-emerald-400 text-emerald-400' },
+                                        { op: '-' as Operation, symbol: '−', bg: 'bg-rose-500/10 hover:bg-rose-500/25 border-rose-500/40 hover:border-rose-400 text-rose-400' },
+                                        { op: '×' as Operation, symbol: '×', bg: 'bg-amber-500/10 hover:bg-amber-500/25 border-amber-500/40 hover:border-amber-400 text-amber-400' },
+                                        { op: '÷' as Operation, symbol: '÷', bg: 'bg-sky-500/10 hover:bg-sky-500/25 border-sky-500/40 hover:border-sky-400 text-sky-400' },
+                                    ].map((item) => (
+                                        <button
+                                            key={item.op}
+                                            type="button"
+                                            onClick={() => handleSelectPictorialOp(item.op)}
+                                            className={`h-24 sm:h-32 rounded-2xl border-2 flex items-center justify-center font-black text-4xl sm:text-5xl shadow-lg transition-all cursor-pointer active:scale-95 hover:scale-105 select-none
+                                                ${item.bg}
+                                                ${wrongOp === item.op ? 'ring-4 ring-rose-500 bg-rose-500/30 scale-95 animate-shake' : ''}`}
+                                        >
+                                            {item.symbol}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
-                        )}
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center p-1 sm:p-2 overflow-hidden">
+                                {/* 1. ADDITION */}
+                                {selectedOp === '+' && (
+                                    <div className="w-full h-full flex items-center justify-center gap-2 sm:gap-4 overflow-hidden">
+                                        {!additionGrouped ? (
+                                            <>
+                                                <TensAndOnesGroup count={problem.a} emoji={problem.theme.emoji} isMoney={isMoney} badgeColor="emerald" />
+                                                <div className="text-xl sm:text-2xl font-black text-emerald-400 shrink-0">+</div>
+                                                <TensAndOnesGroup count={problem.b} emoji={problem.theme.emoji} isMoney={isMoney} badgeColor="sky" />
+                                            </>
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center max-w-md">
+                                                <TensAndOnesGroup count={problem.ans} emoji={problem.theme.emoji} isMoney={isMoney} badgeColor="amber" />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                        {/* B) SUBTRACTION MODEL (Start with A, Tap to Snip/Cross Out B) */}
-                        {problem.op === '-' && (
-                            <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 p-1">
-                                <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-                                    <span className="flex items-center gap-1 text-rose-400">
-                                        <Scissors size={14} /> Tap items to take away / cross out:
-                                    </span>
-                                    <span className="px-2 py-0.5 bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded-full font-black text-[11px]">
-                                        Crossed: {crossedItems.size} / {problem.b}
-                                    </span>
-                                </div>
+                                {/* 2. SUBTRACTION */}
+                                {selectedOp === '-' && (
+                                    <div className="w-full h-full bg-slate-900/90 rounded-2xl border-2 border-slate-700 p-2 sm:p-3 flex flex-col items-center justify-center gap-2 shadow-inner overflow-y-auto">
+                                        {/* Top: Bundles of 10 (Simple tap unbundles) */}
+                                        {subTens.length > 0 && (
+                                            <div className="w-full flex flex-wrap items-center justify-center gap-2 sm:gap-3 shrink-0">
+                                                {subTens.map((tenItem, idx) => (
+                                                    <TenBundle
+                                                        key={tenItem.id}
+                                                        emoji={problem.theme.emoji}
+                                                        isMoney={isMoney}
+                                                        isCrossed={tenItem.isCrossed}
+                                                        onUnbundle={() => handleUnbundleSpecificTen(idx)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
 
-                                <div className="w-full flex-1 max-w-xl bg-slate-900/90 rounded-xl border-2 border-slate-700 p-2 flex flex-wrap items-center justify-center gap-1.5 overflow-y-auto hide-scrollbar shadow-inner">
-                                    {Array.from({ length: Math.min(problem.a, 40) }).map((_, idx) => {
-                                        const isCrossed = crossedItems.has(idx);
-                                        return (
-                                            <div
-                                                key={idx}
-                                                onClick={() => handleToggleCross(idx)}
-                                                className={`relative p-1 rounded-lg cursor-pointer transition-all active:scale-90 flex items-center justify-center select-none
-                                                    ${isCrossed ? 'bg-rose-950/60 border border-rose-500/60 opacity-60' : 'bg-slate-800 border border-slate-700 hover:border-amber-400'}`}
-                                                title={isCrossed ? "Crossed out item" : "Tap to cross out"}
-                                            >
-                                                <span className={`text-2xl sm:text-3xl transition-transform ${isCrossed ? 'grayscale' : ''}`}>
-                                                    {problem.theme.emoji}
-                                                </span>
-                                                {isCrossed && (
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                        <div className="w-full h-0.5 bg-rose-500 -rotate-45 shadow-sm"></div>
+                                        {/* Horizontal Divider */}
+                                        {subTens.length > 0 && subOnes.length > 0 && (
+                                            <div className="w-3/4 max-w-md h-[1.5px] bg-slate-700/80 shrink-0 my-0.5 rounded-full"></div>
+                                        )}
+
+                                        {/* Bottom: Loose Items (Tap cuts down / crosses out) */}
+                                        {subOnes.length > 0 && (
+                                            <div className="w-full flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+                                                {subOnes.map((oneItem, idx) => (
+                                                    <OneItem
+                                                        key={oneItem.id}
+                                                        emoji={problem.theme.emoji}
+                                                        isMoney={isMoney}
+                                                        isCrossed={oneItem.isCrossed}
+                                                        onClick={() => handleToggleOneCross(idx)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* 3. MULTIPLICATION */}
+                                {selectedOp === '×' && (
+                                    <div className="w-full h-full flex items-center justify-center gap-2 sm:gap-3 overflow-hidden">
+                                        {!multGrouped ? (
+                                            <div className="w-full h-full flex items-center justify-center gap-2 sm:gap-3 overflow-hidden">
+                                                {Array.from({ length: multRepeatedCount }).map((_, groupIdx) => (
+                                                    <div
+                                                        key={groupIdx}
+                                                        className="flex-1 h-full min-h-0 bg-slate-900/90 rounded-2xl border-2 border-amber-400/50 p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-md overflow-hidden"
+                                                    >
+                                                        <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center gap-1 p-1 overflow-y-auto">
+                                                            {Math.floor(problem.b / 10) > 0 && (
+                                                                <div className="w-full flex flex-wrap items-center justify-center gap-1 shrink-0">
+                                                                    {Array.from({ length: Math.floor(problem.b / 10) }).map((_, tenIdx) => (
+                                                                        <TenBundle key={tenIdx} emoji={problem.theme.emoji} isMoney={isMoney} />
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            {Math.floor(problem.b / 10) > 0 && (problem.b % 10) > 0 && (
+                                                                <div className="w-3/4 h-[1px] bg-slate-700/60 my-0.5 rounded-full shrink-0"></div>
+                                                            )}
+                                                            {problem.b % 10 > 0 && (
+                                                                <div className="w-full flex flex-wrap items-center justify-center gap-1 shrink-0">
+                                                                    {Array.from({ length: problem.b % 10 }).map((_, itemIdx) => (
+                                                                        <OneItem key={itemIdx} emoji={problem.theme.emoji} isMoney={isMoney} />
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                <div className="text-[11px] text-slate-400 font-medium">
-                                    Remaining uncrossed items = <span className="text-emerald-400 font-black">{problem.a - crossedItems.size}</span>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* C) MULTIPLICATION MODEL (A groups/baskets of B items each) */}
-                        {problem.op === '×' && (
-                            <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-1">
-                                <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                                    <Sparkles size={14} className="text-amber-400" />
-                                    <span>{problem.a} equal groups with {problem.b} {problem.units} each</span>
-                                </div>
-
-                                <div className="w-full flex-1 max-w-2xl flex flex-wrap items-center justify-center gap-2 overflow-y-auto hide-scrollbar p-1">
-                                    {Array.from({ length: problem.a }).map((_, groupIdx) => (
-                                        <div
-                                            key={groupIdx}
-                                            className="bg-slate-900/90 rounded-xl border-2 border-amber-400/50 p-2 flex flex-col items-center shadow-md min-w-[90px] sm:min-w-[110px]"
-                                        >
-                                            <span className="text-[10px] font-black text-amber-300 uppercase mb-1">
-                                                Box {groupIdx + 1}
-                                            </span>
-                                            <div className="flex flex-wrap items-center justify-center gap-1 p-1 max-h-24">
-                                                {Array.from({ length: problem.b }).map((_, itemIdx) => (
-                                                    <span key={itemIdx} className="text-xl sm:text-2xl hover:scale-110 transition-transform">
-                                                        {problem.theme.emoji}
-                                                    </span>
                                                 ))}
                                             </div>
-                                            <span className="text-[10px] font-black text-slate-300 bg-slate-800 px-2 py-0.5 rounded-full mt-1">
-                                                {problem.b} items
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center max-w-md">
+                                                <TensAndOnesGroup count={problem.ans} emoji={problem.theme.emoji} isMoney={isMoney} badgeColor="amber" />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                        {/* D) DIVISION MODEL (A items shared equally into B plates/groups) */}
-                        {problem.op === '÷' && (
-                            <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-1">
-                                <div className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
-                                    <Sparkles size={14} className="text-sky-400" />
-                                    <span>Sharing {problem.a} items equally among {problem.b} friends</span>
-                                </div>
+                                {/* 4. DIVISION: Step-by-Step Equal Distribution (Side-by-Side Responsive) */}
+                                {selectedOp === '÷' && (() => {
+                                    const remaining = problem.a - (divEachCount * problem.b);
+                                    const cannotDivideMore = remaining < problem.b;
 
-                                <div className="w-full flex-1 max-w-2xl flex flex-wrap items-center justify-center gap-2 overflow-y-auto hide-scrollbar p-1">
-                                    {Array.from({ length: problem.b }).map((_, trayIdx) => (
-                                        <div
-                                            key={trayIdx}
-                                            className="bg-slate-900/90 rounded-xl border-2 border-sky-400/50 p-2 flex flex-col items-center shadow-md min-w-[90px] sm:min-w-[110px]"
-                                        >
-                                            <span className="text-[10px] font-black text-sky-300 uppercase mb-1">
-                                                Friend {trayIdx + 1}
-                                            </span>
-                                            <div className="flex flex-wrap items-center justify-center gap-1 p-1 max-h-24">
-                                                {Array.from({ length: problem.ans }).map((_, itemIdx) => (
-                                                    <span key={itemIdx} className="text-xl sm:text-2xl hover:scale-110 transition-transform">
-                                                        {problem.theme.emoji}
-                                                    </span>
+                                    return (
+                                        <div className="w-full h-full flex flex-col sm:flex-row items-stretch justify-between gap-2 overflow-hidden">
+                                            {/* LEFT: Total Pool to Share (Shows remaining items, turns RED when cannot divide equally anymore) */}
+                                            <div className="w-full sm:w-60 md:w-72 lg:w-80 shrink-0 h-[44%] sm:h-full flex flex-col min-h-0">
+                                                <TensAndOnesGroup
+                                                    count={remaining}
+                                                    emoji={problem.theme.emoji}
+                                                    isMoney={isMoney}
+                                                    badgeColor={cannotDivideMore ? 'rose' : 'sky'}
+                                                    header={
+                                                        cannotDivideMore ? (
+                                                            <div className="w-full flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-xl bg-rose-500/25 border-2 border-rose-500 text-rose-200 text-center animate-pulse shadow-md">
+                                                                <div className="w-full flex items-center justify-between text-xs sm:text-sm font-black text-rose-100">
+                                                                    <span>Remaining</span>
+                                                                    <span className="font-mono text-sm sm:text-base font-black text-rose-300">{remaining}</span>
+                                                                </div>
+                                                                <span className="text-[10px] sm:text-xs font-bold text-rose-200 leading-tight">
+                                                                    Less than {problem.b} quantity remaining, cannot divide equally anymore
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-full flex items-center justify-between px-3 py-1 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-200 text-xs sm:text-sm font-bold shadow-xs">
+                                                                <span>Remaining</span>
+                                                                <span className="font-mono text-sm sm:text-base font-black text-sky-300">{remaining}</span>
+                                                            </div>
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+
+                                            {/* RIGHT: Sharing Trays */}
+                                            <div className="w-full flex-1 min-w-0 h-[56%] sm:h-full flex items-stretch justify-center gap-1.5 sm:gap-2.5 overflow-x-auto p-0.5">
+                                                {Array.from({ length: problem.b }).map((_, trayIdx) => (
+                                                    <div
+                                                        key={trayIdx}
+                                                        className={`flex-1 min-w-[64px] sm:min-w-[80px] max-w-[150px] h-full rounded-2xl border-2 p-1.5 sm:p-2 flex flex-col items-center justify-between shadow-md overflow-hidden transition-all
+                                                            ${divEachCount === 0 
+                                                                ? 'bg-slate-900/60 border-dashed border-sky-400/40' 
+                                                                : 'bg-slate-900/90 border-sky-400/60 shadow-sky-950/40'}`}
+                                                    >
+                                                        {/* Header: X each */}
+                                                        {divEachCount > 0 ? (
+                                                            <span className="text-xs sm:text-sm font-black text-sky-300 bg-sky-950/90 px-2.5 py-0.5 rounded-full border border-sky-400/50 shrink-0 whitespace-nowrap shadow-xs">
+                                                                {divEachCount} each
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] sm:text-xs font-semibold text-slate-400 shrink-0">
+                                                                Part {trayIdx + 1}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Content of tray: visual representation */}
+                                                        <div className="w-full flex-1 min-h-0 flex flex-wrap items-center justify-center content-center gap-1 p-1 overflow-y-auto">
+                                                            {divEachCount === 0 ? (
+                                                                <div className="flex flex-col items-center justify-center gap-1 opacity-40">
+                                                                    <span className="text-2xl sm:text-3xl">🍽️</span>
+                                                                    <span className="text-[10px] font-medium text-slate-400">Empty</span>
+                                                                </div>
+                                                            ) : (
+                                                                Array.from({ length: divEachCount }).map((_, itemIdx) => (
+                                                                    <div
+                                                                        key={itemIdx}
+                                                                        className="flex items-center justify-center p-1 sm:p-1.5 rounded-lg bg-slate-800/90 border border-slate-700 shadow-xs hover:border-amber-400 transition-all select-none"
+                                                                        title="1"
+                                                                    >
+                                                                        <span className="text-base sm:text-lg leading-none">
+                                                                            {isMoney ? '🪙' : problem.theme.emoji}
+                                                                        </span>
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 ))}
                                             </div>
-                                            <span className="text-[10px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full mt-1 border border-emerald-500/40">
-                                                {problem.ans} each
-                                            </span>
                                         </div>
-                                    ))}
-                                </div>
+                                    );
+                                })()}
                             </div>
                         )}
                     </div>
 
-                    {/* 4. EQUATION BUILDER ROW (Interactive Number Sentence Tiles) */}
-                    <div className="w-full shrink-0 bg-slate-950/80 rounded-2xl border-2 border-slate-800 p-2 sm:p-2.5 flex items-center justify-center gap-1.5 sm:gap-3">
+                    {/* 4. EQUATION BUILDER ROW (Interactive Number Sentence Tiles & Manipulative Action Buttons) */}
+                    <div className="w-full shrink-0 bg-slate-950/90 rounded-2xl border-2 border-slate-800 px-3 py-1.5 sm:py-2 flex items-center justify-between gap-2 overflow-x-auto">
                         
-                        {/* Tile A */}
-                        <div
-                            onClick={() => { playSound('click'); setActiveSlot('numA'); }}
-                            className={`min-w-[56px] sm:min-w-[70px] h-12 sm:h-14 rounded-xl border-3 flex items-center justify-center font-mono font-black text-xl sm:text-2xl cursor-pointer transition-all shadow-md select-none
-                                ${activeSlot === 'numA' ? 'border-amber-400 bg-amber-400/20 text-amber-300 ring-2 ring-amber-300/40 scale-105' : 'border-slate-700 bg-slate-900 text-white hover:border-slate-500'}
-                                ${feedback === 'wrong' && inputA !== problem.a.toString() ? 'border-rose-500 bg-rose-500/20 text-rose-300' : ''}
-                                ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : ''}`}
-                        >
-                            {inputA !== "" ? inputA : <span className="text-slate-600 font-normal">?</span>}
+                        {/* Number Sentence Tiles */}
+                        <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 shrink-0">
+                            {/* Tile A */}
+                            <div
+                                onClick={() => { playSound('click'); setActiveSlot('numA'); }}
+                                className={`min-w-[48px] sm:min-w-[58px] h-10 sm:h-11 rounded-xl border-2 flex items-center justify-center font-mono font-black text-lg sm:text-xl cursor-pointer transition-all shadow-md select-none
+                                    ${activeSlot === 'numA' ? 'border-amber-400 bg-amber-400/20 text-amber-300 ring-2 ring-amber-300/40 scale-105' : 'border-slate-700 bg-slate-900 text-white hover:border-slate-500'}
+                                    ${feedback === 'wrong' && inputA !== problem.a.toString() ? 'border-rose-500 bg-rose-500/20 text-rose-300' : ''}
+                                    ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : ''}`}
+                            >
+                                {inputA !== "" ? inputA : <span className="text-slate-600 font-normal">?</span>}
+                            </div>
+
+                            {/* Operator Tile */}
+                            <div
+                                onClick={() => { playSound('click'); setActiveSlot('op'); }}
+                                className={`w-9 sm:w-10 h-10 sm:h-11 rounded-xl border-2 flex items-center justify-center font-mono font-black text-lg sm:text-xl cursor-pointer transition-all shadow-md select-none
+                                    ${activeSlot === 'op' ? 'border-amber-400 bg-amber-400/20 text-amber-300 ring-2 ring-amber-300/40 scale-105' : 'border-slate-700 bg-slate-900 text-amber-400 hover:border-slate-500'}
+                                    ${feedback === 'wrong' && inputOp !== problem.op ? 'border-rose-500 bg-rose-500/20 text-rose-300' : ''}
+                                    ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : ''}`}
+                            >
+                                {inputOp !== "" ? inputOp : <span className="text-slate-600 font-normal">±</span>}
+                            </div>
+
+                            {/* Tile B */}
+                            <div
+                                onClick={() => { playSound('click'); setActiveSlot('numB'); }}
+                                className={`min-w-[48px] sm:min-w-[58px] h-10 sm:h-11 rounded-xl border-2 flex items-center justify-center font-mono font-black text-lg sm:text-xl cursor-pointer transition-all shadow-md select-none
+                                    ${activeSlot === 'numB' ? 'border-amber-400 bg-amber-400/20 text-amber-300 ring-2 ring-amber-300/40 scale-105' : 'border-slate-700 bg-slate-900 text-white hover:border-slate-500'}
+                                    ${feedback === 'wrong' && inputB !== problem.b.toString() ? 'border-rose-500 bg-rose-500/20 text-rose-300' : ''}
+                                    ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : ''}`}
+                            >
+                                {inputB !== "" ? inputB : <span className="text-slate-600 font-normal">?</span>}
+                            </div>
+
+                            <span className="text-slate-500 font-black text-xl sm:text-2xl select-none">=</span>
+
+                            {/* Answer Tile */}
+                            <div
+                                onClick={() => { playSound('click'); setActiveSlot('ans'); }}
+                                className={`min-w-[56px] sm:min-w-[68px] h-10 sm:h-11 rounded-xl border-2 flex items-center justify-center font-mono font-black text-xl sm:text-2xl cursor-pointer transition-all shadow-md select-none
+                                    ${activeSlot === 'ans' ? 'border-amber-400 bg-amber-400/20 text-amber-300 ring-2 ring-amber-300/40 scale-105' : 'border-slate-700 bg-slate-900 text-sky-400 hover:border-slate-500'}
+                                    ${feedback === 'wrong' && inputAns !== problem.ans.toString() ? 'border-rose-500 bg-rose-500/20 text-rose-300' : ''}
+                                    ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : ''}`}
+                            >
+                                {inputAns !== "" ? inputAns : <span className="text-slate-600 font-normal">?</span>}
+                            </div>
                         </div>
 
-                        {/* Operator Tile */}
-                        <div
-                            onClick={() => { playSound('click'); setActiveSlot('op'); }}
-                            className={`w-11 sm:w-13 h-12 sm:h-14 rounded-xl border-3 flex items-center justify-center font-mono font-black text-xl sm:text-2xl cursor-pointer transition-all shadow-md select-none
-                                ${activeSlot === 'op' ? 'border-amber-400 bg-amber-400/20 text-amber-300 ring-2 ring-amber-300/40 scale-105' : 'border-slate-700 bg-slate-900 text-amber-400 hover:border-slate-500'}
-                                ${feedback === 'wrong' && inputOp !== problem.op ? 'border-rose-500 bg-rose-500/20 text-rose-300' : ''}
-                                ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : ''}`}
-                        >
-                            {inputOp !== "" ? inputOp : <span className="text-slate-600 font-normal">±</span>}
-                        </div>
+                        {/* Right: Model Action Controls shifted into Equation Section */}
+                        {selectedOp && (
+                            <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-slate-800">
+                                {/* 1. Addition Controls */}
+                                {selectedOp === '+' && (
+                                    !additionGrouped ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => { playSound('kaching'); setAdditionGrouped(true); }}
+                                            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-xl border-b-2 border-emerald-700 shadow-md flex items-center gap-1.5 cursor-pointer transition-all"
+                                        >
+                                            <span>Group Together</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => { playSound('pop'); setAdditionGrouped(false); }}
+                                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 cursor-pointer transition-all flex items-center gap-1 shadow-sm"
+                                        >
+                                            <RotateCcw size={12} />
+                                            <span>Separate</span>
+                                        </button>
+                                    )
+                                )}
 
-                        {/* Tile B */}
-                        <div
-                            onClick={() => { playSound('click'); setActiveSlot('numB'); }}
-                            className={`min-w-[56px] sm:min-w-[70px] h-12 sm:h-14 rounded-xl border-3 flex items-center justify-center font-mono font-black text-xl sm:text-2xl cursor-pointer transition-all shadow-md select-none
-                                ${activeSlot === 'numB' ? 'border-amber-400 bg-amber-400/20 text-amber-300 ring-2 ring-amber-300/40 scale-105' : 'border-slate-700 bg-slate-900 text-white hover:border-slate-500'}
-                                ${feedback === 'wrong' && inputB !== problem.b.toString() ? 'border-rose-500 bg-rose-500/20 text-rose-300' : ''}
-                                ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : ''}`}
-                        >
-                            {inputB !== "" ? inputB : <span className="text-slate-600 font-normal">?</span>}
-                        </div>
+                                {/* 2. Subtraction Controls */}
+                                {selectedOp === '-' && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={handleAutoCut}
+                                            className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-xl border-b-2 border-rose-700 shadow-md flex items-center gap-1.5 cursor-pointer transition-all"
+                                        >
+                                            <Scissors size={13} />
+                                            <span>Cut Down</span>
+                                        </button>
+                                        {totalCut > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={handleResetCuts}
+                                                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-slate-700 cursor-pointer active:scale-95"
+                                                title="Reset cuts"
+                                            >
+                                                <Undo2 size={13} />
+                                            </button>
+                                        )}
+                                        {subOnes.filter(o => !o.isCrossed).length >= 10 && (
+                                            <button
+                                                type="button"
+                                                onClick={handleRebundleOnes}
+                                                className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer active:scale-95"
+                                            >
+                                                <Package size={13} />
+                                                <span>Bundle 10</span>
+                                            </button>
+                                        )}
+                                    </>
+                                )}
 
-                        <span className="text-slate-500 font-black text-2xl sm:text-3xl select-none">=</span>
+                                {/* 3. Multiplication Controls */}
+                                {selectedOp === '×' && (
+                                    !multGrouped ? (
+                                        multRepeatedCount < problem.a ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => { playSound('pop'); setMultRepeatedCount(prev => Math.min(problem.a, prev + 1)); }}
+                                                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-xl border-b-2 border-amber-700 shadow-md flex items-center gap-1.5 cursor-pointer transition-all"
+                                            >
+                                                <Sparkles size={13} />
+                                                <span>Repeat</span>
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => { playSound('kaching'); setMultGrouped(true); }}
+                                                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-xl border-b-2 border-emerald-700 shadow-md flex items-center gap-1.5 cursor-pointer transition-all animate-bounce"
+                                            >
+                                                <span>Group Together</span>
+                                            </button>
+                                        )
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => { playSound('pop'); setMultGrouped(false); }}
+                                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 cursor-pointer transition-all flex items-center gap-1 shadow-sm"
+                                        >
+                                            <RotateCcw size={12} />
+                                            <span>Repeat & Group</span>
+                                        </button>
+                                    )
+                                )}
 
-                        {/* Answer Tile */}
-                        <div
-                            onClick={() => { playSound('click'); setActiveSlot('ans'); }}
-                            className={`min-w-[64px] sm:min-w-[80px] h-12 sm:h-14 rounded-xl border-3 flex items-center justify-center font-mono font-black text-2xl sm:text-3xl cursor-pointer transition-all shadow-md select-none
-                                ${activeSlot === 'ans' ? 'border-amber-400 bg-amber-400/20 text-amber-300 ring-2 ring-amber-300/40 scale-105' : 'border-slate-700 bg-slate-900 text-sky-400 hover:border-slate-500'}
-                                ${feedback === 'wrong' && inputAns !== problem.ans.toString() ? 'border-rose-500 bg-rose-500/20 text-rose-300' : ''}
-                                ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300' : ''}`}
-                        >
-                            {inputAns !== "" ? inputAns : <span className="text-slate-600 font-normal">?</span>}
-                        </div>
+                                {/* 4. Division Controls */}
+                                {selectedOp === '÷' && (() => {
+                                    const remaining = problem.a - (divEachCount * problem.b);
+                                    const cannotDivideMore = remaining < problem.b;
+
+                                    return (
+                                        <div className="flex items-center gap-1.5">
+                                            {!cannotDivideMore ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDistributeStep}
+                                                    className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-xl border-b-2 border-sky-700 shadow-md flex items-center gap-1.5 cursor-pointer transition-all"
+                                                >
+                                                    <span>{divEachCount === 0 ? 'Start Distributing Equally' : 'Distribute 1 Each'}</span>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleResetDiv}
+                                                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs sm:text-sm rounded-xl border border-slate-700 cursor-pointer transition-all flex items-center gap-1.5 shadow-md"
+                                                >
+                                                    <RotateCcw size={13} />
+                                                    <span>Distribute Again</span>
+                                                </button>
+                                            )}
+
+                                            {divEachCount > 0 && !cannotDivideMore && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleResetDiv}
+                                                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-slate-700 cursor-pointer active:scale-95 transition-all"
+                                                    title="Start over"
+                                                >
+                                                    <RotateCcw size={13} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
