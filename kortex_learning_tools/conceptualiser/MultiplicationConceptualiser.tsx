@@ -271,12 +271,41 @@ export default function MultiplicationConceptualiser({ lesson, onComplete }: any
     if (phase === 'finish') {
         return (
             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 font-sans md:rounded-3xl p-6 text-center animate-fade-in-up">
-                <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6 shadow-xl bg-emerald-100 border-4 border-emerald-300">
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center mb-6 shadow-xl bg-emerald-100 border-4 border-emerald-300">
                     <CheckCircle2 size={64} className="text-emerald-500"/>
                 </div>
-                <h2 className="text-4xl font-black text-slate-800 mb-2">Math Master!</h2>
-                <p className="text-slate-500 font-bold text-lg mb-8">You successfully discovered how multiplication builds equal groups!</p>
+                <h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-2">Math Master!</h2>
+                <p className="text-slate-500 font-bold text-sm md:text-lg mb-8 max-w-md">You successfully discovered how multiplication builds equal groups!</p>
                 
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                    <button
+                        onClick={() => {
+                            setRoundIndex(0);
+                            setDistributedDesks(0);
+                            setStep('distribute');
+                            setBlanks({});
+                            setFeedback('idle');
+                            setPhase('interactive');
+                        }}
+                        className="px-6 py-3 bg-white text-slate-700 font-bold text-sm rounded-xl border border-slate-300 shadow-sm hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                    >
+                        Practice Again
+                    </button>
+                    {onComplete && (
+                        <button
+                            onClick={() => {
+                                onComplete({
+                                    score: EXAMPLES.length * 10,
+                                    maxScore: EXAMPLES.length * 10,
+                                    status: 'completed'
+                                });
+                            }}
+                            className="px-8 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm md:text-base rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+                        >
+                            <CheckCircle2 size={20} /> Finish Lesson & Continue ➔
+                        </button>
+                    )}
+                </div>
             </div>
         );
     }
@@ -300,10 +329,29 @@ export default function MultiplicationConceptualiser({ lesson, onComplete }: any
             )}
 
             {/* HEADER */}
-            <div className="w-full shrink-0 p-3 md:p-4 z-20 bg-slate-800 border-b-2 border-slate-700 shadow-sm flex flex-col md:flex-row items-center justify-between text-white gap-2">
+            <div className="w-full shrink-0 p-3 md:p-4 z-20 bg-slate-800 border-b-2 border-slate-700 shadow-sm flex items-center justify-between text-white">
                 <div className="flex items-center gap-3">
                     <div className="bg-sky-500 p-2 rounded-lg text-white"><Sparkles size={20}/></div>
-                    <h2 className="text-base md:text-xl font-black tracking-widest uppercase">The Multiplication Trick</h2>
+                    <h2 className="text-sm md:text-xl font-black tracking-widest uppercase">The Multiplication Trick</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] md:text-xs font-bold text-slate-400 bg-slate-700 px-2.5 py-1 rounded-full">
+                        Activity {roundIndex + 1} / {EXAMPLES.length}
+                    </span>
+                    {onComplete && roundIndex > 0 && (
+                        <button
+                            onClick={() => {
+                                onComplete({
+                                    score: roundIndex * 10,
+                                    maxScore: EXAMPLES.length * 10,
+                                    status: 'completed'
+                                });
+                            }}
+                            className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs rounded-full flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                        >
+                            <CheckCircle2 size={14} /> Finish
+                        </button>
+                    )}
                 </div>
             </div>
 

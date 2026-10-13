@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Plus, Minus, Volume2, Star, Target } from 'lucide-react';
+import { Play, Plus, Minus, Volume2, Star, Target, CheckCircle2, RotateCcw, Sparkles } from 'lucide-react';
 
 interface Coin {
   id: number;
@@ -13,8 +13,11 @@ export default function MoreLess({ lesson, onComplete }: any) {
   const [uiState, setUiState] = useState<'menu' | 'playing'>('menu');
   const [coins, setCoins] = useState<Coin[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [actionsCount, setActionsCount] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
 
   const audioCtx = useRef<AudioContext | null>(null);
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // --- Audio Synthesis (iOS Safe) ---
   const initAudio = () => {
@@ -24,7 +27,7 @@ export default function MoreLess({ lesson, onComplete }: any) {
       if (WinAudioContext) audioCtx.current = new WinAudioContext();
     }
     if (audioCtx.current && audioCtx.current.state === 'suspended') {
-      audioCtx.current.resume();
+      audioCtx.current.resume().catch(() => {});
     }
     if ('speechSynthesis' in window) {
       const unlockSpeech = new SpeechSynthesisUtterance('');
@@ -33,7 +36,7 @@ export default function MoreLess({ lesson, onComplete }: any) {
     }
   };
 
-  const playSound = (type: 'slide-in' | 'slide-out' | 'error') => {
+  const playSound = (type: 'slide-in' | 'slide-out' | 'error' | 'success') => {
     if (!audioCtx.current) return;
     const ctx = audioCtx.current;
     const osc = ctx.createOscillator();
@@ -60,20 +63,69 @@ export default function MoreLess({ lesson, onComplete }: any) {
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
       osc.connect(gain); gain.connect(ctx.destination);
       osc.start(); osc.stop(ctx.currentTime + 0.2);
+    } else if (type === 'success') {
+      [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.1);
+        g.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.1);
+        g.gain.linearRampToValueAtTime(0, ctx.currentTime + i * 0.1 + 0.25);
+        o.start(ctx.currentTime + i * 0.1);
+        o.stop(ctx.currentTime + i * 0.1 + 0.25);
+      });
     }
   };
 
   const speakNumber = (num: number, prefix: string = '') => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
       const utterance = new SpeechSynthesisUtterance(`${prefix} ${num}`);
       utterance.lang = 'en-IN';
       utterance.rate = 0.9;
       utterance.pitch = 1.1;
       utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
+      utterance.onend = () => {
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        setIsSpeaking(false);
+      };
+      utterance.onerror = () => {
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        setIsSpeaking(false);
+      };
+
+      const safeTimeMs = Math.max(2500, (prefix.length + 5) * 100);
+      fallbackTimerRef.current = setTimeout(() => {
+        setIsSpeaking(false);
+      }, safeTimeMs);
+
       window.speechSynthesis.speak(utterance);
     }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, []);
+
+  const handleFinish = () => {
+    playSound('success');
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    onComplete?.({
+      score: 10,
+      maxScore: 10,
+      status: 'completed'
+    });
   };
 
   // --- Game Math & Interactions ---
@@ -85,6 +137,8 @@ export default function MoreLess({ lesson, onComplete }: any) {
       exiting: false
     }));
     setCoins(initialCoins);
+    setActionsCount(0);
+    setIsFinished(false);
     setUiState('playing');
     speakNumber(5);
   };
@@ -99,6 +153,7 @@ export default function MoreLess({ lesson, onComplete }: any) {
     const newVal = currentCount + 1;
     playSound('slide-in');
     speakNumber(newVal, 'One more makes');
+    setActionsCount(prev => prev + 1);
     
     setCoins([...coins, { id: Date.now(), value: newVal, exiting: false }]);
   };
@@ -110,6 +165,7 @@ export default function MoreLess({ lesson, onComplete }: any) {
     const newVal = currentCount - 1;
     playSound('slide-out');
     speakNumber(newVal, 'One less makes');
+    setActionsCount(prev => prev + 1);
     
     const topCoin = activeCoins[activeCoins.length - 1];
     
@@ -154,11 +210,37 @@ export default function MoreLess({ lesson, onComplete }: any) {
         </div>
 
         {uiState === 'playing' && (
-          <div className="flex gap-2">
-            <button onClick={() => speakNumber(currentCount)} className={`p-2 rounded-xl border-b-4 transition-transform active:translate-y-1 ${isSpeaking ? 'bg-sky-100 border-sky-200 text-sky-500' : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-sky-500'}`}>
-              <Volume2 className={`w-5 h-5 md:w-6 md:h-6 ${isSpeaking ? 'animate-pulse' : ''}`} />
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-bold text-slate-400">Moves:</span>
+              <span className="text-xs font-black text-sky-600">{actionsCount}</span>
+            </div>
+
+            {actionsCount >= 3 && onComplete && (
+              <button
+                onClick={handleFinish}
+                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-2 border-emerald-700 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                title="Finish Lesson"
+              >
+                <CheckCircle2 size={15} /> Finish
+              </button>
+            )}
+
+            <button
+              onClick={startGame}
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border-b-2 border-slate-200 text-slate-500 transition-transform active:translate-y-0.5 cursor-pointer"
+              title="Restart"
+            >
+              <RotateCcw size={18} />
             </button>
-            
+
+            <button 
+              onClick={() => speakNumber(currentCount)} 
+              className={`p-2 rounded-xl border-b-2 transition-transform active:translate-y-0.5 cursor-pointer ${isSpeaking ? 'bg-sky-100 border-sky-300 text-sky-600' : 'bg-slate-100 border-slate-200 text-slate-500 hover:text-sky-600'}`}
+              title="Read Number"
+            >
+              <Volume2 className={`w-5 h-5 ${isSpeaking ? 'animate-pulse' : ''}`} />
+            </button>
           </div>
         )}
       </div>
@@ -219,6 +301,24 @@ export default function MoreLess({ lesson, onComplete }: any) {
              </div>
           </div>
 
+          {/* CELEBRATORY PROGRESS STRIP */}
+          {actionsCount >= 4 && (
+            <div className="shrink-0 px-4 py-2 bg-emerald-50 border-t-2 border-emerald-200 flex flex-wrap items-center justify-between gap-2 z-30 animate-fade-in shadow-sm">
+              <div className="flex items-center gap-2">
+                <Sparkles size={18} className="text-emerald-600 animate-spin" />
+                <span className="text-xs md:text-sm font-black text-emerald-800">
+                  Awesome! You&apos;ve discovered how One More &amp; One Less work.
+                </span>
+              </div>
+              <button
+                onClick={() => setIsFinished(true)}
+                className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-2 border-emerald-700 shadow-md flex items-center gap-1.5 animate-pulse cursor-pointer"
+              >
+                <CheckCircle2 size={16} /> Finish Lesson &amp; Continue ➔
+              </button>
+            </div>
+          )}
+
           {/* ACTION CONTROLS (Safely anchored to bottom using flex shrink) */}
           <div className="h-28 md:h-36 w-full bg-white border-t-4 border-slate-200 shrink-0 p-4 md:p-6 z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
              <div className="max-w-3xl mx-auto flex items-center justify-center gap-4 md:gap-8 h-full">
@@ -255,6 +355,36 @@ export default function MoreLess({ lesson, onComplete }: any) {
         </div>
       )}
 
+      {/* FINISH MODAL */}
+      {isFinished && (
+        <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] p-8 md:p-10 max-w-md w-full shadow-2xl text-center border-4 border-emerald-200 flex flex-col items-center animate-fade-in">
+            <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mb-4 shadow-inner">
+              <Sparkles size={40} className="text-emerald-600 animate-spin" />
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">Lesson Complete! 🎉</h2>
+            <p className="text-sm md:text-base text-slate-600 font-bold mb-6">
+              You mastered how adding 1 makes &quot;one more&quot; and taking 1 away makes &quot;one less&quot;!
+            </p>
+
+            <div className="flex flex-col gap-3 w-full">
+              <button
+                onClick={handleFinish}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-base md:text-lg rounded-2xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+              >
+                <CheckCircle2 size={22} /> Finish Lesson &amp; Continue ➔
+              </button>
+              <button
+                onClick={() => setIsFinished(false)}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-sm md:text-base rounded-2xl border border-slate-300 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RotateCcw size={18} /> Keep Exploring
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MENU OVERLAY */}
       {uiState === 'menu' && (
         <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -264,7 +394,7 @@ export default function MoreLess({ lesson, onComplete }: any) {
             </div>
             <h2 className="text-4xl md:text-5xl font-black text-slate-800 mb-2 tracking-tight">One More,<br/>One Less!</h2>
             <p className="text-slate-500 font-bold mb-10 text-lg">Add coins or take them away to see how numbers change.</p>
-            <button onClick={startGame} className="w-full py-5 bg-sky-500 hover:bg-sky-400 text-white font-black text-2xl rounded-2xl shadow-xl border-b-8 border-sky-700 transition-transform active:translate-y-2 flex items-center justify-center gap-3">
+            <button onClick={startGame} className="w-full py-5 bg-sky-500 hover:bg-sky-400 text-white font-black text-2xl rounded-2xl shadow-xl border-b-8 border-sky-700 transition-transform active:translate-y-2 flex items-center justify-center gap-3 cursor-pointer">
                <Play fill="currentColor" /> START EXPLORING
             </button>
           </div>

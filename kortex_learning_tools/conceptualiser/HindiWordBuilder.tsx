@@ -80,13 +80,13 @@ const playSuccessChime = () => {
     }
 };
 
-export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any) {
+export default function HindiWordBuilder({ subtopicId: propSubtopicId, lesson, onComplete = () => {} }: any) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dragGhostRef = useRef<HTMLDivElement>(null);
     
     // --- MODE & CONFIG ---
-    const subtopicId = lesson?.subtopicId || lesson?.routePath?.split('/').pop() || 'word-builder-2';
+    const subtopicId = propSubtopicId || lesson?.subtopicId || lesson?.routePath?.split('/').pop() || 'word-builder-2';
     const isMatraMode = subtopicId.includes('matra');
     const titleStr = lesson?.title?.toLowerCase() || '';
     const selectedLength = titleStr.includes('3') ? 3 : titleStr.includes('4') ? 4 : 2;
@@ -102,6 +102,25 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
     const [gameKey, setGameKey] = useState(0);
     const [isWordDone, setIsWordDone] = useState(false);
     const [isAllComplete, setIsAllComplete] = useState(false);
+
+    const handleFinish = () => {
+        if (activeAudioRef.current) {
+            try {
+                activeAudioRef.current.pause();
+                activeAudioRef.current = null;
+            } catch (e) {}
+        }
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            try { window.speechSynthesis.cancel(); } catch (e) {}
+        }
+        const score = Math.max(currentIndex + (isWordDone ? 1 : 0), 1);
+        const maxScore = Math.max(wordList.length, 1);
+        onComplete({
+            score: score * 10,
+            maxScore: maxScore * 10,
+            status: 'completed'
+        });
+    };
 
     // Mobile Dragging Overlay State (Floating above all layers with z-[9999])
     const [mobileDrag, setMobileDrag] = useState<{
@@ -858,6 +877,17 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
                         </button>
                     )}
 
+                    {(currentIndex > 0 || isWordDone) && (
+                        <button 
+                            onClick={handleFinish}
+                            className="flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-black text-xs md:text-sm px-2.5 md:px-3 py-1.5 rounded-xl shadow-sm transition-all active:scale-95 border border-emerald-300"
+                            title="Finish lesson"
+                        >
+                            <CheckCircle size={14} className="text-emerald-600" />
+                            <span>पूरा करें ➔</span>
+                        </button>
+                    )}
+
                     <button 
                         onClick={() => {
                             setGameKey(prev => prev + 1);
@@ -1014,10 +1044,10 @@ export default function HindiWordBuilder({ lesson, onComplete = () => {} }: any)
                             </button>
                             
                             <button
-                                onClick={() => onComplete({ score: wordList.length, total: wordList.length })}
-                                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-black py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+                                onClick={handleFinish}
+                                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-black py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1"
                             >
-                                आगे बढ़ें <ArrowRight size={18} />
+                                <span>आगे बढ़ें (Finish Lesson)</span> <ArrowRight size={18} />
                             </button>
                         </div>
                     </div>

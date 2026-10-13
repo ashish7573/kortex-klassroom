@@ -196,6 +196,16 @@ export default function ShopConceptualiser({ lesson, onComplete }: any) {
     setActiveDragId(null);
   };
 
+  const handleFinish = () => {
+    if (onComplete) {
+      onComplete({
+        score: Math.max(10, (purchasedItems.length || 1) * 10),
+        maxScore: SHOP_ITEMS.length * 10,
+        status: 'completed'
+      });
+    }
+  };
+
   const handleBuy = () => {
     if (!activeItem) return;
 
@@ -204,6 +214,7 @@ export default function ShopConceptualiser({ lesson, onComplete }: any) {
     if (coinsOnDesk.length === activeItem.cost) {
       playSound('kaching');
       setSuccessAnim(true);
+      const nextPurchasedCount = purchasedItems.length + 1;
       
       setTimeout(() => {
         setPurchasedItems(prev => [...prev, activeItem.id]);
@@ -212,8 +223,8 @@ export default function ShopConceptualiser({ lesson, onComplete }: any) {
         setActiveItem(null);
         setSuccessAnim(false);
 
-        if (purchasedItems.length === SHOP_ITEMS.length) {
-           setTimeout(() => setUiState('gameover'), 1000);
+        if (nextPurchasedCount >= SHOP_ITEMS.length) {
+           setTimeout(() => setUiState('gameover'), 800);
         }
       }, 1500);
 
@@ -255,9 +266,19 @@ export default function ShopConceptualiser({ lesson, onComplete }: any) {
           <h1 className="text-slate-800 font-black text-lg uppercase leading-none">Let's Buy!</h1>
         </div>
         {uiState === 'shopping' && (
-          <button onClick={() => setUiState('menu')} className="bg-slate-100 text-slate-500 p-2 rounded-xl font-bold transition-transform active:scale-95">
-             <RotateCcw className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onComplete && purchasedItems.length > 0 && (
+              <button
+                onClick={handleFinish}
+                className="px-3 md:px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs md:text-sm rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <CheckCircle2 size={15} /> Finish Lesson ({purchasedItems.length} bought)
+              </button>
+            )}
+            <button onClick={() => setUiState('menu')} className="bg-slate-100 text-slate-500 p-2 rounded-xl font-bold transition-transform active:scale-95 cursor-pointer" title="Restart">
+               <RotateCcw className="w-5 h-5" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -462,9 +483,13 @@ export default function ShopConceptualiser({ lesson, onComplete }: any) {
                   <p className="text-emerald-400 font-black uppercase tracking-widest text-[10px] md:text-xs">You bought everything</p>
                 </div>
               </div>
-              <div className="flex gap-3 md:border-l-2 border-slate-700 md:pl-8 w-full md:w-auto">
-                 <button onClick={startGame} className="flex-1 px-4 py-3 bg-slate-800 text-slate-300 font-black text-xs md:text-sm rounded-xl border-b-4 border-slate-700 transition-transform active:translate-y-1">REPLAY</button>
-                 
+              <div className="flex flex-wrap gap-3 md:border-l-2 border-slate-700 md:pl-6 w-full md:w-auto">
+                 <button onClick={startGame} className="px-4 py-2.5 bg-slate-800 text-slate-300 font-black text-xs md:text-sm rounded-xl border-b-4 border-slate-700 transition-transform active:translate-y-1 cursor-pointer">REPLAY</button>
+                 {onComplete && (
+                   <button onClick={handleFinish} className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer">
+                     <CheckCircle2 size={16} /> Finish Lesson & Continue ➔
+                   </button>
+                 )}
               </div>
            </div>
         </div>

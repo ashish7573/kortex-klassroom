@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowUpCircle, Volume2, Monitor, Smartphone } from 'lucide-react';
+import { ArrowUpCircle, Volume2, Monitor, Smartphone, Sparkles, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react';
 
 // Import central audio engine
 import { HINDI_ASSETS, getBarahkhadiAudio } from '@/kortex_library/SwarVyanjanDictionary';
@@ -130,7 +130,7 @@ const playJingle = () => {
 };
 
 
-export default function MatraBarahkhadi({ lesson }: any) {
+export default function MatraBarahkhadi({ subtopicId, lesson, onComplete }: any) {
   
   // --- MOBILE DETECTION ---
   const [isMobile, setIsMobile] = useState(false);
@@ -139,22 +139,41 @@ export default function MatraBarahkhadi({ lesson }: any) {
       const checkMobile = () => setIsMobile(window.innerWidth < 768);
       checkMobile(); 
       window.addEventListener('resize', checkMobile);
-      return () => window.removeEventListener('resize', checkMobile);
+      return () => {
+        window.removeEventListener('resize', checkMobile);
+        if (activeLocalAudio) {
+          try { activeLocalAudio.pause(); } catch {}
+        }
+      };
   }, []);
 
   const currentSwarIndex = useMemo(() => {
-    const id = lesson?.subtopicId || '';
+    const id = subtopicId || lesson?.subtopicId || lesson?.routePath?.split('/').pop() || '';
     const swarMap: Record<string, number> = {
       'matra-aa': 1, 'matra-i': 2, 'matra-ee': 3, 'matra-u': 4,
       'matra-oo': 5, 'matra-e': 6, 'matra-ai': 7, 'matra-o': 8,
       'matra-au': 9, 'matra-ang': 10, 'matra-ah': 11,
     };
     return swarMap[id] ?? 1; 
-  }, [lesson?.subtopicId]);
+  }, [subtopicId, lesson?.subtopicId, lesson?.routePath]);
 
   const [gridData, setGridData] = useState<Record<string, string[]>>({}); 
   const [dropVyanjan, setDropVyanjan] = useState<string | null>(null);
   const [dropSwar, setDropSwar] = useState<any | null>(null);
+  const [createdCount, setCreatedCount] = useState(0);
+  const [isCompleted, setIsCompleted] = useState(false);
+  
+  const handleFinish = () => {
+    if (activeLocalAudio) {
+      try { activeLocalAudio.pause(); } catch {}
+    }
+    const score = Math.min(100, Math.max(50, Math.max(createdCount, 1) * 20));
+    onComplete?.({
+      score,
+      maxScore: 100,
+      status: 'completed'
+    });
+  };
   
   const [combineState, setCombineState] = useState<'idle' | 'v_audio' | 's_audio' | 'combined' | 'ready' | 'flying' | 'replaying'>('idle');
   const [flyingBead, setFlyingBead] = useState<{char: string, startX: number, startY: number, targetX: number, targetY: number, bg: string, border: string, text: string} | null>(null);
@@ -315,6 +334,13 @@ export default function MatraBarahkhadi({ lesson }: any) {
                 }
                 return prev;
             });
+            setCreatedCount(prev => {
+                const next = prev + 1;
+                if (next >= 5) {
+                    setTimeout(() => setIsCompleted(true), 800);
+                }
+                return next;
+            });
             setFlyingBead(null);
             setDropVyanjan(null);
             setDropSwar(null);
@@ -325,6 +351,36 @@ export default function MatraBarahkhadi({ lesson }: any) {
 
   const combinedDisplay = (dropVyanjan && dropSwar) ? (dropVyanjan + dropSwar.matra) : '';
 
+  const victoryModalNode = isCompleted ? (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+      <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full text-center shadow-2xl border-4 border-emerald-400 animate-in zoom-in-95 duration-200">
+        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Sparkles className="w-10 h-10 text-emerald-600" />
+        </div>
+        <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">शानदार!</h2>
+        <p className="text-slate-600 font-bold text-sm md:text-base mb-6">
+          आपने {createdCount} मात्रा अक्षर सफलतापूर्वक बना लिए हैं!
+        </p>
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={handleFinish}
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base rounded-2xl shadow-lg border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+          >
+            <span>आगे बढ़ें (Finish Lesson)</span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setIsCompleted(false)}
+            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-2xl transition-all flex items-center justify-center gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>और अक्षर बनाएं (Keep Practicing)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   // ============================================================================
   // MOBILE RENDER (Stacked Vertical Layout)
   // ============================================================================
@@ -334,6 +390,26 @@ export default function MatraBarahkhadi({ lesson }: any) {
             className="w-full h-[100dvh] flex flex-col p-2 bg-slate-50 font-sans select-none touch-none overflow-hidden pb-6"
             onPointerDownCapture={unlockMobileAudio} // INSTANT AUDIO UNLOCK ON FIRST TOUCH
         >
+            {victoryModalNode}
+
+            {/* Mobile Header */}
+            <div className="shrink-0 bg-white border border-slate-200 px-3 py-1.5 flex items-center justify-between rounded-xl mb-1 shadow-sm">
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-black text-slate-400 uppercase">मात्रा जोड़ो</span>
+                    <span className="text-[11px] font-black text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                        बनाए: {createdCount} / 5
+                    </span>
+                </div>
+                {createdCount >= 2 && (
+                    <button
+                        onClick={handleFinish}
+                        className="px-2.5 py-1 bg-emerald-600 text-white font-black text-[11px] rounded-lg shadow-sm flex items-center gap-1 active:scale-95"
+                    >
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>पूरा करें ➔</span>
+                    </button>
+                )}
+            </div>
             
             {/* DRAG LAYER (Mobile Scaled) */}
             {dragItem && (
@@ -515,13 +591,35 @@ export default function MatraBarahkhadi({ lesson }: any) {
   }
 
   // ============================================================================
-  // DESKTOP/TABLET RENDER (Unchanged)
+  // DESKTOP/TABLET RENDER
   // ============================================================================
   return (
     <div 
-        className="w-full h-[90vh] min-h-[650px] flex flex-col gap-3 p-3 bg-slate-50 font-sans select-none touch-none overflow-hidden"
+        className="w-full h-full min-h-[600px] flex flex-col gap-3 p-3 bg-slate-50 font-sans select-none touch-none overflow-hidden rounded-3xl border-2 border-slate-200 relative"
         onPointerDownCapture={unlockMobileAudio} // INSTANT AUDIO UNLOCK ON FIRST TOUCH
     >
+        {victoryModalNode}
+
+        {/* Progress Header */}
+        <div className="shrink-0 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 flex items-center justify-between shadow-sm z-20">
+            <div className="flex items-center gap-3">
+                <span className="text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider">मात्रा और बारहखड़ी</span>
+                <span className="text-xs md:text-sm font-black text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
+                    बनाए गए अक्षर: {createdCount} / 5
+                </span>
+            </div>
+            <div className="flex items-center gap-2">
+                {createdCount >= 2 && (
+                    <button
+                        onClick={handleFinish}
+                        className="px-3 md:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm rounded-xl shadow-md border-b-2 border-emerald-800 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>पाठ पूरा करें ➔</span>
+                    </button>
+                )}
+            </div>
+        </div>
         
         {/* DRAG LAYER */}
         {dragItem && (

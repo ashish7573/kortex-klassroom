@@ -69,6 +69,8 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
   const [isMatchFound, setIsMatchFound] = useState(false);
   const [warning, setWarning] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
+  const [solvedCount, setSolvedCount] = useState(0);
 
   // --- Initialization ---
   useEffect(() => {
@@ -92,6 +94,7 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
 
   // --- Audio Engine ---
   const audioCtx = useRef<AudioContext | null>(null);
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const initAudio = () => {
     if (typeof window === 'undefined') return;
@@ -100,7 +103,7 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
       if (WinAudioContext) audioCtx.current = new WinAudioContext();
     }
     if (audioCtx.current && audioCtx.current.state === 'suspended') {
-      audioCtx.current.resume();
+      audioCtx.current.resume().catch(() => {});
     }
   };
 
@@ -146,12 +149,58 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
   const speakSuccess = () => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
       const utterance = new SpeechSynthesisUtterance(`Great! You matched ${targetNumber} objects!`);
       utterance.lang = 'en-IN';
       utterance.rate = 0.9;
       utterance.pitch = 1.2;
+
+      fallbackTimerRef.current = setTimeout(() => {
+        // safety unlock
+      }, 3000);
+
       window.speechSynthesis.speak(utterance);
     }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, []);
+
+  const handleFinish = () => {
+    playSound('kaching');
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    onComplete?.({
+      score: solvedCount || 10,
+      maxScore: questions.length || 10,
+      status: 'completed'
+    });
+  };
+
+  const handleRestart = () => {
+    playSound('slide');
+    const newQuestions: Question[] = [];
+    for (let i = 0; i < 10; i++) {
+      newQuestions.push({
+        target: Math.floor(Math.random() * 10) + 1,
+        emoji: EMOJI_POOL[Math.floor(Math.random() * EMOJI_POOL.length)]
+      });
+    }
+    setQuestions(newQuestions);
+    setCurrentQIdx(0);
+    setLeftCount(0);
+    setRightCount(0);
+    setIsMatchFound(false);
+    setIsFinished(false);
+    setSolvedCount(0);
   };
 
   // --- Handlers ---
@@ -163,11 +212,17 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
       if (leftCount < 5) {
         playSound('pop');
         setLeftCount(prev => prev + 1);
+      } else {
+        playSound('slide');
+        setLeftCount(0);
       }
     } else {
       if (rightCount < 5) {
         playSound('pop');
         setRightCount(prev => prev + 1);
+      } else {
+        playSound('slide');
+        setRightCount(0);
       }
     }
   };
@@ -198,6 +253,7 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
     speakSuccess();
     setIsSuccessAnim(true);
     setIsMatchFound(true);
+    setSolvedCount(prev => prev + 1);
     
     setTimeout(() => {
       setIsSuccessAnim(false);
@@ -208,7 +264,7 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
     initAudio();
     playSound('slide');
     if (currentQIdx >= questions.length - 1) {
-      onComplete?.();
+      setIsFinished(true);
     } else {
       setCurrentQIdx(prev => prev + 1);
       setLeftCount(0);
@@ -235,9 +291,21 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
             </div>
          </div>
          
-         <div className="bg-slate-100 text-slate-500 px-3 py-1.5 md:px-4 md:py-2 rounded-xl border-2 border-slate-200 font-black flex items-center gap-2 text-sm">
-            <Star size={14} className="fill-slate-400" />
-            <span>{currentQIdx + 1} / 10</span>
+         <div className="flex items-center gap-2">
+            {(solvedCount > 0 || currentQIdx >= 3) && onComplete && (
+              <button
+                onClick={handleFinish}
+                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-2 border-emerald-700 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                title="Finish Lesson"
+              >
+                <CheckCircle2 size={15} /> Finish
+              </button>
+            )}
+
+            <div className="bg-slate-100 text-slate-500 px-3 py-1.5 md:px-4 md:py-2 rounded-xl border-2 border-slate-200 font-black flex items-center gap-2 text-sm">
+               <Star size={14} className="fill-slate-400" />
+               <span>{currentQIdx + 1} / 10</span>
+            </div>
          </div>
       </div>
 
@@ -339,14 +407,52 @@ export default function CountingCombinations({ lesson, onComplete }: any) {
             ) : (
                <button 
                  onClick={handleNextQuestion}
-                 className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-lg md:text-xl transition-all active:scale-95 border-b-4 border-emerald-700 active:border-b-0 shadow-xl animate-fade-in"
+                 className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-8 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-lg md:text-xl transition-all active:scale-95 border-b-4 border-emerald-700 active:border-b-0 shadow-xl animate-fade-in cursor-pointer"
                >
-                 {currentQIdx >= questions.length - 1 ? 'FINISH' : 'NEXT'} <ChevronRight size={24} />
+                 {currentQIdx >= questions.length - 1 ? (
+                   <>
+                     <CheckCircle2 size={24} /> Finish Lesson &amp; Continue ➔
+                   </>
+                 ) : (
+                   <>
+                     NEXT <ChevronRight size={24} />
+                   </>
+                 )}
                </button>
             )}
 
          </div>
       </div>
+
+      {/* FINISH CELEBRATION MODAL */}
+      {isFinished && (
+        <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] p-8 md:p-10 max-w-md w-full shadow-2xl text-center border-4 border-emerald-200 flex flex-col items-center animate-fade-in">
+            <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mb-4 shadow-inner">
+              <Sparkles size={40} className="text-emerald-600 animate-spin" />
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">Great Work! 🎉</h2>
+            <p className="text-sm md:text-base text-slate-600 font-bold mb-6">
+              You matched fingers and counted all objects accurately!
+            </p>
+
+            <div className="flex flex-col gap-3 w-full">
+              <button
+                onClick={handleFinish}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-base md:text-lg rounded-2xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+              >
+                <CheckCircle2 size={22} /> Finish Lesson & Continue ➔
+              </button>
+              <button
+                onClick={handleRestart}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-sm md:text-base rounded-2xl border border-slate-300 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RotateCcw size={18} /> Play Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

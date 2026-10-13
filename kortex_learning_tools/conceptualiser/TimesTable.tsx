@@ -18,10 +18,22 @@ const NUM_WORDS: Record<number, string> = {
 export default function TimesTable({ lesson, onComplete }: any) {
     const [phase, setPhase] = useState<'select' | 'build' | 'finish'>('select');
     const [currentTable, setCurrentTable] = useState<number>(2);
+    const [completedTables, setCompletedTables] = useState<number[]>([]);
     const [mounted, setMounted] = useState(false);
     
     // Track inputs for rows 1 to 10. (1-indexed for easier math mapping)
     const [inputs, setInputs] = useState<Record<number, { wordAns: string, mathAns: string, isCorrect: boolean }>>({});
+
+    const handleFinish = () => {
+        if (onComplete) {
+            const count = Math.max(1, completedTables.length);
+            onComplete({
+                score: count * 10,
+                maxScore: TABLES.length * 10,
+                status: 'completed'
+            });
+        }
+    };
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -97,28 +109,50 @@ export default function TimesTable({ lesson, onComplete }: any) {
     // ============================================================================
     if (phase === 'select') {
         return (
-            <div className="w-full h-full min-h-[600px] flex flex-col bg-slate-900 font-sans md:rounded-3xl p-6 relative overflow-y-auto selection:bg-sky-500/30">
-                <div className="text-center mb-10 shrink-0 relative z-10 animate-fade-in-up">
-                    <div className="bg-sky-500 w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 shadow-lg">
-                        <Sparkles size={32} className="text-white" />
+            <div className="w-full h-full min-h-[600px] flex flex-col bg-slate-900 font-sans md:rounded-3xl p-4 md:p-6 relative overflow-y-auto selection:bg-sky-500/30">
+                {onComplete && completedTables.length > 0 && (
+                    <div className="w-full max-w-4xl mx-auto flex items-center justify-between pb-4 z-20 shrink-0">
+                        <span className="text-xs font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-700/50 px-3 py-1 rounded-full">
+                            {completedTables.length} table{completedTables.length > 1 ? 's' : ''} completed
+                        </span>
+                        <button
+                            onClick={handleFinish}
+                            className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-full flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                        >
+                            <CheckCircle2 size={16} /> Finish Lesson & Continue ➔
+                        </button>
+                    </div>
+                )}
+
+                <div className="text-center mb-8 shrink-0 relative z-10 animate-fade-in-up">
+                    <div className="bg-sky-500 w-14 h-14 md:w-16 md:h-16 mx-auto rounded-full flex items-center justify-center mb-3 shadow-lg">
+                        <Sparkles size={28} className="text-white" />
                     </div>
                     <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-2">Tables Builder</h1>
-                    <p className="text-slate-400 font-bold text-lg">Select a table to start building!</p>
+                    <p className="text-slate-400 font-bold text-base md:text-lg">Select a table to start building!</p>
                 </div>
 
                 <div className="flex-1 flex items-center justify-center max-w-4xl mx-auto w-full z-10">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 w-full">
-                        {TABLES.map(num => (
-                            <button 
-                                key={num} onClick={() => handleSelectTable(num)}
-                                className="bg-slate-800 border-4 border-slate-700 hover:border-sky-500 hover:bg-slate-700 text-white p-4 md:p-6 rounded-3xl transition-all hover:scale-105 active:scale-95 flex flex-col items-center gap-3 shadow-lg"
-                            >
-                                <span className="text-4xl md:text-5xl animate-bounce" style={{ animationDelay: `${num * 0.1}s` }}>
-                                    {EMOJI_MAP[num]}
-                                </span>
-                                <span className="font-black text-xl md:text-2xl tracking-widest uppercase text-slate-300">Table of {num}</span>
-                            </button>
-                        ))}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 w-full">
+                        {TABLES.map(num => {
+                            const isDone = completedTables.includes(num);
+                            return (
+                                <button 
+                                    key={num} onClick={() => handleSelectTable(num)}
+                                    className={`border-4 text-white p-4 md:p-6 rounded-3xl transition-all hover:scale-105 active:scale-95 flex flex-col items-center gap-2 md:gap-3 shadow-lg ${isDone ? 'bg-emerald-950/60 border-emerald-600' : 'bg-slate-800 border-slate-700 hover:border-sky-500 hover:bg-slate-700'}`}
+                                >
+                                    <span className="text-4xl md:text-5xl animate-bounce" style={{ animationDelay: `${num * 0.1}s` }}>
+                                        {EMOJI_MAP[num]}
+                                    </span>
+                                    <span className="font-black text-lg md:text-2xl tracking-widest uppercase text-slate-300">Table of {num}</span>
+                                    {isDone && (
+                                        <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-2 py-0.5 rounded-full flex items-center gap-1">
+                                            <CheckCircle2 size={12} /> Solved
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
@@ -131,17 +165,27 @@ export default function TimesTable({ lesson, onComplete }: any) {
     if (phase === 'finish') {
         return (
             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 font-sans md:rounded-3xl p-6 text-center animate-fade-in-up">
-                <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(16,185,129,0.5)] bg-emerald-500 border-4 border-white text-white">
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(16,185,129,0.5)] bg-emerald-500 border-4 border-white text-white">
                     <CheckCircle2 size={64} />
                 </div>
-                <h2 className="text-4xl md:text-6xl font-black text-white mb-2">Table Master!</h2>
-                <p className="text-slate-400 font-bold text-xl mb-8">You successfully built the entire Table of {currentTable}!</p>
+                <h2 className="text-3xl md:text-5xl font-black text-white mb-2">Table Master!</h2>
+                <p className="text-slate-400 font-bold text-base md:text-xl mb-8">You successfully built the entire Table of {currentTable}!</p>
                 
-                <div className="flex gap-4">
-                    <button onClick={() => setPhase('select')} className="bg-slate-800 text-white px-8 py-4 rounded-xl font-black text-lg shadow-lg hover:bg-slate-700 active:scale-95 transition-all">
-                        Build Another
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                    <button 
+                        onClick={() => setPhase('select')} 
+                        className="bg-slate-800 text-white px-6 py-3.5 rounded-xl font-bold text-sm md:text-base border border-slate-700 hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+                    >
+                        Build Another Table
                     </button>
-                    
+                    {onComplete && (
+                        <button
+                            onClick={handleFinish}
+                            className="px-8 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm md:text-base rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+                        >
+                            <CheckCircle2 size={20} /> Finish Lesson & Continue ➔
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -156,14 +200,23 @@ export default function TimesTable({ lesson, onComplete }: any) {
         <div className="w-full h-full flex flex-col bg-slate-900 font-sans md:rounded-3xl overflow-hidden relative selection:bg-sky-500/30">
             
             {/* HEADER */}
-            <div className="shrink-0 p-4 bg-slate-800 border-b-4 border-slate-700 shadow-sm flex items-center justify-between z-20">
-                <button onClick={() => { playSound('click'); setPhase('select'); }} className="bg-slate-700 p-2 md:px-4 md:py-2 rounded-xl hover:bg-slate-600 transition-colors text-slate-300 font-bold flex items-center gap-1">
+            <div className="shrink-0 p-3 md:p-4 bg-slate-800 border-b-4 border-slate-700 shadow-sm flex items-center justify-between z-20">
+                <button onClick={() => { playSound('click'); setPhase('select'); }} className="bg-slate-700 p-2 md:px-4 md:py-2 rounded-xl hover:bg-slate-600 transition-colors text-slate-300 font-bold flex items-center gap-1 cursor-pointer">
                     <ChevronLeft size={20}/> <span className="hidden md:inline">Back</span>
                 </button>
-                <h1 className="font-black text-xl md:text-3xl text-white tracking-tight flex items-center gap-3">
-                    <span className="text-3xl">{emoji}</span> Complete the Table of {currentTable}
+                <h1 className="font-black text-base md:text-2xl text-white tracking-tight flex items-center gap-2 md:gap-3">
+                    <span className="text-2xl md:text-3xl">{emoji}</span> Complete Table of {currentTable}
                 </h1>
-                <div className="w-10"></div> {/* Spacer for centering */}
+                {onComplete && completedTables.length > 0 ? (
+                    <button
+                        onClick={handleFinish}
+                        className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-full flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                        <CheckCircle2 size={14} /> Finish
+                    </button>
+                ) : (
+                    <div className="w-10"></div>
+                )}
             </div>
 
             {/* MAIN SCROLLABLE WORKSPACE */}
@@ -234,8 +287,12 @@ export default function TimesTable({ lesson, onComplete }: any) {
             {/* FLOATING ACTION BUTTON (Appears when all correct) */}
             <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-sm px-4 transition-all duration-500 ${allCorrect ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
                 <button 
-                    onClick={() => { playSound('magic'); setPhase('finish'); }}
-                    className="w-full bg-emerald-500 text-white px-6 py-4 rounded-2xl font-black text-xl tracking-wide shadow-[0_6px_0_rgb(16,185,129)] active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center gap-3 animate-bounce"
+                    onClick={() => {
+                        playSound('magic');
+                        setCompletedTables(prev => prev.includes(currentTable) ? prev : [...prev, currentTable]);
+                        setPhase('finish');
+                    }}
+                    className="w-full bg-emerald-500 text-white px-6 py-4 rounded-2xl font-black text-xl tracking-wide shadow-[0_6px_0_rgb(16,185,129)] active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center gap-3 animate-bounce cursor-pointer"
                 >
                     <Sparkles /> Table Completed! <ArrowRight />
                 </button>

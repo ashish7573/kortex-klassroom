@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useMemo, useRef } from 'react';
-import { Volume2, X } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Volume2, X, Sparkles, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react';
 
 // Import central audio engine
 import { HINDI_ASSETS, getBarahkhadiAudio } from '@/kortex_library/SwarVyanjanDictionary';
@@ -92,18 +92,51 @@ const playAudio = (text: string) => {
     }
 };
 
-export default function BarahkhadiVisualiser() {
+export default function BarahkhadiVisualiser({ subtopicId, lesson, onComplete }: any) {
   
   const ACTIVE_VYANJANS = useMemo(() => VYANJAN_GROUPS.flatMap(g => g.letters).filter(v => !DISABLED_VYANJANS.includes(v)), []);
   
   // State for the interactive Popup
   const [popup, setPopup] = useState<{vyanjan: string, swar: any, combined: string} | null>(null);
+  const [exploredSyllables, setExploredSyllables] = useState<Set<string>>(new Set());
+  const [isCompleted, setIsCompleted] = useState(false);
   const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (activeLocalAudio) {
+        try { activeLocalAudio.pause(); } catch {}
+      }
+      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
+    };
+  }, []);
+
+  const handleFinish = () => {
+    if (activeLocalAudio) {
+      try { activeLocalAudio.pause(); } catch {}
+    }
+    const count = Math.max(exploredSyllables.size, 1);
+    const score = Math.min(100, Math.max(50, count * 10));
+    onComplete?.({
+      score,
+      maxScore: 100,
+      status: 'completed'
+    });
+  };
 
   const handleBeadClick = (vyanjan: string, swarObj: any) => {
       const combined = vyanjan + swarObj.matra;
       playAudio(combined);
       setPopup({ vyanjan, swar: swarObj, combined });
+
+      setExploredSyllables(prev => {
+        const next = new Set(prev);
+        next.add(combined);
+        if (next.size >= 12 && prev.size < 12) {
+          setTimeout(() => setIsCompleted(true), 1200);
+        }
+        return next;
+      });
 
       // Auto-dismiss popup after 3 seconds
       if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
@@ -115,6 +148,58 @@ export default function BarahkhadiVisualiser() {
         className="w-full h-full min-h-[600px] flex flex-col bg-slate-50 font-sans select-none overflow-hidden rounded-3xl border-2 border-slate-200 relative"
         onPointerDownCapture={unlockMobileAudio} 
     >
+        {/* Progress Header */}
+        <div className="shrink-0 bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between z-20 shadow-sm">
+            <div className="flex items-center gap-2 md:gap-3">
+                <span className="text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider">बारहखड़ी</span>
+                <span className="text-xs md:text-sm font-black text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
+                    सीखे गए अक्षर: {exploredSyllables.size} / 12
+                </span>
+            </div>
+            <div className="flex items-center gap-2">
+                {exploredSyllables.size >= 5 && (
+                    <button
+                        onClick={handleFinish}
+                        className="px-3 md:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm rounded-xl shadow-md border-b-2 border-emerald-800 active:translate-y-0.5 transition-all flex items-center gap-1.5"
+                    >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>पाठ पूरा करें ➔</span>
+                    </button>
+                )}
+            </div>
+        </div>
+
+        {/* CELEBRATION / VICTORY MODAL */}
+        {isCompleted && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+                <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full text-center shadow-2xl border-4 border-emerald-400 animate-in zoom-in-95 duration-200">
+                    <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Sparkles className="w-10 h-10 text-emerald-600" />
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">शानदार!</h2>
+                    <p className="text-slate-600 font-bold text-sm md:text-base mb-6">
+                        आपने बारहखड़ी के {exploredSyllables.size} अक्षरों का अभ्यास पूरा कर लिया है!
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <button
+                            onClick={handleFinish}
+                            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base rounded-2xl shadow-lg border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+                        >
+                            <span>आगे बढ़ें (Finish Lesson)</span>
+                            <ArrowRight className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={() => setIsCompleted(false)}
+                            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-2xl transition-all flex items-center justify-center gap-2"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                            <span>और अभ्यास करें (Keep Exploring)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* POPUP OVERLAY */}
         {popup && (
             <div 

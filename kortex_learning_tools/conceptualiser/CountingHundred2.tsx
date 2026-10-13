@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Volume2, ChevronLeft, LayoutGrid, List, Sparkles, X } from 'lucide-react';
+import { Volume2, ChevronLeft, LayoutGrid, List, Sparkles, X, CheckCircle2, RotateCcw } from 'lucide-react';
 
 // --- Vocabulary Helper ---
 const ONES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
@@ -116,8 +116,21 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
     const [playingId, setPlayingId] = useState<number | null>(null);
     const [highlightState, setHighlightState] = useState<HighlightState>(null);
     const [selectedGridNumber, setSelectedGridNumber] = useState<number | null>(null);
+    const [exploredNumbers, setExploredNumbers] = useState<number[]>([]);
+    const [isFinished, setIsFinished] = useState(false);
 
-    // --- Audio Promisification ---
+    const handleFinish = () => {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+        onComplete?.({
+            score: Math.min(10, Math.max(exploredNumbers.length, 5)),
+            maxScore: 10,
+            status: 'completed'
+        });
+    };
+
+    // --- Audio Promisification with timeout safety ---
     const speakPromise = (text: string): Promise<void> => {
         return new Promise((resolve) => {
             if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -127,8 +140,16 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'en-IN';
             utterance.rate = 0.9;
-            utterance.onend = () => resolve();
-            utterance.onerror = () => resolve();
+            let finished = false;
+            const complete = () => {
+                if (!finished) {
+                    finished = true;
+                    resolve();
+                }
+            };
+            utterance.onend = complete;
+            utterance.onerror = complete;
+            setTimeout(complete, Math.max(2500, (text.length / 10) * 1000 + 1500));
             window.speechSynthesis.speak(utterance);
         });
     };
@@ -137,6 +158,7 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
     const playExplanationSequence = async (num: number) => {
         if (playingId !== null) return; 
         setPlayingId(num);
+        setExploredNumbers(prev => prev.includes(num) ? prev : [...prev, num]);
         
         const tens = Math.floor(num / 10);
         const ones = num % 10;
@@ -174,6 +196,40 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
 
 
     // ============================================================================
+    // RENDER: CELEBRATION VIEW
+    // ============================================================================
+    if (isFinished) {
+        return (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md p-4 animate-fade-in font-sans">
+                <div className="bg-white rounded-[3rem] p-8 md:p-10 max-w-md w-full shadow-2xl text-center border-4 border-emerald-200 flex flex-col items-center">
+                    <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mb-4 shadow-inner">
+                        <Sparkles size={40} className="text-emerald-600 animate-spin" />
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">Lesson Complete! 🎉</h2>
+                    <p className="text-sm md:text-base text-slate-600 font-bold mb-6">
+                        You explored numbers up to 100 and learned how tens and ones work together!
+                    </p>
+
+                    <div className="flex flex-col gap-3 w-full">
+                        <button
+                            onClick={handleFinish}
+                            className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-base md:text-lg rounded-2xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+                        >
+                            <CheckCircle2 size={22} /> Finish Lesson &amp; Continue ➔
+                        </button>
+                        <button
+                            onClick={() => setIsFinished(false)}
+                            className="w-full py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-sm md:text-base rounded-2xl border border-slate-300 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                            <RotateCcw size={18} /> Keep Exploring
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================================================================
     // RENDER: PHASE 1 - MENU
     // ============================================================================
     if (phase === 'menu') {
@@ -182,8 +238,23 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
                 <div className="max-w-5xl mx-auto w-full flex flex-col h-full gap-6">
                     
                     <div className="text-center space-y-2 shrink-0">
-                        <div className="inline-flex items-center gap-2 bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-2 border border-sky-200 shadow-sm">
-                            <List size={16} /> Number Visualizer
+                        <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
+                            <div className="inline-flex items-center gap-2 bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider border border-sky-200 shadow-sm">
+                                <List size={16} /> Number Visualizer
+                            </div>
+                            {exploredNumbers.length > 0 && (
+                                <div className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-3.5 py-1.5 rounded-full font-black text-xs border border-amber-200 shadow-sm">
+                                    ⭐ Explored {exploredNumbers.length} numbers
+                                </div>
+                            )}
+                            {exploredNumbers.length >= 3 && onComplete && (
+                                <button
+                                    onClick={() => setIsFinished(true)}
+                                    className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs px-4 py-1.5 rounded-full border-b-2 border-emerald-700 shadow-md transition-all animate-pulse cursor-pointer"
+                                >
+                                    <CheckCircle2 size={16} /> Finish Lesson &amp; Continue ➔
+                                </button>
+                            )}
                         </div>
                         <h1 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight">Explore Numbers 1 to 100</h1>
                         <p className="text-slate-500 font-medium md:text-lg">Select a category to see how big numbers are built using groups of ten.</p>
@@ -237,17 +308,28 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
             <div className="w-full h-full flex flex-col bg-slate-100 font-sans md:rounded-3xl overflow-hidden relative">
                 
                 {/* Header */}
-                <div className="bg-white shrink-0 p-4 md:p-6 border-b-4 border-slate-200 flex items-center justify-between shadow-sm z-10">
+                <div className="bg-white shrink-0 p-3 md:p-5 border-b-4 border-slate-200 flex items-center justify-between shadow-sm z-10">
                     <button 
                         onClick={() => { window.speechSynthesis.cancel(); setPhase('menu'); }}
-                        className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-colors text-sm md:text-base"
+                        className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-3.5 py-1.5 md:px-4 md:py-2 rounded-xl font-bold flex items-center gap-1.5 transition-colors text-xs md:text-sm cursor-pointer"
                     >
-                        <ChevronLeft size={18} /> Back to Menu
+                        <ChevronLeft size={16} /> Back
                     </button>
-                    <div className="flex items-center gap-3">
-                        <span className="text-2xl">{activeCategory.emoji}</span>
-                        <h2 className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tight">{activeCategory.label}</h2>
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <span className="text-xl md:text-2xl">{activeCategory.emoji}</span>
+                        <h2 className="text-sm md:text-xl font-black text-slate-800 uppercase tracking-tight">{activeCategory.label}</h2>
                     </div>
+                    {exploredNumbers.length >= 3 && onComplete ? (
+                        <button
+                            onClick={handleFinish}
+                            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-2 border-emerald-700 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            title="Finish Lesson"
+                        >
+                            <CheckCircle2 size={15} /> Finish
+                        </button>
+                    ) : (
+                        <div className="w-12 md:w-16" />
+                    )}
                 </div>
 
                 {/* List Container */}
@@ -277,17 +359,28 @@ export default function CountingHundred2({ lesson, onComplete }: any) {
             <div className="w-full h-full flex flex-col bg-sky-50 font-sans md:rounded-3xl overflow-hidden relative">
                 
                 {/* Header */}
-                <div className="bg-white shrink-0 p-4 md:p-6 border-b-4 border-slate-200 flex items-center justify-between shadow-sm z-10">
+                <div className="bg-white shrink-0 p-3 md:p-5 border-b-4 border-slate-200 flex items-center justify-between shadow-sm z-10">
                     <button 
                         onClick={() => { window.speechSynthesis.cancel(); setSelectedGridNumber(null); setPhase('menu'); }}
-                        className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-colors text-sm md:text-base"
+                        className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-3.5 py-1.5 md:px-4 md:py-2 rounded-xl font-bold flex items-center gap-1.5 transition-colors text-xs md:text-sm cursor-pointer"
                     >
-                        <ChevronLeft size={18} /> Back
+                        <ChevronLeft size={16} /> Back
                     </button>
                     <div className="flex items-center gap-2">
-                        <LayoutGrid size={24} className="text-sky-500" />
-                        <h2 className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tight">Master Grid</h2>
+                        <LayoutGrid size={20} className="text-sky-500" />
+                        <h2 className="text-sm md:text-xl font-black text-slate-800 uppercase tracking-tight">Master Grid</h2>
                     </div>
+                    {exploredNumbers.length >= 3 && onComplete ? (
+                        <button
+                            onClick={handleFinish}
+                            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-2 border-emerald-700 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            title="Finish Lesson"
+                        >
+                            <CheckCircle2 size={15} /> Finish
+                        </button>
+                    ) : (
+                        <div className="w-12 md:w-16" />
+                    )}
                 </div>
 
                 {/* 10x10 Master Grid - NOW IN COLUMNS */}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, RotateCcw, Plus, BookOpen, Pencil, Eraser, Apple, ChevronRight, ChevronLeft, Play, Ruler, PenTool } from 'lucide-react';
+import { Volume2, RotateCcw, Plus, BookOpen, Pencil, Eraser, Apple, ChevronRight, ChevronLeft, Play, Ruler, PenTool, CheckCircle2 } from 'lucide-react';
 
 // --- Data ---
 const CATEGORIES = {
@@ -38,8 +38,10 @@ export default function RohanVarunAddition({ lesson, onComplete }: any) {
   
   const [activeCategory, setActiveCategory] = useState<CategoryId>('notebooks');
   const [additionState, setAdditionState] = useState<AdditionState>('idle');
+  const [solvedCount, setSolvedCount] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -95,13 +97,27 @@ export default function RohanVarunAddition({ lesson, onComplete }: any) {
   const speakText = (text: string) => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-IN'; 
       utterance.rate = 0.9; 
       utterance.pitch = 1.1;
+
+      const safeTimeMs = Math.max(2500, (text.length / 10) * 1000 + 2000);
+      fallbackTimerRef.current = setTimeout(() => {
+        setIsSpeaking(false);
+      }, safeTimeMs);
+
       utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      utterance.onend = () => {
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        setIsSpeaking(false);
+      };
+      utterance.onerror = () => {
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        setIsSpeaking(false);
+      };
       window.speechSynthesis.speak(utterance);
     }
   };
@@ -149,6 +165,7 @@ export default function RohanVarunAddition({ lesson, onComplete }: any) {
     
     setTimeout(() => {
       setAdditionState('combined');
+      setSolvedCount(prev => prev + 1);
       playSound('kaching');
       speakText(`${currentData.rohan} and ${currentData.varun} altogether makes ${totalItems}!`);
     }, 700);
@@ -158,6 +175,15 @@ export default function RohanVarunAddition({ lesson, onComplete }: any) {
     initAudio();
     playSound('pop');
     setAdditionState('idle');
+  };
+
+  const handleFinish = () => {
+    initAudio();
+    playSound('kaching');
+    window.speechSynthesis.cancel();
+    if (onComplete) {
+      onComplete({ score: 10, maxScore: 10, status: 'completed' });
+    }
   };
 
   if (!mounted) return null;
@@ -255,24 +281,34 @@ export default function RohanVarunAddition({ lesson, onComplete }: any) {
     <div className="w-full h-full flex flex-col bg-amber-50 font-sans min-h-0 relative overflow-hidden">
       
       {/* 1. COMPACT CATEGORY NAV */}
-      <div className="shrink-0 flex justify-center items-center gap-2 py-3 px-2 overflow-x-auto bg-white/50 backdrop-blur-sm border-b-2 border-amber-100 shadow-sm z-20">
-        <button onClick={() => { initAudio(); speakText("Select an item to add!"); }} className="w-8 h-8 rounded-full bg-sky-100 text-sky-500 flex items-center justify-center hover:bg-sky-200 mr-2 shrink-0"><Volume2 size={16} /></button>
-        {(Object.keys(CATEGORIES) as CategoryId[]).map((key) => {
-          const cat = CATEGORIES[key];
-          const isActive = activeCategory === key;
-          const Icon = cat.BtnIcon;
-          return (
-            <button
-              key={key}
-              onClick={() => handleCategoryChange(key)}
-              className={`shrink-0 px-3 py-1.5 md:px-4 md:py-2 rounded-full flex items-center gap-2 font-bold text-xs md:text-sm transition-all border
-                ${isActive ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-            >
-              <Icon size={14} className={isActive ? 'text-white' : 'text-slate-400'} />
-              {cat.name}
-            </button>
-          );
-        })}
+      <div className="shrink-0 flex items-center justify-between py-2.5 px-3 bg-white/70 backdrop-blur-sm border-b-2 border-amber-100 shadow-sm z-20">
+        <div className="flex items-center gap-2 overflow-x-auto py-1 pr-2">
+          <button onClick={() => { initAudio(); speakText("Select an item to add!"); }} className="w-8 h-8 rounded-full bg-sky-100 text-sky-500 flex items-center justify-center hover:bg-sky-200 mr-1 shrink-0"><Volume2 size={16} /></button>
+          {(Object.keys(CATEGORIES) as CategoryId[]).map((key) => {
+            const cat = CATEGORIES[key];
+            const isActive = activeCategory === key;
+            const Icon = cat.BtnIcon;
+            return (
+              <button
+                key={key}
+                onClick={() => handleCategoryChange(key)}
+                className={`shrink-0 px-3 py-1.5 md:px-4 md:py-2 rounded-full flex items-center gap-2 font-bold text-xs md:text-sm transition-all border
+                  ${isActive ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+              >
+                <Icon size={14} className={isActive ? 'text-white' : 'text-slate-400'} />
+                {cat.name}
+              </button>
+            );
+          })}
+        </div>
+        {onComplete && solvedCount > 0 && (
+          <button
+            onClick={handleFinish}
+            className="ml-2 shrink-0 px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs md:text-sm rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+          >
+            <CheckCircle2 size={16} /> Finish Lesson
+          </button>
+        )}
       </div>
 
       {/* 2. PLAY AREA */}
@@ -355,14 +391,25 @@ export default function RohanVarunAddition({ lesson, onComplete }: any) {
         </div>
       </div>
 
-      {/* Floating Reset Button */}
+      {/* 3. DOCKED BOTTOM ACTION BAR */}
       {additionState !== 'idle' && (
-        <button 
-          onClick={handleReset}
-          className="absolute bottom-80 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 bg-white text-slate-600 px-6 py-2 rounded-full font-bold text-sm transition-all border-2 border-slate-200 shadow-lg hover:bg-slate-50 z-40 animate-fade-in"
-        >
-          <RotateCcw size={16} /> Reset
-        </button>
+        <div className="shrink-0 p-3 bg-white/90 backdrop-blur-md border-t border-amber-200 flex flex-wrap items-center justify-center gap-3 z-40 animate-fade-in shadow-lg">
+          <button 
+            onClick={handleReset}
+            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs md:text-sm rounded-xl flex items-center gap-2 transition-all border border-slate-300 shadow-sm cursor-pointer"
+          >
+            <RotateCcw size={16} /> Try Another Item
+          </button>
+
+          {onComplete && additionState === 'combined' && (
+            <button
+              onClick={handleFinish}
+              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+            >
+              <CheckCircle2 size={18} /> Finish Lesson & Continue ➔
+            </button>
+          )}
+        </div>
       )}
 
       <style dangerouslySetInnerHTML={{__html: `

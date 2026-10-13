@@ -50,7 +50,21 @@ export default function CountingHundred({ lesson, onComplete }: any) {
   // Interactive State
   const [packedBoxes, setPackedBoxes] = useState(0);
 
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => { setMounted(true); }, []);
+
+  const handleFinish = () => {
+    playSound('kaching');
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    onComplete?.({
+      score: 10,
+      maxScore: 10,
+      status: 'completed'
+    });
+  };
 
   // --- Audio Engine ---
   const audioCtx = useRef<AudioContext | null>(null);
@@ -101,16 +115,39 @@ export default function CountingHundred({ lesson, onComplete }: any) {
   const speakText = (text: string) => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-IN'; 
       utterance.rate = 0.9; 
       utterance.pitch = 1.1;
       utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      utterance.onend = () => {
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        setIsSpeaking(false);
+      };
+      utterance.onerror = () => {
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        setIsSpeaking(false);
+      };
+
+      const safeTimeMs = Math.max(2500, (text.length / 10) * 1000 + 1500);
+      fallbackTimerRef.current = setTimeout(() => {
+        setIsSpeaking(false);
+      }, safeTimeMs);
+
       window.speechSynthesis.speak(utterance);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, []);
 
   // --- Actions ---
   const handleNextSlide = (slidesArray: any[], nextPhase: AppPhase | 'finish') => {
@@ -224,12 +261,17 @@ export default function CountingHundred({ lesson, onComplete }: any) {
              {!(isFinish && isLastSlide) ? (
                  <button 
                    onClick={() => handleNextSlide(slides, nextPhase)}
-                   className="px-6 py-2 rounded-xl font-black text-sm flex items-center gap-2 transition-all shadow-md active:scale-95 bg-sky-500 hover:bg-sky-400 text-white border-b-4 border-sky-700 active:border-b-0"
+                   className="px-6 py-2 rounded-xl font-black text-sm flex items-center gap-2 transition-all shadow-md active:scale-95 bg-sky-500 hover:bg-sky-400 text-white border-b-4 border-sky-700 active:border-b-0 cursor-pointer"
                  >
                    {isLastSlide ? 'Start Packing' : 'Next'} <ChevronRight size={16} />
                  </button>
              ) : (
-                 <div className="w-20" /> /* Spacer to keep dots centered */
+                 <button 
+                   onClick={handleFinish}
+                   className="px-5 py-2.5 rounded-xl font-black text-xs md:text-sm flex items-center gap-2 transition-all shadow-lg active:scale-95 bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-b-4 border-emerald-700 active:border-b-0 animate-pulse cursor-pointer shrink-0"
+                 >
+                   <CheckCircle2 size={18} /> Finish Lesson & Continue ➔
+                 </button>
              )}
           </div>
         </div>
@@ -259,7 +301,20 @@ export default function CountingHundred({ lesson, onComplete }: any) {
                   <div className="w-8 h-8 md:w-10 md:h-10 bg-sky-100 rounded-full flex items-center justify-center text-sky-500"><PackagePlus className="w-4 h-4 md:w-5 md:h-5" /></div>
                   <h2 className="text-base md:text-xl font-black text-slate-700 leading-none">Discovering Tens</h2>
               </div>
-              <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-full">Pack 10 Boxes</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2.5 py-1 rounded-full">
+                  {packedBoxes}/10 Boxes
+                </span>
+                {(packedBoxes >= 3 || isDone) && onComplete && (
+                  <button
+                    onClick={handleFinish}
+                    className="px-3.5 py-1 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-2 border-emerald-700 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    title="Finish Lesson"
+                  >
+                    <CheckCircle2 size={15} /> Finish
+                  </button>
+                )}
+              </div>
           </div>
       </div>
 

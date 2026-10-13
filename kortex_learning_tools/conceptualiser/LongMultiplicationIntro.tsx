@@ -14,6 +14,17 @@ export default function LongMultiplicationIntro({ lesson, onComplete }: any) {
     // Math State
     const [numTop, setNumTop] = useState(0); 
     const [numBot, setNumBot] = useState(0); 
+    const [solvedCount, setSolvedCount] = useState(0);
+
+    const handleFinish = () => {
+        if (onComplete) {
+            onComplete({
+                score: Math.max(10, (solvedCount || 1) * 10),
+                maxScore: Math.max(10, (solvedCount || 1) * 10),
+                status: 'completed'
+            });
+        }
+    }; 
     
     // Visual State
     const [blocks, setBlocks] = useState<Block[]>([]);
@@ -158,6 +169,7 @@ export default function LongMultiplicationIntro({ lesson, onComplete }: any) {
 
         if (isCarryCorrect && isFinalOCorrect && isFinalTCorrect && isFinalHCorrect) {
             playSound('kaching');
+            setSolvedCount(prev => prev + 1);
             setPhase('done');
         } else {
             playSound('error');
@@ -221,8 +233,17 @@ export default function LongMultiplicationIntro({ lesson, onComplete }: any) {
                     </div>
                 </div>
 
-                {/* Right: Spacer for balance */}
-                <div className="flex-1 hidden md:block order-3"></div>
+                {/* Right: Shortcut button */}
+                <div className="flex-1 flex justify-center md:justify-end items-center order-3 w-full md:w-auto">
+                    {onComplete && solvedCount > 0 && (
+                        <button
+                            onClick={handleFinish}
+                            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-full flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                        >
+                            <CheckCircle2 size={15} /> Finish Lesson ({solvedCount} solved)
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* MAIN WORKSPACE (3 Columns) */}
@@ -429,15 +450,23 @@ export default function LongMultiplicationIntro({ lesson, onComplete }: any) {
 
             </div>
 
-            {/* DONE OVERLAY (Non-Intrusive) */}
+            {/* DONE OVERLAY (Celebratory & Actionable) */}
             {phase === 'done' && (
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in-up">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 animate-fade-in-up flex flex-wrap items-center justify-center gap-3 bg-slate-900/95 backdrop-blur-md p-3 rounded-2xl border-2 border-emerald-500 shadow-2xl">
                     <button 
                         onClick={initProblem}
-                        className="bg-sky-500 text-white px-8 py-4 rounded-full font-black text-xl tracking-wide shadow-[0_6px_0_rgb(14,165,233)] active:translate-y-[6px] active:shadow-none transition-all flex items-center justify-center gap-3 border-4 border-slate-900"
+                        className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 cursor-pointer"
                     >
-                        <Shuffle /> Next Problem
+                        <Shuffle size={16} /> Next Problem
                     </button>
+                    {onComplete && (
+                        <button 
+                            onClick={handleFinish}
+                            className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-6 py-2.5 rounded-xl font-black text-sm md:text-base border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+                        >
+                            <CheckCircle2 size={18} /> Finish Lesson & Continue ➔
+                        </button>
+                    )}
                 </div>
             )}
         </div>

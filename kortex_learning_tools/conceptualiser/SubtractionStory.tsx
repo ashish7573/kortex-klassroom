@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, ChevronRight, ChevronLeft, Bus, ArrowRight } from 'lucide-react';
+import { Volume2, ChevronRight, ChevronLeft, Bus, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 // --- Types & Data ---
 type AppPhase = 'story' | 'interactive';
@@ -223,7 +223,13 @@ export default function SubtractionStory({ lesson, onComplete }: any) {
       setStageStatus('idle');
       setSelectedNum(null);
     } else {
-      if (onComplete) onComplete();
+      if (onComplete) {
+        onComplete({
+          score: INTERACTIVE_STAGES.length * 10,
+          maxScore: INTERACTIVE_STAGES.length * 10,
+          status: 'completed'
+        });
+      }
     }
   };
 
@@ -297,8 +303,30 @@ export default function SubtractionStory({ lesson, onComplete }: any) {
       <div className="absolute top-10 left-10 w-32 h-10 bg-white rounded-full blur-md opacity-60 pointer-events-none"></div>
       <div className="absolute top-16 right-20 w-48 h-12 bg-white rounded-full blur-md opacity-60 pointer-events-none"></div>
 
+      {/* TOP HEADER */}
+      <div className="w-full max-w-4xl mx-auto flex items-center justify-between px-4 pt-3 z-30 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🚌</span>
+          <span className="font-black text-slate-800 text-xs md:text-sm">Stop {currentStage + 1} of {INTERACTIVE_STAGES.length}</span>
+        </div>
+        {onComplete && currentStage > 0 && (
+          <button
+            onClick={() => {
+              onComplete({
+                score: currentStage * 10,
+                maxScore: INTERACTIVE_STAGES.length * 10,
+                status: 'completed'
+              });
+            }}
+            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs rounded-full flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+          >
+            <CheckCircle2 size={14} /> Finish Lesson
+          </button>
+        )}
+      </div>
+
       {/* 1. VISUAL TRACKER (THE BUS) */}
-      <div className="w-full pt-8 pb-4 px-4 shrink-0 flex justify-center z-10">
+      <div className="w-full pt-4 pb-2 px-4 shrink-0 flex justify-center z-10">
         <div className="w-full max-w-2xl bg-amber-400 rounded-[2rem] rounded-tr-[3rem] border-b-8 border-amber-600 relative h-32 md:h-40 flex items-center justify-center px-4 shadow-xl">
             
             {/* Bus Details */}
@@ -386,9 +414,13 @@ export default function SubtractionStory({ lesson, onComplete }: any) {
         <div className={`mt-6 h-12 flex justify-center items-center transition-all duration-500 ${stageStatus === 'success' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
             <button 
                 onClick={handleNextStage}
-                className="bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-3 rounded-full font-black text-lg shadow-lg flex items-center gap-2 border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1"
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-8 py-3 rounded-full font-black text-base md:text-lg shadow-lg flex items-center gap-2 border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 animate-pulse cursor-pointer"
             >
-                {currentStage === INTERACTIVE_STAGES.length - 1 ? 'Finish Journey' : 'Next Stop'} <ArrowRight size={20} />
+                {currentStage === INTERACTIVE_STAGES.length - 1 ? (
+                    <>Finish Journey & Continue ➔ <CheckCircle2 size={20} /></>
+                ) : (
+                    <>Next Stop <ArrowRight size={20} /></>
+                )}
             </button>
         </div>
 

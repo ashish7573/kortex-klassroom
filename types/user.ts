@@ -58,6 +58,7 @@ export interface OrgLinkData {
   org_name: string;
   grade: string;
   section?: string | null;
+  roll_no?: string | null;
   assigned_combos: string[];
   status: 'pending' | 'approved';
   requested_at?: string;
@@ -70,6 +71,7 @@ export interface StudentProfile extends BaseUserProfile {
   // Independent Learner Data (Used if no org, or as a global baseline)
   grade: string;
   section?: string | null;
+  roll_no?: string | null;
   active_b2c_licenses: string[]; // Global extra combos bought directly by parent
 
   // Freemium Engine Data
@@ -193,6 +195,7 @@ export interface ClassStudentData {
   fullName?: string;
   pin?: string;
   kortexId?: string;
+  rollNo?: string;
   avatar?: string;
   completedToolsCount: number;
   totalTools: number;

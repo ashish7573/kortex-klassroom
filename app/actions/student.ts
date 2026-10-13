@@ -46,7 +46,7 @@ async function generateMultipleGlobalStudentIds(count: number): Promise<string[]
           number++;
         }
       }
-      ids.push(`K${alphabets}${number}`);
+      ids.push(`STU_${alphabets}_${number}`);
     }
 
     transaction.set(counterRef, { alphabets, number });
@@ -124,6 +124,7 @@ export async function provisionStudentPlaceholder(
     section?: string;
     assignedCombos: string[];
     emergencyContact?: string;
+    rollNo?: string;
   }
 ) {
   try {
@@ -138,6 +139,7 @@ export async function provisionStudentPlaceholder(
     const orgId = callerUid;
     const kortexId = await generateGlobalStudentId();
     const claimCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const cleanRollNo = (provisionData.rollNo || '').trim() || null;
 
     const placeholderRef = adminDb.collection('users').doc();
     
@@ -149,6 +151,7 @@ export async function provisionStudentPlaceholder(
       role: 'student',
       grade: provisionData.grade,
       section: provisionData.section,
+      roll_no: cleanRollNo,
       active_b2c_licenses: [],
       hearts_remaining: 5,
       last_heart_reset: new Date().toISOString(),
@@ -161,6 +164,7 @@ export async function provisionStudentPlaceholder(
           org_name: callerDoc.data()?.organization_name || "Organization",
           grade: provisionData.grade,
           section: provisionData.section,
+          roll_no: cleanRollNo,
           assigned_combos: provisionData.assignedCombos,
           status: 'approved'
         }
@@ -246,6 +250,7 @@ export async function updateStudentDetails(
     section?: string;
     assignedCombos: string[];
     emergencyContact?: string;
+    rollNo?: string;
   }
 ) {
   try {
@@ -262,12 +267,20 @@ export async function updateStudentDetails(
       throw new Error("Unauthorized: Student does not belong to your organization.");
     }
     
-    await studentRef.update({
+    const updates: Record<string, any> = {
       [`org_links.${orgId}.grade`]: updateData.grade,
       [`org_links.${orgId}.section`]: updateData.section || null,
       [`org_links.${orgId}.assigned_combos`]: updateData.assignedCombos,
       emergency_contact: updateData.emergencyContact || null
-    });
+    };
+
+    if (updateData.rollNo !== undefined) {
+      const cleanRoll = updateData.rollNo.trim() || null;
+      updates[`org_links.${orgId}.roll_no`] = cleanRoll;
+      updates.roll_no = cleanRoll;
+    }
+    
+    await studentRef.update(updates);
     
     return { success: true };
   } catch (error: unknown) {
@@ -1195,7 +1208,7 @@ export async function bulkProvisionStudents(
   grade: string,
   section: string,
   assignedCombos: string[],
-  students: { fullName: string; parentEmail?: string; parentPhone?: string }[]
+  students: { fullName: string; parentEmail?: string; parentPhone?: string; rollNo?: string }[]
 ) {
   try {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -1244,6 +1257,7 @@ export async function bulkProvisionStudents(
       const placeholderRef = adminDb.collection('users').doc();
       const claimCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const kortexId = kortexIds[index];
+      const cleanRollNo = (student.rollNo || '').trim() || null;
 
       const newStudent: StudentProfile = {
         uid: placeholderRef.id,
@@ -1253,6 +1267,7 @@ export async function bulkProvisionStudents(
         role: 'student',
         grade: grade,
         section: section,
+        roll_no: cleanRollNo,
         active_b2c_licenses: [],
         hearts_remaining: 5,
         last_heart_reset: new Date().toISOString(),
@@ -1265,6 +1280,7 @@ export async function bulkProvisionStudents(
             org_name: orgName,
             grade: grade,
             section: section,
+            roll_no: cleanRollNo,
             assigned_combos: assignedCombos,
             status: 'pending'
           }

@@ -13,6 +13,7 @@ export default function CoinTowers({ lesson, onComplete }: any) {
   // towers array represents the actual left-to-right order on the screen
   const [towers, setTowers] = useState<Tower[]>([]);
   const [finaleStep, setFinaleStep] = useState(0);
+  const [completedRounds, setCompletedRounds] = useState(0);
 
   // Drag State
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
@@ -24,6 +25,18 @@ export default function CoinTowers({ lesson, onComplete }: any) {
   
   // Track the last index to prevent spamming audio during live-shifting
   const lastDropIndex = useRef<number>(-1);
+
+  const handleFinish = () => {
+    playSound('success');
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    onComplete?.({
+      score: 10,
+      maxScore: 10,
+      status: 'completed'
+    });
+  };
 
   // --- Audio Synthesis ---
   const initAudio = () => {
@@ -202,6 +215,7 @@ export default function CoinTowers({ lesson, onComplete }: any) {
         speakNumber(currentCount);
       } else {
         clearInterval(interval);
+        setCompletedRounds(prev => prev + 1);
         setTimeout(() => setUiState('gameover'), 1500);
       }
     }, 1200);
@@ -249,9 +263,28 @@ export default function CoinTowers({ lesson, onComplete }: any) {
         </div>
 
         {uiState !== 'menu' && (
-          <button onClick={() => setUiState('menu')} className="bg-slate-700 text-slate-300 p-2 md:px-4 rounded-xl font-bold flex items-center gap-2 transition-transform active:scale-95 border-b-4 border-slate-600 hover:text-white">
-             <RotateCcw className="w-4 h-4" /> <span className="hidden md:inline">Restart</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/80 rounded-xl border border-slate-700">
+              <span className="text-[11px] font-bold text-slate-400">Sorted:</span>
+              <span className="text-xs font-black text-amber-400">
+                {towers.filter((t, i) => t.value === i + 1).length} / 10
+              </span>
+            </div>
+
+            {(completedRounds > 0 || towers.filter((t, i) => t.value === i + 1).length >= 7) && onComplete && (
+              <button
+                onClick={handleFinish}
+                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-2 border-emerald-700 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                title="Finish Lesson"
+              >
+                <CheckCircle2 size={15} /> Finish
+              </button>
+            )}
+
+            <button onClick={() => setUiState('menu')} className="bg-slate-700 text-slate-300 p-2 md:px-4 rounded-xl font-bold flex items-center gap-2 transition-transform active:scale-95 border-b-4 border-slate-600 hover:text-white cursor-pointer">
+               <RotateCcw className="w-4 h-4" /> <span className="hidden md:inline">Restart</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -382,9 +415,16 @@ export default function CoinTowers({ lesson, onComplete }: any) {
                 </div>
               </div>
 
-              <div className="flex gap-3 md:border-l-2 border-slate-700 md:pl-8 w-full md:w-auto">
-                 <button onClick={startGame} className="flex-1 md:flex-none px-4 py-3 bg-slate-800 text-slate-300 font-black text-xs md:text-sm rounded-xl border-b-4 border-slate-700 transition-transform active:translate-y-1 hover:text-white">REPLAY</button>
-                 
+              <div className="flex flex-wrap sm:flex-nowrap gap-3 md:border-l-2 border-slate-700 md:pl-8 w-full md:w-auto">
+                 <button onClick={startGame} className="flex-1 md:flex-none px-4 py-3 bg-slate-800 text-slate-300 font-black text-xs md:text-sm rounded-xl border-b-4 border-slate-700 transition-transform active:translate-y-1 hover:text-white cursor-pointer">
+                   REPLAY
+                 </button>
+                 <button
+                   onClick={handleFinish}
+                   className="flex-1 md:flex-none px-5 py-3 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-4 border-emerald-700 transition-all active:translate-y-1 shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-1.5 animate-pulse cursor-pointer whitespace-nowrap"
+                 >
+                   <CheckCircle2 size={16} /> Finish Lesson & Continue ➔
+                 </button>
               </div>
            </div>
         </div>

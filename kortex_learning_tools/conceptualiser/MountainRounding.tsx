@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronUp, ChevronDown, Play, RotateCcw, Check } from 'lucide-react';
+import { ChevronUp, ChevronDown, Play, RotateCcw, Check, CheckCircle2 } from 'lucide-react';
 
 const PlaceValues = [
   { name: 'Lakhs', multiplier: 100000 },
@@ -17,6 +17,17 @@ export default function MountainRounding({ lesson, onComplete = () => {} }: any)
   const [digits, setDigits] = useState([0, 0, 0, 0, 4, 3]); 
   const [isReleased, setIsReleased] = useState(false);
   const [animFraction, setAnimFraction] = useState(0);
+  const [roundsCompleted, setRoundsCompleted] = useState(0);
+
+  const handleFinish = () => {
+    if (onComplete) {
+      onComplete({
+        score: Math.max(10, (roundsCompleted || 1) * 10),
+        maxScore: Math.max(10, (roundsCompleted || 1) * 10),
+        status: 'completed'
+      });
+    }
+  };
   
   const animationRef = useRef<number | null>(null);
   const swipeRefs = useRef<any>({}); 
@@ -47,11 +58,19 @@ export default function MountainRounding({ lesson, onComplete = () => {} }: any)
         if (target === 1 && current < 1) {
           current = Math.min(1, current + speed);
           setAnimFraction(current);
-          animationRef.current = requestAnimationFrame(animate);
+          if (current >= 1) {
+            setRoundsCompleted(prev => prev + 1);
+          } else {
+            animationRef.current = requestAnimationFrame(animate);
+          }
         } else if (target === 0 && current > 0) {
           current = Math.max(0, current - speed);
           setAnimFraction(current);
-          animationRef.current = requestAnimationFrame(animate);
+          if (current <= 0) {
+            setRoundsCompleted(prev => prev + 1);
+          } else {
+            animationRef.current = requestAnimationFrame(animate);
+          }
         }
       };
       animationRef.current = requestAnimationFrame(animate);
@@ -145,7 +164,14 @@ export default function MountainRounding({ lesson, onComplete = () => {} }: any)
             <span className="text-base md:text-lg font-black text-sky-700">{formatNumber(number)}</span>
           </div>
 
-          
+          {roundsCompleted > 0 && (
+            <button
+              onClick={handleFinish}
+              className="px-3 md:px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs md:text-sm rounded-full flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+            >
+              <CheckCircle2 size={16} /> <span className="hidden sm:inline">Finish Lesson</span><span className="sm:hidden">Finish</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -238,12 +264,20 @@ export default function MountainRounding({ lesson, onComplete = () => {} }: any)
         {/* RELEASE BUTTON (Compact padding) */}
         <div className="shrink-0 flex justify-center pt-1 md:pt-2">
           {isReleased && (animFraction === 0 || animFraction === 1) ? (
-             <button 
-               onClick={() => setDigits([0,0,0,Math.floor(Math.random()*10),Math.floor(Math.random()*10),Math.floor(Math.random()*10)])}
-               className="bg-slate-800 hover:bg-slate-700 text-white text-sm md:text-lg font-black py-2.5 md:py-3 px-6 md:px-8 rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95 touch-manipulation"
-             >
-               <RotateCcw className="w-4 h-4 md:w-5 md:h-5" /> Try Another Number
-             </button>
+             <div className="flex flex-wrap items-center justify-center gap-3">
+               <button 
+                 onClick={() => setDigits([0,0,0,Math.floor(Math.random()*10),Math.floor(Math.random()*10),Math.floor(Math.random()*10)])}
+                 className="bg-slate-800 hover:bg-slate-700 text-white text-xs md:text-base font-black py-2.5 md:py-3 px-5 md:px-6 rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95 touch-manipulation cursor-pointer"
+               >
+                 <RotateCcw className="w-4 h-4 md:w-5 md:h-5" /> Try Another Number
+               </button>
+               <button 
+                 onClick={handleFinish}
+                 className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs md:text-base font-black py-2.5 md:py-3 px-6 md:px-8 rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse touch-manipulation cursor-pointer"
+               >
+                 <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" /> Finish Lesson & Continue ➔
+               </button>
+             </div>
           ) : (
             <button 
               onClick={handleRelease}

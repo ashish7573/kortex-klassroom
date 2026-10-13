@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Minus, Shuffle, RotateCcw, ArrowRight, Settings, Calculator } from 'lucide-react';
+import { Plus, Minus, Shuffle, RotateCcw, ArrowRight, Settings, Calculator, CheckCircle2 } from 'lucide-react';
 
 type Operation = '+' | '-';
 type LimitSelect = 10 | 20;
@@ -14,6 +14,17 @@ export default function AdditionFrog({ lesson, onComplete }: any) {
     // Core Math States
     const [baseNumber, setBaseNumber] = useState(0); 
     const [hopNumber, setHopNumber] = useState(0);   
+    const [solvedCount, setSolvedCount] = useState(0);
+
+    const handleFinish = () => {
+        if (onComplete) {
+            onComplete({
+                score: Math.max(10, (solvedCount || 1) * 10),
+                maxScore: Math.max(10, (solvedCount || 1) * 10),
+                status: 'completed'
+            });
+        }
+    };   
     
     // Animation & Scene States
     const [frogPos, setFrogPos] = useState(0);
@@ -164,6 +175,7 @@ export default function AdditionFrog({ lesson, onComplete }: any) {
         await sleep(400);
         setShowResult(true);
         setActivePad(calcResult); 
+        setSolvedCount(prev => prev + 1);
         setFrogDir(1); // Reset face forward
         const opWord = config.op === '+' ? 'plus' : 'minus';
         speak(`${baseNumber} ${opWord} ${hopNumber} equals ${calcResult}`);
@@ -228,6 +240,16 @@ export default function AdditionFrog({ lesson, onComplete }: any) {
         return (
             <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-cyan-50 font-sans overflow-y-auto">
                 <div className="max-w-xl w-full bg-white p-6 md:p-8 rounded-[2rem] shadow-xl border-4 border-cyan-200 text-center space-y-6 my-auto">
+                    {onComplete && solvedCount > 0 && (
+                        <div className="flex justify-end -mb-2">
+                            <button
+                                onClick={handleFinish}
+                                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs rounded-xl flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                            >
+                                <CheckCircle2 size={14} /> Finish Lesson ({solvedCount} solved)
+                            </button>
+                        </div>
+                    )}
                     <div className="flex justify-center"><div className="bg-cyan-100 p-3 rounded-full text-cyan-600 shadow-inner"><Settings size={36} /></div></div>
                     <div>
                         <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Number Line Setup</h1>
@@ -306,15 +328,16 @@ export default function AdditionFrog({ lesson, onComplete }: any) {
             `}} />
 
             {/* 1. TOP: COMPACT BANNER & EQUATION */}
-            <div className="w-full max-w-5xl shrink-0 z-20 relative mb-2 flex gap-2">
+            <div className="w-full max-w-5xl shrink-0 z-20 relative mb-2 flex items-center gap-2">
                 <button 
                     onClick={() => setPhase('config')} 
-                    className="shrink-0 px-3 py-2 bg-white text-slate-500 rounded-2xl border-2 border-slate-200 font-bold uppercase hover:bg-slate-50 flex items-center justify-center shadow-sm"
+                    className="shrink-0 px-3 py-2 bg-white text-slate-500 rounded-2xl border-2 border-slate-200 font-bold uppercase hover:bg-slate-50 flex items-center justify-center shadow-sm cursor-pointer"
+                    title="Settings"
                 >
                     <Settings size={18} />
                 </button>
 
-                <div className={`flex-1 py-2 md:py-4 rounded-[1.5rem] flex items-center justify-center gap-3 md:gap-6 font-black text-3xl md:text-5xl transition-all duration-500 border-b-4 md:border-b-8 ${showResult ? 'bg-lime-400 border-lime-500 text-slate-900 shadow-[0_0_30px_rgba(163,230,53,0.5)]' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className={`flex-1 py-2 md:py-3 rounded-[1.5rem] flex items-center justify-center gap-3 md:gap-6 font-black text-2xl md:text-5xl transition-all duration-500 border-b-4 md:border-b-8 ${showResult ? 'bg-lime-400 border-lime-500 text-slate-900 shadow-[0_0_30px_rgba(163,230,53,0.5)]' : 'bg-white border-slate-200 shadow-sm'}`}>
                     <span className="text-rose-500">{baseNumber}</span>
                     <span className={showResult ? 'text-slate-800' : 'text-slate-300'}>{config.op}</span>
                     <span className="text-sky-500">{hopNumber}</span>
@@ -323,7 +346,34 @@ export default function AdditionFrog({ lesson, onComplete }: any) {
                         {showResult ? calcResult : '?'}
                     </span>
                 </div>
+
+                {onComplete && solvedCount > 0 && (
+                    <button
+                        onClick={handleFinish}
+                        className="shrink-0 px-3 md:px-4 py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs md:text-sm rounded-2xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                        <CheckCircle2 size={16} /> <span className="hidden sm:inline">Finish Lesson</span><span className="sm:hidden">Finish</span>
+                    </button>
+                )}
             </div>
+
+            {/* Celebratory Action Pill when equation resolved */}
+            {showResult && onComplete && (
+                <div className="w-full max-w-5xl shrink-0 z-20 flex items-center justify-center gap-3 mb-2 animate-fade-in">
+                    <button
+                        onClick={resetMachine}
+                        className="px-4 py-1.5 bg-white/90 hover:bg-white text-slate-700 font-bold text-xs md:text-sm rounded-xl border border-slate-300 shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    >
+                        <RotateCcw size={15} /> Try Another Jump
+                    </button>
+                    <button
+                        onClick={handleFinish}
+                        className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+                    >
+                        <CheckCircle2 size={17} /> Finish Lesson & Continue ➔
+                    </button>
+                </div>
+            )}
 
             {/* 2. MIDDLE: MAXIMIZED POND SCENE */}
             <div className="relative w-full max-w-5xl flex-1 bg-gradient-to-b from-cyan-100 to-cyan-400 rounded-[2rem] md:rounded-[3rem] shadow-xl border-4 md:border-8 border-cyan-500 flex flex-col justify-end mb-4 box-border overflow-hidden">

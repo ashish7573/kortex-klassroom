@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Minus, Shuffle, RotateCcw, MoveDown } from 'lucide-react';
+import { Plus, Minus, Shuffle, RotateCcw, MoveDown, CheckCircle2 } from 'lucide-react';
 
 // --- INTERNAL COMPONENT: The Traveling Ball ---
 // Shoots up the outer pipe, then curves into the funnel
@@ -51,6 +51,17 @@ export default function AdditionMachine({ lesson, onComplete }: any) {
     const [funnelB, setFunnelB] = useState(0);
     const [isDropped, setIsDropped] = useState(false);
     const [showResult, setShowResult] = useState(false);
+    const [droppedCount, setDroppedCount] = useState(0);
+
+    const handleFinish = () => {
+        if (onComplete) {
+            onComplete({
+                score: Math.max(10, (droppedCount || 1) * 10),
+                maxScore: Math.max(10, (droppedCount || 1) * 10),
+                status: 'completed'
+            });
+        }
+    };
 
     // Pipe Transit States
     const [travelingA, setTravelingA] = useState<{id: number}[]>([]);
@@ -138,6 +149,7 @@ export default function AdditionMachine({ lesson, onComplete }: any) {
     const triggerMachineDrop = () => {
         setIsDropped(true);
         setLeverY(leverMaxTravel); 
+        setDroppedCount(prev => prev + 1);
         setTimeout(() => setShowResult(true), 800); 
     };
 
@@ -179,9 +191,30 @@ export default function AdditionMachine({ lesson, onComplete }: any) {
     return (
         <div className="w-full h-full flex flex-col items-center justify-between p-2 md:p-6 bg-sky-50 font-sans select-none overflow-hidden relative">
             
+            {/* 0. TOP APP HEADER */}
+            <div className="w-full max-w-4xl flex items-center justify-between px-2 py-1 shrink-0 z-30 mb-1">
+                <div className="flex items-center gap-2">
+                    <span className="text-xl">⚙️</span>
+                    <span className="font-black text-slate-800 text-sm md:text-base">Addition Machine</span>
+                    {droppedCount > 0 && (
+                        <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-300">
+                            {droppedCount} solved
+                        </span>
+                    )}
+                </div>
+                {onComplete && droppedCount > 0 && (
+                    <button
+                        onClick={handleFinish}
+                        className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs md:text-sm rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                        <CheckCircle2 size={16} /> Finish Lesson
+                    </button>
+                )}
+            </div>
+
             {/* 1. TOP: EQUATION BANNER */}
             <div className="w-full max-w-4xl shrink-0 z-20 relative">
-                <div className={`w-full py-4 md:py-8 rounded-[2rem] flex items-center justify-center gap-4 md:gap-8 font-black text-5xl md:text-7xl transition-all duration-500 border-b-8 ${showResult ? 'bg-lime-400 border-lime-500 text-slate-900 shadow-[0_0_40px_rgba(163,230,53,0.5)]' : 'bg-white border-slate-200 shadow-lg'}`}>
+                <div className={`w-full py-4 md:py-6 rounded-[2rem] flex items-center justify-center gap-4 md:gap-8 font-black text-5xl md:text-7xl transition-all duration-500 border-b-8 ${showResult ? 'bg-lime-400 border-lime-500 text-slate-900 shadow-[0_0_40px_rgba(163,230,53,0.5)]' : 'bg-white border-slate-200 shadow-lg'}`}>
                     <span className="text-rose-500">{funnelA}</span>
                     <span className={showResult ? 'text-slate-800 transition-colors' : 'text-slate-300'}>+</span>
                     <span className="text-sky-500">{funnelB}</span>
@@ -190,6 +223,24 @@ export default function AdditionMachine({ lesson, onComplete }: any) {
                         {showResult ? totalInFunnels : '?'}
                     </span>
                 </div>
+
+                {/* Celebratory Action Pill when equation resolved */}
+                {showResult && onComplete && (
+                    <div className="mt-3 flex items-center justify-center gap-3 animate-fade-in">
+                        <button
+                            onClick={resetMachine}
+                            className="px-4 py-2 bg-white/90 hover:bg-white text-slate-700 font-bold text-xs md:text-sm rounded-xl border border-slate-300 shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                        >
+                            <RotateCcw size={16} /> Try Another
+                        </button>
+                        <button
+                            onClick={handleFinish}
+                            className="px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+                        >
+                            <CheckCircle2 size={18} /> Finish Lesson & Continue ➔
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* 2. MIDDLE: MAIN MACHINE VISUALIZATION */}

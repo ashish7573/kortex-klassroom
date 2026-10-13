@@ -40,9 +40,11 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   };
 
   let processedStudents = [...students].filter(student => {
+    const rollNo = student.roll_no || student.org_links?.[profile.uid]?.roll_no || '';
     const matchesSearch = 
       (student.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (student.kortex_id || '').toLowerCase().includes(searchQuery.toLowerCase());
+      (student.kortex_id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      rollNo.toLowerCase().includes(searchQuery.toLowerCase());
     
     const grade = student.org_links?.[profile.uid]?.grade || student.grade;
     const matchesGrade = gradeFilter === 'all' || grade === gradeFilter;
@@ -52,6 +54,17 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
 
   if (sortConfig) {
      processedStudents.sort((a, b) => {
+        if (sortConfig.key === 'roll_no') {
+           const rollA = a.roll_no || a.org_links?.[profile.uid]?.roll_no || '';
+           const rollB = b.roll_no || b.org_links?.[profile.uid]?.roll_no || '';
+           const numA = parseInt(rollA, 10);
+           const numB = parseInt(rollB, 10);
+           if (!isNaN(numA) && !isNaN(numB)) {
+              return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
+           }
+           return sortConfig.direction === 'asc' ? rollA.localeCompare(rollB) : rollB.localeCompare(rollA);
+        }
+
         let valA = '';
         let valB = '';
         
@@ -76,7 +89,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   const [csvFile, setCsvFile] = useState<File | null>(null);
 
   const downloadSampleCsv = () => {
-    const csvContent = "Student Name,Parent Email,Parent Phone\nJohn Doe,john@example.com,+1234567890\nJane Smith,jane@example.com,";
+    const csvContent = "Roll No,Student Name,Parent Email,Parent Phone\n1,John Doe,john@example.com,+1234567890\n2,Jane Smith,jane@example.com,";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -92,6 +105,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   const [addMode, setAddMode] = useState<'new' | 'import' | 'bulk'>('new');
   const [studentForm, setStudentForm] = useState({
     nameOrId: '',
+    rollNo: '',
     grade: GRADES[4] || 'Grade 1',
     section: SECTIONS[0],
     assignedCombos: [] as string[],
@@ -156,12 +170,30 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
         throw new Error("CSV file must contain a header row and at least one student row.");
       }
       
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const rollIndex = headers.findIndex(h => h.includes('roll'));
+      const nameIndex = headers.findIndex(h => h.includes('name'));
+      const emailIndex = headers.findIndex(h => h.includes('email'));
+      const phoneIndex = headers.findIndex(h => h.includes('phone') || h.includes('contact'));
+
       const students = lines.slice(1).map(line => {
         const parts = line.split(',');
+        const rollNo = rollIndex !== -1 ? (parts[rollIndex] || '').trim() : '';
+        const fullName = nameIndex !== -1 
+          ? (parts[nameIndex] || '').trim() 
+          : (rollIndex === -1 ? (parts[0] || '').trim() : (parts[1] || '').trim());
+        const parentEmail = emailIndex !== -1 
+          ? (parts[emailIndex] || '').trim() 
+          : (rollIndex === -1 ? (parts[1] || '').trim() : (parts[2] || '').trim());
+        const parentPhone = phoneIndex !== -1 
+          ? (parts[phoneIndex] || '').trim() 
+          : (rollIndex === -1 ? (parts[2] || '').trim() : (parts[3] || '').trim());
+
         return {
-          fullName: (parts[0] || '').trim(),
-          parentEmail: (parts[1] || '').trim(),
-          parentPhone: (parts[2] || '').trim(),
+          rollNo,
+          fullName,
+          parentEmail,
+          parentPhone,
         };
       }).filter(s => s.fullName.length > 0);
       
@@ -210,6 +242,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
       if (addMode === 'new') {
         const result = await provisionStudentPlaceholder(idToken, {
           fullName: studentForm.nameOrId,
+          rollNo: studentForm.rollNo,
           grade: studentForm.grade,
           section: studentForm.section,
           assignedCombos: studentForm.assignedCombos,
@@ -252,7 +285,8 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
         grade: studentForm.grade,
         section: studentForm.section,
         assignedCombos: studentForm.assignedCombos,
-        emergencyContact: studentForm.emergencyContact
+        emergencyContact: studentForm.emergencyContact,
+        rollNo: studentForm.rollNo
       });
       
       if (!result.success) throw new Error(result.error);
@@ -290,6 +324,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   const resetForm = () => {
     setStudentForm({
       nameOrId: '',
+      rollNo: '',
       grade: GRADES[4] || 'Grade 1',
       section: SECTIONS[0],
       assignedCombos: [],
@@ -301,6 +336,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
     setEditingStudent(student);
     setStudentForm({
       nameOrId: student.full_name,
+      rollNo: student.roll_no || student.org_links?.[profile.uid]?.roll_no || '',
       grade: student.org_links?.[profile.uid]?.grade || student.grade,
       section: student.org_links?.[profile.uid]?.section || student.section || SECTIONS[0],
       assignedCombos: student.org_links?.[profile.uid]?.assigned_combos || [],
@@ -367,7 +403,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="Search by student name or Kortex ID..." 
+            placeholder="Search by student name, Roll No, or Kortex ID..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-colors"
@@ -394,6 +430,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
               <tr>
+                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("roll_no")}>Roll No {sortIndicator("roll_no")}</th>
                 <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("student_id")}>Student ID {sortIndicator("student_id")}</th>
                 <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("full_name")}>Student Name {sortIndicator("full_name")}</th>
                 <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Subjects</th>
@@ -404,7 +441,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-bold">Loading students...</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading students...</td></tr>
               ) : processedStudents.length > 0 ? processedStudents.map(student => {
                 const legacyCount = getStudentDefaultCombos(student).length;
                 const assignedCount = student.org_links?.[profile.uid]?.assigned_combos?.length || 0;
@@ -412,6 +449,11 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                 
                 return (
                 <tr key={student.uid} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <span className="font-bold text-slate-700 font-mono text-xs bg-slate-100 px-2.5 py-1 rounded-md inline-block">
+                      {student.roll_no || student.org_links?.[profile.uid]?.roll_no ? `#${student.roll_no || student.org_links?.[profile.uid]?.roll_no}` : '-'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4">
                     <div className="font-bold text-indigo-600 font-mono text-xs bg-indigo-50 px-2 py-1 rounded-md inline-block">
                       {student.kortex_id || 'PENDING'}
@@ -487,7 +529,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                   </td>
                 </tr>
               )}) : (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-bold">No students registered yet.</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">No students registered yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -588,10 +630,22 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                    </div>
 
                    {addMode === 'new' && (
-                     <div className="sm:col-span-2">
-                       <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Emergency Contact Number</label>
-                       <input type="text" value={studentForm.emergencyContact} onChange={e => setStudentForm({...studentForm, emergencyContact: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. +91 98765 43210 (Optional)" />
-                     </div>
+                     <>
+                       <div>
+                         <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Roll Number (Optional)</label>
+                         <input 
+                           type="text" 
+                           value={studentForm.rollNo} 
+                           onChange={e => setStudentForm({...studentForm, rollNo: e.target.value})} 
+                           className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" 
+                           placeholder="e.g. 15" 
+                         />
+                       </div>
+                       <div>
+                         <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Emergency Contact Number</label>
+                         <input type="text" value={studentForm.emergencyContact} onChange={e => setStudentForm({...studentForm, emergencyContact: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. +91 98765 43210 (Optional)" />
+                       </div>
+                     </>
                    )}
 
                    
@@ -732,9 +786,14 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                      </select>
                    </div>
 
-                   <div className="sm:col-span-2">
+                   <div>
+                     <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Roll Number</label>
+                     <input type="text" value={studentForm.rollNo} onChange={e => setStudentForm({...studentForm, rollNo: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. 15 (Optional)" />
+                   </div>
+
+                   <div>
                      <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Emergency Contact</label>
-                     <input type="text" value={studentForm.emergencyContact} onChange={e => setStudentForm({...studentForm, emergencyContact: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" />
+                     <input type="text" value={studentForm.emergencyContact} onChange={e => setStudentForm({...studentForm, emergencyContact: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. +91 98765 43210 (Optional)" />
                    </div>
                  </div>
 

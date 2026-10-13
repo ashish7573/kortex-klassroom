@@ -359,6 +359,7 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
           uid: sDoc.id,
           fullName: sData.full_name || 'Unknown Student',
           kortexId: sData.kortex_id || '',
+          rollNo: sData.roll_no || sData.org_links?.[orgId]?.roll_no || '',
           avatar: sData.avatar || '',
           completedToolsCount: completedCount,
           totalTools: totalCurriculumTools,

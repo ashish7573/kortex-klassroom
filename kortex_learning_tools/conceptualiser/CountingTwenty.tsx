@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, ChevronRight, ChevronLeft, Plus, Minus, RotateCcw, List } from 'lucide-react';
+import { Volume2, ChevronRight, ChevronLeft, Plus, Minus, RotateCcw, List, CheckCircle2, Sparkles } from 'lucide-react';
 
 // --- Types & Data ---
 type AppPhase = 'story' | 'interactive';
@@ -44,8 +44,23 @@ export default function CountingTwenty({ lesson, onComplete }: any) {
   const [addedApples, setAddedApples] = useState(0);
   const [discoveredNumbers, setDiscoveredNumbers] = useState<number[]>([]);
   const [showAllView, setShowAllView] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
+
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
+
+  const handleFinish = () => {
+    playSound('kaching');
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    onComplete?.({
+      score: discoveredNumbers.length || 10,
+      maxScore: 10,
+      status: 'completed'
+    });
+  };
 
   // --- Audio Engine ---
   const audioCtx = useRef<AudioContext | null>(null);
@@ -102,13 +117,27 @@ export default function CountingTwenty({ lesson, onComplete }: any) {
   const speakText = (text: string) => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-IN'; 
       utterance.rate = 0.9; 
       utterance.pitch = 1.1;
       utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      utterance.onend = () => {
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        setIsSpeaking(false);
+      };
+      utterance.onerror = () => {
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        setIsSpeaking(false);
+      };
+
+      const safeTimeMs = Math.max(2500, (text.length / 10) * 1000 + 1500);
+      fallbackTimerRef.current = setTimeout(() => {
+        setIsSpeaking(false);
+      }, safeTimeMs);
+
       window.speechSynthesis.speak(utterance);
     }
   };
@@ -146,8 +175,16 @@ export default function CountingTwenty({ lesson, onComplete }: any) {
       setAddedApples(newVal);
       playSound('pop');
       
+      let nextDiscovered = discoveredNumbers;
       if (!discoveredNumbers.includes(newVal)) {
-          setDiscoveredNumbers(prev => [...prev, newVal]);
+          nextDiscovered = [...discoveredNumbers, newVal];
+          setDiscoveredNumbers(nextDiscovered);
+          if (nextDiscovered.length === 10) {
+            setTimeout(() => {
+              playSound('kaching');
+              setIsFinished(true);
+            }, 1200);
+          }
       }
       
       const word = NUMBER_WORDS[newVal];
@@ -254,6 +291,43 @@ export default function CountingTwenty({ lesson, onComplete }: any) {
   return (
     <div className="w-full h-full flex flex-col bg-sky-50 font-sans min-h-[600px] relative overflow-hidden">
       
+      {/* HEADER BAR */}
+      <div className="shrink-0 bg-white border-b-4 border-slate-200 px-4 py-2.5 flex items-center justify-between z-20 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-sm shadow-sm">
+            🍎
+          </div>
+          <div>
+            <h2 className="text-xs md:text-sm font-black text-slate-800 leading-none">Counting 11 to 20</h2>
+            <p className="text-[10px] md:text-xs text-sky-600 font-bold">Krishna Fruits</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-xl border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-400">Discovered:</span>
+            <span className="text-xs font-black text-lime-600">{discoveredNumbers.length} / 10</span>
+          </div>
+
+          {(discoveredNumbers.length >= 3 || hasDiscoveredAll) && onComplete && (
+            <button
+              onClick={handleFinish}
+              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs md:text-sm rounded-xl border-b-2 border-emerald-700 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+              title="Finish Lesson"
+            >
+              <CheckCircle2 size={15} /> Finish
+            </button>
+          )}
+
+          <button
+            onClick={() => setPhase('story')}
+            className="p-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
+          >
+            Story
+          </button>
+        </div>
+      </div>
+
       {/* MAIN AREA */}
       <div className="w-full max-w-6xl mx-auto flex-1 flex flex-col items-stretch justify-start gap-4 p-4 overflow-y-auto hide-scrollbar pb-32">
           
@@ -386,11 +460,21 @@ export default function CountingTwenty({ lesson, onComplete }: any) {
           <div className="max-w-6xl mx-auto flex flex-col items-center gap-2">
               <div className="flex items-center justify-between w-full max-w-3xl">
                   <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest">Numbers Discovered</span>
-                  {hasDiscoveredAll && !showAllView && (
-                      <button onClick={() => setShowAllView(true)} className="flex items-center gap-1 text-[10px] md:text-xs font-black text-sky-600 bg-sky-100 hover:bg-sky-200 px-2 py-1 rounded-md transition-colors">
-                          <List size={14} /> SHOW ALL
-                      </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {hasDiscoveredAll && !showAllView && (
+                        <button onClick={() => setShowAllView(true)} className="flex items-center gap-1 text-[10px] md:text-xs font-black text-sky-600 bg-sky-100 hover:bg-sky-200 px-2 py-1 rounded-md transition-colors cursor-pointer">
+                            <List size={14} /> SHOW ALL
+                        </button>
+                    )}
+                    {(discoveredNumbers.length >= 5 || hasDiscoveredAll) && (
+                        <button 
+                          onClick={() => setIsFinished(true)} 
+                          className="flex items-center gap-1 text-[10px] md:text-xs font-black text-slate-950 bg-emerald-500 hover:bg-emerald-400 border-b-2 border-emerald-700 px-3 py-1 rounded-md transition-all shadow-sm active:translate-y-0.5 animate-pulse cursor-pointer"
+                        >
+                            <CheckCircle2 size={13} /> FINISH &amp; CONTINUE ➔
+                        </button>
+                    )}
+                  </div>
               </div>
               <div className="flex justify-center gap-1.5 md:gap-3 flex-wrap w-full max-w-3xl">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
@@ -415,6 +499,36 @@ export default function CountingTwenty({ lesson, onComplete }: any) {
               </div>
           </div>
       </div>
+
+      {/* FINISH CELEBRATION MODAL */}
+      {isFinished && (
+        <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] p-8 md:p-10 max-w-md w-full shadow-2xl text-center border-4 border-emerald-200 flex flex-col items-center animate-fade-in">
+            <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mb-4 shadow-inner">
+              <Sparkles size={40} className="text-emerald-600 animate-spin" />
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">Lesson Complete! 🎉</h2>
+            <p className="text-sm md:text-base text-slate-600 font-bold mb-6">
+              You discovered how a box of 10 plus loose apples makes numbers from 11 to 20!
+            </p>
+
+            <div className="flex flex-col gap-3 w-full">
+              <button
+                onClick={handleFinish}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-base md:text-lg rounded-2xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+              >
+                <CheckCircle2 size={22} /> Finish Lesson &amp; Continue ➔
+              </button>
+              <button
+                onClick={() => setIsFinished(false)}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-sm md:text-base rounded-2xl border border-slate-300 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RotateCcw size={18} /> Keep Exploring
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px) scale(0.8); } to { opacity: 1; transform: translateY(0) scale(1); } }

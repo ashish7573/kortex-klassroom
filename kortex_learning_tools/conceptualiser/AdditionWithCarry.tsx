@@ -281,12 +281,38 @@ export default function AdditionWithCarry({ lesson, onComplete }: any) {
   if (phase === 'finish') {
       return (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 font-sans md:rounded-3xl p-6 text-center animate-fade-in-up">
-              <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6 shadow-xl bg-emerald-100 border-4 border-emerald-300">
+              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center mb-6 shadow-xl bg-emerald-100 border-4 border-emerald-300">
                   <CheckCircle2 size={64} className="text-emerald-500"/>
               </div>
-              <h2 className="text-4xl font-black text-slate-800 mb-2">Addition Master!</h2>
-              <p className="text-slate-500 font-bold text-lg mb-8">You successfully learned how to regroup and carry over!</p>
+              <h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-2">Addition Master!</h2>
+              <p className="text-slate-500 font-bold text-sm md:text-lg mb-8 max-w-md">You successfully learned how to regroup and carry over!</p>
               
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                  <button
+                      onClick={() => {
+                          setRoundIndex(0);
+                          setAuditStep('start');
+                          setPhase('interactive');
+                      }}
+                      className="px-6 py-3 bg-white text-slate-700 font-bold text-sm rounded-xl border border-slate-300 shadow-sm hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                  >
+                      Practice Again
+                  </button>
+                  {onComplete && (
+                      <button
+                          onClick={() => {
+                              onComplete({
+                                  score: FRUIT_ROUNDS.length * 10,
+                                  maxScore: FRUIT_ROUNDS.length * 10,
+                                  status: 'completed'
+                              });
+                          }}
+                          className="px-8 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm md:text-base rounded-xl border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 animate-pulse cursor-pointer"
+                      >
+                          <CheckCircle2 size={20} /> Finish Lesson & Continue ➔
+                      </button>
+                  )}
+              </div>
           </div>
       );
   }
@@ -312,12 +338,28 @@ export default function AdditionWithCarry({ lesson, onComplete }: any) {
     <div className="w-full h-full flex flex-col bg-slate-900 font-sans md:rounded-3xl overflow-hidden relative">
       
       {/* HEADER */}
-      <div className="w-full shrink-0 p-2 md:p-4 z-20 bg-slate-800 border-b-2 border-slate-700 shadow-sm flex items-center justify-between text-white">
+      <div className="w-full shrink-0 p-2 md:p-3 z-20 bg-slate-800 border-b-2 border-slate-700 shadow-sm flex items-center justify-between text-white">
           <div className="flex items-center gap-2 md:gap-3">
               <div className={`w-8 h-8 md:w-10 md:h-10 ${currentRound.bg} rounded-full flex items-center justify-center text-lg md:text-xl`}>{currentRound.emoji}</div>
               <h2 className="text-sm md:text-xl font-black tracking-widest uppercase">Addition with Carry</h2>
           </div>
-          <span className="text-[10px] md:text-xs font-bold text-slate-400 bg-slate-700 px-2 md:px-3 py-1 rounded-full">{roundIndex + 1} / {FRUIT_ROUNDS.length}</span>
+          <div className="flex items-center gap-2">
+              <span className="text-[10px] md:text-xs font-bold text-slate-400 bg-slate-700 px-2 md:px-3 py-1 rounded-full">{roundIndex + 1} / {FRUIT_ROUNDS.length}</span>
+              {onComplete && roundIndex > 0 && (
+                  <button
+                      onClick={() => {
+                          onComplete({
+                              score: roundIndex * 10,
+                              maxScore: FRUIT_ROUNDS.length * 10,
+                              status: 'completed'
+                          });
+                      }}
+                      className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs rounded-full flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                  >
+                      <CheckCircle2 size={14} /> Finish
+                  </button>
+              )}
+          </div>
       </div>
 
       {/* UNIFIED 3-COLUMN WORKSPACE */}

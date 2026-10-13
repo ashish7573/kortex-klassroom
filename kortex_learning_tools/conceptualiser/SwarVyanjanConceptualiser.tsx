@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, Volume2, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Volume2, Sparkles, Image as ImageIcon, CheckCircle2, RotateCcw } from 'lucide-react';
 import { HINDI_ASSETS, SUBTOPIC_MAP } from '@/kortex_library/SwarVyanjanDictionary';
 
 // ==========================================
@@ -30,20 +30,38 @@ const ImageFallback = ({ src, alt, emoji, bgClass }: any) => {
 // ==========================================
 // MAIN COMPONENT: SwarVyanjan Conceptualiser
 // ==========================================
-export default function SwarVyanjanConceptualiser({ subtopicId, onComplete }: { subtopicId: string, onComplete: () => void }) {
+export default function SwarVyanjanConceptualiser({ subtopicId, lesson, onComplete }: any) {
   // 1. DATA INITIALIZATION
-  const letterList = SUBTOPIC_MAP[subtopicId] || [];
+  const activeSubtopicId = subtopicId || lesson?.subtopicId || lesson?.routePath?.split('/').pop() || '';
+  const letterList = SUBTOPIC_MAP[activeSubtopicId] || [];
   const [currentLetterIndex, setCurrentLetterIndex] = useState(0);
   const [stepIndex, setStepIndex] = useState(0); 
   const [isCompleted, setIsCompleted] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const handleFinish = () => {
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch {}
+    }
+    onComplete?.({
+      score: letterList.length * 10,
+      maxScore: letterList.length * 10,
+      status: 'completed'
+    });
+  };
+
+  const handleRestart = () => {
+    setCurrentLetterIndex(0);
+    setStepIndex(0);
+    setIsCompleted(false);
+  };
+
   const currentChar = letterList[currentLetterIndex];
   const letterData = HINDI_ASSETS[currentChar];
 
   if (!letterList.length || !letterData) {
-    return <div className="p-10 text-center font-bold text-rose-500">Error: Subtopic Data Not Found ({subtopicId})</div>;
+    return <div className="p-10 text-center font-bold text-rose-500">Error: Subtopic Data Not Found ({activeSubtopicId})</div>;
   }
 
   const maxExamples = letterData.examples?.length || 0;
@@ -123,17 +141,40 @@ export default function SwarVyanjanConceptualiser({ subtopicId, onComplete }: { 
     return match ? word.slice(match[0].length) : word.slice(1);
   };
 
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+      }
+    };
+  }, []);
+
   // --- RENDER: COMPLETED STATE ---
   if (isCompleted) {
     return (
       <div className="w-full h-full bg-white flex items-center justify-center p-4 rounded-3xl border-2 border-slate-100">
-        <div className="text-center animate-in zoom-in duration-500">
+        <div className="text-center animate-in zoom-in duration-500 max-w-sm w-full">
           <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 mx-auto">
             <Sparkles className="w-12 h-12 text-green-500" />
           </div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2">शानदार!</h1>
-          <p className="text-slate-500 font-bold mb-8">आपने यह भाग पूरा कर लिया है।</p>
-          
+          <h1 className="text-3xl md:text-4xl font-black text-slate-800 mb-2">शानदार!</h1>
+          <p className="text-slate-500 font-bold mb-6">आपने सभी वर्ण और शब्द सीख लिए हैं।</p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleFinish}
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg rounded-2xl shadow-lg shadow-emerald-200 border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+            >
+              <span>आगे बढ़ें (Finish Lesson)</span>
+              <ArrowRight className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleRestart}
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-all flex items-center justify-center gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>फिर से अभ्यास करें (Practice Again)</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -146,9 +187,21 @@ export default function SwarVyanjanConceptualiser({ subtopicId, onComplete }: { 
 
       {/* Progress Header */}
       <div className="shrink-0 pt-4 md:pt-6 pb-3 md:pb-4 px-6 md:px-8 bg-white border-b border-slate-100">
-        <div className="flex justify-between items-end mb-2">
+        <div className="flex justify-between items-center mb-2">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">नया ज्ञान (Conceptualiser)</span>
-          <span className="text-sm font-black text-slate-700">{currentLetterIndex + 1} / {letterList.length}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-black text-slate-700">{currentLetterIndex + 1} / {letterList.length}</span>
+            {currentLetterIndex > 0 && (
+              <button
+                onClick={handleFinish}
+                className="px-2.5 py-1 text-xs font-black bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200 transition-colors flex items-center gap-1"
+                title="Finish lesson"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>पूरा करें</span>
+              </button>
+            )}
+          </div>
         </div>
         <div className="w-full h-2 md:h-3 bg-slate-100 rounded-full overflow-hidden">
           <div 

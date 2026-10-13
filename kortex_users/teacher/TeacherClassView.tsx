@@ -192,6 +192,7 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
                <table className="w-full text-left">
                   <thead className="bg-white border-b border-slate-100">
                      <tr>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Roll No</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Student Name</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">ID</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Curriculum Completed</th>
@@ -202,9 +203,14 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
                      {roster.map(student => (
                         <tr key={student.uid} className="hover:bg-slate-50 transition-colors">
                            <td className="px-6 py-4">
+                              <span className="font-bold text-slate-700 font-mono text-xs bg-slate-100 px-2.5 py-1 rounded-md inline-block">
+                                 {student.rollNo ? `#${student.rollNo}` : '-'}
+                              </span>
+                           </td>
+                           <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
                                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-400 border border-slate-200">
-                                   {student.avatar ? <img src={student.avatar} alt="avatar" className="w-full h-full rounded-full object-cover" /> : student.fullName.charAt(0)}
+                                   {student.avatar ? <img src={student.avatar} alt="avatar" className="w-full h-full rounded-full object-cover" /> : (student.fullName || 'S').charAt(0)}
                                  </div>
                                  <span className="font-bold text-slate-800">{student.fullName}</span>
                                  {student.progressPercentage < classAverage - 20 && (

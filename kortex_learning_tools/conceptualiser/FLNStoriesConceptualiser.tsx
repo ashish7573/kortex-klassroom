@@ -1,12 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, ChevronLeft, ChevronRight, Volume2, Image as ImageIcon } from 'lucide-react';
+import { Play, ChevronLeft, ChevronRight, Volume2, Image as ImageIcon, Sparkles, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react';
 import { STORIES_DATA } from '@/kortex_library/FLNStories';
 
-export default function StoryConceptualiser({ lesson, onComplete = () => {} }: any) {
+export default function StoryConceptualiser({ subtopicId: propSubtopicId, lesson, onComplete = () => {} }: any) {
   const [currentStory, setCurrentStory] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [activeWordIndex, setActiveWordIndex] = useState<number | null>(null);
   const [words, setWords] = useState<string[]>([]);
   
@@ -15,16 +16,16 @@ export default function StoryConceptualiser({ lesson, onComplete = () => {} }: a
 
   // 1. INITIALIZE STORY BASED ON ROUTE
   useEffect(() => {
-    const subtopicId = lesson?.subtopicId || '';
-    // Extracts 'story-1' from an ID like 'story-1-read'
+    const subtopicId = propSubtopicId || lesson?.subtopicId || lesson?.routePath?.split('/').pop() || '';
+    // Extracts 'story-a1' from an ID like 'story-a1-read'
     const baseId = subtopicId.replace('-read', '').replace('-quiz', '');
     
-    const foundStory = STORIES_DATA.find(s => s.id === baseId);
+    const foundStory = STORIES_DATA.find(s => s.id === baseId) || STORIES_DATA[0];
     if (foundStory) {
       setCurrentStory(foundStory);
       setCurrentPage(0);
     }
-  }, [lesson]);
+  }, [propSubtopicId, lesson]);
 
   // 2. SPLIT WORDS WHEN PAGE CHANGES
   useEffect(() => {
@@ -111,8 +112,7 @@ export default function StoryConceptualiser({ lesson, onComplete = () => {} }: a
     if (currentPage < currentStory.pages.length - 1) {
       setCurrentPage(prev => prev + 1);
     } else {
-      // Trigger main router to move to the Quiz phase
-      onComplete({ status: 'story_read_complete' });
+      setIsCompleted(true);
     }
   };
 
@@ -122,27 +122,85 @@ export default function StoryConceptualiser({ lesson, onComplete = () => {} }: a
     }
   };
 
+  const handleFinish = () => {
+    window.speechSynthesis.cancel();
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    onComplete({
+      score: 100,
+      maxScore: 100,
+      status: 'completed'
+    });
+  };
+
+  const handleRestart = () => {
+    setCurrentPage(0);
+    setIsCompleted(false);
+  };
+
   if (!currentStory) return <div className="p-10 text-center text-slate-500 font-bold">Loading Story...</div>;
 
   const currentStoryPage = currentStory.pages[currentPage];
 
   return (
-    <div className="w-full h-[90vh] min-h-[600px] flex flex-col bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-sky-100 font-sans relative">
+    <div className="w-full h-full min-h-[600px] flex flex-col bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-sky-100 font-sans relative">
       
+      {/* CELEBRATION / VICTORY MODAL */}
+      {isCompleted && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full text-center shadow-2xl border-4 border-emerald-400 animate-in zoom-in-95 duration-200">
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="w-10 h-10 text-emerald-600" />
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">शानदार!</h2>
+            <p className="text-slate-600 font-bold text-sm md:text-base mb-6">
+              आपने &quot;{currentStory.title}&quot; कहानी पूरी पढ़ ली है!
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleFinish}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base rounded-2xl shadow-lg border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+              >
+                <span>आगे बढ़ें (Finish Lesson)</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleRestart}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-2xl transition-all flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>कहानी फिर से पढ़ें (Read Again)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HEADER & PROGRESS BAR */}
-      <div className="bg-sky-50 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between shrink-0 gap-4">
+      <div className="bg-sky-50 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between shrink-0 gap-4 border-b border-sky-100">
         <div>
            <h2 className="text-2xl md:text-3xl font-black text-sky-900">{currentStory.title}</h2>
            <span className="text-sky-600 font-bold text-sm tracking-wider">{currentStory.description}</span>
         </div>
         
-        <div className="flex space-x-1.5 items-center">
-          {currentStory.pages.map((_: any, idx: number) => (
-            <div 
-              key={idx} 
-              className={`h-2.5 rounded-full transition-all duration-300 ${idx === currentPage ? 'w-8 bg-sky-500' : idx < currentPage ? 'w-4 bg-sky-400' : 'w-2.5 bg-sky-200'}`}
-            />
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex space-x-1.5 items-center">
+            {currentStory.pages.map((_: any, idx: number) => (
+              <div 
+                key={idx} 
+                className={`h-2.5 rounded-full transition-all duration-300 ${idx === currentPage ? 'w-8 bg-sky-500' : idx < currentPage ? 'w-4 bg-sky-400' : 'w-2.5 bg-sky-200'}`}
+              />
+            ))}
+          </div>
+          {currentPage > 0 && (
+            <button
+              onClick={handleFinish}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm border-b-2 border-emerald-800 active:translate-y-0.5 transition-all flex items-center gap-1 shrink-0"
+              title="Finish story"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>पूरा करें ➔</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -201,13 +259,21 @@ export default function StoryConceptualiser({ lesson, onComplete = () => {} }: a
           )}
         </button>
 
-        {currentPage < currentStory.pages.length - 1 && (
-            <button 
-              onClick={handleNext}
-              className="flex items-center px-4 py-3 md:px-6 md:py-4 rounded-2xl font-black text-white bg-sky-500 shadow-md shadow-sky-200 hover:bg-sky-600 transition-all border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 text-lg"
-            >
-              आगे <ChevronRight size={24} className="ml-1" />
-            </button>
+        {currentPage < currentStory.pages.length - 1 ? (
+          <button 
+            onClick={handleNext}
+            className="flex items-center px-4 py-3 md:px-6 md:py-4 rounded-2xl font-black text-white bg-sky-500 shadow-md shadow-sky-200 hover:bg-sky-600 transition-all border-b-4 border-sky-700 active:border-b-0 active:translate-y-1 text-lg"
+          >
+            आगे <ChevronRight size={24} className="ml-1" />
+          </button>
+        ) : (
+          <button 
+            onClick={handleNext}
+            className="flex items-center gap-1.5 px-5 py-3 md:px-7 md:py-4 rounded-2xl font-black text-white bg-emerald-600 shadow-md shadow-emerald-200 hover:bg-emerald-700 transition-all border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 text-lg animate-pulse"
+          >
+            <Sparkles size={22} />
+            <span>कहानी पूरी करें ➔</span>
+          </button>
         )}
       </div>
 
