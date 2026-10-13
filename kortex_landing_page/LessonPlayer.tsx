@@ -142,12 +142,12 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
          onStepComplete({ step: currentStep, score: data?.score !== undefined ? data.score : finalScore });
       }
 
-      if (!isLoggedIn) {
+      if (!isLoggedIn && !isMasterDemo) {
           setShowFinale(true);
           return;
       }
       if (isLastStep) {
-          if (!isPro) {
+          if (!isPro && !isMasterDemo) {
               setShowSupportGate(true);
           } else {
               setShowFinale(true);

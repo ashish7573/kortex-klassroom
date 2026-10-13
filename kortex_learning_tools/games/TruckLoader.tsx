@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Trophy, Users, Timer, RotateCcw, Truck, Play } from 'lucide-react';
 
 // --- GAME STATE ---
@@ -45,57 +45,105 @@ export default function TruckLoader({ lesson, onComplete }: any) {
     };
     const [drag, setDrag] = useState<DragState | null>(null);
 
-    // --- AUDIO ENGINE ---
+    // --- RESILIENT AUDIO ENGINE (Cached AudioContext) ---
+    const audioCtxRef = useRef<AudioContext | null>(null);
+
+    const getAudioContext = () => {
+        if (typeof window === 'undefined') return null;
+        if (!audioCtxRef.current) {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioContextClass) {
+                audioCtxRef.current = new AudioContextClass();
+            }
+        }
+        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+            audioCtxRef.current.resume().catch(() => {});
+        }
+        return audioCtxRef.current;
+    };
+
+    useEffect(() => {
+        return () => {
+            if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+                audioCtxRef.current.close().catch(() => {});
+            }
+        };
+    }, []);
+
     const playSound = (type: 'honk' | 'snap' | 'error' | 'click' | 'engine') => {
-        if (typeof window === 'undefined') return;
         try {
-            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-            const ctx = new AudioContext();
+            const ctx = getAudioContext();
+            if (!ctx) return;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-            osc.connect(gain); gain.connect(ctx.destination);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
             
             if (type === 'snap') {
-                osc.type = 'square'; osc.frequency.setValueAtTime(300, ctx.currentTime);
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(300, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.2, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-                osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.1);
             } else if (type === 'engine') {
-                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(60, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 4.0); 
-                gain.gain.setValueAtTime(0.15, ctx.currentTime); gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 4.0);
-                osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 4.0);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(65, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(110, ctx.currentTime + 0.8); 
+                gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.8);
             } else if (type === 'error') {
-                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, ctx.currentTime);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.25);
-                gain.gain.setValueAtTime(0.2, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-                osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.25);
             } else if (type === 'click') {
-                osc.type = 'sine'; osc.frequency.setValueAtTime(600, ctx.currentTime);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.05);
-                gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
-                osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.05);
             } else if (type === 'honk') {
-                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, ctx.currentTime);
-                osc.frequency.setValueAtTime(350, ctx.currentTime + 0.2);
-                gain.gain.setValueAtTime(0.2, ctx.currentTime); gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
-                osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, ctx.currentTime);
+                osc.frequency.setValueAtTime(350, ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.18, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
             }
-        } catch (e) { console.log("Audio fallback", e); }
+        } catch (e) {
+            console.log("Audio fallback", e);
+        }
     };
 
     // --- GAME LOGIC ---
     const generateLevelData = (): Partial<PlayerState> => {
         const truckFilled = Math.floor(Math.random() * 8) + 1; 
         const target = 10 - truckFilled;
-        let opts = new Set([target]);
-        while(opts.size < 4) {
-            let fakeOpt = Math.floor(Math.random() * 9) + 1;
+        const opts = new Set<number>([target]);
+        while (opts.size < 4) {
+            const fakeOpt = Math.floor(Math.random() * 9) + 1;
             if (fakeOpt !== target) opts.add(fakeOpt);
         }
+        const optionsArr = Array.from(opts);
+        // Proper Fisher-Yates shuffle
+        for (let i = optionsArr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [optionsArr[i], optionsArr[j]] = [optionsArr[j], optionsArr[i]];
+        }
+
         return {
             truckFilled,
-            options: Array.from(opts).sort(() => Math.random() - 0.5),
+            options: optionsArr,
             animState: 'idle',
             flashColor: null,
             droppedCargo: null,
@@ -122,9 +170,6 @@ export default function TruckLoader({ lesson, onComplete }: any) {
         } else if (phase === 'playing' && timeLeft === 0) {
             playSound('honk');
             setPhase('result');
-            if (onComplete) {
-                onComplete();
-            }
         }
         return () => clearInterval(timer);
     }, [phase, timeLeft]);
@@ -138,23 +183,48 @@ export default function TruckLoader({ lesson, onComplete }: any) {
         if (state.truckFilled + cargoValue === 10) {
             // SUCCESS
             playSound('snap');
-            setPlayerState(prev => ({ ...prev, animState: 'success', flashColor: 'green', droppedCargo: cargoValue, selectedCargo: null }));
+            setPlayerState(prev => ({ 
+                ...prev, 
+                animState: 'success', 
+                flashColor: 'green', 
+                droppedCargo: cargoValue, 
+                selectedCargo: null 
+            }));
             
-            setTimeout(() => playSound('honk'), 600);
+            setTimeout(() => playSound('honk'), 300);
 
+            // Drive away quickly (crisp 600ms transition)
             setTimeout(() => {
                 playSound('engine');
-                setPlayerState(prev => ({ ...prev, animState: 'driving', truckPosition: 'right', truckTransition: true }));
-            }, 1500);
+                setPlayerState(prev => ({ 
+                    ...prev, 
+                    animState: 'driving', 
+                    truckPosition: 'right', 
+                    truckTransition: true 
+                }));
+            }, 600);
 
+            // Spawn next truck in 1300ms total
             setTimeout(() => {
                 const nextLvl = generateLevelData();
-                setPlayerState(prev => ({ ...prev, ...nextLvl, score: prev.score + 1, truckPosition: 'left', truckTransition: false }));
+                setPlayerState(prev => ({ 
+                    ...prev, 
+                    ...nextLvl, 
+                    score: prev.score + 1, 
+                    truckPosition: 'left', 
+                    truckTransition: false 
+                }));
                 
+                // Slide new truck in from left
                 setTimeout(() => {
-                    setPlayerState(prev => ({ ...prev, animState: 'idle', truckPosition: 'center', truckTransition: true }));
-                }, 100);
-            }, 5500); 
+                    setPlayerState(prev => ({ 
+                        ...prev, 
+                        animState: 'idle', 
+                        truckPosition: 'center', 
+                        truckTransition: true 
+                    }));
+                }, 50);
+            }, 1300); 
 
         } else {
             // ERROR
@@ -166,15 +236,15 @@ export default function TruckLoader({ lesson, onComplete }: any) {
         }
     };
 
-    // --- DRAG AND DROP HANDLERS ---
+    // --- DUAL INPUT: DRAG & DROP + SINGLE-TAP HANDLERS ---
     const handlePointerDown = (e: React.PointerEvent, playerId: 1 | 2, opt: number) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         const target = e.currentTarget;
         target.setPointerCapture(e.pointerId);
         playSound('click');
         
-        if (playerId === 1) setP1(prev => ({...prev, selectedCargo: opt}));
-        else setP2(prev => ({...prev, selectedCargo: opt}));
+        if (playerId === 1) setP1(prev => ({ ...prev, selectedCargo: opt }));
+        else setP2(prev => ({ ...prev, selectedCargo: opt }));
 
         setDrag({
             active: true,
@@ -199,6 +269,7 @@ export default function TruckLoader({ lesson, onComplete }: any) {
         const dist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
         
         if (dist > 15) {
+            // Dragged cargo: check if dropped into truck zone
             const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
             const truckZone = dropTarget?.closest('[data-truck-player]');
             
@@ -208,6 +279,9 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                     handlePack(targetPlayer, drag.value);
                 }
             }
+        } else {
+            // Tapped cargo: instant pack without dragging required!
+            handlePack(drag.playerId, drag.value);
         }
         setDrag(null);
     };
@@ -245,7 +319,7 @@ export default function TruckLoader({ lesson, onComplete }: any) {
         const is2P = numPlayers === 2;
 
         return (
-            <div className={`relative flex flex-col h-full overflow-hidden bg-sky-300 ${is2P && playerId === 1 ? 'border-r-[6px] border-slate-800' : ''} ${is2P ? 'w-1/2' : 'w-full'}`}>
+            <div className={`relative flex flex-col h-full flex-1 min-h-0 overflow-hidden bg-sky-300 ${is2P && playerId === 1 ? 'border-r-4 md:border-r-[6px] border-slate-800' : ''} ${is2P ? 'w-1/2' : 'w-full'}`}>
                 
                 {/* Background Scenery */}
                 <div className="absolute inset-0 z-0 pointer-events-none flex flex-col justify-end">
@@ -259,37 +333,38 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                 </div>
 
                 {/* Score UI */}
-                <div className={`absolute top-4 ${playerId === 1 ? 'left-4' : 'right-4'} bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 flex items-center gap-2 border-4 border-slate-200 shadow-md z-40`}>
-                    <Truck size={18} className={playerId === 1 ? 'text-sky-500' : 'text-purple-500'} />
-                    <span className="font-black text-lg md:text-xl text-slate-700 leading-none">{state.score}</span>
+                <div className={`absolute top-3 sm:top-4 ${playerId === 1 ? 'left-3 sm:left-4' : 'right-3 sm:right-4'} bg-white/90 backdrop-blur-sm rounded-full px-2.5 sm:px-3 py-1 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 border-2 sm:border-4 border-slate-200 shadow-md z-40`}>
+                    <Truck size={16} className={playerId === 1 ? 'text-sky-500' : 'text-purple-500'} />
+                    <span className="font-black text-base sm:text-xl text-slate-700 leading-none">{state.score}</span>
                 </div>
 
-                {/* Main Truck Area */}
-                <div className="flex-1 w-full relative z-20">
+                {/* Main Truck Area (Flex-1 min-h-0) */}
+                <div className="flex-1 w-full relative z-20 min-h-0 overflow-hidden flex flex-col justify-end">
                     {/* Equation Popup */}
                     {isSuccess && state.droppedCargo && (
-                        <div className="absolute top-[15%] md:top-[20%] left-1/2 -translate-x-1/2 bg-white/95 px-4 md:px-6 py-2 rounded-full border-4 border-lime-400 shadow-xl z-50 animate-bounce whitespace-nowrap">
-                            <span className="text-xl sm:text-2xl md:text-4xl font-black text-slate-700">
-                                <span className="text-sky-500">{state.truckFilled}</span> + <span className="text-amber-500">{state.droppedCargo}</span> = <span className="text-lime-500">10</span>
+                        <div className="absolute top-[8%] sm:top-[14%] left-1/2 -translate-x-1/2 bg-white/95 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full border-4 border-lime-400 shadow-xl z-50 animate-bounce whitespace-nowrap">
+                            <span className="text-lg sm:text-2xl md:text-3xl font-black text-slate-800">
+                                <span className="text-sky-600">{state.truckFilled}</span> + <span className="text-amber-600">{state.droppedCargo}</span> = <span className="text-lime-600">10</span>
                             </span>
                         </div>
                     )}
 
-                    {/* Truck Engine */}
-                    <div className="absolute bottom-[10%] w-full h-[180px] md:h-[220px] flex justify-center items-end"
-                         data-truck-player={playerId}
-                         onClick={() => state.selectedCargo && handlePack(playerId, state.selectedCargo)}>
-                        
-                        <div className={`relative origin-bottom transform duration-[4000ms] ease-in-out
+                    {/* Truck Engine Zone */}
+                    <div 
+                        className="w-full h-[150px] sm:h-[185px] md:h-[210px] flex justify-center items-end pb-2 sm:pb-3 cursor-pointer"
+                        data-truck-player={playerId}
+                        onClick={() => state.selectedCargo && handlePack(playerId, state.selectedCargo)}
+                    >
+                        <div className={`relative origin-bottom transform duration-[700ms] ease-in-out
                             ${state.truckTransition ? 'transition-all' : 'transition-none'}
                             ${state.truckPosition === 'left' ? '-translate-x-[150vw]' : state.truckPosition === 'right' ? 'translate-x-[150vw]' : 'translate-x-0'}`}>
                             
-                            {/* Scaler Wrapper: Prevents truck from overflowing in 2P mode or small mobile */}
-                            <div className={`origin-bottom flex items-end justify-center ${is2P ? 'scale-[0.5] lg:scale-[0.7]' : 'scale-[0.6] sm:scale-75 md:scale-90 lg:scale-100'} ${state.flashColor === 'red' ? 'animate-shake' : ''}`}>
+                            {/* Scaler Wrapper */}
+                            <div className={`origin-bottom flex items-end justify-center ${is2P ? 'scale-[0.45] sm:scale-[0.6] lg:scale-[0.75]' : 'scale-[0.55] sm:scale-[0.72] md:scale-85 lg:scale-100'} ${state.flashColor === 'red' ? 'animate-shake' : ''}`}>
                                 
                                 {/* Target Highlight */}
                                 {state.selectedCargo !== null && state.animState === 'idle' && (
-                                    <div className="absolute -top-12 bg-amber-400 text-amber-950 font-black px-6 py-2 rounded-full animate-pulse shadow-lg border-2 border-white z-50 whitespace-nowrap">Drop Here!</div>
+                                    <div className="absolute -top-12 bg-amber-400 text-amber-950 font-black px-6 py-2 rounded-full animate-pulse shadow-lg border-2 border-white z-50 whitespace-nowrap">Tap or Drop Here!</div>
                                 )}
 
                                 {/* Container */}
@@ -324,10 +399,9 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                     </div>
                 </div>
 
-                {/* Options Tray (Bottom 35%) */}
-                <div className="h-[35%] md:h-[30%] w-full bg-slate-50 border-t-8 border-slate-300 z-30 p-2 md:p-4 flex items-center justify-center shadow-[0_-10px_20px_rgba(0,0,0,0.1)]">
-                    {/* Grid changes based on 1P vs 2P and Screen Size */}
-                    <div className={`grid gap-2 md:gap-4 w-full h-full max-w-4xl mx-auto
+                {/* Options Tray (Bottom ~30%) */}
+                <div className="h-[32%] sm:h-[28%] md:h-[28%] w-full bg-slate-50 border-t-4 sm:border-t-8 border-slate-300 z-30 p-1.5 sm:p-3 flex items-center justify-center shadow-[0_-10px_20px_rgba(0,0,0,0.1)] shrink-0">
+                    <div className={`grid gap-1.5 sm:gap-3 w-full h-full max-w-4xl mx-auto
                         ${is2P ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
                         {state.options.map((opt, i) => (
                             <div 
@@ -338,12 +412,12 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                                 onPointerMove={handlePointerMove}
                                 onPointerUp={handlePointerUp}
                                 onPointerCancel={handlePointerUp}
-                                className={`w-full h-full min-h-[50px] md:min-h-[60px] cursor-grab active:cursor-grabbing p-1.5 md:p-3 rounded-xl md:rounded-2xl border-4 transition-all bg-white flex items-center justify-between gap-1 md:gap-4 overflow-hidden touch-none
-                                    ${state.selectedCargo === opt ? 'border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.5)] bg-amber-50 scale-105 z-10' : 'border-slate-200 shadow-sm hover:scale-[1.02]'}
+                                className={`w-full h-full min-h-[44px] sm:min-h-[54px] cursor-pointer active:scale-95 p-1 sm:p-2 rounded-xl sm:rounded-2xl border-2 sm:border-4 transition-all bg-white flex items-center justify-between gap-1 sm:gap-3 overflow-hidden touch-none select-none
+                                    ${state.selectedCargo === opt ? 'border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.5)] bg-amber-50 scale-102 z-10' : 'border-slate-200 shadow-sm hover:border-sky-300'}
                                     ${drag?.playerId === playerId && drag?.value === opt ? 'opacity-30 scale-95' : 'opacity-100'}`}
                             >
-                                <span className="text-2xl sm:text-3xl md:text-5xl font-black text-slate-700 pl-1 md:pl-2 pointer-events-none">{opt}</span>
-                                <div className="h-full max-h-[50px] md:max-h-[60px] flex-1 pointer-events-none">
+                                <span className="text-xl sm:text-3xl md:text-4xl font-black text-slate-700 pl-1.5 sm:pl-2 pointer-events-none">{opt}</span>
+                                <div className="h-full max-h-[44px] sm:max-h-[54px] flex-1 pointer-events-none">
                                     <TetrisGrid filled={opt} isOption={true} />
                                 </div>
                             </div>
@@ -359,21 +433,29 @@ export default function TruckLoader({ lesson, onComplete }: any) {
     // ============================================================================
     if (phase === 'start') {
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-sky-50 font-sans">
-                <div className="max-w-xl w-full bg-white p-6 md:p-10 rounded-[2rem] shadow-xl border-4 border-sky-200 text-center space-y-6">
+            <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 bg-slate-900 font-sans select-none overflow-y-auto">
+                <div className="max-w-md w-full bg-slate-800 p-6 sm:p-8 rounded-[2rem] shadow-2xl border-4 border-slate-700 text-center space-y-5 animate-in zoom-in-95 duration-200">
                     <div className="flex justify-center">
-                        <div className="bg-sky-100 p-4 rounded-full text-sky-600 shadow-inner"><Truck size={48} /></div>
+                        <div className="bg-sky-500/20 border border-sky-400/40 p-3.5 rounded-full text-sky-400 shadow-inner">
+                            <Truck size={42} />
+                        </div>
                     </div>
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight leading-tight">Truck Loader</h1>
-                        <p className="text-sm md:text-base text-slate-500 font-medium mt-3 px-4">Pack the blocks to make exactly 10! You have 90 seconds.</p>
+                        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">Truck Loader</h1>
+                        <p className="text-xs sm:text-sm text-slate-400 font-medium mt-2 px-2">Pack cargo blocks to make exactly <span className="text-amber-400 font-bold">10</span>! Tap or drag into the truck.</p>
                     </div>
-                    <div className="flex flex-col gap-3 pt-2">
-                        <button onClick={() => startGame(1)} className="w-full bg-sky-500 hover:bg-sky-400 text-white font-black text-xl py-4 rounded-2xl shadow-[0_6px_0_rgb(2,132,199)] active:translate-y-2 active:shadow-none transition-all flex justify-center items-center gap-2">
-                            <Play size={24} fill="currentColor" /> 1 Player
+                    <div className="flex flex-col gap-2.5 pt-1">
+                        <button 
+                            onClick={() => startGame(1)} 
+                            className="w-full bg-sky-500 hover:bg-sky-400 text-white font-black text-lg py-3 rounded-xl shadow-lg active:scale-95 transition-all flex justify-center items-center gap-2"
+                        >
+                            <Play size={20} fill="currentColor" /> 1 Player (90s)
                         </button>
-                        <button onClick={() => startGame(2)} className="hidden md:flex w-full bg-purple-500 hover:bg-purple-400 text-white font-black text-xl py-4 rounded-2xl shadow-[0_6px_0_rgb(147,51,234)] active:translate-y-2 active:shadow-none transition-all justify-center items-center gap-2">
-                            <Users size={24} /> 2 Players (Split Screen)
+                        <button 
+                            onClick={() => startGame(2)} 
+                            className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black text-lg py-3 rounded-xl shadow-lg active:scale-95 transition-all justify-center items-center gap-2 flex"
+                        >
+                            <Users size={20} /> 2 Players (Split Screen)
                         </button>
                     </div>
                 </div>
@@ -385,34 +467,50 @@ export default function TruckLoader({ lesson, onComplete }: any) {
     // RENDER: RESULTS SCREEN
     // ============================================================================
     if (phase === 'result') {
+        const finalScore = numPlayers === 1 ? p1.score : Math.max(p1.score, p2.score);
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-50 font-sans">
-                <div className="max-w-md w-full bg-white p-8 md:p-10 rounded-[2rem] shadow-xl border-8 border-slate-200 text-center">
-                    <Trophy size={80} className="mx-auto text-amber-500 mb-6 animate-bounce" />
-                    <h2 className="text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight mb-2">Time's Up!</h2>
+            <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 bg-slate-900 font-sans select-none overflow-y-auto">
+                <div className="max-w-md w-full bg-slate-800 p-6 sm:p-8 rounded-[2rem] shadow-2xl border-4 border-slate-700 text-center animate-in zoom-in-95 duration-200">
+                    <Trophy size={64} className="mx-auto text-amber-400 mb-3 animate-bounce drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]" />
+                    <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight mb-2">Time&apos;s Up!</h2>
                     
                     {numPlayers === 1 ? (
-                        <>
-                            <p className="text-slate-500 font-bold mb-4 text-lg">You successfully packed</p>
-                            <div className="text-7xl font-black text-sky-500 mb-8 drop-shadow-md">{p1.score} Trucks!</div>
-                        </>
+                        <div className="my-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-700">
+                            <p className="text-slate-400 font-bold mb-1 text-xs sm:text-sm uppercase tracking-wider">Trucks Packed</p>
+                            <div className="text-5xl sm:text-6xl font-black text-sky-400 drop-shadow-md">{p1.score}</div>
+                        </div>
                     ) : (
-                        <div className="flex flex-col gap-4 mb-8 mt-6">
-                            <div className="flex justify-between items-center bg-sky-50 p-4 rounded-xl border-2 border-sky-200">
-                                <span className="font-black text-sky-700 text-xl">Player 1</span>
-                                <span className="font-black text-3xl text-sky-500">{p1.score}</span>
+                        <div className="flex flex-col gap-2.5 my-4">
+                            <div className="flex justify-between items-center bg-slate-900/80 px-4 py-3 rounded-xl border border-sky-500/30">
+                                <span className="font-black text-sky-400 text-base sm:text-lg">Player 1</span>
+                                <span className="font-black text-2xl text-sky-300">{p1.score}</span>
                             </div>
-                            <div className="flex justify-between items-center bg-purple-50 p-4 rounded-xl border-2 border-purple-200">
-                                <span className="font-black text-purple-700 text-xl">Player 2</span>
-                                <span className="font-black text-3xl text-purple-500">{p2.score}</span>
+                            <div className="flex justify-between items-center bg-slate-900/80 px-4 py-3 rounded-xl border border-purple-500/30">
+                                <span className="font-black text-purple-400 text-base sm:text-lg">Player 2</span>
+                                <span className="font-black text-2xl text-purple-300">{p2.score}</span>
                             </div>
-                            <div className="text-2xl font-black text-slate-700 mt-2">
-                                {p1.score > p2.score ? 'Player 1 Wins!' : p2.score > p1.score ? 'Player 2 Wins!' : 'It\'s a Tie!'}
+                            <div className="text-lg font-black text-amber-400 mt-1">
+                                {p1.score > p2.score ? '🎉 Player 1 Wins!' : p2.score > p1.score ? '🎉 Player 2 Wins!' : '🤝 It\'s a Tie!'}
                             </div>
                         </div>
                     )}
 
-                    <button onClick={() => setPhase('start')} className="w-full bg-lime-500 hover:bg-lime-400 text-white font-black text-2xl py-4 rounded-2xl shadow-[0_6px_0_rgb(101,163,13)] active:translate-y-2 active:shadow-none transition-all mb-4">Play Again</button>
+                    <div className="flex flex-col sm:flex-row gap-2.5 mt-6">
+                        <button 
+                            onClick={() => setPhase('start')} 
+                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 font-black text-base sm:text-lg py-3 rounded-xl transition-all flex items-center justify-center gap-2 border border-slate-600 active:scale-95"
+                        >
+                            <RotateCcw size={18} /> Play Again
+                        </button>
+                        {onComplete && (
+                            <button 
+                                onClick={() => onComplete({ score: finalScore, total: finalScore })} 
+                                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-base sm:text-lg py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                Next Step ➔
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         );
@@ -425,9 +523,9 @@ export default function TruckLoader({ lesson, onComplete }: any) {
         <div className="w-full h-full flex flex-1 min-h-0 font-sans select-none relative border-4 border-slate-700 rounded-3xl md:rounded-[2rem] shadow-2xl overflow-hidden touch-none">
             
             {/* Global Timer (Always Top Center) */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-full px-4 md:px-6 py-1.5 md:py-2 flex items-center gap-2 border-4 border-slate-200 shadow-md z-50">
-                <Timer size={20} className={timeLeft <= 10 ? 'text-rose-500' : 'text-slate-600'} />
-                <span className={`font-black text-xl md:text-2xl leading-none ${timeLeft <= 10 ? 'text-rose-500 animate-pulse' : 'text-slate-700'}`}>
+            <div className="absolute top-3 sm:top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm rounded-full px-3 sm:px-5 py-1 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 border-2 sm:border-4 border-slate-200 shadow-md z-50">
+                <Timer size={18} className={timeLeft <= 10 ? 'text-rose-500' : 'text-slate-600'} />
+                <span className={`font-black text-base sm:text-xl leading-none ${timeLeft <= 10 ? 'text-rose-500 animate-pulse' : 'text-slate-700'}`}>
                     00:{timeLeft.toString().padStart(2, '0')}
                 </span>
             </div>
@@ -444,12 +542,12 @@ export default function TruckLoader({ lesson, onComplete }: any) {
                         left: drag.currentX,
                         top: drag.currentY,
                         transform: 'translate(-50%, -50%)',
-                        width: '140px',
-                        height: '70px'
+                        width: '130px',
+                        height: '60px'
                     }}
                 >
-                    <div className="w-full h-full bg-white rounded-xl border-4 border-amber-400 p-2 flex items-center justify-between">
-                        <span className="text-3xl font-black text-slate-700 pl-2 pointer-events-none">{drag.value}</span>
+                    <div className="w-full h-full bg-white rounded-xl border-4 border-amber-400 p-1.5 flex items-center justify-between">
+                        <span className="text-2xl sm:text-3xl font-black text-slate-700 pl-2 pointer-events-none">{drag.value}</span>
                         <div className="h-full flex-1 pointer-events-none pr-1">
                             <TetrisGrid filled={drag.value} isOption={true} />
                         </div>

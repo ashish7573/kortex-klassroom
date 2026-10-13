@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Star, Heart, Trophy, Play, RotateCcw, Volume2, VolumeX, Clock, ArrowRight } from 'lucide-react';
+import { Star, Heart, Trophy, RotateCcw, Volume2, VolumeX, Clock, ArrowRight, Home } from 'lucide-react';
 import { HINDI_ASSETS, SUBTOPIC_MAP } from '@/kortex_library/SwarVyanjanDictionary';
 
 // Cumulative Review Order
@@ -15,13 +15,42 @@ const PASTEL_COLORS = [
   'bg-teal-400', 'bg-emerald-400', 'bg-green-400', 'bg-amber-400', 'bg-orange-400'
 ];
 
-// --- AUDIO SYNTHESIZER ---
+// --- HINDI SPEECH SYNTHESIS FALLBACK ---
+const playTTS = (text: string) => {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text + '।');
+      utterance.lang = 'hi-IN';
+      utterance.rate = 0.85;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {}
+  }
+};
+
+// --- SINGLETON AUDIO SYNTHESIZER ---
+let sharedAudioCtx: AudioContext | null = null;
+const getAudioContext = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+      sharedAudioCtx = new AudioContextClass();
+    }
+    if (sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume();
+    }
+    return sharedAudioCtx;
+  } catch (e) {
+    return null;
+  }
+};
+
 const playSound = (type: string, isMuted: boolean) => {
   if (isMuted) return;
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getAudioContext();
+    if (!ctx) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -31,20 +60,29 @@ const playSound = (type: string, isMuted: boolean) => {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(523.25, ctx.currentTime); 
       osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.1); 
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-      osc.start();
+      osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.1);
     } else if (type === 'incorrect') {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(150, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.2);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-      osc.start();
+      osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.2);
     }
-  } catch (e) { console.error("Audio playback failed", e); }
+
+    osc.onended = () => {
+      try {
+        osc.disconnect();
+        gain.disconnect();
+      } catch (e) {}
+    };
+  } catch (e) {
+    console.error("Audio playback failed", e);
+  }
 };
 
 // --- MAIN COMPONENT ---
@@ -53,14 +91,14 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   const [activeLetters, setActiveLetters] = useState<string[]>([]);
   
   const mode = useMemo(() => {
-    const t = lesson.title?.toLowerCase() || '';
+    const t = lesson?.title?.toLowerCase() || '';
     if (t.includes('आवाज़ से')) return 'AUDIO_TO_LETTER';
     if (t.includes('व्यंजन से चित्र') || (t.includes('चित्र पहचानो') && !t.includes('अक्षर'))) return 'LETTER_TO_IMAGE';
     return 'IMAGE_TO_LETTER'; 
-  }, [lesson.title]);
+  }, [lesson?.title]);
 
   useEffect(() => {
-    const slug = lesson.subtopicId?.trim() || '';
+    const slug = lesson?.subtopicId?.trim() || '';
     const currentIndex = SUBTOPIC_ORDER.indexOf(slug);
     let lettersPool: string[] = [];
 
@@ -70,14 +108,15 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
         lettersPool = [...lettersPool, ...(SUBTOPIC_MAP[sub] || [])];
       });
     } else {
-      lettersPool = SUBTOPIC_MAP[slug] || SUBTOPIC_MAP['swar-a-oo'];
+      lettersPool = SUBTOPIC_MAP[slug] || SUBTOPIC_MAP['swar-a-oo'] || [];
     }
 
     if (mode === 'LETTER_TO_IMAGE' || mode === 'IMAGE_TO_LETTER') {
-      lettersPool = lettersPool.filter(char => HINDI_ASSETS[char]?.examples?.some((ex: any) => ex.image));
+      const filtered = lettersPool.filter(char => HINDI_ASSETS[char]?.examples?.some((ex: any) => ex.image));
+      if (filtered.length > 0) lettersPool = filtered;
     }
     setActiveLetters(lettersPool);
-  }, [lesson.subtopicId, mode]);
+  }, [lesson?.subtopicId, mode]);
 
   // --- GAME STATE ---
   const [gameState, setGameState] = useState<'start' | 'playing' | 'gameover'>('start');
@@ -100,18 +139,51 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   const animationFrameRef = useRef<number | null>(null);
   const targetAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Target picker helper
+  const pickTarget = useCallback((pool: string[]) => {
+    if (!pool || pool.length === 0) return { letter: '', imageUrl: '' };
+    const randLetter = pool[Math.floor(Math.random() * pool.length)];
+    const imageExamples = HINDI_ASSETS[randLetter]?.examples?.filter((ex: any) => ex.image) || [];
+    const randImage = imageExamples.length > 0
+      ? imageExamples[Math.floor(Math.random() * imageExamples.length)].image
+      : '';
+    return { letter: randLetter, imageUrl: randImage };
+  }, []);
+
   // --- TARGET GENERATION ---
   useEffect(() => {
     if (activeLetters.length > 0 && !targetLetter) {
-      const initialTarget = activeLetters[Math.floor(Math.random() * activeLetters.length)];
-      setTargetLetter(initialTarget);
-
-      const imageExamples = HINDI_ASSETS[initialTarget]?.examples?.filter((ex: any) => ex.image) || [];
-      if (imageExamples.length > 0) {
-        setTargetImageUrl(imageExamples[Math.floor(Math.random() * imageExamples.length)].image);
-      }
+      const { letter, imageUrl } = pickTarget(activeLetters);
+      setTargetLetter(letter);
+      setTargetImageUrl(imageUrl);
     }
-  }, [activeLetters, targetLetter]);
+  }, [activeLetters, targetLetter, pickTarget]);
+
+  // Audio Playback with TTS Fallback
+  const playLetterAudio = useCallback((letter: string) => {
+    if (isMuted || !letter) return;
+    const assetAudio = HINDI_ASSETS[letter]?.audio;
+    if (assetAudio && targetAudioRef.current) {
+      targetAudioRef.current.src = assetAudio;
+      targetAudioRef.current.play().catch(() => {
+        playTTS(letter);
+      });
+    } else {
+      playTTS(letter);
+    }
+  }, [isMuted]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   const startGame = (selectedDiff: 'easy' | 'medium' | 'hard') => {
     setDifficulty(selectedDiff);
@@ -122,34 +194,34 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
     setFloatingTexts([]);
     setBubbles([]);
     physicsBubblesRef.current = [];
-    spawnInitialBubbles(targetLetter, selectedDiff);
+
+    let currentTarget = targetLetter;
+    if (!currentTarget && activeLetters.length > 0) {
+      const picked = pickTarget(activeLetters);
+      currentTarget = picked.letter;
+      setTargetLetter(picked.letter);
+      setTargetImageUrl(picked.imageUrl);
+    }
+
+    spawnInitialBubbles(currentTarget, selectedDiff);
 
     setTimeout(() => {
-      if (!isMuted && HINDI_ASSETS[targetLetter]?.audio && targetAudioRef.current) {
-        targetAudioRef.current.src = HINDI_ASSETS[targetLetter].audio;
-        targetAudioRef.current.play().catch(() => {});
-      }
-    }, 500);
+      playLetterAudio(currentTarget);
+    }, 400);
   };
 
   const endGame = useCallback(() => {
     setGameState('gameover');
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    if (onComplete) {
-        onComplete({ score });
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
     }
-  }, [onComplete, score]);
+  }, []);
 
-  const earnedStars = score > 150 ? 3 : score > 80 ? 2 : score > 20 ? 1 : 0;
+  const earnedStars = score >= 120 ? 3 : score >= 60 ? 2 : score >= 20 ? 1 : 0;
 
   // --- SPAWN LOGIC ---
   const spawnBubble = useCallback((currentTarget: string, forceTarget = false, currentDiff = difficulty) => {
-    if (!containerRef.current || !currentTarget) return null;
-    
-    const container = containerRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    const radius = 35; 
+    if (!currentTarget) return null;
 
     const isTarget = forceTarget || Math.random() > 0.6;
     let bubbleLetter = currentTarget;
@@ -163,9 +235,9 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
     const color = PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
     
     let speedMult = 0.2; 
-    if (currentDiff === 'easy') speedMult = 0.1 + (Math.random() * 0.1);
-    if (currentDiff === 'medium') speedMult = 0.2 + (Math.random() * 0.15);
-    if (currentDiff === 'hard') speedMult = 0.35 + (Math.random() * 0.2);
+    if (currentDiff === 'easy') speedMult = 0.12 + (Math.random() * 0.08);
+    if (currentDiff === 'medium') speedMult = 0.2 + (Math.random() * 0.12);
+    if (currentDiff === 'hard') speedMult = 0.32 + (Math.random() * 0.16);
 
     const imageExamples = HINDI_ASSETS[bubbleLetter]?.examples?.filter((ex: any) => ex.image) || [];
     const hasImage = imageExamples.length > 0;
@@ -179,8 +251,8 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
 
     return {
       id: Math.random().toString(36).substr(2, 9),
-      x: 10 + Math.random() * 70, 
-      y: 10 + Math.random() * 70, 
+      x: 5 + Math.random() * 75, 
+      y: 5 + Math.random() * 70, 
       vx: (Math.random() > 0.5 ? 1 : -1) * speedMult,
       vy: (Math.random() > 0.5 ? 1 : -1) * speedMult,
       letter: bubbleLetter,
@@ -192,10 +264,10 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   }, [activeLetters, difficulty]);
 
   const spawnInitialBubbles = useCallback((initialTarget: string, currentDiff: string) => {
-    const initialCount = currentDiff === 'hard' ? 12 : 8;
+    const initialCount = currentDiff === 'hard' ? 10 : currentDiff === 'medium' ? 8 : 6;
     const newBubbles = [];
     for (let i = 0; i < initialCount; i++) {
-      const b = spawnBubble(initialTarget, i < 3, currentDiff as any); 
+      const b = spawnBubble(initialTarget, i < 2, currentDiff as any); 
       if (b) newBubbles.push(b);
     }
     physicsBubblesRef.current = newBubbles;
@@ -206,9 +278,10 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
   useEffect(() => {
     if (gameState !== 'playing') return;
 
+    const maxCount = difficulty === 'hard' ? 10 : difficulty === 'medium' ? 8 : 6;
     const spawnInterval = setInterval(() => {
       setBubbles(prev => {
-        if (physicsBubblesRef.current.length >= (difficulty === 'hard' ? 12 : 8)) return prev;
+        if (physicsBubblesRef.current.length >= maxCount) return prev;
         
         const newB = spawnBubble(targetLetter, false);
         if (newB) {
@@ -217,11 +290,11 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
         }
         return prev;
       });
-    }, difficulty === 'hard' ? 800 : 1500);
+    }, difficulty === 'hard' ? 900 : 1400);
 
     let lastTime = performance.now();
     const tick = (time: number) => {
-      const dt = (time - lastTime) / 16;
+      const dt = Math.min((time - lastTime) / 16, 2.5); // Guard against delta-time jumps
       lastTime = time;
 
       physicsBubblesRef.current.forEach(b => {
@@ -230,10 +303,10 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
         b.x += b.vx * dt;
         b.y += b.vy * dt;
 
-        if (b.x <= 2) { b.x = 2; b.vx *= -1; }
-        if (b.x >= 85) { b.x = 85; b.vx *= -1; }
-        if (b.y <= 2) { b.y = 2; b.vy *= -1; }
-        if (b.y >= 80) { b.y = 80; b.vy *= -1; }
+        if (b.x <= 2) { b.x = 2; b.vx = Math.abs(b.vx); }
+        if (b.x >= 82) { b.x = 82; b.vx = -Math.abs(b.vx); }
+        if (b.y <= 2) { b.y = 2; b.vy = Math.abs(b.vy); }
+        if (b.y >= 80) { b.y = 80; b.vy = -Math.abs(b.vy); }
 
         const domNode = bubbleDOMRefs.current[b.id];
         if (domNode) {
@@ -284,7 +357,9 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
       setScore(s => Math.max(0, s - 5));
       setLives(l => {
         const newLives = l - 1;
-        if (newLives <= 0) setTimeout(endGame, 500);
+        if (newLives <= 0) {
+          setTimeout(endGame, 400);
+        }
         return newLives;
       });
       setScreenShake(true);
@@ -312,50 +387,70 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
     setBubbles([...physicsBubblesRef.current]);
   };
 
-  const playTargetAudioBtn = () => {
-    if (HINDI_ASSETS[targetLetter]?.audio && targetAudioRef.current) {
-      targetAudioRef.current.src = HINDI_ASSETS[targetLetter].audio;
-      targetAudioRef.current.play().catch(() => {});
-    }
-  };
-
-  if (!activeLetters.length) return <div className="p-10 text-center text-white bg-slate-900 w-full h-full flex items-center justify-center font-black text-2xl">Loading Data...</div>;
+  if (!activeLetters.length) {
+    return (
+      <div className="p-10 text-center text-white bg-slate-900 w-full h-full flex items-center justify-center font-black text-2xl">
+        लोड हो रहा है... (Loading Data...)
+      </div>
+    );
+  }
 
   return (
-    <div className={`w-full h-full bg-slate-900 rounded-3xl overflow-hidden relative flex flex-col font-sans transition-transform duration-75 ${screenShake ? 'translate-x-2 -translate-y-1' : ''}`}>
+    <div className={`w-full h-full flex-1 min-h-0 bg-slate-900 rounded-2xl md:rounded-3xl overflow-hidden relative flex flex-col font-sans select-none transition-transform duration-75 ${screenShake ? 'translate-x-2 -translate-y-1' : ''}`}>
       <audio ref={targetAudioRef} />
       
       {/* START SCREEN */}
       {gameState === 'start' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900 p-4 md:p-6 text-center overflow-y-auto">
-          <div className="w-full max-w-2xl bg-slate-800 p-6 md:p-12 rounded-3xl md:rounded-[2.5rem] border-4 border-slate-700 shadow-2xl my-auto">
-            <h1 className="text-3xl md:text-5xl font-black text-white mb-2 md:mb-4">{lesson.title}</h1>
-            <p className="text-slate-400 font-bold text-sm md:text-xl mb-4 md:mb-8 leading-snug">
-              Pop the balloons that match the Target!<br/>
-              <span className="text-lime-400">+10 for correct</span> | <span className="text-rose-400">-5 for wrong</span><br/>
-              You have 30 seconds and 3 lives.
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/95 backdrop-blur-sm p-3 sm:p-4 md:p-6 text-center overflow-y-auto">
+          <div className="w-full max-w-xl bg-slate-800 p-5 sm:p-7 md:p-10 rounded-2xl sm:rounded-3xl border-2 sm:border-4 border-slate-700 shadow-2xl my-auto">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-2">{lesson?.title || 'स्वर व्यंजन खेल'}</h1>
+            <p className="text-slate-400 font-bold text-xs sm:text-sm md:text-base mb-4 sm:mb-6 leading-relaxed">
+              लक्ष्य अक्षर वाले गुब्बारे फोड़ें!<br/>
+              <span className="text-lime-400 font-extrabold">+10 सही उत्तर</span> | <span className="text-rose-400 font-extrabold">-5 गलत उत्तर</span><br/>
+              आपके पास 30 सेकंड और 3 जीवन हैं।
             </p>
 
-            <div className="mb-6 md:mb-10 bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl inline-block border-2 border-slate-700 shadow-inner">
-               <p className="text-slate-500 font-bold uppercase tracking-widest text-xs md:text-sm mb-2">Target to Find:</p>
-               <div className="flex items-center justify-center gap-4 md:gap-6">
-                  {mode === 'IMAGE_TO_LETTER' && targetImageUrl ? (
-                     <img src={targetImageUrl} className="w-14 h-14 md:w-20 md:h-20 object-contain drop-shadow-md bg-white/10 rounded-full p-2" alt="Target" />
-                  ) : mode === 'AUDIO_TO_LETTER' ? (
-                     <div className="w-14 h-14 md:w-20 md:h-20 bg-sky-500 rounded-full flex items-center justify-center"><Volume2 className="text-white w-8 h-8 md:w-10 h-10 animate-pulse"/></div>
-                  ) : (
-                     <span className="text-5xl md:text-7xl font-black text-sky-400 leading-none">{targetLetter}</span>
-                  )}
-                  <button onClick={playTargetAudioBtn} className="w-12 h-12 md:w-16 md:h-16 bg-sky-500 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md">
-                     <Volume2 className="text-white w-6 h-6 md:w-8 md:h-8"/>
-                  </button>
-               </div>
+            <div className="mb-4 sm:mb-6 bg-slate-900/90 p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl inline-block border border-slate-700 shadow-inner">
+              <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] sm:text-xs mb-1.5">पहचानने वाला अक्षर (Target):</p>
+              <div className="flex items-center justify-center gap-3 sm:gap-5">
+                {mode === 'IMAGE_TO_LETTER' && targetImageUrl ? (
+                  <img src={targetImageUrl} className="w-12 h-12 sm:w-16 sm:h-16 object-contain drop-shadow-md bg-white/10 rounded-full p-2" alt="Target" />
+                ) : mode === 'AUDIO_TO_LETTER' ? (
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-sky-500 rounded-full flex items-center justify-center shadow-md">
+                    <Volume2 className="text-white w-7 h-7 sm:w-9 sm:h-9 animate-pulse"/>
+                  </div>
+                ) : (
+                  <span className="text-4xl sm:text-6xl font-black text-sky-400 leading-none">{targetLetter}</span>
+                )}
+                <button
+                  onClick={() => playLetterAudio(targetLetter)}
+                  className="w-10 h-10 sm:w-12 sm:h-12 bg-sky-500 hover:bg-sky-400 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md"
+                  title="ध्वनि सुनें"
+                >
+                  <Volume2 className="text-white w-5 h-5 sm:w-6 sm:h-6"/>
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-              <button onClick={() => startGame('easy')} className="py-3 md:py-4 px-4 md:px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black rounded-xl md:rounded-2xl border-b-4 border-emerald-700 active:translate-y-1 transition-all">EASY</button>
-              <button onClick={() => startGame('medium')} className="py-3 md:py-4 px-4 md:px-6 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-xl md:rounded-2xl border-b-4 border-amber-700 active:translate-y-1 transition-all">MEDIUM</button>
-              <button onClick={() => startGame('hard')} className="py-3 md:py-4 px-4 md:px-6 bg-rose-500 hover:bg-rose-400 text-white font-black rounded-xl md:rounded-2xl border-b-4 border-rose-700 active:translate-y-1 transition-all">HARD</button>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <button
+                onClick={() => startGame('easy')}
+                className="py-2.5 sm:py-3.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-base rounded-xl border-b-4 border-emerald-700 active:translate-y-1 transition-all"
+              >
+                सरल (EASY)
+              </button>
+              <button
+                onClick={() => startGame('medium')}
+                className="py-2.5 sm:py-3.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-base rounded-xl border-b-4 border-amber-700 active:translate-y-1 transition-all"
+              >
+                मध्यम (MED)
+              </button>
+              <button
+                onClick={() => startGame('hard')}
+                className="py-2.5 sm:py-3.5 px-3 bg-rose-500 hover:bg-rose-400 text-white font-black text-xs sm:text-base rounded-xl border-b-4 border-rose-700 active:translate-y-1 transition-all"
+              >
+                कठिन (HARD)
+              </button>
             </div>
           </div>
         </div>
@@ -363,63 +458,144 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
 
       {/* GAME OVER SCREEN */}
       {gameState === 'gameover' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md p-6 text-center">
-          <div className="bg-slate-800 p-8 md:p-12 rounded-[3rem] shadow-2xl border-4 border-sky-900 w-full max-w-lg">
-            <Trophy className="w-20 h-20 text-amber-400 mx-auto mb-4" />
-            <h2 className="text-4xl md:text-5xl font-black text-white mb-2">{lives <= 0 ? 'Out of Lives!' : 'Time\'s Up!'}</h2>
-            <div className="flex justify-center gap-2 mb-6">
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/95 backdrop-blur-md p-3 sm:p-4 md:p-6 text-center overflow-y-auto">
+          <div className="bg-slate-800 p-5 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-2xl border-2 sm:border-4 border-sky-900/80 w-full max-w-md my-auto">
+            <Trophy className="w-12 h-12 sm:w-16 sm:h-16 text-amber-400 mx-auto mb-2 sm:mb-3 drop-shadow" />
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-2">
+              {lives <= 0 ? 'कोई जीवन नहीं बचा!' : 'समय समाप्त! (Time\'s Up)'}
+            </h2>
+            <div className="flex justify-center gap-1.5 sm:gap-2 mb-4 sm:mb-6">
               {[...Array(3)].map((_, i) => (
-                <Star key={i} className={`w-12 h-12 transition-all ${i < earnedStars ? 'text-amber-400 fill-amber-400' : 'text-slate-600 fill-slate-700'}`} />
+                <Star
+                  key={i}
+                  className={`w-9 h-9 sm:w-11 sm:h-11 transition-all ${
+                    i < earnedStars ? 'text-amber-400 fill-amber-400' : 'text-slate-600 fill-slate-700'
+                  }`}
+                />
               ))}
             </div>
-            <div className="bg-slate-900 rounded-3xl p-6 mb-8 border-2 border-slate-700">
-              <p className="text-slate-500 font-bold uppercase tracking-widest text-sm mb-1">Final Score</p>
-              <p className="text-6xl font-black text-lime-400">{score}</p>
+            <div className="bg-slate-900/90 rounded-xl sm:rounded-2xl p-3 sm:p-5 mb-5 sm:mb-6 border border-slate-700">
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-[11px] sm:text-xs mb-1">अंतिम अंक (Final Score)</p>
+              <p className="text-4xl sm:text-5xl md:text-6xl font-black text-lime-400 leading-none">{score}</p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button onClick={() => {setTargetLetter(''); setTargetImageUrl(''); setGameState('start');}} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all">
-                <RotateCcw className="w-5 h-5" /> Play Again
+            
+            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+              <button
+                onClick={() => {
+                  if (activeLetters.length > 0) {
+                    const picked = pickTarget(activeLetters);
+                    setTargetLetter(picked.letter);
+                    setTargetImageUrl(picked.imageUrl);
+                  }
+                  startGame(difficulty);
+                }}
+                className="flex-1 bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-bold py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl flex items-center justify-center gap-2 transition-all text-sm sm:text-base"
+              >
+                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> फिर से खेलें
+              </button>
+              
+              <button
+                onClick={() => onComplete({ score, stars: earnedStars, total: 150 })}
+                className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-95 text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all text-sm sm:text-base"
+              >
+                आगे बढ़ें <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
+
+            <button
+              onClick={() => {
+                if (activeLetters.length > 0) {
+                  const picked = pickTarget(activeLetters);
+                  setTargetLetter(picked.letter);
+                  setTargetImageUrl(picked.imageUrl);
+                }
+                setGameState('start');
+              }}
+              className="mt-3 text-slate-400 hover:text-white text-xs sm:text-sm font-semibold underline underline-offset-4"
+            >
+              सेटिंग्स बदलें (Menu)
+            </button>
           </div>
         </div>
       )}
 
-      {/* PLAYING HUD */}
-      <div className="relative z-10 bg-slate-800/90 backdrop-blur-md p-2 md:p-5 border-b border-slate-700 flex flex-col md:flex-row justify-between items-center shrink-0 gap-2 md:gap-0 shadow-md">
+      {/* PLAYING HUD - Slim Single Row */}
+      <div className="relative z-10 bg-slate-800/95 backdrop-blur-md px-2.5 sm:px-4 py-1.5 sm:py-2 border-b border-slate-700/80 flex items-center justify-between shrink-0 shadow-md h-12 sm:h-14 md:h-16">
         
-        {/* Top Row on Mobile: Score, Lives, Timer */}
-        <div className="flex w-full md:w-auto justify-between md:justify-start items-center gap-2 md:gap-4">
-           <div className="flex items-center gap-1.5 md:gap-2 bg-slate-900 px-2 py-1.5 md:px-3 md:py-2 rounded-lg md:rounded-xl border border-slate-700">
-             <Star className="w-4 h-4 md:w-5 md:h-5 text-sky-500 fill-sky-500" /> <span className="font-black text-white text-sm md:text-xl leading-none">{score}</span>
-           </div>
-           <div className="flex items-center gap-0.5 md:gap-1 bg-slate-900 px-2 py-1.5 md:px-3 md:py-2 rounded-lg md:rounded-xl border border-slate-700">
-             {[...Array(3)].map((_, i) => (
-                <Heart key={i} className={`w-3 h-3 md:w-5 md:h-5 ${i < lives ? 'text-rose-500 fill-rose-500' : 'text-slate-700 fill-slate-800'}`} />
-             ))}
-           </div>
-           
-           {/* Mobile Timer */}
-           <div className={`md:hidden flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-lg border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'}`}>
-             <Clock className="w-4 h-4" /> <span className="font-black text-sm leading-none">0:{timeLeft.toString().padStart(2, '0')}</span>
-           </div>
+        {/* Left: Score & Lives */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5 bg-slate-900/90 px-2 sm:px-3 py-1 rounded-lg sm:rounded-xl border border-slate-700 shadow-inner">
+            <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 fill-amber-400" />
+            <span className="font-black text-white text-xs sm:text-base leading-none">{score}</span>
+          </div>
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-900/90 px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl border border-slate-700 shadow-inner">
+            {[...Array(3)].map((_, i) => (
+              <Heart key={i} className={`w-3 h-3 sm:w-4 sm:h-4 ${i < lives ? 'text-rose-500 fill-rose-500' : 'text-slate-700 fill-slate-800'}`} />
+            ))}
+          </div>
         </div>
 
-        {/* Center Target Box - Relative on mobile (stacks below stats), Absolute on Desktop */}
-        <div className="relative md:absolute md:left-1/2 md:-translate-x-1/2 md:top-3 bg-indigo-600 px-4 md:px-6 py-1.5 md:py-2 rounded-full border-2 md:border-4 border-indigo-400 flex items-center justify-center gap-2 md:gap-4 shadow-sm w-fit mx-auto">
-          <span className="text-indigo-200 font-bold uppercase hidden sm:block text-xs md:text-base">Find:</span>
+        {/* Center: Target Badge */}
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-indigo-600/90 px-2.5 sm:px-4 py-1 rounded-full border border-indigo-400/80 shadow-md">
+          <span className="text-indigo-200 font-bold uppercase hidden sm:inline text-xs tracking-wider">खोजो:</span>
           {mode === 'AUDIO_TO_LETTER' ? (
-             <button onClick={playTargetAudioBtn} className="w-8 h-8 md:w-10 md:h-10 bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all"><Volume2 className="text-indigo-600 w-4 h-4 md:w-6 md:h-6"/></button>
-          ) : mode === 'IMAGE_TO_LETTER' && targetImageUrl ? (
-             <img src={targetImageUrl} className="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-md bg-white/20 rounded-full p-1" alt="Target" />
+            <button
+              onClick={() => playLetterAudio(targetLetter)}
+              className="w-7 h-7 sm:w-8 sm:h-8 bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-sm"
+              title="Play Target Sound"
+            >
+              <Volume2 className="text-indigo-600 w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
+            </button>
+          ) : mode === 'LETTER_TO_IMAGE' && targetImageUrl ? (
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <img src={targetImageUrl} className="w-6 h-6 sm:w-8 sm:h-8 object-contain drop-shadow bg-white/20 rounded-full p-0.5" alt="Target" />
+              <button
+                onClick={() => playLetterAudio(targetLetter)}
+                className="w-5 h-5 sm:w-6 sm:h-6 bg-indigo-500 hover:bg-indigo-400 rounded-full flex items-center justify-center active:scale-95 transition-all"
+                title="Hear Word Sound"
+              >
+                <Volume2 className="text-white w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              </button>
+            </div>
           ) : (
-             <span className="text-xl md:text-3xl font-black text-white leading-none">{targetLetter}</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-base sm:text-2xl font-black text-white leading-none drop-shadow-sm">{targetLetter}</span>
+              <button
+                onClick={() => playLetterAudio(targetLetter)}
+                className="w-5 h-5 sm:w-6 sm:h-6 bg-indigo-500 hover:bg-indigo-400 rounded-full flex items-center justify-center active:scale-95 transition-all"
+                title="Hear Sound"
+              >
+                <Volume2 className="text-white w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Desktop Timer */}
-        <div className={`hidden md:flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-xl border ${timeLeft <= 5 ? 'border-rose-500 animate-pulse text-rose-500' : 'border-slate-700 text-white'}`}>
-           <Clock className="w-5 h-5" /> <span className="font-black text-xl leading-none">0:{timeLeft.toString().padStart(2, '0')}</span>
+        {/* Right: Timer, Mute & In-Game Menu Button */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className={`flex items-center gap-1 bg-slate-900/90 px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl border ${timeLeft <= 5 ? 'border-rose-500 text-rose-500 animate-pulse' : 'border-slate-700 text-white'}`}>
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="font-black text-xs sm:text-sm leading-none">0:{timeLeft.toString().padStart(2, '0')}</span>
+          </div>
+          
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className="p-1 sm:p-1.5 bg-slate-900/90 hover:bg-slate-700/80 rounded-lg sm:rounded-xl border border-slate-700 text-slate-300 hover:text-white transition-colors"
+            title={isMuted ? "Unmute" : "Mute"}
+          >
+            {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+          </button>
+
+          <button
+            onClick={() => {
+              if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+              setGameState('start');
+            }}
+            className="p-1 sm:p-1.5 bg-slate-900/90 hover:bg-slate-700/80 rounded-lg sm:rounded-xl border border-slate-700 text-slate-300 hover:text-white transition-colors"
+            title="Menu / Settings"
+          >
+            <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
         </div>
       </div>
 
@@ -430,15 +606,15 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
             key={bubble.id}
             ref={(el) => { bubbleDOMRefs.current[bubble.id] = el; }}
             onPointerDown={() => handleBubbleClick(bubble.id)}
-            className={`absolute w-[70px] h-[70px] md:w-[90px] md:h-[90px] ${bubble.color} rounded-full shadow-lg flex items-center justify-center cursor-pointer select-none border-4 border-white/40 active:brightness-90 hover:scale-105 origin-center pointer-events-auto`}
-            style={{ willChange: 'transform' }} // No left/top here to prevent React fights!
+            className={`absolute w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 ${bubble.color} rounded-full shadow-lg flex items-center justify-center cursor-pointer select-none border-2 sm:border-4 border-white/40 active:scale-90 hover:scale-105 origin-center pointer-events-auto transition-transform`}
+            style={{ willChange: 'transform' }}
           >
-            <div className="absolute top-1 left-2 w-4 h-4 bg-white/40 rounded-full blur-[1px]"></div>
+            <div className="absolute top-1 left-1.5 w-3 h-3 sm:w-4 sm:h-4 bg-white/40 rounded-full blur-[0.5px]"></div>
             
             {bubble.displayType === 'image' && bubble.imageUrl ? (
-               <img src={bubble.imageUrl} className="w-10 h-10 md:w-14 md:h-14 object-contain pointer-events-none drop-shadow-md bg-white/30 rounded-full p-2" alt="bubble" />
+              <img src={bubble.imageUrl} className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-contain pointer-events-none drop-shadow-md bg-white/30 rounded-full p-1" alt="bubble" />
             ) : (
-               <span className="text-4xl font-black text-white drop-shadow-sm pointer-events-none">{bubble.letter}</span>
+              <span className="text-2xl sm:text-3xl md:text-4xl font-black text-white drop-shadow-sm pointer-events-none">{bubble.letter}</span>
             )}
           </button>
         ))}
@@ -446,7 +622,7 @@ export default function SwarVyanjanGame({ lesson, onComplete = () => {} }: any) 
         {floatingTexts.map(ft => (
           <div
             key={ft.id}
-            className={`absolute pointer-events-none font-black text-3xl animate-out fade-out slide-out-to-top-8 duration-1000 ${
+            className={`absolute pointer-events-none font-black text-xl sm:text-3xl animate-out fade-out slide-out-to-top-8 duration-1000 ${
               ft.type === 'good' ? 'text-lime-400 drop-shadow-lg' : 'text-rose-500 drop-shadow-lg'
             }`}
             style={{ left: `${ft.x}%`, top: `calc(${ft.y}% - 20px)`, transform: 'translate(-50%, -50%)' }}

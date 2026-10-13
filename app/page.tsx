@@ -406,40 +406,32 @@ useEffect(() => {
     const demoLesson = {
       id: 'master-demo-1',
       title: "Kortex Master Demo",
-      chapter: "Interactive Trailer",
-      subtopic: "Platform Showcase",
-      book: "The 5-Tier Experience",
+      chapter: "Interactive Showcase",
+      subtopic: "Platform Experience",
+      book: "Master Demo",
       flow: [
         {
           id: 'demo-step-1',
-          type: 'conceptualiser',
-          content_type: 'conceptualiser',
-          subtopicId: 'word-builder-2',
-          title: 'Visualizer: 2-Letter Words',
-          subject: 'Hindi'
+          type: 'game',
+          content_type: 'game',
+          subtopicId: 'math-archer',
+          title: 'Arcade: Math Archer',
+          subject: 'Maths'
         },
         {
           id: 'demo-step-2',
           type: 'quiz',
           content_type: 'quiz',
-          subtopicId: 'vyanjan-pa',
-          title: 'Assessment: प वर्ग',
-          subject: 'Hindi'
-        },
-        {
-          id: 'demo-step-3',
-          type: 'game',
-          content_type: 'game',
-          subtopicId: 'math-defenders',
-          title: 'Arcade: Math Defenders',
+          subtopicId: 'frog-jump-quiz',
+          title: 'Quiz: Frog Jump',
           subject: 'Maths'
         },
         {
-          id: 'demo-step-4',
-          type: 'game',
-          content_type: 'game',
-          subtopicId: 'swar-a-oo',
-          title: 'Gamification: Swar Pop',
+          id: 'demo-step-3',
+          type: 'conceptualiser',
+          content_type: 'conceptualiser',
+          subtopicId: 'word-builder-2',
+          title: 'Visualizer: 2-Letter Words',
           subject: 'Hindi'
         }
       ]

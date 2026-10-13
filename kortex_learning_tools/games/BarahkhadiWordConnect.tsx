@@ -166,11 +166,27 @@ const playTTS = (text: string) => {
     }
 };
 
+let sharedAudioCtx: AudioContext | null = null;
+const getAudioContext = () => {
+    try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) return null;
+        if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+            sharedAudioCtx = new AudioContextClass();
+        }
+        if (sharedAudioCtx.state === 'suspended') {
+            sharedAudioCtx.resume();
+        }
+        return sharedAudioCtx;
+    } catch (e) {
+        return null;
+    }
+};
+
 const playSuccessSound = () => {
     try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
+        const ctx = getAudioContext();
+        if (!ctx) return;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -182,6 +198,12 @@ const playSuccessSound = () => {
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.5);
+        osc.onended = () => {
+            try {
+                osc.disconnect();
+                gain.disconnect();
+            } catch (e) {}
+        };
     } catch(e) { console.log("Audio skipped"); }
 };
 
@@ -233,9 +255,9 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
             setIsBoardLocked(true); 
             playSuccessSound();
             playTTS('बहुत बढ़िया'); 
-            onFinish(theme.id);
+            onFinish(theme.id, score + (levelData.words.length * 50));
         }
-    }, [foundWords.length, levelData, theme.id, onFinish, isBoardLocked]);
+    }, [foundWords.length, levelData, theme.id, onFinish, isBoardLocked, score]);
 
     const handleShuffle = () => {
         if (isBoardLocked) return;
@@ -558,14 +580,14 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                                         data-board-id={theme.id}
                                         onPointerDown={(e) => handlePointerDown(e, actualNodeIndex)}
                                         onTouchStart={(e) => handlePointerDown(e, actualNodeIndex)}
-                                        className={`absolute w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2
+                                        className={`absolute w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center font-black transition-all cursor-pointer select-none touch-none z-20 transform -translate-x-1/2 -translate-y-1/2
                                             ${isSelected
-                                                ? `bg-white border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
+                                                ? `bg-white border-b-2 sm:border-b-4 border-slate-300 text-sky-600 scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]` 
                                                 : `bg-transparent text-white drop-shadow-md hover:scale-105 hover:text-sky-300`}
                                         `}
                                         style={{ left: `${pos.x}%`, top: `${pos.y}%`, transition: isDrawing ? 'transform 0.1s' : 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
                                     >
-                                        <span className="pointer-events-none text-2xl sm:text-4xl">{levelData.nodes[actualNodeIndex]}</span>
+                                        <span className="pointer-events-none text-xl sm:text-3xl">{levelData.nodes[actualNodeIndex]}</span>
                                     </div>
                                 );
                             })}
@@ -573,13 +595,13 @@ const PlayerBoard = ({ theme, levelData, isMultiplayer, isMobile, finishOrder, o
                     </div>
                 </div>
 
-                <div className="h-[10%] w-full flex justify-between items-center px-4 sm:px-6 shrink-0 pb-2 pointer-events-auto">
-                    <button onClick={handleShuffle} className="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm text-white p-2.5 sm:p-3 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center">
-                        <Shuffle size={16} />
+                <div className="h-[10%] w-full flex justify-between items-center px-3 sm:px-6 shrink-0 pb-1.5 sm:pb-2 pointer-events-auto">
+                    <button onClick={handleShuffle} className="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm text-white p-2 sm:p-3 rounded-full border border-slate-600 shadow-xl active:scale-95 transition-transform flex items-center justify-center">
+                        <Shuffle size={15} />
                     </button>
-                    <button onClick={handleHint} className="bg-amber-500 hover:bg-amber-400 text-amber-950 p-2.5 sm:p-3 rounded-full border border-amber-600 shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center">
-                        <Lightbulb size={16} />
-                        <span className="text-[9px] font-black mt-0.5 bg-amber-950 text-amber-400 px-1 rounded-full leading-none">25</span>
+                    <button onClick={handleHint} className="bg-amber-500 hover:bg-amber-400 text-amber-950 p-2 sm:p-3 rounded-full border border-amber-600 shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center">
+                        <Lightbulb size={15} />
+                        <span className="text-[8px] sm:text-[9px] font-black mt-0.5 bg-amber-950 text-amber-400 px-1 rounded-full leading-none">25</span>
                     </button>
                 </div>
             </div>
@@ -723,17 +745,35 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   const [numPlayers, setNumPlayers] = useState(1);
   const [levelsData, setLevelsData] = useState<any[]>([]); 
   const [finishOrder, setFinishOrder] = useState<number[]>([]);
+  const [playerScores, setPlayerScores] = useState<Record<number, number>>({});
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
       const checkMobile = () => {
           const mobile = window.innerWidth < 768;
           setIsMobile(mobile);
-          if (mobile) setNumPlayers(1);
+          if (mobile && numPlayers > 2) {
+              setNumPlayers(2);
+          }
       };
       checkMobile();
       window.addEventListener('resize', checkMobile);
       return () => window.removeEventListener('resize', checkMobile);
+  }, [numPlayers]);
+
+  // Audio and Speech synthesis unmount cleanup
+  useEffect(() => {
+      return () => {
+          if (sharedAudioCtx && sharedAudioCtx.state !== 'closed') {
+              try {
+                  sharedAudioCtx.close();
+              } catch (e) {}
+              sharedAudioCtx = null;
+          }
+          if ('speechSynthesis' in window) {
+              window.speechSynthesis.cancel();
+          }
+      };
   }, []);
 
   const startGame = () => {
@@ -747,7 +787,8 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
       setGameState('playing');
   };
 
-  const handlePlayerFinish = (playerId: number) => {
+  const handlePlayerFinish = (playerId: number, finalScore: number = 0) => {
+      setPlayerScores(prev => ({ ...prev, [playerId]: finalScore }));
       if (!finishOrder.includes(playerId)) {
           const newOrder = [...finishOrder, playerId];
           setFinishOrder(newOrder);
@@ -755,12 +796,10 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
           if (numPlayers === 1) {
               setTimeout(() => {
                   setGameState('gameover');
-                  if (onComplete) onComplete();
               }, 800);
           } else if (newOrder.length === numPlayers) {
               setTimeout(() => {
                   setGameState('gameover');
-                  if (onComplete) onComplete();
               }, 1500);
           }
       }
@@ -768,39 +807,46 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
 
   if (gameState === 'menu') {
     return (
-      <div className="w-full h-full min-h-[500px] bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-slate-200 rounded-3xl relative overflow-y-auto">
-
-        <div className="max-w-2xl w-full bg-slate-900 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl my-auto">
-          <div className="text-center mb-10">
-            <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-emerald-400 mb-2">Wordscapes Race</h1>
-            <p className="text-slate-400 font-bold">Multiplayer Smartboard Engine</p>
+      <div className="w-full h-full flex-1 min-h-0 bg-slate-950 flex flex-col items-center justify-center p-3 sm:p-6 font-sans text-slate-200 rounded-3xl relative overflow-hidden select-none">
+        <div className="max-w-xl w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl p-5 sm:p-8 shadow-2xl my-auto flex flex-col justify-center">
+          <div className="text-center mb-6 sm:mb-8">
+            <h1 className="text-3xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-emerald-400 mb-2">Wordscapes Race</h1>
+            <p className="text-slate-400 font-bold text-sm sm:text-base">Multiplayer Barahkhadi Word Connect</p>
           </div>
 
-          {isMobile ? (
-             <div className="mb-10 p-4 bg-sky-950/40 rounded-xl border border-sky-900/50 text-center">
-                 <p className="text-sky-400 font-bold flex items-center justify-center gap-2 mb-2">
-                     <Smartphone size={20} /> Phone Detected
-                 </p>
-                 <p className="text-sm text-sky-200/70">Single player mode activated. Multiplayer race is available on Smartboards and Tablets!</p>
-             </div>
-          ) : (
-             <div className="mb-10">
-               <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Users className="text-sky-400"/> Select Players</h2>
-               <div className="flex gap-4">
-                 {[1, 2, 3, 4].map(num => (
-                   <button
-                     key={num} onClick={() => setNumPlayers(num)}
-                     className={`flex-1 py-4 rounded-xl border-2 text-2xl font-bold transition-all ${numPlayers === num ? 'bg-sky-600/20 border-sky-500 text-sky-400' : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-400'}`}
-                   >
-                     {num}P
-                   </button>
-                 ))}
-               </div>
-             </div>
-          )}
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-base sm:text-lg font-bold mb-3 flex items-center gap-2"><Users size={20} className="text-sky-400"/> Select Players</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+              {(isMobile ? [1, 2] : [1, 2, 3, 4]).map(num => (
+                <button
+                  key={num} 
+                  onClick={() => setNumPlayers(num)}
+                  className={`py-3 sm:py-4 px-2 rounded-xl border-2 text-center transition-all flex flex-col items-center justify-center ${
+                    numPlayers === num 
+                      ? 'bg-sky-600/20 border-sky-500 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.3)]' 
+                      : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-400'
+                  }`}
+                >
+                  <span className="text-2xl sm:text-3xl font-extrabold">{num}P</span>
+                  <span className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+                    {num === 1 ? 'Solo' : num === 2 && isMobile ? 'Face-to-Face' : `${num} Players`}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {isMobile && (
+              <p className="text-xs text-slate-400 text-center mt-3 flex items-center justify-center gap-1.5 bg-slate-800/50 py-1.5 px-3 rounded-lg border border-slate-700/50">
+                <Smartphone size={14} className="text-sky-400 shrink-0" />
+                2-player mode flips Player 1 for face-to-face play on phone
+              </p>
+            )}
+          </div>
 
-          <button onClick={startGame} className="w-full py-5 rounded-xl bg-gradient-to-r from-sky-600 to-emerald-600 hover:from-sky-500 hover:to-emerald-500 text-white font-bold text-2xl shadow-lg flex items-center justify-center gap-3 transform hover:scale-[1.02] transition-transform">
-            <Play fill="currentColor" size={28} /> START {isMobile ? 'GAME' : 'RACE'}
+          <button 
+            onClick={startGame} 
+            className="w-full py-4 sm:py-5 rounded-xl bg-gradient-to-r from-sky-600 to-emerald-600 hover:from-sky-500 hover:to-emerald-500 text-white font-bold text-xl sm:text-2xl shadow-lg flex items-center justify-center gap-3 transform hover:scale-[1.01] active:scale-[0.99] transition-all"
+          >
+            <Play fill="currentColor" size={24} className="sm:w-7 sm:h-7" /> START {numPlayers > 1 ? 'RACE' : 'GAME'}
           </button>
         </div>
       </div>
@@ -808,53 +854,82 @@ export default function BarahkhadiWordConnect({ lesson, onComplete = () => {} }:
   }
 
   if (gameState === 'gameover') {
+    const winnerId = finishOrder[0] || 1;
+    const finalScore = playerScores[winnerId] || 100;
+
     return (
-      <div className="w-full h-full min-h-[600px] bg-slate-900 flex flex-col items-center justify-center p-4 rounded-3xl relative overflow-hidden">
+      <div className="w-full h-full flex-1 min-h-0 bg-slate-900 flex flex-col items-center justify-center p-4 sm:p-6 rounded-3xl relative overflow-hidden select-none">
         <style>{`
             @keyframes confettiDrop { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
             .animate-confetti { animation: confettiDrop linear infinite; }
         `}</style>
         
         <div className="absolute inset-0 pointer-events-none z-0">
-            {[...Array(60)].map((_, i) => (
+            {[...Array(50)].map((_, i) => (
                 <div key={i} className="absolute animate-confetti" style={{
                     left: `${Math.random() * 100}%`, top: `-10%`,
                     backgroundColor: ['#f59e0b', '#10b981', '#0ea5e9', '#ec4899', '#a855f7'][Math.floor(Math.random() * 5)],
-                    width: `${Math.random() * 10 + 5}px`, height: `${Math.random() * 20 + 10}px`,
+                    width: `${Math.random() * 8 + 6}px`, height: `${Math.random() * 16 + 8}px`,
                     animationDelay: `${Math.random() * 3}s`, animationDuration: `${Math.random() * 2 + 2}s`
                 }} />
             ))}
         </div>
 
-        <div className="bg-amber-400 p-8 rounded-full mb-6 border-8 border-amber-200 shadow-[0_0_50px_rgba(251,191,36,0.5)] z-10 relative">
-          <Trophy className="w-24 h-24 text-amber-900" />
+        <div className="bg-amber-400 p-6 sm:p-8 rounded-full mb-4 sm:mb-6 border-8 border-amber-200 shadow-[0_0_50px_rgba(251,191,36,0.5)] z-10 relative">
+          <Trophy className="w-16 h-16 sm:w-20 sm:h-20 text-amber-900" />
         </div>
         
-        <h1 className="text-4xl md:text-6xl font-black text-white mb-2 tracking-wide uppercase text-center z-10 relative drop-shadow-md">
-            {numPlayers > 1 ? `PLAYER ${finishOrder[0]} WON THE RACE!` : 'PUZZLE CLEARED!'}
+        <h1 className="text-3xl sm:text-5xl font-black text-white mb-2 tracking-wide uppercase text-center z-10 relative drop-shadow-md">
+            {numPlayers > 1 ? `PLAYER ${winnerId} WON THE RACE!` : 'PUZZLE CLEARED!'}
         </h1>
+
+        <div className="bg-slate-800/80 border border-slate-700 px-5 py-2 rounded-2xl text-slate-200 font-bold mb-2 sm:mb-4 z-10 flex items-center gap-3">
+          <span className="text-amber-400 font-black text-2xl">{finalScore}</span>
+          <span className="text-slate-400 text-sm">Points Scored</span>
+        </div>
         
-        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md mt-10 z-10 relative">
-          <button onClick={() => setGameState('menu')} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xl py-4 rounded-2xl transition-colors flex items-center justify-center gap-2">
-            Main Menu
+        {/* Dual CTAs for LessonPlayer */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full max-w-md mt-6 sm:mt-8 z-10 relative">
+          <button 
+            onClick={startGame} 
+            className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-lg sm:text-xl py-3.5 sm:py-4 px-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 border-b-4 border-amber-700 active:translate-y-1 active:border-b-0"
+          >
+            <RotateCcw size={20} /> Play Again
           </button>
-          <button onClick={startGame} className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-xl py-4 rounded-2xl transition-colors shadow-lg flex items-center justify-center gap-2 border-b-4 border-amber-700 active:translate-y-1 active:border-b-0">
-            Next Level <Play size={24} fill="currentColor" />
+          <button 
+            onClick={() => {
+              if (onComplete) {
+                onComplete({ score: finalScore, total: 100 });
+              }
+            }} 
+            className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-lg sm:text-xl py-3.5 sm:py-4 px-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 border-b-4 border-emerald-800 active:translate-y-1 active:border-b-0"
+          >
+            Next Step <ArrowRight size={22} />
           </button>
         </div>
+
+        <button 
+          onClick={() => setGameState('menu')} 
+          className="mt-4 text-slate-400 hover:text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 z-10 transition-colors"
+        >
+          <Home size={14} /> Back to Menu
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-[90vh] min-h-[650px] flex flex-col md:flex-row bg-slate-950 font-sans select-none overflow-hidden rounded-3xl shadow-2xl relative">
+    <div className="w-full h-full flex-1 min-h-0 flex flex-col md:flex-row bg-slate-950 font-sans select-none overflow-hidden rounded-3xl shadow-2xl relative">
         {numPlayers > 1 && (
-            <button onClick={() => setGameState('menu')} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors">
-                <Home size={14} /> <span className="font-bold text-xs uppercase tracking-widest">Menu</span>
+            <button 
+              onClick={() => setGameState('menu')} 
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900/95 backdrop-blur-md border border-slate-700 text-white px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-2xl hover:bg-red-500 hover:border-red-500 transition-colors"
+            >
+                <Home size={14} /> <span className="font-bold text-xs uppercase tracking-wider">Menu</span>
             </button>
         )}
         {PLAYER_THEMES.slice(0, numPlayers).map((theme, index) => (
-            <div key={theme.id} className={`flex-1 flex w-full h-full min-h-0 ${index === 0 && numPlayers === 2 ? 'rotate-180 md:rotate-0' : ''}`}>
+            <div key={theme.id} className={`flex-1 flex w-full h-full min-h-0 ${index === 0 && numPlayers === 2 && isMobile ? 'rotate-180 md:rotate-0' : index === 0 && numPlayers === 2 ? 'rotate-180 md:rotate-0' : ''}`}>
                 <PlayerBoard 
                     theme={theme} 
                     levelData={levelsData.length > 0 ? levelsData[index] : null} 

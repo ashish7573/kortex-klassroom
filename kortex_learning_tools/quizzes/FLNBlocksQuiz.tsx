@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings2, CheckCircle2, ArrowRight, ArrowDown, Play, RotateCcw, Volume2, Award, Sparkles, RefreshCw, Lock } from 'lucide-react';
+import { Settings2, CheckCircle2, ArrowRight, ArrowDown, Play, RotateCcw, Volume2, Award, Sparkles, RefreshCw, Lock, ArrowLeft } from 'lucide-react';
 
 type OpType = 'add' | 'add_carry' | 'sub' | 'sub_borrow' | 'mult' | 'div';
 type RangeType = '10' | '20' | '100' | '1000';
@@ -25,7 +25,7 @@ const getParts = (num: number) => ({
 // REAL SVG BASE-10 BLOCKS (One, Ten, Hundred, Thousand)
 // ============================================================================
 const ThousandBlock = ({ onClick, size = "md", className = "" }: { onClick?: () => void, size?: "sm" | "md" | "lg", className?: string }) => {
-    const sizeClasses = size === "sm" ? "h-16 sm:h-20" : size === "lg" ? "h-36 sm:h-44 md:h-52" : "h-26 sm:h-32 md:h-38";
+    const sizeClasses = size === "sm" ? "h-20 sm:h-[100px]" : size === "lg" ? "h-[180px] sm:h-[220px] md:h-[260px]" : "h-[130px] sm:h-40 md:h-[190px]";
     return (
         <div onClick={onClick} className={`flex flex-col items-center shrink-0 ${className}`}>
             <img 
@@ -39,7 +39,7 @@ const ThousandBlock = ({ onClick, size = "md", className = "" }: { onClick?: () 
 };
 
 const HundredFlat = ({ onClick, size = "md", className = "" }: { onClick?: () => void, size?: "sm" | "md" | "lg", className?: string }) => {
-    const sizeClasses = size === "sm" ? "h-16 sm:h-20" : size === "lg" ? "h-36 sm:h-44 md:h-52" : "h-26 sm:h-32 md:h-38";
+    const sizeClasses = size === "sm" ? "h-20 sm:h-[100px]" : size === "lg" ? "h-[180px] sm:h-[220px] md:h-[260px]" : "h-[130px] sm:h-40 md:h-[190px]";
     return (
         <div onClick={onClick} className={`flex flex-col items-center shrink-0 ${className}`}>
             <img 
@@ -245,6 +245,23 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
     const [absTens, setAbsTens] = useState('');
     const [absHundreds, setAbsHundreds] = useState('');
 
+    // --- Subtraction 3-Step Interactive Pipeline State ---
+    const [subStep, setSubStep] = useState<'build' | 'take_away' | 'abstract'>('build');
+    const [subBlocks, setSubBlocks] = useState<{ h: number, t: number, o: number }>({ h: 0, t: 0, o: 0 });
+    
+    // Step 2: Ungroup & Take Away
+    const [unpackedTen, setUnpackedTen] = useState(false);
+    const [unpackedHundred, setUnpackedHundred] = useState(false);
+    const [takenO, setTakenO] = useState(0);
+    const [takenT, setTakenT] = useState(0);
+    const [takenH, setTakenH] = useState(0);
+
+    // Step 3: Column Subtraction
+    const [subAbsStage, setSubAbsStage] = useState<'ones' | 'tens' | 'hundreds' | 'solved'>('ones');
+    const [subAbsOnes, setSubAbsOnes] = useState('');
+    const [subAbsTens, setSubAbsTens] = useState('');
+    const [subAbsHundreds, setSubAbsHundreds] = useState('');
+
     useEffect(() => { setMounted(true); }, []);
 
     // --- Audio Engine ---
@@ -304,7 +321,16 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
         } catch(e) {}
     };
 
+    const lastSpokenRef = useRef<{ text: string, time: number }>({ text: '', time: 0 });
+
     const speak = (text: string) => {
+        const now = Date.now();
+        // Prevent duplicate speech calls within 1 second
+        if (lastSpokenRef.current.text === text && now - lastSpokenRef.current.time < 1000) {
+            return;
+        }
+        lastSpokenRef.current = { text, time: now };
+
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             try {
                 window.speechSynthesis.cancel();
@@ -389,6 +415,19 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
         setAbsTens('');
         setAbsHundreds('');
         
+        // Reset Subtraction Pipeline
+        setSubStep('build');
+        setSubBlocks({ h: 0, t: 0, o: 0 });
+        setUnpackedTen(false);
+        setUnpackedHundred(false);
+        setTakenO(0);
+        setTakenT(0);
+        setTakenH(0);
+        setSubAbsStage('ones');
+        setSubAbsOnes('');
+        setSubAbsTens('');
+        setSubAbsHundreds('');
+        
         setFeedback('idle');
 
         setTimeout(() => {
@@ -417,7 +456,7 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
     const isActionComplete = () => {
         if (!qData) return false;
         if (qData.type === 'add_carry') return actionState.carryDone;
-        if (qData.type.includes('sub')) return actionState.cutT === Math.floor(qData.b / 10) && actionState.cutO === qData.b % 10;
+        if (qData.type.includes('sub')) return takenO === getParts(qData.b).o && takenT === getParts(qData.b).t && takenH === getParts(qData.b).h;
         if (qData.type === 'mult') return actionState.multGroups === qData.b;
         if (qData.type === 'div') return actionState.divBrought && actionState.divGroups === qData.c;
         return true; 
@@ -517,30 +556,35 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
     };
 
     const handleCollectTens = () => {
+        if (tensCollected) return;
         playSound('whoosh');
         setTensCollected(true);
         speak("Tens collected into the Tens area!");
     };
 
     const handleCollectOnes = () => {
+        if (onesCollected) return;
         playSound('whoosh');
         setOnesCollected(true);
         speak("Ones collected into the Ones area!");
     };
 
     const handleCollectHundreds = () => {
+        if (hundredsCollected) return;
         playSound('whoosh');
         setHundredsCollected(true);
         speak("Hundreds collected into the Hundreds area!");
     };
 
     const handleBundleTenOnes = () => {
+        if (isBundled) return;
         playSound('magic');
         setIsBundled(true);
         speak("10 ones regrouped into 1 ten rod! Tap it to move to the tens area.");
     };
 
     const handleCarryTenRod = () => {
+        if (isCarried) return;
         playSound('whoosh');
         setIsCarried(true);
         speak("Carried 1 ten rod to the tens area!");
@@ -565,34 +609,136 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
         }
     };
 
-    // Subtraction Interactive Handlers
-    const handleSubClick = (type: 'ten' | 'one') => {
-        if (!qData) return;
-        const targetT = Math.floor(qData.b / 10);
-        const targetO = qData.b % 10;
-        const remT = targetT - actionState.cutT;
-        const remO = targetO - actionState.cutO;
-        const invO = (qData.a % 10) + (actionState.unpackedT * 10) - actionState.cutO;
-
-        if (type === 'ten') {
-            if (remO > 0 && invO === 0) {
-                playSound('break');
-                setActionState(p => ({ ...p, unpackedT: p.unpackedT + 1 }));
-            } else if (remT > 0) {
-                playSound('whoosh');
-                setActionState(p => ({ ...p, cutT: p.cutT + 1 }));
+    // --- Subtraction Interactive Pipeline Handlers ---
+    const handleSubAddBlock = (type: 'h' | 't' | 'o') => {
+        playSound('pop');
+        setSubBlocks(prev => {
+            const next = { ...prev, [type]: prev[type] + 1 };
+            const nVal = next.h * 100 + next.t * 10 + next.o;
+            if (qData && nVal === qData.a) {
+                playSound('magic');
+                speak(`Number ${qData.a} built! Now take away in Step 2.`);
             }
-        } else if (type === 'one') {
-            if (remO > 0) {
-                playSound('whoosh');
-                setActionState(p => ({ ...p, cutO: p.cutO + 1 }));
-            }
-        }
+            return next;
+        });
     };
 
-    const resetSubActions = () => {
+    const handleSubRemoveBlock = (type: 'h' | 't' | 'o') => {
         playSound('pop');
-        setActionState(p => ({ ...p, cutT: 0, cutO: 0, unpackedT: 0 }));
+        setSubBlocks(prev => ({ ...prev, [type]: Math.max(0, prev[type] - 1) }));
+    };
+
+    const handleSubAutoFill = () => {
+        if (!qData) return;
+        playSound('magic');
+        const p = getParts(qData.a);
+        setSubBlocks({ h: p.h, t: p.t, o: p.o });
+        speak(`Auto-filled ${qData.a}! Now proceed to Step 2.`);
+    };
+
+    const handleUngroupTen = () => {
+        if (unpackedTen) return;
+        playSound('break');
+        setUnpackedTen(true);
+        speak("Ungrouped 1 Ten into 10 Ones! Now take away the ones.");
+    };
+
+    const handleUngroupHundred = () => {
+        if (unpackedHundred) return;
+        playSound('break');
+        setUnpackedHundred(true);
+        speak("Ungrouped 1 Hundred into 10 Tens! Now you can subtract tens.");
+    };
+
+    const handleTakeAwayOne = () => {
+        if (!qData) return;
+        const targetO = getParts(qData.b).o;
+        if (takenO >= targetO) return;
+        const needsOUngroup = getParts(qData.a).o < targetO;
+        if (needsOUngroup && !unpackedTen) {
+            playSound('error');
+            speak("Ungroup 1 Ten into 10 Ones first!");
+            return;
+        }
+        playSound('whoosh');
+        setTakenO(prev => {
+            const next = prev + 1;
+            if (next === targetO) {
+                playSound('magic');
+                speak("All ones subtracted! Now move to tens.");
+            }
+            return next;
+        });
+    };
+
+    const handleTakeAwayTen = () => {
+        if (!qData) return;
+        const targetO = getParts(qData.b).o;
+        const targetT = getParts(qData.b).t;
+        if (takenO < targetO) {
+            playSound('error');
+            speak("Take away all ones first!");
+            return;
+        }
+        if (takenT >= targetT) return;
+        const pA = getParts(qData.a);
+        const availT = pA.t + (unpackedHundred ? 10 : 0) - (unpackedTen ? 1 : 0);
+        if (availT < targetT && !unpackedHundred) {
+            playSound('error');
+            speak("Ungroup 1 Hundred into 10 Tens first!");
+            return;
+        }
+        playSound('whoosh');
+        setTakenT(prev => {
+            const next = prev + 1;
+            if (next === targetT) {
+                playSound('magic');
+                speak(getParts(qData.b).h > 0 ? "Tens subtracted! Now take away hundreds." : "All blocks subtracted! Step 2 complete.");
+            }
+            return next;
+        });
+    };
+
+    const handleTakeAwayHundred = () => {
+        if (!qData) return;
+        const targetT = getParts(qData.b).t;
+        const targetH = getParts(qData.b).h;
+        if (takenT < targetT) {
+            playSound('error');
+            speak("Take away all tens first!");
+            return;
+        }
+        if (takenH >= targetH) return;
+        playSound('whoosh');
+        setTakenH(prev => {
+            const next = prev + 1;
+            if (next === targetH) {
+                playSound('magic');
+                speak("All blocks subtracted! Step 2 complete.");
+            }
+            return next;
+        });
+    };
+
+    const handleSubAutoTakeAway = () => {
+        if (!qData) return;
+        playSound('magic');
+        const pA = getParts(qData.a);
+        const pB = getParts(qData.b);
+        if (pA.o < pB.o) setUnpackedTen(true);
+        const availT = pA.t - (pA.o < pB.o ? 1 : 0);
+        if (availT < pB.t) setUnpackedHundred(true);
+        setTakenO(pB.o);
+        setTakenT(pB.t);
+        setTakenH(pB.h);
+        speak("All blocks taken away! Now solve column subtraction in Step 3.");
+    };
+
+    const handleSubtractionSuccess = () => {
+        playSound('kaching');
+        setSubAbsStage('solved');
+        setScore(s => s + 1);
+        speak(`Correct! ${qData?.a} minus ${qData?.b} is ${qData?.c}! Tap Next Question to continue.`);
     };
 
     if (!mounted) return null;
@@ -739,12 +885,29 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
     const actionDone = isActionComplete();
 
     // Subtraction Pre-Calcs
-    const targetT = Math.floor(qData.b / 10);
-    const targetO = qData.b % 10;
-    const remT = targetT - actionState.cutT;
-    const remO = targetO - actionState.cutO;
-    const invT = Math.floor(qData.a / 10) - actionState.cutT - actionState.unpackedT;
-    const invO = (qData.a % 10) + (actionState.unpackedT * 10) - actionState.cutO;
+    const pA = getParts(qData.a);
+    const pB = getParts(qData.b);
+    const pC = getParts(qData.c);
+
+    // Step 1 Minuend Build
+    const subBuiltVal = subBlocks.h * 100 + subBlocks.t * 10 + subBlocks.o;
+    const isSubBuildReady = subBuiltVal === qData.a;
+
+    // Ungrouping analysis:
+    const needsOnesUngroup = pA.o < pB.o;
+    const tensAfterOnesBorrow = pA.t - (needsOnesUngroup ? 1 : 0);
+    const needsTensUngroup = tensAfterOnesBorrow < pB.t;
+
+    // Step 2 Live Inventory
+    const currentSubH = Math.max(0, pA.h - (unpackedHundred ? 1 : 0) - takenH);
+    const currentSubT = Math.max(0, pA.t + (unpackedHundred ? 10 : 0) - (unpackedTen ? 1 : 0) - takenT);
+    const currentSubO = Math.max(0, pA.o + (unpackedTen ? 10 : 0) - takenO);
+    const isSubStep2Complete = isSubBuildReady && takenO === pB.o && takenT === pB.t && takenH === pB.h;
+    const isSubStep2Started = isSubBuildReady && (unpackedTen || unpackedHundred || takenO > 0 || takenT > 0 || takenH > 0);
+
+    // Effective minuend for Step 3 Column Subtraction:
+    const effectiveMinuendTens = needsTensUngroup ? (tensAfterOnesBorrow + 10) : tensAfterOnesBorrow;
+    const effectiveMinuendHundreds = needsTensUngroup ? (pA.h - 1) : pA.h;
 
     // Addition Pre-Calcs
     const aVal = aBlocks.h * 100 + aBlocks.t * 10 + aBlocks.o;
@@ -835,87 +998,6 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
             {/* 2. MAIN WORKSPACE (Scrollable flex-1 min-h-0) */}
             <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 md:p-4 flex flex-col md:flex-row gap-2.5 sm:gap-3 items-stretch justify-center">
                 
-                {/* ------------------------------------------------------------ */}
-                {/* SUBTRACTION MODE: TAKE AWAY & UNPACK MAT */}
-                {/* ------------------------------------------------------------ */}
-                {isSub && (
-                    <div className="flex-1 bg-slate-800/90 rounded-2xl border border-slate-700 p-2.5 sm:p-4 flex flex-col shadow-sm relative min-h-[220px]">
-                        <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-2 shrink-0">
-                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-rose-400 flex items-center gap-1">
-                                Step 1 & 2: Take Away ({qData.b})
-                            </span>
-                            {!actionDone && (
-                                <button 
-                                    onClick={resetSubActions}
-                                    className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 bg-slate-700 px-2 py-0.5 rounded"
-                                >
-                                    <RefreshCw size={10} /> Reset Cuts
-                                </button>
-                            )}
-                        </div>
-                        
-                        <div className="flex-1 flex flex-col items-center justify-between w-full gap-2">
-                            {!actionDone ? (
-                                <div className="flex flex-col items-center gap-2 w-full flex-1 justify-center">
-                                    <div className="text-rose-300 font-bold bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20 text-center text-[11px] sm:text-xs">
-                                        Tap blocks to cut away <span className="text-white font-black">{remT} Tens</span> and <span className="text-white font-black">{remO} Ones</span>
-                                        {remO > 0 && invO === 0 && (
-                                            <span className="block text-amber-300 font-black mt-0.5">💥 Need more ones! Tap a Ten rod to unpack it!</span>
-                                        )}
-                                    </div>
-                                    
-                                    {/* Interactive Inventory with SVG Blocks */}
-                                    <div className="flex gap-2 sm:gap-4 items-center justify-center flex-wrap max-w-full min-h-[90px] p-2 bg-slate-900/60 rounded-xl border border-slate-700/60 w-full">
-                                        {invT > 0 && (
-                                            <div className="flex gap-1 flex-wrap justify-center items-end">
-                                                {Array.from({ length: invT }).map((_, i) => (
-                                                    <TenRod 
-                                                        key={`t-${i}`} 
-                                                        highlightType={(remO > 0 && invO === 0) ? 'break' : (remT > 0 ? 'cut' : 'none')}
-                                                        onClick={() => handleSubClick('ten')} 
-                                                    />
-                                                ))}
-                                            </div>
-                                        )}
-                                        {invO > 0 && (
-                                            <div className="flex flex-wrap gap-1 max-w-[90px] sm:max-w-[120px] justify-center items-end content-center">
-                                                {Array.from({ length: invO }).map((_, i) => (
-                                                    <OneCube 
-                                                        key={`o-${i}`} 
-                                                        isCuttable={remO > 0}
-                                                        onClick={() => handleSubClick('one')} 
-                                                    />
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center gap-3 animate-in fade-in duration-200 w-full flex-1 justify-center">
-                                    <div className="flex flex-row flex-wrap items-center justify-center gap-4 sm:gap-8 w-full p-2 bg-slate-900/60 rounded-xl border border-slate-700/60">
-                                        <div className="flex flex-col items-center">
-                                            <span className="text-emerald-400 font-black text-[10px] sm:text-xs mb-1 uppercase tracking-wider">Remaining</span>
-                                            <BlockDisplay num={qData.c} />
-                                        </div>
-                                        <div className="flex flex-col items-center">
-                                            <span className="text-rose-400 font-black text-[10px] sm:text-xs mb-1 uppercase tracking-wider">Cut Away</span>
-                                            <CutBlockDisplay num={qData.b} />
-                                        </div>
-                                    </div>
-
-                                    {/* Place Value Counters */}
-                                    <div className="flex flex-wrap items-center justify-center gap-2 bg-slate-900 p-2 sm:p-2.5 rounded-xl border border-slate-700 w-full">
-                                        <span className="text-slate-400 font-bold text-xs uppercase tracking-wider">Count Remaining:</span>
-                                        {showTh && <div className="flex items-center gap-1 text-slate-300 font-bold text-xs"><InputBox value={inputs.th} onChange={(v: string) => handleInputChange('th', v)} ph="0"/> Th</div>}
-                                        {showH && <div className="flex items-center gap-1 text-slate-300 font-bold text-xs"><InputBox value={inputs.h} onChange={(v: string) => handleInputChange('h', v)} ph="0"/> H</div>}
-                                        {showT && <div className="flex items-center gap-1 text-slate-300 font-bold text-xs"><InputBox value={inputs.t} onChange={(v: string) => handleInputChange('t', v)} ph="0"/> T</div>}
-                                        <div className="flex items-center gap-1 text-slate-300 font-bold text-xs"><InputBox value={inputs.o} onChange={(v: string) => handleInputChange('o', v)} ph="0"/> O</div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
 
                 {/* ------------------------------------------------------------ */}
                 {/* MULTIPLICATION MODE */}
@@ -991,16 +1073,16 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                 {/* ------------------------------------------------------------ */}
                 {/* ADDITION MODE: 3-STEP CONCRETE -> REGROUP -> ABSTRACT PIPELINE */}
                 {/* ------------------------------------------------------------ */}
-                {isAdd ? (
+                {isAdd && (
                     <div className="flex-1 flex flex-col w-full h-full min-h-0 gap-2 sm:gap-2.5">
-                        {/* MAIN ADDITION WORKSPACE: Side-by-side on lg: (smartboard/laptop), 1-by-1 on mobile */}
-                        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3 items-stretch">
+                        {/* MAIN ADDITION WORKSPACE: Side-by-side flex layout on lg: (smartboard/laptop), 1-by-1 on mobile */}
+                        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2.5 sm:gap-3 items-stretch">
                             
                             {/* ==================================================================== */}
-                            {/* LEFT CONTAINER (lg:col-span-2): SECTION 1 ON TOP, SECTION 2 DIRECTLY UNDER IT */}
-                            {/* Visual animation brings blocks from Section 1 down into Section 2! */}
+                            {/* LEFT CONTAINER (flex-1): SECTION 1 ON TOP, SECTION 2 DIRECTLY UNDER IT */}
+                            {/* Takes all available extra space for large CPA manipulatives */}
                             {/* ==================================================================== */}
-                            <div className={`${addStep !== 'abstract' ? 'flex' : 'hidden lg:flex'} lg:col-span-2 flex-col gap-2.5 sm:gap-3 min-h-0 overflow-y-auto`}>
+                            <div className={`${addStep !== 'abstract' ? 'flex' : 'hidden lg:flex'} flex-1 flex-col gap-2.5 sm:gap-3 min-h-0 overflow-y-auto min-w-0`}>
                                 
                                 {/* ------------------------------------------------------------ */}
                                 {/* SECTION 1: STEP 1 - FORM NUMBERS (Emerald Theme)             */}
@@ -1186,7 +1268,7 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                                                     </div>
                                                 )}
                                                 <span className="text-[11px] font-bold text-sky-300 shrink-0">
-                                                    {hundredsCollected ? `${expectedTotalHundreds} Hundred` : 'Empty'}
+                                                    {hundredsCollected ? `${expectedTotalHundreds} ${expectedTotalHundreds === 1 ? 'Hundred' : 'Hundreds'}` : 'Empty'}
                                                 </span>
                                             </div>
                                         )}
@@ -1214,7 +1296,7 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                                                 </div>
                                             ) : (
                                                 <div className="flex-1 w-full flex flex-wrap gap-1.5 justify-center items-end my-auto py-2 animate-in slide-in-from-top-8 duration-500">
-                                                    {Array.from({ length: Math.floor(qData.a / 10) + Math.floor(qData.b / 10) }).map((_, i) => (
+                                                    {Array.from({ length: getParts(qData.a).t + getParts(qData.b).t }).map((_, i) => (
                                                         <TenRod key={`ct-${i}`} size="sm" />
                                                     ))}
                                                     {/* Carried Ten Rod shown with prominent highlight */}
@@ -1230,7 +1312,7 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                                             )}
 
                                             <span className="text-[11px] font-bold text-emerald-300 shrink-0">
-                                                {tensCollected ? (needsRegroup && isCarried ? `${expectedTotalTens} Tens` : `${Math.floor(qData.a / 10) + Math.floor(qData.b / 10)} Tens`) : 'Empty'}
+                                                {tensCollected ? (needsRegroup && isCarried ? `${expectedTotalTens} Tens` : `${getParts(qData.a).t + getParts(qData.b).t} Tens`) : 'Empty'}
                                             </span>
                                         </div>
 
@@ -1261,13 +1343,8 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                                                 <div className="flex-1 w-full flex flex-col items-center justify-center my-auto py-2 animate-in slide-in-from-top-8 duration-500">
                                                     {/* Carry Case - Stage 1: Group 10 Ones */}
                                                     {needsRegroup && !isBundled && (
-                                                        <div className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-amber-500/15 border-2 border-dashed border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.25)] animate-pulse">
-                                                            <span className="text-[10px] sm:text-xs font-black text-amber-300 text-center">
-                                                                ⚡ 10 Ones grouped! Tap to Regroup into 1 Ten:
-                                                            </span>
-                                                            <div onClick={handleBundleTenOnes} className="cursor-pointer hover:scale-105 active:scale-95 transition-transform">
-                                                                <RegroupTenOnes onClick={handleBundleTenOnes} />
-                                                            </div>
+                                                        <div className="flex flex-col items-center gap-1.5 p-1 w-full">
+                                                            <RegroupTenOnes onClick={handleBundleTenOnes} />
                                                             {expectedRemOnes > 0 && (
                                                                 <div className="flex flex-wrap gap-1 max-w-[120px] justify-center mt-1">
                                                                     <span className="text-[9px] text-slate-400 block w-full text-center">Leftover:</span>
@@ -1295,7 +1372,7 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                                                                 className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3.5 py-1.5 rounded-lg shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer animate-pulse"
                                                             >
                                                                 <span>Move to Tens Area</span>
-                                                                <ArrowRight size={13} />
+                                                                <ArrowLeft size={13} />
                                                             </button>
                                                             {expectedRemOnes > 0 && (
                                                                 <div className="flex flex-wrap gap-1 max-w-[120px] justify-center mt-1">
@@ -1344,9 +1421,10 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                             </div>
 
                             {/* ==================================================================== */}
-                            {/* RIGHT CONTAINER (lg:col-span-1): SECTION 3 - STEP 3 SOLVE (Amber Theme) */}
+                            {/* RIGHT CONTAINER: SECTION 3 - STEP 3 SOLVE (Amber Theme) */}
+                            {/* Compact size matched to the 4-column math problem (w-full lg:w-72 xl:w-80 shrink-0) */}
                             {/* ==================================================================== */}
-                            <div className={`${addStep === 'abstract' ? 'flex' : 'hidden lg:flex'} flex-col justify-between p-2.5 sm:p-3 bg-slate-900/90 rounded-2xl border-2 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.12)] min-h-0`}>
+                            <div className={`${addStep === 'abstract' ? 'flex' : 'hidden lg:flex'} w-full lg:w-72 xl:w-80 shrink-0 flex-col justify-between p-2.5 sm:p-3 bg-slate-900/90 rounded-2xl border-2 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.12)] min-h-0`}>
                                 {/* Section 3 Header */}
                                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/80 shrink-0">
                                     <span className="bg-amber-400 text-slate-950 font-black text-xs sm:text-sm px-3 py-0.5 rounded-full shadow-sm">
@@ -1486,7 +1564,7 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                                                             disabled={absStage !== 'hundreds'}
                                                             onChange={(e) => {
                                                                 const val = e.target.value.replace(/[^0-9]/g, '');
-                                                                if (Number(val) === expectedTotalHundreds) {
+                                                                if (val !== '' && Number(val) === expectedTotalHundreds) {
                                                                     setAbsHundreds(val);
                                                                     handleAdditionSuccess();
                                                                 } else {
@@ -1512,7 +1590,7 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                                                         disabled={absStage !== 'tens'}
                                                         onChange={(e) => {
                                                             const val = e.target.value.replace(/[^0-9]/g, '');
-                                                            if (Number(val) === (expectedTotalTens % 10)) {
+                                                            if (val !== '' && Number(val) === (expectedTotalTens % 10)) {
                                                                 setAbsTens(val);
                                                                 if (expectedTotalHundreds > 0) {
                                                                     playSound('kaching');
@@ -1543,7 +1621,7 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                                                         disabled={absStage !== 'ones'}
                                                         onChange={(e) => {
                                                             const val = e.target.value.replace(/[^0-9]/g, '');
-                                                            if (Number(val) === expectedRemOnes) {
+                                                            if (val !== '' && Number(val) === expectedRemOnes) {
                                                                 setAbsOnes(val);
                                                                 playSound('pop');
                                                                 if (needsRegroup) {
@@ -1586,45 +1664,659 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
 
                         </div>
                     </div>
-                ) : (
-                    <>
-                        {/* STEP 3: VERTICAL EQUATION & ANSWER INPUT (Shared Across Subtraction, Mult, Div) */}
-                        <div className="w-full md:w-44 lg:w-48 bg-slate-800/90 rounded-2xl border border-slate-700 p-2.5 sm:p-3 flex flex-col justify-between shadow-sm shrink-0">
-                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-700 pb-1 mb-2 text-center">
-                                Step 3: Solve
-                            </span>
+                )}
+
+                {/* ------------------------------------------------------------ */}
+                {/* SUBTRACTION MODE: 3-STEP CONCRETE -> UNGROUP -> ABSTRACT PIPELINE */}
+                {/* ------------------------------------------------------------ */}
+                {isSub && (
+                    <div className="flex-1 flex flex-col w-full h-full min-h-0 gap-2 sm:gap-2.5">
+                        {/* MAIN SUBTRACTION WORKSPACE: Side-by-side flex layout on lg: (smartboard/laptop), 1-by-1 on mobile */}
+                        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2.5 sm:gap-3 items-stretch">
                             
-                            <div className="flex-1 flex flex-col items-center justify-center p-2 bg-slate-900/80 rounded-xl border border-slate-700 my-auto">
-                                <div className="flex flex-col items-end gap-1 font-mono font-black text-xl sm:text-2xl">
-                                    <span className="text-slate-300 px-2">{qData.a}</span>
-                                    <div className="flex items-center gap-2 border-b-2 border-slate-500 pb-1 px-1">
-                                        <span className={isSub ? 'text-rose-400' : isMult ? 'text-amber-400' : 'text-sky-400'}>{qData.op}</span>
-                                        <span className="text-slate-300">{qData.b}</span>
+                            {/* ==================================================================== */}
+                            {/* LEFT CONTAINER (flex-1): SECTION 1 ON TOP, SECTION 2 DIRECTLY UNDER IT */}
+                            {/* Takes all available extra space for large CPA manipulatives */}
+                            {/* ==================================================================== */}
+                            <div className={`${subStep !== 'abstract' ? 'flex' : 'hidden lg:flex'} flex-1 flex-col gap-2.5 sm:gap-3 min-h-0 overflow-y-auto min-w-0`}>
+                                
+                                {/* ------------------------------------------------------------ */}
+                                {/* SECTION 1: STEP 1 - FORM NUMBER (Rose Theme)                 */}
+                                {/* ------------------------------------------------------------ */}
+                                <div className="flex flex-col p-2.5 sm:p-3 bg-slate-900/90 rounded-2xl border-2 border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.12)] shrink-0 gap-2">
+                                    {/* Section 1 Header */}
+                                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/80 shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="bg-rose-500 text-white font-black text-xs sm:text-sm px-3 py-0.5 rounded-full shadow-sm">
+                                                Step 1: Form Number
+                                            </span>
+                                            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                                                Build {qData.a} with {qData.a >= 100 ? '+100, ' : ''}+10, and +1
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {!isSubBuildReady && (
+                                                <button
+                                                    onClick={handleSubAutoFill}
+                                                    className="text-[11px] text-amber-300 hover:text-white bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-0.5 rounded-lg border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer font-bold"
+                                                    title="Auto-fill blocks for minuend"
+                                                >
+                                                    <Sparkles size={11} className="text-amber-400" />
+                                                    <span>Auto-Fill</span>
+                                                </button>
+                                            )}
+                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isSubBuildReady ? 'bg-emerald-500 text-slate-950 shadow-xs' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                                                {isSubBuildReady ? '✓ Ready' : `Building ${subBuiltVal}/${qData.a}`}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="pt-1.5 flex items-center justify-end">
-                                        <InputBox 
-                                            value={inputs.eqC} 
-                                            onChange={(v: string) => handleInputChange('eqC', v)} 
-                                            width="w-16 sm:w-20" 
-                                            ph="?"
-                                            isGlowing={actionDone} 
-                                        />
+
+                                    {/* Minuend Builder Card */}
+                                    <div className="flex flex-col p-2 rounded-xl border-2 border-rose-500/30 bg-rose-950/15 relative">
+                                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-black text-xs sm:text-sm text-rose-300">
+                                                    Minuend: <span className="text-white text-base">{qData.a}</span>
+                                                </span>
+                                                <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${isSubBuildReady ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+                                                    {isSubBuildReady ? '✓' : `${subBuiltVal}/${qData.a}`}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                {!isSubStep2Started ? (
+                                                    <>
+                                                        {qData.a >= 100 && (
+                                                            <button onClick={() => handleSubAddBlock('h')} className="px-2 py-0.5 bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-black text-[11px] rounded-lg shadow-xs cursor-pointer">+100</button>
+                                                        )}
+                                                        <button onClick={() => handleSubAddBlock('t')} className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-[11px] rounded-lg shadow-xs cursor-pointer">+10</button>
+                                                        <button onClick={() => handleSubAddBlock('o')} className="px-2 py-0.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-[11px] rounded-lg shadow-xs cursor-pointer">+1</button>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/30">✓ Number Locked</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Block Display for Minuend */}
+                                        <div className="flex-1 flex flex-wrap gap-1.5 items-end justify-center p-2 bg-slate-950/60 rounded-lg min-h-[85px] sm:min-h-[95px] max-h-[135px] overflow-y-auto border border-slate-800">
+                                            {subBlocks.h > 0 && Array.from({ length: subBlocks.h }).map((_, i) => (
+                                                <div key={`subh-${i}`} onClick={() => !isSubStep2Started && handleSubRemoveBlock('h')} className={isSubStep2Started ? "cursor-default opacity-80" : "cursor-pointer hover:scale-95 transition-transform"} title={isSubStep2Started ? undefined : "Tap to remove"}>
+                                                    <HundredFlat size="sm" />
+                                                </div>
+                                            ))}
+                                            {subBlocks.t > 0 && (
+                                                <div className="flex gap-1 flex-wrap justify-center items-end">
+                                                    {Array.from({ length: subBlocks.t }).map((_, i) => (
+                                                        <div key={`subt-${i}`} onClick={() => !isSubStep2Started && handleSubRemoveBlock('t')} className={isSubStep2Started ? "cursor-default opacity-80" : "cursor-pointer hover:scale-95 transition-transform"} title={isSubStep2Started ? undefined : "Tap to remove"}>
+                                                            <TenRod size="sm" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {subBlocks.o > 0 && (
+                                                <div className="flex flex-wrap gap-1 max-w-[80px] justify-center items-end">
+                                                    {Array.from({ length: subBlocks.o }).map((_, i) => (
+                                                        <div key={`subo-${i}`} onClick={() => !isSubStep2Started && handleSubRemoveBlock('o')} className={isSubStep2Started ? "cursor-default opacity-80" : "cursor-pointer hover:scale-95 transition-transform"} title={isSubStep2Started ? undefined : "Tap to remove"}>
+                                                            <OneCube size="sm" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {subBuiltVal === 0 && (
+                                                <span className="text-[11px] text-slate-500 italic select-none my-auto">Tap +100, +10, or +1 to build {qData.a}</span>
+                                            )}
+                                        </div>
                                     </div>
+                                </div>
+
+                                {/* ------------------------------------------------------------ */}
+                                {/* SECTION 2: STEP 2 - UNGROUP & TAKE AWAY (Amber Theme)         */}
+                                {/* ------------------------------------------------------------ */}
+                                <div className="flex-1 flex flex-col p-2.5 sm:p-3 bg-slate-900/90 rounded-2xl border-2 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.12)] gap-2">
+                                    {/* Section 2 Header */}
+                                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/80 shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="bg-amber-500 text-slate-950 font-black text-xs sm:text-sm px-3 py-0.5 rounded-full shadow-sm">
+                                                Step 2: Ungroup & Take Away ({qData.b})
+                                            </span>
+                                            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                                                Ungroup if needed, then take away ones, tens, hundreds
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {isSubBuildReady && !isSubStep2Complete && (
+                                                <button
+                                                    onClick={handleSubAutoTakeAway}
+                                                    className="text-[11px] text-amber-300 hover:text-white bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-0.5 rounded-lg border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer font-bold"
+                                                    title="Auto-take away all blocks of subtrahend"
+                                                >
+                                                    <Sparkles size={11} className="text-amber-400" />
+                                                    <span>Auto-Take Away</span>
+                                                </button>
+                                            )}
+                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isSubStep2Complete ? 'bg-emerald-500 text-slate-950 shadow-xs' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                                                {isSubStep2Complete ? '✓ Ready for Step 3' : `${takenH * 100 + takenT * 10 + takenO}/${qData.b} Taken Away`}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Status Instructions Banner for Step 2 */}
+                                    <div className="bg-slate-950/70 p-2 rounded-xl border border-slate-800 flex items-center justify-between gap-2 shrink-0">
+                                        <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                                            {!isSubBuildReady ? (
+                                                <>👉 <span className="text-white font-black">Step 1 First:</span> Form the bigger number {qData.a} in Step 1 above to begin taking away blocks.</>
+                                            ) : needsOnesUngroup && !unpackedTen ? (
+                                                <>💥 <span className="text-rose-400 font-black">Not enough Ones!</span> ({pA.o} &lt; {pB.o}) Tap glowing Ten rod to ungroup into 10 Ones.</>
+                                            ) : takenO < pB.o ? (
+                                                <>👉 <span className="text-white font-black">1. Take away Ones:</span> Tap {pB.o - takenO} more Ones cube{pB.o - takenO === 1 ? '' : 's'} to remove.</>
+                                            ) : needsTensUngroup && !unpackedHundred ? (
+                                                <>💥 <span className="text-rose-400 font-black">Not enough Tens!</span> ({tensAfterOnesBorrow} &lt; {pB.t}) Tap glowing Hundred flat to ungroup into 10 Tens.</>
+                                            ) : takenT < pB.t ? (
+                                                <>👉 <span className="text-white font-black">2. Take away Tens:</span> Tap {pB.t - takenT} more Ten rod{pB.t - takenT === 1 ? '' : 's'} to remove.</>
+                                            ) : pB.h > 0 && takenH < pB.h ? (
+                                                <>👉 <span className="text-white font-black">3. Take away Hundreds:</span> Tap {pB.h - takenH} more Hundred flat{pB.h - takenH === 1 ? '' : 's'} to remove.</>
+                                            ) : (
+                                                <>✓ <span className="text-emerald-400 font-black">All {qData.b} blocks subtracted!</span> Remaining: {qData.c}. Ready for Step 3!</>
+                                            )}
+                                        </span>
+                                    </div>
+
+                                    {/* Working Blocks Mat: Hundreds, Tens, Ones - Always Visible */}
+                                    <div className={`flex-1 grid ${pA.h > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-2 sm:gap-2.5 p-2 sm:p-2.5 bg-slate-950/60 rounded-xl border border-slate-800 min-h-[220px] sm:min-h-[260px] items-stretch`}>
+                                        
+                                        {/* Hundreds Area */}
+                                        {pA.h > 0 && (
+                                            <div className="flex flex-col items-center justify-between p-2 sm:p-2.5 bg-slate-900/70 rounded-xl border border-sky-500/30 min-h-[200px] sm:min-h-[240px]">
+                                                <div className="flex items-center justify-between w-full shrink-0">
+                                                    <span className="text-[10px] font-black text-sky-400 uppercase tracking-wider">Hundreds Area</span>
+                                                    {unpackedHundred && (
+                                                        <span className="text-[9px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.2 rounded">-1 Unpacked</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Hundred Flats Container */}
+                                                <div className="flex-1 w-full flex flex-wrap gap-1.5 justify-center items-center my-auto py-1">
+                                                    {!isSubBuildReady ? (
+                                                        <span className="text-[11px] text-slate-500 italic my-auto">Form {qData.a} in Step 1 first</span>
+                                                    ) : (
+                                                        <>
+                                                            {Array.from({ length: currentSubH }).map((_, i) => {
+                                                                const isUngroupable = needsTensUngroup && !unpackedHundred && takenO === pB.o;
+                                                                const isCuttable = takenO === pB.o && takenT === pB.t && pB.h > 0 && takenH < pB.h;
+                                                                return (
+                                                                    <div 
+                                                                        key={`subcurh-${i}`} 
+                                                                        onClick={() => {
+                                                                            if (isUngroupable) handleUngroupHundred();
+                                                                            else if (isCuttable) handleTakeAwayHundred();
+                                                                        }}
+                                                                        className={`transition-transform ${isUngroupable ? 'ring-2 ring-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)] cursor-pointer hover:scale-105 animate-pulse' : isCuttable ? 'ring-2 ring-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.7)] cursor-pointer hover:scale-95 animate-pulse' : ''}`}
+                                                                        title={isUngroupable ? "Tap to ungroup 1 Hundred into 10 Tens" : isCuttable ? "Tap to take away 1 Hundred" : undefined}
+                                                                    >
+                                                                        <HundredFlat size="sm" />
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                            {currentSubH === 0 && (
+                                                                <span className="text-[11px] text-slate-500 italic my-auto">0 Hundreds left</span>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Action button inside column */}
+                                                {isSubBuildReady && needsTensUngroup && !unpackedHundred && takenO === pB.o && (
+                                                    <button 
+                                                        onClick={handleUngroupHundred}
+                                                        className="w-full py-1 px-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[10px] shadow-sm animate-pulse cursor-pointer shrink-0 mb-1"
+                                                    >
+                                                        ⚡ Ungroup 1 Hundred → 10 Tens
+                                                    </button>
+                                                )}
+                                                {isSubBuildReady && takenO === pB.o && takenT === pB.t && pB.h > 0 && takenH < pB.h && (
+                                                    <button 
+                                                        onClick={handleTakeAwayHundred}
+                                                        className="w-full py-1 px-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-white font-black text-[10px] shadow-sm animate-pulse cursor-pointer shrink-0 mb-1"
+                                                    >
+                                                        ✂ Take Away 1 Hundred (-100)
+                                                    </button>
+                                                )}
+
+                                                <span className="text-[11px] font-bold text-sky-300 shrink-0">
+                                                    {isSubBuildReady ? `${currentSubH} ${currentSubH === 1 ? 'Hundred' : 'Hundreds'} left` : 'Waiting for Step 1'}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Tens Area */}
+                                        <div className="flex flex-col items-center justify-between p-2 sm:p-2.5 bg-slate-900/70 rounded-xl border border-emerald-500/30 min-h-[200px] sm:min-h-[240px]">
+                                            <div className="flex items-center justify-between w-full shrink-0">
+                                                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">Tens Area</span>
+                                                {unpackedTen && (
+                                                    <span className="text-[9px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.2 rounded">-1 Unpacked</span>
+                                                )}
+                                            </div>
+
+                                            {/* Ten Rods Container */}
+                                            <div className="flex-1 w-full flex flex-wrap gap-1 justify-center items-end my-auto py-1">
+                                                {!isSubBuildReady ? (
+                                                    <span className="text-[11px] text-slate-500 italic my-auto">Form {qData.a} in Step 1 first</span>
+                                                ) : (
+                                                    <>
+                                                        {Array.from({ length: currentSubT }).map((_, i) => {
+                                                            const isUngroupable = needsOnesUngroup && !unpackedTen;
+                                                            const isCuttable = takenO === pB.o && (!needsTensUngroup || unpackedHundred) && takenT < pB.t;
+                                                            return (
+                                                                <div 
+                                                                    key={`subcurt-${i}`} 
+                                                                    onClick={() => {
+                                                                        if (isUngroupable) handleUngroupTen();
+                                                                        else if (isCuttable) handleTakeAwayTen();
+                                                                    }}
+                                                                    className={`transition-transform ${isUngroupable ? 'ring-2 ring-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)] cursor-pointer hover:scale-105 animate-pulse' : isCuttable ? 'ring-2 ring-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.7)] cursor-pointer hover:scale-95 animate-pulse' : ''}`}
+                                                                    title={isUngroupable ? "Tap to ungroup 1 Ten into 10 Ones" : isCuttable ? "Tap to take away 1 Ten" : undefined}
+                                                                >
+                                                                    <TenRod size="sm" />
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {currentSubT === 0 && (
+                                                            <span className="text-[11px] text-slate-500 italic my-auto">0 Tens left</span>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Action button inside column */}
+                                            {isSubBuildReady && needsOnesUngroup && !unpackedTen && (
+                                                <button 
+                                                    onClick={handleUngroupTen}
+                                                    className="w-full py-1 px-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[10px] shadow-sm animate-pulse cursor-pointer shrink-0 mb-1"
+                                                >
+                                                    ⚡ Ungroup 1 Ten → 10 Ones
+                                                </button>
+                                            )}
+                                            {isSubBuildReady && takenO === pB.o && (!needsTensUngroup || unpackedHundred) && takenT < pB.t && (
+                                                <button 
+                                                    onClick={handleTakeAwayTen}
+                                                    className="w-full py-1 px-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-white font-black text-[10px] shadow-sm animate-pulse cursor-pointer shrink-0 mb-1"
+                                                >
+                                                    ✂ Take Away 1 Ten (-10)
+                                                </button>
+                                            )}
+
+                                            <span className="text-[11px] font-bold text-emerald-300 shrink-0">
+                                                {isSubBuildReady ? `${currentSubT} ${currentSubT === 1 ? 'Ten' : 'Tens'} left` : 'Waiting for Step 1'}
+                                            </span>
+                                        </div>
+
+                                        {/* Ones Area */}
+                                        <div className="flex flex-col items-center justify-between p-2 sm:p-2.5 bg-slate-900/70 rounded-xl border border-amber-500/30 min-h-[200px] sm:min-h-[240px]">
+                                            <div className="flex items-center justify-between w-full shrink-0">
+                                                <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider">Ones Area</span>
+                                                {unpackedTen && (
+                                                    <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">+10 Unpacked</span>
+                                                )}
+                                            </div>
+
+                                            {/* One Cubes Container */}
+                                            <div className="flex-1 w-full flex flex-wrap gap-1 max-w-[150px] justify-center items-center my-auto py-1">
+                                                {!isSubBuildReady ? (
+                                                    <span className="text-[11px] text-slate-500 italic my-auto">Form {qData.a} in Step 1 first</span>
+                                                ) : (
+                                                    <>
+                                                        {Array.from({ length: currentSubO }).map((_, i) => {
+                                                            const isCuttable = (!needsOnesUngroup || unpackedTen) && takenO < pB.o;
+                                                            return (
+                                                                <div 
+                                                                    key={`subcuro-${i}`} 
+                                                                    onClick={() => {
+                                                                        if (isCuttable) handleTakeAwayOne();
+                                                                    }}
+                                                                    className={`transition-transform ${isCuttable ? 'ring-2 ring-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.7)] cursor-pointer hover:scale-110 animate-pulse' : ''}`}
+                                                                    title={isCuttable ? "Tap to take away 1 One" : undefined}
+                                                                >
+                                                                    <OneCube size="sm" />
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {currentSubO === 0 && (
+                                                            <span className="text-[11px] text-slate-500 italic my-auto">0 Ones left</span>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Action button inside column */}
+                                            {isSubBuildReady && (!needsOnesUngroup || unpackedTen) && takenO < pB.o && (
+                                                <button 
+                                                    onClick={handleTakeAwayOne}
+                                                    className="w-full py-1 px-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-white font-black text-[10px] shadow-sm animate-pulse cursor-pointer shrink-0 mb-1"
+                                                >
+                                                    ✂ Take Away 1 One (-1)
+                                                </button>
+                                            )}
+
+                                            <span className="text-[11px] font-bold text-amber-300 shrink-0">
+                                                {isSubBuildReady ? `${currentSubO} ${currentSubO === 1 ? 'One' : 'Ones'} left` : 'Waiting for Step 1'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Taken Away Bin / Summary Tray */}
+                                    <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-950/80 rounded-xl border border-rose-500/30 shrink-0">
+                                        <span className="text-[11px] font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1">
+                                            ✂ Taken Away ({qData.b}):
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {takenH > 0 && <span className="text-xs font-black text-sky-400 bg-sky-500/20 px-2 py-0.5 rounded-lg">{takenH} H</span>}
+                                            {takenT > 0 && <span className="text-xs font-black text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-lg">{takenT} T</span>}
+                                            {takenO > 0 && <span className="text-xs font-black text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-lg">{takenO} O</span>}
+                                            {takenH === 0 && takenT === 0 && takenO === 0 && (
+                                                <span className="text-[11px] text-slate-500 italic">None taken away yet</span>
+                                            )}
+                                        </div>
+                                        <span className="text-[11px] font-bold text-slate-400">
+                                            Total: {takenH * 100 + takenT * 10 + takenO} / {qData.b}
+                                        </span>
+                                    </div>
+
+                                    {/* Bottom Action: Proceed to Step 3 (Solve) when Section 2 is complete */}
+                                    {isSubStep2Complete && (
+                                        <div className="pt-1 shrink-0 animate-in fade-in duration-200">
+                                            <button
+                                                onClick={() => { playSound('magic'); setSubStep('abstract'); }}
+                                                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-rose-500 via-rose-400 to-amber-400 hover:from-rose-400 text-slate-950 font-black text-xs sm:text-sm shadow-md animate-pulse cursor-pointer flex items-center justify-center gap-1.5"
+                                            >
+                                                <span>Proceed to Step 3: Solve (Column Subtraction)</span>
+                                                <ArrowRight size={14} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            <p className="text-[10px] text-slate-400 text-center mt-2 font-medium">
-                                {actionDone ? "Enter answer and check!" : "Finish visual action first"}
-                            </p>
+                            {/* ==================================================================== */}
+                            {/* RIGHT CONTAINER: SECTION 3 - STEP 3 SOLVE (Column Subtraction)       */}
+                            {/* Sized to fit column subtraction compactly (w-full lg:w-72 xl:w-80 shrink-0) */}
+                            {/* ==================================================================== */}
+                            <div className={`${subStep === 'abstract' ? 'flex' : 'hidden lg:flex'} w-full lg:w-72 xl:w-80 shrink-0 flex-col justify-between p-2.5 sm:p-3 bg-slate-900/90 rounded-2xl border-2 border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.12)] min-h-0`}>
+                                {/* Section 3 Header */}
+                                <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/80 shrink-0">
+                                    <span className="bg-rose-500 text-white font-black text-xs sm:text-sm px-3 py-0.5 rounded-full shadow-sm">
+                                        Step 3: Solve
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                        {subStep === 'abstract' && (
+                                            <button
+                                                onClick={() => setSubStep('build')}
+                                                className="lg:hidden text-[10px] text-slate-300 hover:text-white bg-slate-700 px-2 py-0.5 rounded-lg border border-slate-600 transition-all cursor-pointer"
+                                            >
+                                                ← Back to Blocks
+                                            </button>
+                                        )}
+                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${subAbsStage === 'solved' ? 'bg-emerald-500 text-slate-950 shadow-xs' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                                            {subAbsStage === 'solved' ? '✓ Solved' : 'Column Subtraction'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Section 3 Body */}
+                                {!isSubStep2Complete && subStep !== 'abstract' ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-center p-4 my-auto">
+                                        <div className="w-12 h-12 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center text-slate-500 mb-2">
+                                            <Lock size={20} />
+                                        </div>
+                                        <p className="font-bold text-xs text-slate-300 mb-0.5">Step 3: Column Subtraction</p>
+                                        <p className="text-[11px] text-slate-500 max-w-[200px]">Ungroup and take away blocks in Step 2 to unlock column subtraction!</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center my-auto py-2 gap-2 min-h-0">
+                                        {/* Status Prompt */}
+                                        <div className="text-center bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-700 w-full shrink-0">
+                                            {subAbsStage === 'ones' && (
+                                                <p className="text-xs font-bold text-amber-300">
+                                                    👉 1️⃣ Subtract Ones: <span className="text-white font-black">{needsOnesUngroup ? `${pA.o + 10} − ${pB.o} = ${pC.o}` : `${pA.o} − ${pB.o} = ${pC.o}`}</span>
+                                                    <br/><span className="text-slate-300 text-[10px] font-normal">Type {pC.o} in glowing Ones box</span>
+                                                </p>
+                                            )}
+                                            {subAbsStage === 'tens' && (
+                                                <p className="text-xs font-bold text-emerald-300">
+                                                    👉 2️⃣ Subtract Tens: <span className="text-white font-black">{effectiveMinuendTens} − {pB.t} = {pC.t}</span>
+                                                    <br/><span className="text-slate-300 text-[10px] font-normal">Type {pC.t} in glowing Tens box</span>
+                                                </p>
+                                            )}
+                                            {subAbsStage === 'hundreds' && (
+                                                <p className="text-xs font-bold text-sky-300">
+                                                    👉 3️⃣ Subtract Hundreds: <span className="text-white font-black">{effectiveMinuendHundreds} − {pB.h} = {pC.h}</span>
+                                                    <br/><span className="text-slate-300 text-[10px] font-normal">Type {pC.h} in glowing Hundreds box</span>
+                                                </p>
+                                            )}
+                                            {subAbsStage === 'solved' && (
+                                                <p className="text-xs font-black text-emerald-400 animate-bounce">
+                                                    🎉 Correct! {qData.a} − {qData.b} = {qData.c}!
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* The Vertical Column Matrix for Subtraction */}
+                                        <div className="bg-slate-950/80 p-3 rounded-2xl border-2 border-slate-700 shadow-inner flex flex-col items-center shrink-0">
+                                            {/* Ungroup / Borrow Row */}
+                                            <div className="grid grid-cols-4 gap-2 items-center text-center font-mono font-bold text-xs mb-1">
+                                                <span className="w-9 sm:w-11"></span>
+                                                {/* Hundreds Borrow Indicator */}
+                                                <div className="w-9 sm:w-11 flex justify-center">
+                                                    {needsTensUngroup && (
+                                                        <span className="px-1.5 py-0.5 bg-sky-500/20 text-sky-300 text-[10px] font-black rounded border border-sky-500/40">
+                                                            {pA.h - 1}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {/* Tens Borrow Indicator */}
+                                                <div className="w-9 sm:w-11 flex justify-center">
+                                                    {needsTensUngroup ? (
+                                                        <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black rounded border border-emerald-500/40">
+                                                            {tensAfterOnesBorrow + 10}
+                                                        </span>
+                                                    ) : needsOnesUngroup ? (
+                                                        <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black rounded border border-emerald-500/40">
+                                                            {tensAfterOnesBorrow}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                                {/* Ones Borrow Indicator */}
+                                                <div className="w-9 sm:w-11 flex justify-center">
+                                                    {needsOnesUngroup && (
+                                                        <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-black rounded border border-amber-500/40">
+                                                            {pA.o + 10}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Place Value Labels */}
+                                            <div className="grid grid-cols-4 gap-2 items-center text-center font-mono font-bold text-xs text-slate-500 border-b border-slate-800 pb-1 mb-1.5">
+                                                <span className="w-9 sm:w-11"></span>
+                                                <span className="w-9 sm:w-11 text-sky-400 font-black">{pA.h > 0 ? 'H' : ''}</span>
+                                                <span className="w-9 sm:w-11 text-emerald-400 font-black">T</span>
+                                                <span className="w-9 sm:w-11 text-amber-400 font-black">O</span>
+                                            </div>
+
+                                            {/* Number A (Minuend) with strikethrough if borrowed */}
+                                            <div className="grid grid-cols-4 gap-2 items-center text-center font-mono font-black text-lg sm:text-xl text-slate-300 mb-0.5">
+                                                <span className="w-9 sm:w-11"></span>
+                                                <span className={`w-9 sm:w-11 ${needsTensUngroup ? 'line-through text-slate-500' : ''}`}>
+                                                    {pA.h || ''}
+                                                </span>
+                                                <span className={`w-9 sm:w-11 ${(needsOnesUngroup || needsTensUngroup) ? 'line-through text-slate-500' : ''}`}>
+                                                    {pA.t}
+                                                </span>
+                                                <span className={`w-9 sm:w-11 ${needsOnesUngroup ? 'line-through text-slate-500' : ''}`}>
+                                                    {pA.o}
+                                                </span>
+                                            </div>
+
+                                            {/* Number B (Subtrahend) with − */}
+                                            <div className="grid grid-cols-4 gap-2 items-center text-center font-mono font-black text-lg sm:text-xl text-slate-300 border-b-2 border-slate-600 pb-1.5 mb-1.5">
+                                                <span className="w-9 sm:w-11 text-rose-400 font-black text-xl">−</span>
+                                                <span className="w-9 sm:w-11">{pB.h || ''}</span>
+                                                <span className="w-9 sm:w-11">{pB.t}</span>
+                                                <span className="w-9 sm:w-11">{pB.o}</span>
+                                            </div>
+
+                                            {/* Column Answer Inputs */}
+                                            <div className="grid grid-cols-4 gap-2 items-center text-center">
+                                                <span className="w-9 sm:w-11"></span>
+
+                                                {/* Hundreds Box */}
+                                                <div className="w-9 sm:w-11 flex justify-center">
+                                                    {pC.h > 0 ? (
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            value={subAbsHundreds}
+                                                            disabled={subAbsStage !== 'hundreds'}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                                                if (val !== '' && Number(val) === pC.h) {
+                                                                    setSubAbsHundreds(val);
+                                                                    handleSubtractionSuccess();
+                                                                } else {
+                                                                    setSubAbsHundreds(val);
+                                                                }
+                                                            }}
+                                                            placeholder={subAbsStage === 'hundreds' ? "?" : ""}
+                                                            className={`w-9 h-9 sm:w-10 sm:h-10 text-center font-black text-sm sm:text-base rounded-xl border-2 outline-none transition-all
+                                                                ${subAbsStage === 'hundreds'
+                                                                    ? 'border-sky-400 bg-sky-950/40 text-white shadow-[0_0_12px_rgba(56,189,248,0.6)] animate-pulse'
+                                                                    : subAbsHundreds !== ''
+                                                                        ? 'border-sky-500 bg-slate-900 text-white'
+                                                                        : 'border-slate-700 bg-slate-900/60 text-slate-500 cursor-not-allowed'}`}
+                                                        />
+                                                    ) : (
+                                                        <span className="w-9 sm:w-11"></span>
+                                                    )}
+                                                </div>
+
+                                                {/* Tens Box */}
+                                                <div className="w-9 sm:w-11 flex justify-center">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        value={subAbsTens}
+                                                        disabled={subAbsStage !== 'tens'}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.replace(/[^0-9]/g, '');
+                                                            if (val !== '' && Number(val) === pC.t) {
+                                                                setSubAbsTens(val);
+                                                                if (pC.h > 0) {
+                                                                    playSound('pop');
+                                                                    setSubAbsStage('hundreds');
+                                                                    speak("Now subtract the hundreds column!");
+                                                                } else {
+                                                                    handleSubtractionSuccess();
+                                                                }
+                                                            } else {
+                                                                setSubAbsTens(val);
+                                                            }
+                                                        }}
+                                                        placeholder={subAbsStage === 'tens' ? "?" : ""}
+                                                        className={`w-9 h-9 sm:w-10 sm:h-10 text-center font-black text-sm sm:text-base rounded-xl border-2 outline-none transition-all
+                                                            ${subAbsStage === 'tens'
+                                                                ? 'border-emerald-400 bg-emerald-950/40 text-white shadow-[0_0_12px_rgba(52,211,153,0.6)] animate-pulse'
+                                                                : subAbsTens !== ''
+                                                                    ? 'border-emerald-500 bg-slate-900 text-white'
+                                                                    : 'border-slate-700 bg-slate-900/60 text-slate-500 cursor-not-allowed'}`}
+                                                    />
+                                                </div>
+
+                                                {/* Ones Box (Must be answered FIRST!) */}
+                                                <div className="w-9 sm:w-11 flex justify-center">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        value={subAbsOnes}
+                                                        disabled={subAbsStage !== 'ones'}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.replace(/[^0-9]/g, '');
+                                                            if (val !== '' && Number(val) === pC.o) {
+                                                                setSubAbsOnes(val);
+                                                                playSound('pop');
+                                                                setSubAbsStage('tens');
+                                                                speak("Great! Now subtract the tens column.");
+                                                            } else {
+                                                                setSubAbsOnes(val);
+                                                            }
+                                                        }}
+                                                        placeholder={subAbsStage === 'ones' ? "?" : ""}
+                                                        className={`w-9 h-9 sm:w-10 sm:h-10 text-center font-black text-sm sm:text-base rounded-xl border-2 outline-none transition-all
+                                                            ${subAbsStage === 'ones'
+                                                                ? 'border-amber-400 bg-amber-950/40 text-white shadow-[0_0_12px_rgba(251,191,36,0.6)] animate-pulse'
+                                                                : subAbsOnes !== ''
+                                                                    ? 'border-amber-500 bg-slate-900 text-white'
+                                                                    : 'border-slate-700 bg-slate-900/60 text-slate-500 cursor-not-allowed'}`}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Next Question Button in Section 3 Area while keeping solution in full view */}
+                                        {subAbsStage === 'solved' && (
+                                            <div className="w-full mt-2 animate-in zoom-in-95 duration-300">
+                                                <button
+                                                    onClick={handleNextQuestion}
+                                                    className="w-full py-2.5 sm:py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer animate-pulse"
+                                                >
+                                                    <span>{questionIndex + 1 < TOTAL_QUESTIONS ? 'Next Question ➔' : 'Finish Quiz & View Results 🏆'}</span>
+                                                    <ArrowRight size={16} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
                         </div>
-                    </>
+                    </div>
+                )}
+
+                {/* STEP 3: VERTICAL EQUATION & ANSWER INPUT (Exclusively for Mult, Div) */}
+                {(isMult || isDiv) && (
+                    <div className="w-full md:w-44 lg:w-48 bg-slate-800/90 rounded-2xl border border-slate-700 p-2.5 sm:p-3 flex flex-col justify-between shadow-sm shrink-0">
+                        <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-700 pb-1 mb-2 text-center">
+                            Step 3: Solve
+                        </span>
+                        
+                        <div className="flex-1 flex flex-col items-center justify-center p-2 bg-slate-900/80 rounded-xl border border-slate-700 my-auto">
+                            <div className="flex flex-col items-end gap-1 font-mono font-black text-xl sm:text-2xl">
+                                <span className="text-slate-300 px-2">{qData.a}</span>
+                                <div className="flex items-center gap-2 border-b-2 border-slate-500 pb-1 px-1">
+                                    <span className={isMult ? 'text-amber-400' : 'text-sky-400'}>{qData.op}</span>
+                                    <span className="text-slate-300">{qData.b}</span>
+                                </div>
+                                <div className="pt-1.5 flex items-center justify-end">
+                                    <InputBox 
+                                        value={inputs.eqC} 
+                                        onChange={(v: string) => handleInputChange('eqC', v)} 
+                                        width="w-16 sm:w-20" 
+                                        ph="?"
+                                        isGlowing={actionDone} 
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <p className="text-[10px] text-slate-400 text-center mt-2 font-medium">
+                            {actionDone ? "Enter answer and check!" : "Finish visual action first"}
+                        </p>
+                    </div>
                 )}
 
             </div>
 
             {/* 3. FOOTER ACTION BAR (Shrink-0) */}
             <div className="h-12 sm:h-13 bg-slate-800/95 border-t border-slate-700 px-3 flex items-center justify-center shrink-0 z-30">
-                {isAdd ? (
+                {isAdd && (
                     <div className="text-xs text-slate-400 font-medium flex items-center justify-between w-full max-w-2xl px-2">
                         {!canAdvanceToCombine && <span>Build Number A and Number B in Step 1</span>}
                         {canAdvanceToCombine && (!tensCollected || !onesCollected) && <span className="text-sky-300 font-bold">Both numbers ready! Click Collect the Tens and Collect the Ones in Step 2.</span>}
@@ -1644,7 +2336,35 @@ export default function FLNBlocksQuiz({ lesson, onComplete }: any) {
                             </div>
                         )}
                     </div>
-                ) : (
+                )}
+                {isSub && (
+                    <div className="text-xs text-slate-400 font-medium flex items-center justify-between w-full max-w-2xl px-2">
+                        {!isSubBuildReady && <span>Build the bigger number {qData.a} in Step 1</span>}
+                        {isSubBuildReady && !isSubStep2Complete && (
+                            <span className="text-amber-300 font-bold">
+                                {needsOnesUngroup && !unpackedTen ? "Ungroup 1 Ten into 10 Ones in Step 2!" :
+                                 takenO < pB.o ? `Take away ${pB.o - takenO} more Ones in Step 2!` :
+                                 needsTensUngroup && !unpackedHundred ? "Ungroup 1 Hundred into 10 Tens in Step 2!" :
+                                 takenT < pB.t ? `Take away ${pB.t - takenT} more Tens in Step 2!` :
+                                 `Take away ${pB.h - takenH} more Hundreds in Step 2!`}
+                            </span>
+                        )}
+                        {isSubStep2Complete && subAbsStage !== 'solved' && <span className="text-emerald-300 font-bold">Step 2 complete! Solve in Step 3 (Ones → Tens → Hundreds).</span>}
+                        {subAbsStage === 'solved' && (
+                            <div className="flex items-center justify-between w-full">
+                                <span className="text-emerald-400 font-bold">🎉 Solution complete! Check your work above.</span>
+                                <button
+                                    onClick={handleNextQuestion}
+                                    className="px-3.5 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer ml-auto"
+                                >
+                                    <span>{questionIndex + 1 < TOTAL_QUESTIONS ? 'Next Question' : 'View Results'}</span>
+                                    <ArrowRight size={13} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {(isMult || isDiv) && (
                     <button 
                         onClick={handleCheckAnswer}
                         disabled={!actionDone}
