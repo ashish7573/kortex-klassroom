@@ -19,6 +19,13 @@ export default function EditOrgModal({ org, onClose, onSuccess }: EditOrgModalPr
   
   // Form State
   const [orgName, setOrgName] = useState(org.organization_name || '');
+  const [orgType, setOrgType] = useState(org.org_type || 'school');
+  const [phone, setPhone] = useState(org.phone || '');
+  const [accountStatus, setAccountStatus] = useState(org.accountStatus || 'ACTIVE');
+  const [address, setAddress] = useState(org.address || '');
+  const [city, setCity] = useState(org.city || '');
+  const [state, setState] = useState(org.state || '');
+  const [country, setCountry] = useState(org.country || '');
   
   // Grade-Section-Subject Combinations State
   const initialCombos = org.approved_grade_subject_combos && org.approved_grade_subject_combos.length > 0
@@ -98,7 +105,14 @@ export default function EditOrgModal({ org, onClose, onSuccess }: EditOrgModalPr
          maxStudentSeats: Number(maxStudentSeats),
          subscriptionEndDate: subscriptionEndDate || null,
          agreementUrl,
-         invoiceUrl
+         invoiceUrl,
+         address,
+         city,
+         state,
+         country,
+         phone,
+         orgType: orgType as any,
+         accountStatus: accountStatus as any
       });
 
       if (!result.success) {
@@ -170,10 +184,96 @@ export default function EditOrgModal({ org, onClose, onSuccess }: EditOrgModalPr
                 </div>
               </div>
 
-              {/* Organization Name */}
+              {/* Organization Name & Type */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Organization Name *</label>
+                  <input required type="text" value={orgName} onChange={e => setOrgName(e.target.value)} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Institution Type</label>
+                  <select
+                    value={orgType}
+                    onChange={e => setOrgType(e.target.value as any)}
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors"
+                  >
+                    <option value="school">School (K-12)</option>
+                    <option value="coaching">Coaching / Tutoring</option>
+                    <option value="ngo">NGO / Non-Profit</option>
+                    <option value="other">Other Educational Entity</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Contact Phone & Account Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Contact Phone</label>
+                  <input 
+                    type="text" 
+                    value={phone} 
+                    onChange={e => setPhone(e.target.value)} 
+                    placeholder="+91 9876543210"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-semibold text-slate-800 outline-none focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Account Lifecycle Status</label>
+                  <select
+                    value={accountStatus}
+                    onChange={e => setAccountStatus(e.target.value as any)}
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors"
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="SUSPENDED">SUSPENDED</option>
+                    <option value="DELETED">DELETED (SOFT)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Location Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">City</label>
+                  <input 
+                    type="text" 
+                    value={city} 
+                    onChange={e => setCity(e.target.value)} 
+                    placeholder="e.g. Mumbai" 
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-semibold text-slate-800 outline-none focus:border-indigo-500 transition-colors text-sm" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">State / Province</label>
+                  <input 
+                    type="text" 
+                    value={state} 
+                    onChange={e => setState(e.target.value)} 
+                    placeholder="e.g. Maharashtra" 
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-semibold text-slate-800 outline-none focus:border-indigo-500 transition-colors text-sm" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Country</label>
+                  <input 
+                    type="text" 
+                    value={country} 
+                    onChange={e => setCountry(e.target.value)} 
+                    placeholder="e.g. India" 
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-semibold text-slate-800 outline-none focus:border-indigo-500 transition-colors text-sm" 
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Organization Name *</label>
-                <input required type="text" value={orgName} onChange={e => setOrgName(e.target.value)} className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors" />
+                <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Full Address</label>
+                <input 
+                  type="text" 
+                  value={address} 
+                  onChange={e => setAddress(e.target.value)} 
+                  placeholder="Street address, campus, etc." 
+                  className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-semibold text-slate-800 outline-none focus:border-indigo-500 transition-colors text-sm" 
+                />
               </div>
 
               {/* Grade-Section-Subject Combinations Selector */}

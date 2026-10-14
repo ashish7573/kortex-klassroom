@@ -28,6 +28,11 @@ export interface BaseUserProfile {
   phoneVerified?: boolean;
   onboardingStatus?: 'PENDING_PHONE' | 'ACTIVE';
 
+  // Location fields
+  city?: string;
+  state?: string;
+  country?: string;
+
   // Soft Delete (Tombstoning) Architecture fields
   accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
   deletedBy?: 'parent' | 'organization' | 'kortex_admin' | 'self' | null;

@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, Pause, RotateCcw, Pen, Eraser, Share2, CheckCircle, 
   ChevronLeft, ChevronRight, Timer, Star, Activity, FileText, Instagram,
-  Globe, Lightbulb, PlayCircle, Target, BookOpen, Gamepad2, X
+  Globe, Lightbulb, PlayCircle, Target, BookOpen, Gamepad2, X,
+  Highlighter, Undo2, Trash2, Sliders
 } from 'lucide-react';
 import ConceptualiserRegistry from '../kortex_learning_tools/conceptualiser/00_ConceptualiserRegistry';
 import GameRegistry from '../kortex_learning_tools/games/00_GameRegistry';
@@ -31,9 +32,15 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
   const [showFinale, setShowFinale] = useState(false);
   // NEW: Drawing Overlay State & Refs
   const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [penMode, setPenMode] = useState<'pen' | 'highlighter' | 'eraser'>('pen');
   const [drawColor, setDrawColor] = useState('#ef4444'); // Default Red
+  const [penSize, setPenSize] = useState<number>(6);
+  const [showSizeSlider, setShowSizeSlider] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
+  const undoStack = useRef<ImageData[]>([]);
 
   // --- NEW: TIMER & STOPWATCH LOGIC ---
   const [showTimeTool, setShowTimeTool] = useState(false);
@@ -71,10 +78,31 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
   useEffect(() => {
       if (isDrawingMode && canvasRef.current) {
           const canvas = canvasRef.current;
-          canvas.width = canvas.offsetWidth;
-          canvas.height = canvas.offsetHeight;
+          if (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight) {
+              const tempCanvas = document.createElement('canvas');
+              tempCanvas.width = canvas.width;
+              tempCanvas.height = canvas.height;
+              const tempCtx = tempCanvas.getContext('2d');
+              if (tempCtx && canvas.width > 0 && canvas.height > 0) {
+                  tempCtx.drawImage(canvas, 0, 0);
+              }
+              canvas.width = canvas.offsetWidth;
+              canvas.height = canvas.offsetHeight;
+              if (tempCtx && tempCanvas.width > 0 && tempCanvas.height > 0) {
+                  canvas.getContext('2d')?.drawImage(tempCanvas, 0, 0);
+              }
+          }
       }
   }, [isDrawingMode]);
+
+  useEffect(() => {
+      if (canvasRef.current) {
+          const ctx = canvasRef.current.getContext('2d');
+          if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+      undoStack.current = [];
+      setCanUndo(false);
+  }, [currentStep]);
 
   useEffect(() => {
       if (isTimerActive) {
@@ -306,40 +334,143 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
 
 // --- NEW: ANNOTATION DRAWING LOGIC ---
 
-  const startDrawing = (e: any) => {
-      isDrawing.current = true;
-      draw(e);
+  const saveUndoState = () => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || canvas.width === 0 || canvas.height === 0) return;
+    try {
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      undoStack.current.push(imgData);
+      if (undoStack.current.length > 12) {
+        undoStack.current.shift();
+      }
+      setCanUndo(true);
+    } catch (e) {
+      // Ignore image data read errors
+    }
   };
 
-  const stopDrawing = () => {
-      isDrawing.current = false;
-      if (canvasRef.current) {
-          canvasRef.current.getContext('2d')?.beginPath();
-      }
+  const handleUndo = () => {
+    if (!canvasRef.current || undoStack.current.length === 0) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const prev = undoStack.current.pop();
+    if (prev) {
+      ctx.putImageData(prev, 0, 0);
+    }
+    setCanUndo(undoStack.current.length > 0);
+  };
+
+  const handleClearCanvas = () => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    saveUndoState();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const getCoordinates = (e: any, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  };
+
+  const applyBrushSettings = (ctx: CanvasRenderingContext2D) => {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (penMode === 'eraser') {
+      ctx.lineWidth = Math.max(16, penSize * 2.5);
+      ctx.globalAlpha = 1.0;
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.fillStyle = 'rgba(0,0,0,1)';
+    } else if (penMode === 'highlighter') {
+      ctx.lineWidth = Math.max(12, penSize * 2.5);
+      ctx.globalAlpha = 0.45;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = drawColor;
+      ctx.fillStyle = drawColor;
+    } else {
+      ctx.lineWidth = penSize;
+      ctx.globalAlpha = 1.0;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = drawColor;
+      ctx.fillStyle = drawColor;
+    }
+  };
+
+  const startDrawing = (e: any) => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    saveUndoState();
+    isDrawing.current = true;
+    const { x, y } = getCoordinates(e, canvas);
+
+    applyBrushSettings(ctx);
+
+    const radius = (penMode === 'eraser' ? Math.max(16, penSize * 2.5) : (penMode === 'highlighter' ? Math.max(12, penSize * 2.5) : penSize)) / 2;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    lastPos.current = { x, y };
   };
 
   const draw = (e: any) => {
-      if (!isDrawing.current || !canvasRef.current) return;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+    if (!isDrawing.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-      const rect = canvas.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
+    const { x, y } = getCoordinates(e, canvas);
+    applyBrushSettings(ctx);
 
-      ctx.lineWidth = drawColor === 'eraser' ? 30 : 6;
-      ctx.lineCap = 'round';
-      ctx.globalCompositeOperation = drawColor === 'eraser' ? 'destination-out' : 'source-over';
-      ctx.strokeStyle = drawColor === 'eraser' ? 'rgba(0,0,0,1)' : drawColor;
-
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x, y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    lastPos.current = { x, y };
   };
+
+  const stopDrawing = () => {
+    if (!isDrawing.current) return;
+    isDrawing.current = false;
+    lastPos.current = null;
+    if (canvasRef.current) {
+      canvasRef.current.getContext('2d')?.beginPath();
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isDrawingMode) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key === 'Escape') {
+        if (showSizeSlider) {
+          setShowSizeSlider(false);
+        } else {
+          setIsDrawingMode(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDrawingMode, showSizeSlider, canUndo]);
 
 
   const renderContent = () => {
@@ -510,24 +641,201 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
                      className="absolute inset-0 z-40 w-full h-full touch-none cursor-crosshair"
                  />
                  
-                 {/* Floating Toolbar for Colors/Eraser */}
-                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800/95 backdrop-blur-md border border-slate-600 rounded-full p-2 flex items-center gap-2 shadow-2xl animate-fade-in-up">
-                     {['#ef4444', '#3b82f6', '#10b981'].map(color => (
-                         <button 
-                             key={color}
-                             onClick={() => setDrawColor(color)}
-                             className={`w-8 h-8 rounded-full border-2 transition-transform ${drawColor === color ? 'scale-110 border-white' : 'border-transparent hover:scale-105'}`}
-                             style={{ backgroundColor: color }}
-                         />
-                     ))}
-                     <div className="w-px h-6 bg-slate-600 mx-1"></div>
-                     <button 
-                         onClick={() => setDrawColor('eraser')}
-                         className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${drawColor === 'eraser' ? 'bg-slate-200 text-slate-800 border-white' : 'bg-slate-700 text-slate-300 border-transparent hover:bg-slate-600'}`}
-                         title="Eraser"
-                     >
-                         <Eraser size={16} />
-                     </button>
+                 {/* Floating Toolbar & Thickness Popover */}
+                 <div 
+                     className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 max-w-[95vw]"
+                     onMouseDown={(e) => e.stopPropagation()}
+                     onTouchStart={(e) => e.stopPropagation()}
+                 >
+                     {/* Main Bar */}
+                     <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl px-3 py-2 flex items-center gap-1.5 md:gap-2 shadow-2xl animate-fade-in-up text-white">
+                         
+                         {/* Mode Selectors */}
+                         <div className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
+                             <button
+                                 type="button"
+                                 onClick={() => setPenMode('pen')}
+                                 className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all ${
+                                     penMode === 'pen'
+                                         ? 'bg-sky-500 text-white shadow-sm'
+                                         : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
+                                 }`}
+                                 title="Solid Pen"
+                             >
+                                 <Pen size={14} />
+                                 <span className="hidden sm:inline">Pen</span>
+                             </button>
+
+                             <button
+                                 type="button"
+                                 onClick={() => setPenMode('highlighter')}
+                                 className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all ${
+                                     penMode === 'highlighter'
+                                         ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                                         : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
+                                 }`}
+                                 title="Translucent Highlighter"
+                             >
+                                 <Highlighter size={14} />
+                                 <span className="hidden sm:inline">Highlight</span>
+                             </button>
+
+                             <button
+                                 type="button"
+                                 onClick={() => setPenMode('eraser')}
+                                 className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all ${
+                                     penMode === 'eraser'
+                                         ? 'bg-rose-500 text-white shadow-sm'
+                                         : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
+                                 }`}
+                                 title="Eraser"
+                             >
+                                 <Eraser size={14} />
+                                 <span className="hidden sm:inline">Eraser</span>
+                             </button>
+                         </div>
+
+                         <div className="w-px h-6 bg-slate-700 mx-0.5"></div>
+
+                         {/* Color Palette (dimmed when eraser is selected) */}
+                         <div className={`flex items-center gap-1.5 transition-opacity ${penMode === 'eraser' ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+                             {['#ef4444', '#f97316', '#facc15', '#10b981', '#38bdf8', '#a855f7', '#ffffff'].map((color) => {
+                                 const isSelected = drawColor === color && penMode !== 'eraser';
+                                 return (
+                                     <button
+                                         key={color}
+                                         type="button"
+                                         onClick={() => {
+                                             setDrawColor(color);
+                                             if (penMode === 'eraser') setPenMode('pen');
+                                         }}
+                                         className={`w-6 h-6 md:w-7 md:h-7 rounded-full border-2 transition-transform ${
+                                             isSelected ? 'scale-110 border-white shadow-md' : 'border-transparent hover:scale-105 opacity-80 hover:opacity-100'
+                                         }`}
+                                         style={{ backgroundColor: color }}
+                                         title={color}
+                                     />
+                                 );
+                             })}
+                         </div>
+
+                         <div className="w-px h-6 bg-slate-700 mx-0.5"></div>
+
+                         {/* Thickness Slider Trigger */}
+                         <button
+                             type="button"
+                             onClick={() => setShowSizeSlider(!showSizeSlider)}
+                             className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 border text-xs font-bold transition-all ${
+                                 showSizeSlider
+                                     ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
+                                     : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-700'
+                             }`}
+                             title="Adjust Stroke Thickness"
+                         >
+                             <Sliders size={13} />
+                             <span>{penSize}px</span>
+                         </button>
+
+                         <div className="w-px h-6 bg-slate-700 mx-0.5"></div>
+
+                         {/* Actions: Undo, Clear, Close */}
+                         <div className="flex items-center gap-1">
+                             <button
+                                 type="button"
+                                 onClick={handleUndo}
+                                 disabled={!canUndo}
+                                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                                     canUndo
+                                         ? 'text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95'
+                                         : 'text-slate-600 cursor-not-allowed'
+                                 }`}
+                                 title="Undo (Ctrl+Z)"
+                             >
+                                 <Undo2 size={15} />
+                             </button>
+
+                             <button
+                                 type="button"
+                                 onClick={handleClearCanvas}
+                                 className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-all active:scale-95"
+                                 title="Clear All Drawings"
+                             >
+                                 <Trash2 size={15} />
+                             </button>
+
+                             <button
+                                 type="button"
+                                 onClick={() => setIsDrawingMode(false)}
+                                 className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all ml-1"
+                                 title="Exit Drawing Mode (Esc)"
+                             >
+                                 <X size={16} />
+                             </button>
+                         </div>
+                     </div>
+
+                     {/* Floating Thickness Slider Popover */}
+                     {showSizeSlider && (
+                         <div 
+                             className="bg-slate-900/98 backdrop-blur-md border border-slate-700 rounded-2xl p-3.5 shadow-2xl flex flex-col gap-3 w-64 md:w-72 animate-fade-in-up text-white"
+                             onMouseDown={(e) => e.stopPropagation()}
+                             onTouchStart={(e) => e.stopPropagation()}
+                         >
+                             <div className="flex items-center justify-between">
+                                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Stroke Thickness</span>
+                                 <span className="text-xs font-black text-sky-400 font-mono bg-sky-950/60 border border-sky-800/60 px-2 py-0.5 rounded-md">
+                                     {penSize}px {penMode === 'highlighter' ? '(Wide)' : penMode === 'eraser' ? '(Eraser)' : ''}
+                                 </span>
+                             </div>
+
+                             {/* Quick Presets */}
+                             <div className="grid grid-cols-4 gap-1.5">
+                                 {[
+                                     { label: 'Fine', size: 2 },
+                                     { label: 'Normal', size: 6 },
+                                     { label: 'Thick', size: 14 },
+                                     { label: 'Bold', size: 24 }
+                                 ].map((preset) => (
+                                     <button
+                                         key={preset.size}
+                                         type="button"
+                                         onClick={() => setPenSize(preset.size)}
+                                         className={`py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                             penSize === preset.size
+                                                 ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm'
+                                                 : 'bg-slate-800 text-slate-400 hover:text-white border-slate-700 hover:bg-slate-700'
+                                         }`}
+                                     >
+                                         {preset.label}
+                                     </button>
+                                 ))}
+                             </div>
+
+                             {/* Slider + Live Preview */}
+                             <div className="flex items-center gap-3 pt-1">
+                                 <input
+                                     type="range"
+                                     min="2"
+                                     max="36"
+                                     step="1"
+                                     value={penSize}
+                                     onChange={(e) => setPenSize(Number(e.target.value))}
+                                     className="flex-1 accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg appearance-none"
+                                 />
+                                 <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0">
+                                     <div
+                                         className="rounded-full transition-all"
+                                         style={{
+                                             width: `${Math.min(32, penSize)}px`,
+                                             height: `${Math.min(32, penSize)}px`,
+                                             backgroundColor: penMode === 'eraser' ? '#f43f5e' : drawColor,
+                                             opacity: penMode === 'highlighter' ? 0.6 : 1
+                                         }}
+                                     />
+                                 </div>
+                             </div>
+                         </div>
+                     )}
                  </div>
              </>
          )}

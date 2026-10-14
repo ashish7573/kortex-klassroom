@@ -764,6 +764,21 @@ export async function deleteIndividualUser(idToken: string, uidToDelete: string,
 }
 
 
+export async function generateUserPasswordResetLink(idToken: string, email: string): Promise<{ success: boolean; link?: string; error?: string }> {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const callerDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    if (!callerDoc.exists || (callerDoc.data()?.role !== 'admin' && callerDoc.data()?.role !== 'krew')) {
+       return { success: false, error: 'Unauthorized. Only Admins can generate reset links.' };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const link = await adminAuth.generatePasswordResetLink(cleanEmail);
+    return { success: true, link };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to generate password reset link.' };
+  }
+}
+
 export async function updateIndividualUser(idToken: string, uidToUpdate: string, updateData: any): Promise<{ success: boolean; error?: string }> {
   try {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -774,19 +789,50 @@ export async function updateIndividualUser(idToken: string, uidToUpdate: string,
     }
 
     // Clean data (prevent role escalation or critical uid changes)
-    const safeData = { ...updateData };
+    const safeData: any = { ...updateData };
     delete safeData.uid;
-    delete safeData.role;
-    delete safeData.org_id;
-    delete safeData.org_ids;
-    delete safeData.parent_id;
+    delete safeData.role; // keep role locked to prevent accidental escalation
+
+    // Clean any undefined fields so Firestore doesn't reject the payload
+    Object.keys(safeData).forEach(key => {
+      if (safeData[key] === undefined) {
+        delete safeData[key];
+      }
+    });
+
+    // Handle soft delete or restore if accountStatus changed
+    if (safeData.accountStatus === 'DELETED') {
+      safeData.deletedBy = 'kortex_admin';
+      safeData.deletedAt = new Date().toISOString();
+      safeData.status = 'suspended';
+    } else if (safeData.accountStatus === 'ACTIVE') {
+      safeData.deletedBy = null;
+      safeData.deletedAt = null;
+      if (safeData.status === 'suspended') {
+        safeData.status = 'active';
+      }
+    } else if (safeData.accountStatus === 'SUSPENDED') {
+      safeData.status = 'suspended';
+    }
+
+    safeData.updated_at = new Date().toISOString();
     
     // Update the target user in Firestore
     await adminDb.collection('users').doc(uidToUpdate).update(safeData);
 
-    // If email is updated, update in Auth as well
-    if (safeData.email) {
-       await adminAuth.updateUser(uidToUpdate, { email: safeData.email });
+    // Sync auth credentials safely if provided
+    try {
+      const authUpdates: any = {};
+      if (safeData.email) authUpdates.email = String(safeData.email).trim().toLowerCase();
+      if (safeData.full_name) authUpdates.displayName = String(safeData.full_name).trim();
+      if (safeData.plain_pin && String(safeData.plain_pin).length >= 6) {
+        authUpdates.password = String(safeData.plain_pin);
+      }
+      if (Object.keys(authUpdates).length > 0) {
+        await adminAuth.updateUser(uidToUpdate, authUpdates);
+      }
+    } catch (authErr: any) {
+      console.warn("Auth sync notice:", authErr.message);
     }
 
     return { success: true };

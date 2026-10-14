@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, Mail, Save, Fingerprint } from 'lucide-react';
 import { OrgAdminProfile } from '../../../types/user';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -12,8 +12,23 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
     organizationName: profile.organization_name,
     orgType: profile.org_type || 'school',
     address: profile.address || '',
+    city: profile.city || '',
+    state: profile.state || '',
+    country: profile.country || '',
     phone: profile.phone || ''
   });
+
+  useEffect(() => {
+    setFormData({
+      organizationName: profile.organization_name,
+      orgType: profile.org_type || 'school',
+      address: profile.address || '',
+      city: profile.city || '',
+      state: profile.state || '',
+      country: profile.country || '',
+      phone: profile.phone || ''
+    });
+  }, [profile]);
   
   const [isSaving, setIsSaving] = useState(false);
   
@@ -75,6 +90,9 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
         full_name: formData.organizationName.trim(), // Keep full name in sync
         org_type: formData.orgType,
         address: formData.address.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        country: formData.country.trim(),
         phone: formData.phone.trim()
       };
 
@@ -188,8 +206,45 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
              value={formData.address}
              onChange={(e) => setFormData({...formData, address: e.target.value})}
              rows={3}
+             placeholder="Street address, building, suite, etc."
              className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500 resize-none" 
            />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">City</label>
+            <input 
+              type="text"
+              disabled={!isEditing}
+              value={formData.city}
+              onChange={e => setFormData({...formData, city: e.target.value})}
+              placeholder="e.g. Mumbai"
+              className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">State / Province</label>
+            <input 
+              type="text"
+              disabled={!isEditing}
+              value={formData.state}
+              onChange={e => setFormData({...formData, state: e.target.value})}
+              placeholder="e.g. Maharashtra"
+              className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Country</label>
+            <input 
+              type="text"
+              disabled={!isEditing}
+              value={formData.country}
+              onChange={e => setFormData({...formData, country: e.target.value})}
+              placeholder="e.g. India"
+              className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-indigo-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+            />
+          </div>
         </div>
 
         <div className="pt-4 flex justify-end">
@@ -197,7 +252,18 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
              <div className="flex gap-3">
                 <button 
                   type="button" 
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => {
+                    setFormData({
+                      organizationName: profile.organization_name,
+                      orgType: profile.org_type || 'school',
+                      address: profile.address || '',
+                      city: profile.city || '',
+                      state: profile.state || '',
+                      country: profile.country || '',
+                      phone: profile.phone || ''
+                    });
+                    setIsEditing(false);
+                  }}
                   className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
                 >
                   Cancel

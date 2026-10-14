@@ -12,6 +12,10 @@ export async function provisionSchoolAccount(
     approvedCombos: string[];
     maxStudentSeats: number;
     subscriptionEndDate: string | null;
+    city?: string;
+    state?: string;
+    country?: string;
+    address?: string;
   }
 ) {
   try {
@@ -61,6 +65,10 @@ export async function provisionSchoolAccount(
       license_quota: Number(maxStudentSeats),
       active_students_count: 0,
       teacher_ids: [],
+      address: provisionData.address?.trim() || undefined,
+      city: provisionData.city?.trim() || undefined,
+      state: provisionData.state?.trim() || undefined,
+      country: provisionData.country?.trim() || undefined,
     };
 
     await adminDb.collection('users').doc(userRecord.uid).set({
@@ -136,6 +144,14 @@ export async function updateOrganizationAccount(
     subscriptionEndDate: string | null;
     agreementUrl?: string;
     invoiceUrl?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    address?: string;
+    phone?: string;
+    orgType?: 'school' | 'coaching' | 'ngo' | 'other';
+    accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
+    status?: string;
   }
 ) {
   try {
@@ -146,15 +162,14 @@ export async function updateOrganizationAccount(
       throw new Error("Unauthorized: Only Super Admins can update organizations.");
     }
 
-    const { orgName, approvedCombos, maxStudentSeats, subscriptionEndDate, agreementUrl, invoiceUrl } = updateData;
+    const { orgName, approvedCombos, maxStudentSeats, subscriptionEndDate, agreementUrl, invoiceUrl, city, state, country, address, phone, orgType, accountStatus, status } = updateData;
 
     // 1. Update Firebase Auth Display Name
     await adminAuth.updateUser(targetUid, {
       displayName: orgName.trim(),
     });
 
-    // 2. Update Firestore Profile
-    await adminDb.collection('users').doc(targetUid).update({
+    const firestoreUpdate: any = {
       organization_name: orgName.trim(),
       approved_grade_subject_combos: approvedCombos,
       license_quota: Number(maxStudentSeats),
@@ -162,7 +177,32 @@ export async function updateOrganizationAccount(
       agreement_url: agreementUrl !== undefined ? agreementUrl : null,
       invoice_url: invoiceUrl !== undefined ? invoiceUrl : null,
       updated_at: new Date().toISOString()
-    });
+    };
+
+    if (city !== undefined) firestoreUpdate.city = city.trim();
+    if (state !== undefined) firestoreUpdate.state = state.trim();
+    if (country !== undefined) firestoreUpdate.country = country.trim();
+    if (address !== undefined) firestoreUpdate.address = address.trim();
+    if (phone !== undefined) firestoreUpdate.phone = phone.trim();
+    if (orgType !== undefined) firestoreUpdate.org_type = orgType;
+    if (accountStatus !== undefined) {
+      firestoreUpdate.accountStatus = accountStatus;
+      if (accountStatus === 'DELETED') {
+        firestoreUpdate.deletedBy = 'kortex_admin';
+        firestoreUpdate.deletedAt = new Date().toISOString();
+        firestoreUpdate.status = 'suspended';
+      } else if (accountStatus === 'ACTIVE') {
+        firestoreUpdate.deletedBy = null;
+        firestoreUpdate.deletedAt = null;
+        firestoreUpdate.status = 'active';
+      } else if (accountStatus === 'SUSPENDED') {
+        firestoreUpdate.status = 'suspended';
+      }
+    }
+    if (status !== undefined) firestoreUpdate.status = status;
+
+    // 2. Update Firestore Profile
+    await adminDb.collection('users').doc(targetUid).update(firestoreUpdate);
 
     return { success: true };
   } catch (error: any) {

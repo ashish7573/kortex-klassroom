@@ -1,9 +1,9 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot, or, and } from 'firebase/firestore';
 import { db, auth } from '../../../backend_configurations/firebase';
 import { OrgAdminProfile, StudentProfile } from '../../../types/user';
-import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen, Download, Search, Filter, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen, Download, Search, Filter, ChevronUp, ChevronDown, ArrowUpDown, Eye, EyeOff } from 'lucide-react';
 import { GRADES, SECTIONS, SUBJECT_CATEGORIES, GRADE_CORE_MAP } from '../../../kortex_landing_page/curriculumConfig';
 import { generateComboId } from '../utils/comboParsers';
 import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess, bulkProvisionStudents } from '../../../app/actions/student';
@@ -20,9 +20,42 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Search & On-Demand Filters
+  const [showList, setShowList] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('all');
+  const [subjectFilter, setSubjectFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+
+  // Helper functions for Subjects
+  const getStudentDefaultCombos = (student: StudentProfile) => {
+    const grade = student.org_links?.[profile.uid]?.grade || student.grade;
+    const section = student.org_links?.[profile.uid]?.section || student.section;
+    const defaultPrefix = `${grade} - Section ${section}`;
+    return (profile.approved_grade_subject_combos || []).filter(c => c.startsWith(defaultPrefix));
+  };
+
+  const decodeCombo = (comboId: string) => {
+    const orgCombos = profile.approved_grade_subject_combos || [];
+    const found = orgCombos.find(c => generateComboId(profile.kortex_id || '', c) === comboId);
+    if (!found) return comboId;
+    const parts = found.split('-');
+    return parts.length > 2 ? parts[parts.length - 1].trim() : found;
+  };
+
+  // Extract distinct subjects from org combos
+  const availableSubjects = useMemo(() => {
+    const set = new Set<string>();
+    (profile.approved_grade_subject_combos || []).forEach(combo => {
+      const parts = combo.split('-');
+      if (parts.length > 2) {
+        set.add(parts[parts.length - 1].trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [profile.approved_grade_subject_combos]);
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -39,17 +72,72 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
     return <ArrowUpDown size={12} className="inline ml-1 opacity-20 group-hover:opacity-100 transition-opacity" />;
   };
 
+  const exportStudentsToCSV = () => {
+    if (processedStudents.length === 0) return;
+    const headers = ['Roll No', 'Student ID', 'Student Name', 'Grade', 'Section', 'Parent Name', 'Parent Email', 'Parent Phone', 'Status'];
+    const rows = [headers.join(',')];
+    for (const s of processedStudents) {
+      const roll = s.roll_no || s.org_links?.[profile.uid]?.roll_no || '';
+      const grade = s.org_links?.[profile.uid]?.grade || s.grade || '';
+      const section = s.org_links?.[profile.uid]?.section || s.section || '';
+      const status = s.org_links?.[profile.uid]?.status || 'pending';
+      const values = [
+        `"${roll}"`,
+        `"${s.kortex_id || ''}"`,
+        `"${s.full_name || ''}"`,
+        `"${grade}"`,
+        `"${section}"`,
+        `"${s.parent_name || ''}"`,
+        `"${s.parent_email || ''}"`,
+        `"${s.emergency_contact || ''}"`,
+        `"${status}"`
+      ];
+      rows.push(values.join(','));
+    }
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${profile.organization_name}_Students.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   let processedStudents = [...students].filter(student => {
     const rollNo = student.roll_no || student.org_links?.[profile.uid]?.roll_no || '';
+    const searchLower = searchQuery.toLowerCase();
     const matchesSearch = 
-      (student.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (student.kortex_id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rollNo.toLowerCase().includes(searchQuery.toLowerCase());
+      (student.full_name || '').toLowerCase().includes(searchLower) || 
+      (student.kortex_id || '').toLowerCase().includes(searchLower) ||
+      rollNo.toLowerCase().includes(searchLower) ||
+      (student.parent_name || '').toLowerCase().includes(searchLower) ||
+      (student.parent_email || '').toLowerCase().includes(searchLower) ||
+      (student.emergency_contact || '').includes(searchLower);
     
     const grade = student.org_links?.[profile.uid]?.grade || student.grade;
     const matchesGrade = gradeFilter === 'all' || grade === gradeFilter;
 
-    return matchesSearch && matchesGrade;
+    const section = student.org_links?.[profile.uid]?.section || student.section;
+    const matchesSection = sectionFilter === 'all' || section === sectionFilter;
+
+    const linkStatus = student.org_links?.[profile.uid]?.status || 'pending_setup';
+    const matchesStatus = statusFilter === 'all' 
+      ? true 
+      : (statusFilter === 'approved' ? linkStatus === 'approved' : linkStatus !== 'approved');
+
+    let matchesSubject = true;
+    if (subjectFilter !== 'all') {
+      const defaultCombos = getStudentDefaultCombos(student);
+      const assignedCombos = student.org_links?.[profile.uid]?.assigned_combos || [];
+      const allComboStrings = [
+        ...defaultCombos,
+        ...assignedCombos.map(decodeCombo)
+      ];
+      matchesSubject = allComboStrings.some(c => c.toLowerCase().includes(subjectFilter.toLowerCase()));
+    }
+
+    return matchesSearch && matchesGrade && matchesSection && matchesStatus && matchesSubject;
   });
 
   if (sortConfig) {
@@ -355,22 +443,6 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
     });
   };
 
-  // Helper functions for Subjects
-  const getStudentDefaultCombos = (student: StudentProfile) => {
-    const grade = student.org_links?.[profile.uid]?.grade || student.grade;
-    const section = student.org_links?.[profile.uid]?.section || student.section;
-    const defaultPrefix = `${grade} - Section ${section}`;
-    return (profile.approved_grade_subject_combos || []).filter(c => c.startsWith(defaultPrefix));
-  };
-
-  const decodeCombo = (comboId: string) => {
-    const orgCombos = profile.approved_grade_subject_combos || [];
-    const found = orgCombos.find(c => generateComboId(profile.kortex_id || '', c) === comboId);
-    if (!found) return comboId;
-    const parts = found.split('-');
-    return parts.length > 2 ? parts[parts.length - 1].trim() : found;
-  };
-
   // Filter approved combos to only show ones that do NOT belong to the student's default grade & section
   const extraCombos = (profile.approved_grade_subject_combos || []).filter(comboString => {
     const defaultPrefix = `${studentForm.grade} - Section ${studentForm.section}`;
@@ -390,151 +462,321 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
         </div>
         <button 
           onClick={() => { resetForm(); setShowAddModal(true); }}
-          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0"
+          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0 cursor-pointer"
         >
           <UserPlus size={18} /> Add Student
         </button>
       </div>
 
-      
-      {/* Controls: Search and Filter */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end mb-6">
-        <div className="flex-1 w-full max-w-md relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search by student name, Roll No, or Kortex ID..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-colors"
-          />
+      {/* Search & Filter Console */}
+      <div className="bg-slate-50 border-2 border-slate-100 rounded-3xl p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
+            <Filter size={14} className="text-indigo-600" />
+            <span>Student Search & Filter Console</span>
+          </div>
+          {(gradeFilter !== 'all' || sectionFilter !== 'all' || subjectFilter !== 'all' || statusFilter !== 'all' || searchQuery.trim() !== '') && (
+            <button
+              type="button"
+              onClick={() => {
+                setGradeFilter('all');
+                setSectionFilter('all');
+                setSubjectFilter('all');
+                setStatusFilter('all');
+                setSearchQuery('');
+              }}
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
-        
-        <div className="flex items-center gap-2">
-          <Filter size={16} className="text-slate-400" />
-          <select 
-            value={gradeFilter} 
-            onChange={e => setGradeFilter(e.target.value)}
-            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-colors"
-          >
-            <option value="all">All Grades</option>
-            {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-        </div>
-      </div>
-      
-      {/* Directory Table */}
 
-      <div className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
-              <tr>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("roll_no")}>Roll No {sortIndicator("roll_no")}</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("student_id")}>Student ID {sortIndicator("student_id")}</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("full_name")}>Student Name {sortIndicator("full_name")}</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Subjects</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Parent Details</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("link_status")}>Link Status {sortIndicator("link_status")}</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading students...</td></tr>
-              ) : processedStudents.length > 0 ? processedStudents.map(student => {
-                const legacyCount = getStudentDefaultCombos(student).length;
-                const assignedCount = student.org_links?.[profile.uid]?.assigned_combos?.length || 0;
-                const totalCount = assignedCount > 0 ? assignedCount : legacyCount;
-                
-                return (
-                <tr key={student.uid} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <span className="font-bold text-slate-700 font-mono text-xs bg-slate-100 px-2.5 py-1 rounded-md inline-block">
-                      {student.roll_no || student.org_links?.[profile.uid]?.roll_no ? `#${student.roll_no || student.org_links?.[profile.uid]?.roll_no}` : '-'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-indigo-600 font-mono text-xs bg-indigo-50 px-2 py-1 rounded-md inline-block">
-                      {student.kortex_id || 'PENDING'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-slate-800 flex items-center gap-2">
-                      {student.full_name}
-                      {student.accountStatus === 'DELETED' && (
-                         <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[10px] font-black uppercase tracking-wider">Deleted</span>
-                      )}
-                    </div>
-                    <div className="font-semibold text-slate-400 text-xs">
-                      {student.org_links?.[profile.uid]?.grade || student.grade} {(student.org_links?.[profile.uid]?.section || student.section) && `- Sec ${student.org_links?.[profile.uid]?.section || student.section}`}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button 
-                      onClick={() => { setViewingSubjectsStudent(student); setShowSubjectsModal(true); }}
-                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-black transition-colors flex items-center gap-1.5"
-                    >
-                      <BookOpen size={14} /> 
-                      {totalCount} {assignedCount === 0 && legacyCount > 0 && <span className="text-amber-500 text-[10px] ml-1">(Legacy)</span>}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col gap-0.5">
-                      {student.parent_name ? (
-                        <span className="font-bold text-slate-700">{student.parent_name}</span>
-                      ) : (
-                        <div className="flex flex-col gap-1"><span className="font-semibold text-amber-500 italic text-xs">Awaiting Link</span>{student.claim_code && <span className="text-[10px] font-black uppercase text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md inline-block max-w-max">Code: {student.claim_code}</span>}</div>
-                      )}
-                      
-                      {student.emergency_contact ? (
-                        <span className="font-semibold text-slate-500 flex items-center gap-1 text-[11px]">
-                          <Phone size={12} className="text-slate-400" /> {student.emergency_contact}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300 italic text-[11px] mt-0.5">No Contact Provided</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {student.org_links?.[profile.uid]?.status === 'pending' ? (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold flex items-center gap-1 w-max">
-                        <RefreshCw size={14} /> Transfer Pending
-                      </span>
-                    ) : student.org_links?.[profile.uid]?.status === 'approved' ? (
-                      <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 w-max">
-                        <CheckCircle2 size={14} /> Linked
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold flex items-center gap-1 w-max">
-                        <AlertCircle size={14} /> Pending Setup
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button 
-                        onClick={() => openEdit(student)}
-                        className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button 
-                        onClick={() => { setRevokingStudent(student); setShowRevokeModal(true); }}
-                        className="p-2 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}) : (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">No students registered yet.</td></tr>
-              )}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5 items-end">
+          {/* 1. Class / Grade */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Class / Grade
+            </label>
+            <select
+              value={gradeFilter}
+              onChange={(e) => setGradeFilter(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-sm transition-all cursor-pointer h-[42px]"
+            >
+              <option value="all">All Grades</option>
+              {GRADES.map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Section */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Section
+            </label>
+            <select
+              value={sectionFilter}
+              onChange={(e) => setSectionFilter(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-sm transition-all cursor-pointer h-[42px]"
+            >
+              <option value="all">All Sections</option>
+              {SECTIONS.map(s => (
+                <option key={s} value={s}>Section {s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Subject */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Subject
+            </label>
+            <select
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-sm transition-all cursor-pointer h-[42px]"
+            >
+              <option value="all">All Subjects</option>
+              {availableSubjects.map(subj => (
+                <option key={subj} value={subj}>{subj}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Link Status */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Status
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-sm transition-all cursor-pointer h-[42px]"
+            >
+              <option value="all">All Statuses</option>
+              <option value="approved">Linked (Active)</option>
+              <option value="pending">Pending Link</option>
+            </select>
+          </div>
+
+          {/* 5. Search */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Search
+            </label>
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Name, Roll No, ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setShowList(true);
+                }}
+                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm font-bold text-slate-700 focus:border-indigo-500 outline-none shadow-sm transition-all h-[42px]"
+              />
+            </div>
+          </div>
+
+          {/* 6. Action Button */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-transparent mb-1.5 select-none">Action</label>
+            <button
+              type="button"
+              onClick={() => setShowList(true)}
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl shadow-md hover:shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer h-[42px]"
+            >
+              <Eye size={16} />
+              <span>{showList ? 'Refresh List' : 'Show List'}</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Main Content Area */}
+      {!showList ? (
+        <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center bg-slate-50/50">
+          <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+            <Users size={30} />
+          </div>
+          <h3 className="text-xl font-black text-slate-800 mb-1.5">No Student Roster Generated</h3>
+          <p className="text-sm font-semibold text-slate-500 max-w-md mx-auto mb-6">
+            Configure your filters above (Class, Section, Subject, or Status) and click <span className="font-bold text-indigo-600">"Show List"</span> to view student records on demand.
+          </p>
+          <div className="inline-flex flex-wrap items-center justify-center gap-4 text-xs font-bold text-slate-500 bg-white px-5 py-2.5 rounded-2xl border border-slate-200 shadow-sm">
+            <span>👥 {students.length} Enrolled</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-emerald-600">✅ {students.filter(s => s.org_links?.[profile.uid]?.status === 'approved').length} Linked</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-blue-600">⏳ {students.filter(s => s.org_links?.[profile.uid]?.status === 'pending').length} Pending Link</span>
+            <span className="text-slate-300">•</span>
+            <span>🪑 {students.length} / {profile.license_quota || 0} Seats</span>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4 animate-fade-in">
+          {/* Results Summary Bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold text-slate-700">
+                Showing <span className="font-black text-indigo-900">{processedStudents.length}</span> Students
+              </span>
+              {gradeFilter !== 'all' && (
+                <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100">
+                  {gradeFilter}
+                </span>
+              )}
+              {sectionFilter !== 'all' && (
+                <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100">
+                  Sec {sectionFilter}
+                </span>
+              )}
+              {subjectFilter !== 'all' && (
+                <span className="px-2.5 py-0.5 bg-violet-50 text-violet-700 text-xs font-bold rounded-lg border border-violet-100">
+                  {subjectFilter}
+                </span>
+              )}
+              {statusFilter !== 'all' && (
+                <span className="px-2.5 py-0.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-100 capitalize">
+                  {statusFilter}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 self-end sm:self-auto">
+              <button 
+                onClick={exportStudentsToCSV}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold rounded-xl text-xs transition-colors border border-emerald-100 shrink-0 cursor-pointer"
+                title="Download CSV"
+              >
+                <Download size={14} /> <span>Export CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowList(false)}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs transition-colors shrink-0 cursor-pointer"
+                title="Collapse list"
+              >
+                <EyeOff size={14} /> <span>Hide List</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Directory Table */}
+          <div className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                  <tr>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("roll_no")}>Roll No {sortIndicator("roll_no")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("student_id")}>Student ID {sortIndicator("student_id")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("full_name")}>Student Name {sortIndicator("full_name")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Subjects</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Parent Details</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("link_status")}>Link Status {sortIndicator("link_status")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {loading ? (
+                    <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading students...</td></tr>
+                  ) : processedStudents.length > 0 ? processedStudents.map(student => {
+                    const legacyCount = getStudentDefaultCombos(student).length;
+                    const assignedCount = student.org_links?.[profile.uid]?.assigned_combos?.length || 0;
+                    const totalCount = assignedCount > 0 ? assignedCount : legacyCount;
+                    
+                    return (
+                    <tr key={student.uid} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-slate-700 font-mono text-xs bg-slate-100 px-2.5 py-1 rounded-md inline-block">
+                          {student.roll_no || student.org_links?.[profile.uid]?.roll_no ? `#${student.roll_no || student.org_links?.[profile.uid]?.roll_no}` : '-'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-indigo-600 font-mono text-xs bg-indigo-50 px-2 py-1 rounded-md inline-block">
+                          {student.kortex_id || 'PENDING'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-800 flex items-center gap-2">
+                          {student.full_name}
+                          {student.accountStatus === 'DELETED' && (
+                             <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[10px] font-black uppercase tracking-wider">Deleted</span>
+                          )}
+                        </div>
+                        <div className="font-semibold text-slate-400 text-xs">
+                          {student.org_links?.[profile.uid]?.grade || student.grade} {(student.org_links?.[profile.uid]?.section || student.section) && `- Sec ${student.org_links?.[profile.uid]?.section || student.section}`}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <button 
+                          onClick={() => { setViewingSubjectsStudent(student); setShowSubjectsModal(true); }}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-black transition-colors flex items-center gap-1.5"
+                        >
+                          <BookOpen size={14} /> 
+                          {totalCount} {assignedCount === 0 && legacyCount > 0 && <span className="text-amber-500 text-[10px] ml-1">(Legacy)</span>}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-0.5">
+                          {student.parent_name ? (
+                            <span className="font-bold text-slate-700">{student.parent_name}</span>
+                          ) : (
+                            <div className="flex flex-col gap-1"><span className="font-semibold text-amber-500 italic text-xs">Awaiting Link</span>{student.claim_code && <span className="text-[10px] font-black uppercase text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md inline-block max-w-max">Code: {student.claim_code}</span>}</div>
+                          )}
+                          
+                          {student.emergency_contact ? (
+                            <span className="font-semibold text-slate-500 flex items-center gap-1 text-[11px]">
+                              <Phone size={12} className="text-slate-400" /> {student.emergency_contact}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 italic text-[11px] mt-0.5">No Contact Provided</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {student.org_links?.[profile.uid]?.status === 'pending' ? (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold flex items-center gap-1 w-max">
+                            <RefreshCw size={14} /> Transfer Pending
+                          </span>
+                        ) : student.org_links?.[profile.uid]?.status === 'approved' ? (
+                          <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 w-max">
+                            <CheckCircle2 size={14} /> Linked
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold flex items-center gap-1 w-max">
+                            <AlertCircle size={14} /> Pending Setup
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => openEdit(student)}
+                            className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button 
+                            onClick={() => { setRevokingStudent(student); setShowRevokeModal(true); }}
+                            className="p-2 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}) : (
+                    <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">No students registered yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add / Import Modal */}
       {showAddModal && (

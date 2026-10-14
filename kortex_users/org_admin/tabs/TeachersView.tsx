@@ -1,7 +1,7 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { OrgAdminProfile, TeacherProfile } from '../../../types/user';
-import { GraduationCap, UserPlus, Copy, CheckCircle2, X, Pencil, Trash2, RotateCcw, AlertTriangle, KeyRound, Search, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { GraduationCap, UserPlus, Copy, CheckCircle2, X, Pencil, Trash2, RotateCcw, AlertTriangle, KeyRound, Search, ChevronUp, ChevronDown, ArrowUpDown, Eye, EyeOff, Filter, Download } from 'lucide-react';
 import { generateComboId, getOrgAbbreviation } from '../utils/comboParsers';
 import { provisionTeacherAccount, updateTeacherAccount, generateTeacherPasswordLink } from '../../../app/actions/teacher';
 import { softDeleteUser, restoreUser } from '../../../app/actions/userManagement';
@@ -12,6 +12,14 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
   // State: Listing & Fetching
   const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Search & On-Demand Filters
+  const [showList, setShowList] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [comboFilter, setComboFilter] = useState('all');
+  const [gradeFilter, setGradeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
   // State: Add Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -32,10 +40,6 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
 
   // State: Delete Modal
   const [deletingTeacher, setDeletingTeacher] = useState<TeacherProfile | null>(null);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
-  const [comboFilter, setComboFilter] = useState('all');
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -61,17 +65,65 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
     return match || comboId;
   };
 
+  // Distinct grades taught in this org
+  const availableGrades = useMemo(() => {
+    const set = new Set<string>();
+    orgCombos.forEach(combo => {
+      const parts = combo.split('-');
+      if (parts.length > 0) {
+        set.add(parts[0].trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [orgCombos]);
+
+  const exportTeachersToCSV = () => {
+    if (processedTeachers.length === 0) return;
+    const headers = ['Teacher ID', 'Full Name', 'Email', 'Assigned Subjects', 'Status'];
+    const rows = [headers.join(',')];
+    for (const t of processedTeachers) {
+      const combos = (t.assigned_combos || []).map(getComboLabel).join('; ');
+      const status = t.accountStatus === 'DELETED' ? 'Deleted' : 'Active';
+      const values = [
+        `"${t.kortex_id || ''}"`,
+        `"${t.full_name || ''}"`,
+        `"${t.email || ''}"`,
+        `"${combos}"`,
+        `"${status}"`
+      ];
+      rows.push(values.join(','));
+    }
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${profile.organization_name}_Faculty.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   let processedTeachers = [...teachers].filter(t => {
-    const matchesSearch = (t.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-           (t.kortex_id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-           (t.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = (t.full_name || '').toLowerCase().includes(searchLower) || 
+           (t.kortex_id || '').toLowerCase().includes(searchLower) ||
+           (t.email || '').toLowerCase().includes(searchLower);
            
     const matchesCombo = comboFilter === 'all' || (t.assigned_combos || []).some(cid => {
       const label = getComboLabel(cid);
-      return label === comboFilter || cid === comboFilter;
+      return label.toLowerCase().includes(comboFilter.toLowerCase()) || cid === comboFilter;
     });
 
-    return matchesSearch && matchesCombo;
+    const matchesGrade = gradeFilter === 'all' || (t.assigned_combos || []).some(cid => {
+      const label = getComboLabel(cid);
+      return label.toLowerCase().startsWith(gradeFilter.toLowerCase());
+    });
+
+    const matchesStatus = statusFilter === 'all'
+      ? true
+      : (statusFilter === 'deleted' ? t.accountStatus === 'DELETED' : t.accountStatus !== 'DELETED');
+
+    return matchesSearch && matchesCombo && matchesGrade && matchesStatus;
   });
 
   if (sortConfig) {
@@ -290,111 +342,257 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
       </div>
 
       
-      {/* Controls: Search & Filter */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
-        <div className="w-full max-w-md relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search by name, ID, or email..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-colors"
-          />
+      {/* Search & Filter Console */}
+      <div className="bg-slate-50 border-2 border-slate-100 rounded-3xl p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
+            <Filter size={14} className="text-indigo-600" />
+            <span>Faculty Search & Filter Console</span>
+          </div>
+          {(comboFilter !== 'all' || gradeFilter !== 'all' || statusFilter !== 'all' || searchQuery.trim() !== '') && (
+            <button
+              type="button"
+              onClick={() => {
+                setComboFilter('all');
+                setGradeFilter('all');
+                setStatusFilter('all');
+                setSearchQuery('');
+              }}
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
-        <div className="w-full sm:w-auto">
-          <select 
-            value={comboFilter}
-            onChange={(e) => setComboFilter(e.target.value)}
-            className="w-full sm:w-auto bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 outline-none transition-colors cursor-pointer appearance-none"
-          >
-            <option value="all">All Subjects</option>
-            {orgCombos.map(combo => (
-              <option key={combo} value={combo}>{combo}</option>
-            ))}
-          </select>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 items-end">
+          {/* 1. Subject Combination */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Subject Combination
+            </label>
+            <select
+              value={comboFilter}
+              onChange={(e) => setComboFilter(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-sm transition-all cursor-pointer h-[42px]"
+            >
+              <option value="all">All Subjects</option>
+              {orgCombos.map(combo => (
+                <option key={combo} value={combo}>{combo}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Grade / Class */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Grade / Class
+            </label>
+            <select
+              value={gradeFilter}
+              onChange={(e) => setGradeFilter(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-sm transition-all cursor-pointer h-[42px]"
+            >
+              <option value="all">All Grades</option>
+              {availableGrades.map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Status */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Status
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 shadow-sm transition-all cursor-pointer h-[42px]"
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="deleted">Deleted</option>
+            </select>
+          </div>
+
+          {/* 4. Search */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+              Search
+            </label>
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Name, Teacher ID, Email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setShowList(true);
+                }}
+                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm font-bold text-slate-700 focus:border-indigo-500 outline-none shadow-sm transition-all h-[42px]"
+              />
+            </div>
+          </div>
+
+          {/* 5. Show List Action Button */}
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-transparent mb-1.5 select-none">Action</label>
+            <button
+              type="button"
+              onClick={() => setShowList(true)}
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl shadow-md hover:shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer h-[42px]"
+            >
+              <Eye size={16} />
+              <span>{showList ? 'Refresh List' : 'Show List'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Directory Table */}
-
-      <div className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
-              <tr>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("full_name")}>Teacher Name & ID {sortIndicator("full_name")}</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("email")}>Email {sortIndicator("email")}</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Assigned Subjects</th>
-                <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-bold">
-                    <span className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin inline-block mb-2" />
-                    <p>Loading Faculty Directory...</p>
-                  </td>
-                </tr>
-              ) : processedTeachers.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-bold">
-                    No faculty members have been added to this organization yet.
-                  </td>
-                </tr>
-              ) : (
-                processedTeachers.map(t => (
-                  <tr key={t.uid} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-800 flex items-center gap-2">
-                        {t.full_name}
-                        {t.accountStatus === 'DELETED' && (
-                          <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[10px] font-black uppercase tracking-wider">Deleted</span>
-                        )}
-                      </div>
-                      <div className="font-bold text-xs text-indigo-500 font-mono mt-0.5">{t.kortex_id}</div>
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-slate-500">{t.email}</td>
-                    <td className="px-6 py-4 whitespace-normal">
-                      <div className="flex flex-wrap gap-2">
-                        {t.assigned_combos && t.assigned_combos.length > 0 ? (
-                          t.assigned_combos.map(cid => (
-                            <span key={cid} className="px-2 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold">
-                              {getComboLabel(cid)}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-rose-500 font-bold bg-rose-50 px-2 py-1 rounded-lg">Unassigned</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => handleResendWelcome(t)} className="p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors" title="Copy Welcome & Password Link">
-                          <KeyRound size={16} />
-                        </button>
-                        <button onClick={() => openEditModal(t)} className="p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors" title="Edit Teacher">
-                          <Pencil size={16} />
-                        </button>
-                        {t.accountStatus === 'DELETED' ? (
-                          <button onClick={() => handleRestoreTeacher(t.uid, t.full_name)} className="p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors" title="Restore Teacher">
-                            <RotateCcw size={16} />
-                          </button>
-                        ) : (
-                          <button onClick={() => setDeletingTeacher(t)} className="p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors" title="Delete Teacher">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+      {/* Main Content Area */}
+      {!showList ? (
+        <div className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center bg-slate-50/50">
+          <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+            <GraduationCap size={30} />
+          </div>
+          <h3 className="text-xl font-black text-slate-800 mb-1.5">No Faculty List Generated</h3>
+          <p className="text-sm font-semibold text-slate-500 max-w-md mx-auto mb-6">
+            Configure your filters above (Subject, Grade, Status, or Search) and click <span className="font-bold text-indigo-600">"Show List"</span> to view faculty records on demand.
+          </p>
+          <div className="inline-flex flex-wrap items-center justify-center gap-4 text-xs font-bold text-slate-500 bg-white px-5 py-2.5 rounded-2xl border border-slate-200 shadow-sm">
+            <span>🎓 {teachers.length} Faculty Members registered</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-emerald-600">✅ {teachers.filter(t => t.accountStatus !== 'DELETED').length} Active</span>
+            <span className="text-slate-300">•</span>
+            <span>📚 {orgCombos.length} Approved Subject Combos</span>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4 animate-fade-in">
+          {/* Results Summary Bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold text-slate-700">
+                Showing <span className="font-black text-indigo-900">{processedTeachers.length}</span> Faculty Members
+              </span>
+              {comboFilter !== 'all' && (
+                <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100">
+                  {comboFilter}
+                </span>
               )}
-            </tbody>
-          </table>
+              {gradeFilter !== 'all' && (
+                <span className="px-2.5 py-0.5 bg-violet-50 text-violet-700 text-xs font-bold rounded-lg border border-violet-100">
+                  {gradeFilter}
+                </span>
+              )}
+              {statusFilter !== 'all' && (
+                <span className="px-2.5 py-0.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-100 capitalize">
+                  {statusFilter}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 self-end sm:self-auto">
+              <button 
+                onClick={exportTeachersToCSV}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold rounded-xl text-xs transition-colors border border-emerald-100 shrink-0 cursor-pointer"
+                title="Download CSV"
+              >
+                <Download size={14} /> <span>Export CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowList(false)}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs transition-colors shrink-0 cursor-pointer"
+                title="Collapse list"
+              >
+                <EyeOff size={14} /> <span>Hide List</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Directory Table */}
+          <div className="bg-white border-2 border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                  <tr>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("full_name")}>Teacher Name & ID {sortIndicator("full_name")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 transition-colors select-none group" onClick={() => handleSort("email")}>Email {sortIndicator("email")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Assigned Subjects</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-bold">
+                        <span className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin inline-block mb-2" />
+                        <p>Loading Faculty Directory...</p>
+                      </td>
+                    </tr>
+                  ) : processedTeachers.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-bold">
+                        No faculty members found.
+                      </td>
+                    </tr>
+                  ) : (
+                    processedTeachers.map(t => (
+                      <tr key={t.uid} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-800 flex items-center gap-2">
+                            {t.full_name}
+                            {t.accountStatus === 'DELETED' && (
+                              <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[10px] font-black uppercase tracking-wider">Deleted</span>
+                            )}
+                          </div>
+                          <div className="font-bold text-xs text-indigo-500 font-mono mt-0.5">{t.kortex_id}</div>
+                        </td>
+                        <td className="px-6 py-4 font-semibold text-slate-500">{t.email}</td>
+                        <td className="px-6 py-4 whitespace-normal">
+                          <div className="flex flex-wrap gap-2">
+                            {t.assigned_combos && t.assigned_combos.length > 0 ? (
+                              t.assigned_combos.map(cid => (
+                                <span key={cid} className="px-2 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold">
+                                  {getComboLabel(cid)}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-rose-500 font-bold bg-rose-50 px-2 py-1 rounded-lg">Unassigned</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleResendWelcome(t)} className="p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors" title="Copy Welcome & Password Link">
+                              <KeyRound size={16} />
+                            </button>
+                            <button onClick={() => openEditModal(t)} className="p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors" title="Edit Teacher">
+                              <Pencil size={16} />
+                            </button>
+                            {t.accountStatus === 'DELETED' ? (
+                              <button onClick={() => handleRestoreTeacher(t.uid, t.full_name)} className="p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors" title="Restore Teacher">
+                                <RotateCcw size={16} />
+                              </button>
+                            ) : (
+                              <button onClick={() => setDeletingTeacher(t)} className="p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors" title="Delete Teacher">
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* =========================================
           ADD TEACHER MODAL 

@@ -19,6 +19,9 @@ export default function ProvisionOrgModal({ onClose, onSuccess }: ProvisionOrgMo
   const [kortexId, setKortexId] = useState('');
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
+  const [country, setCountry] = useState('');
+  const [state, setState] = useState('');
+  const [city, setCity] = useState('');
   
   // Grade-Section-Subject Combinations State
   const [approvedCombos, setApprovedCombos] = useState<string[]>(['Grade 1 - Section A - English']);
@@ -86,7 +89,10 @@ export default function ProvisionOrgModal({ onClose, onSuccess }: ProvisionOrgMo
          email,
          approvedCombos,
          maxStudentSeats: Number(maxStudentSeats),
-         subscriptionEndDate
+         subscriptionEndDate,
+         country: country.trim() || undefined,
+         state: state.trim() || undefined,
+         city: city.trim() || undefined,
       });
 
       if (!result.success) {
@@ -244,6 +250,39 @@ Ashish & The Kortex Team
               placeholder="principal@dps.edu"
               className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">City</label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g. Delhi"
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">State / Province</label>
+              <input
+                type="text"
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                placeholder="e.g. Delhi"
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Country</label>
+              <input
+                type="text"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                placeholder="e.g. India"
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
+              />
+            </div>
           </div>
 
           {/* Grade-Section-Subject Combinations Selector */}
