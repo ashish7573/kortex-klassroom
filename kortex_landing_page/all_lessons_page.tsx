@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, Layers, Gamepad2, Video, ChevronLeft, ChevronUp, ChevronDown, CheckCircle2, 
-  Lightbulb, Target, FileText, Star, Lock, Search, X 
+  Lightbulb, Target, FileText, Star, Lock, Search, X, Trophy 
 } from 'lucide-react';
 import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../backend_configurations/firebase';
@@ -105,7 +105,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
 
            // Group the tools into their specific subtopics
            if (tool.subtopic) {
-              const subKey = tool.subtopic;
+              const subKey = `${tool.subtopic_order || 1}_${tool.subtopic.trim()}`;
               if (!chaptersMap[key].subTopicsMap[subKey]) {
                  chaptersMap[key].subTopicsMap[subKey] = {
                     title: tool.subtopic,
@@ -115,6 +115,9 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
               }
               // Don't push empty placeholders into the actual tool list
               if (tool.title && tool.content_type !== 'Placeholder') {
+                 // Ensure subtopicId and subtopic_id are normalized
+                 tool.subtopicId = tool.subtopicId || tool.subtopic_id;
+                 tool.subtopic_id = tool.subtopic_id || tool.subtopicId;
                  chaptersMap[key].subTopicsMap[subKey].tools.push(tool);
               }
            }
@@ -360,9 +363,42 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
                                              );
                                           })()}
                                           <div>
-                                             <div className="flex items-center gap-2 mb-1">
+                                             <div className="flex flex-wrap items-center gap-2 mb-1">
                                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">#{index + 1} • {item.content_type || item.type || 'Tool'}</span>
                                                 {item.isPremium && <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex items-center gap-1"><Star size={8} className="fill-amber-700"/> Pro</span>}
+                                                {(() => {
+                                                   const title = item.title || '';
+                                                   const slug = (item.subtopicId || item.subtopic_id || '') as string;
+                                                   const isChap = Boolean(
+                                                      item.is_major_milestone ||
+                                                      item.assessment_type === 'chapter' ||
+                                                      title.includes('Chapter Assessment') ||
+                                                      title.includes('महा-मूल्यांकन') ||
+                                                      slug.endsWith('-major-quiz')
+                                                   );
+                                                   const isSub = !isChap && Boolean(
+                                                      item.is_assessment ||
+                                                      item.assessment_type === 'subtopic' ||
+                                                      title.includes('Subtopic Assessment') ||
+                                                      title.includes('उपविषय मूल्यांकन') ||
+                                                      /-sub\d+-quiz$/i.test(slug)
+                                                   );
+                                                   if (isChap) {
+                                                      return (
+                                                         <span className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                                                            <Trophy size={11} className="text-amber-200 fill-amber-200" /> Chapter Assessment 🏆
+                                                         </span>
+                                                      );
+                                                   }
+                                                   if (isSub) {
+                                                      return (
+                                                         <span className="bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                            <Target size={11} className="text-indigo-600" /> Subtopic Assessment 🎯
+                                                         </span>
+                                                      );
+                                                   }
+                                                   return null;
+                                                })()}
                                              </div>
                                              
                                              <div className="flex items-center gap-2">

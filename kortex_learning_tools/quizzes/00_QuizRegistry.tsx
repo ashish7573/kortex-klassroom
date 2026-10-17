@@ -36,10 +36,108 @@ const HindiWordQuiz = dynamic(() => import('./HindiWordQuiz'), { ssr: false, loa
 const HindiWordDictation = dynamic(() => import('./HindiWordDictation'), { ssr: false, loading: () => <QuizLoader /> });
 const MasterQuizUptoTen = dynamic(() => import('./MasterQuizUptoTen'), { ssr: false, loading: () => <QuizLoader /> });
 
+// Milestone Assessments (FLN Hindi - 30 Subtopics & 6 Chapters)
+const HiCh1Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh1Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh1Sub2Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh1Sub2Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh2Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2Sub2Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh2Sub2Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2Sub3Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh2Sub3Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2Sub4Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh2Sub4Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2Sub5Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh2Sub5Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2Sub6Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh2Sub6Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2Sub7Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh2Sub7Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2Sub8Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh2Sub8Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh3Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh3Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh3Sub2Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh3Sub2Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh3Sub3Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh3Sub3Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub2Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub2Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub3Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub3Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub4Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub4Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub5Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub5Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub6Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub6Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub7Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub7Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub8Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub8Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub9Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub9Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub10Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub10Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4Sub11Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh4Sub11Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh6Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh6Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh6Sub2Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/subtopics/HiCh6Sub2Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh1ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/chapters/HiCh1ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh2ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/chapters/HiCh2ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh3ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/chapters/HiCh3ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh4ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/chapters/HiCh4ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh5ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/chapters/HiCh5ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+const HiCh6ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Hindi/chapters/HiCh6ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+
+// Milestone Assessments (FLN Maths)
+const MathCh1Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh1Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh2Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh2Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh2Sub2Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh2Sub2Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh2Sub3Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh2Sub3Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh2Sub4Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh2Sub4Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh2Sub5Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh2Sub5Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh3Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh3Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh3Sub2Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh3Sub2Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh3Sub3Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh3Sub3Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh4Sub1Assessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/subtopics/MathCh4Sub1Assessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh1ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/chapters/MathCh1ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh2ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/chapters/MathCh2ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+const MathCh3ChapterAssessment = dynamic(() => import('./MilestoneAssessment/Foundational/FLN Maths/chapters/MathCh3ChapterAssessment'), { ssr: false, loading: () => <QuizLoader /> });
+
 // ==========================================
 // 3. THE ROUTER DICTIONARY
 // ==========================================
 const SPECIFIC_QUIZZES: Record<string, React.ComponentType<any>> = {
+  // --- Milestone Assessments (FLN Hindi) ---
+  'fln-hi-ch1-sub1-quiz': HiCh1Sub1Assessment,
+  'fln-hi-ch1-sub2-quiz': HiCh1Sub2Assessment,
+  'fln-hi-ch2-sub1-quiz': HiCh2Sub1Assessment,
+  'fln-hi-ch2-sub2-quiz': HiCh2Sub2Assessment,
+  'fln-hi-ch2-sub3-quiz': HiCh2Sub3Assessment,
+  'fln-hi-ch2-sub4-quiz': HiCh2Sub4Assessment,
+  'fln-hi-ch2-sub5-quiz': HiCh2Sub5Assessment,
+  'fln-hi-ch2-sub6-quiz': HiCh2Sub6Assessment,
+  'fln-hi-ch2-sub7-quiz': HiCh2Sub7Assessment,
+  'fln-hi-ch2-sub8-quiz': HiCh2Sub8Assessment,
+  'fln-hi-ch3-sub1-quiz': HiCh3Sub1Assessment,
+  'fln-hi-ch3-sub2-quiz': HiCh3Sub2Assessment,
+  'fln-hi-ch3-sub3-quiz': HiCh3Sub3Assessment,
+  'fln-hi-ch4-sub1-quiz': HiCh4Sub1Assessment,
+  'fln-hi-ch4-sub2-quiz': HiCh4Sub2Assessment,
+  'fln-hi-ch4-sub3-quiz': HiCh4Sub3Assessment,
+  'fln-hi-ch4-sub4-quiz': HiCh4Sub4Assessment,
+  'fln-hi-ch4-sub5-quiz': HiCh4Sub5Assessment,
+  'fln-hi-ch4-sub6-quiz': HiCh4Sub6Assessment,
+  'fln-hi-ch4-sub7-quiz': HiCh4Sub7Assessment,
+  'fln-hi-ch4-sub8-quiz': HiCh4Sub8Assessment,
+  'fln-hi-ch4-sub9-quiz': HiCh4Sub9Assessment,
+  'fln-hi-ch4-sub10-quiz': HiCh4Sub10Assessment,
+  'fln-hi-ch4-sub11-quiz': HiCh4Sub11Assessment,
+  'fln-hi-ch6-sub1-quiz': HiCh6Sub1Assessment,
+  'fln-hi-ch6-sub2-quiz': HiCh6Sub2Assessment,
+  'fln-hi-ch1-major-quiz': HiCh1ChapterAssessment,
+  'fln-hi-ch2-major-quiz': HiCh2ChapterAssessment,
+  'fln-hi-ch3-major-quiz': HiCh3ChapterAssessment,
+  'fln-hi-ch4-major-quiz': HiCh4ChapterAssessment,
+  'fln-hi-ch5-major-quiz': HiCh5ChapterAssessment,
+  'fln-hi-ch6-major-quiz': HiCh6ChapterAssessment,
+
+  // --- Milestone Assessments (FLN Maths) ---
+  'fln-math-ch1-sub1-quiz': MathCh1Sub1Assessment,
+  'fln-math-ch2-sub1-quiz': MathCh2Sub1Assessment,
+  'fln-math-ch2-sub2-quiz': MathCh2Sub2Assessment,
+  'fln-math-ch2-sub3-quiz': MathCh2Sub3Assessment,
+  'fln-math-ch2-sub4-quiz': MathCh2Sub4Assessment,
+  'fln-math-ch2-sub5-quiz': MathCh2Sub5Assessment,
+  'fln-math-ch3-sub1-quiz': MathCh3Sub1Assessment,
+  'fln-math-ch3-sub2-quiz': MathCh3Sub2Assessment,
+  'fln-math-ch3-sub3-quiz': MathCh3Sub3Assessment,
+  'fln-math-ch4-sub1-quiz': MathCh4Sub1Assessment,
+  'fln-math-ch1-major-quiz': MathCh1ChapterAssessment,
+  'fln-math-ch2-major-quiz': MathCh2ChapterAssessment,
+  'fln-math-ch3-major-quiz': MathCh3ChapterAssessment,
+
   // --- Core Hindi Assessments ---
   'swar-vyanjan-quiz': SwarVyanjanQuiz, // Catch for the old fallback
   'FLNHindiAssessment': FLNHindiAssessment,
@@ -137,8 +235,8 @@ const SPECIFIC_QUIZZES: Record<string, React.ComponentType<any>> = {
 // 4. MAIN COMPONENT EXPORT
 // ==========================================
 export default function QuizRegistry({ lesson, onComplete }: any) {
-  // Extract the slug without the sanitizer block
-  const slug = lesson.subtopicId || lesson.content_url?.split('/').pop();
+  // Extract the slug - check subtopicId, subtopic_id, subtopicID, or fallback to URL slug
+  const slug = lesson.subtopicId || lesson.subtopic_id || lesson.subtopicID || lesson.content_url?.split('/').pop();
 
   if (!slug) {
     return (

@@ -636,11 +636,11 @@ useEffect(() => {
       {showGlobalQuote && <QuoteInquiryModal onClose={() => setShowGlobalQuote(false)} />}
       {showContactUs && <ContactUsModal onClose={() => setShowContactUs(false)} user={authProfile} />}
       
-      {/* Contact Us FAB (Hidden when learning tool is active) */}
+      {/* Contact Us FAB (Hidden when learning tool is active or printing) */}
       {!playingLesson && (
         <button
           onClick={() => setShowContactUs(true)}
-          className="fixed bottom-6 right-6 z-40 bg-sky-500 text-white p-4 rounded-full shadow-lg hover:bg-sky-600 transition-all transform hover:scale-105 flex items-center justify-center group"
+          className="fixed bottom-6 right-6 z-40 bg-sky-500 text-white p-4 rounded-full shadow-lg hover:bg-sky-600 transition-all transform hover:scale-105 flex items-center justify-center group print:hidden"
           title="Contact Us / Feedback"
         >
           <MessageSquare className="w-6 h-6" />
@@ -726,7 +726,7 @@ useEffect(() => {
         />
       )}
       
-      <nav className="bg-white border-b-4 border-sky-500 sticky top-0 z-40 shadow-sm">
+      <nav className="bg-white border-b-4 border-sky-500 sticky top-0 z-40 shadow-sm print:hidden">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
           {/* LEFT: Logo */}
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentView(isLoggedIn ? 'portal' : 'home'); setStage(null); if (!isLoggedIn) setRole(null); }}>

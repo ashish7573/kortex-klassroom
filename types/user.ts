@@ -207,6 +207,14 @@ export interface ClassStudentData {
   progressPercentage: number;
   isPro?: boolean;
   hearts?: number;
+  completedTools?: {
+    [toolKey: string]: {
+      best_score?: number;
+      times_completed?: number;
+      last_played_at?: string;
+      chapter_name?: string;
+    };
+  };
 }
 
 export interface CreateAssignmentPayload {

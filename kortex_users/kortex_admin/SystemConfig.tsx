@@ -221,7 +221,8 @@ export default function SystemConfig() {
                isPremium: item['Premium']?.toUpperCase() === 'TRUE',
                book: item['Book'] || 'Kortex Klassroom',
                is_featured: item['Featured']?.toUpperCase() === 'TRUE',
-               subtopic_id: item['Subtopic ID']
+               subtopic_id: item['Subtopic ID'],
+               subtopicId: item['Subtopic ID']
            };
 
            if (row.status === 'UPDATED') {

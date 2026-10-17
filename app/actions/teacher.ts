@@ -298,18 +298,50 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
     const assigned = teacherData.assigned_combos || [];
     if (!assigned.includes(comboId)) throw new Error("Not assigned to this classroom");
 
-    // Fetch Curriculum Total for this grade/subject (Optimized to prevent Quota Exhaustion)
-    const toolsQuery = adminDb.collection('learning_tools').where('subject', 'in', [subjectStr, subjectStr.toLowerCase(), 'Mathematics', 'mathematics', 'Maths', 'maths']);
+    // Fetch Curriculum Total & Tools for this grade/subject directly from database
+    const cleanSubj = (subjectStr || '').trim().toLowerCase();
+    const subjectFilters = [subjectStr, subjectStr.toLowerCase()];
+    if (cleanSubj.includes('math') || cleanSubj === 'mathematics') {
+      subjectFilters.push('FLN Maths', 'fln maths', 'Maths', 'maths', 'Mathematics', 'mathematics');
+    } else if (cleanSubj.includes('hindi')) {
+      subjectFilters.push('FLN Hindi', 'fln hindi', 'Hindi', 'hindi');
+    } else if (cleanSubj.includes('eng')) {
+      subjectFilters.push('FLN English', 'fln english', 'English', 'english');
+    }
+
+    const toolsQuery = adminDb.collection('learning_tools').where('subject', 'in', Array.from(new Set(subjectFilters)));
     const toolsSnap = await toolsQuery.get().catch(() => ({ docs: [] })); // Fallback if IN query fails
     let totalCurriculumTools = 0;
+    const curriculumTools: any[] = [];
     
     if (toolsSnap.docs && toolsSnap.docs.length > 0) {
         toolsSnap.docs.forEach((doc: any) => {
             const data = doc.data();
             const g = (data.grade || '').trim().toLowerCase();
             const s = (data.subject || '').trim().toLowerCase();
-            if (g === gradeStr.toLowerCase() && (s === subjectStr.toLowerCase() || (s === 'mathematics' && subjectStr.toLowerCase() === 'maths'))) {
+            const tg = gradeStr.trim().toLowerCase();
+            const isGradeMatch = !g || g === 'all grades' || g === 'all' || g === tg ||
+              (tg.includes('fln') && g.includes('fln')) ||
+              (Boolean(tg.match(/\d+/)?.[0] && g.match(/\d+/)?.[0] && tg.match(/\d+/)?.[0] === g.match(/\d+/)?.[0]));
+            const isSubjMatch = s === subjectStr.toLowerCase() || 
+              (cleanSubj.includes('math') && (s.includes('math') || s === 'mathematics')) ||
+              (cleanSubj.includes('hindi') && s.includes('hindi')) ||
+              (cleanSubj.includes('eng') && s.includes('eng'));
+
+            if (isGradeMatch && isSubjMatch) {
                 totalCurriculumTools++;
+                curriculumTools.push({
+                   id: doc.id,
+                   title: data.title || '',
+                   chapter_name: data.chapter_name || data.chapter || '',
+                   chapter: data.chapter || data.chapter_name || '',
+                   chapter_number: data.chapter_number !== undefined ? Number(data.chapter_number) : 1,
+                   subtopic: data.subtopic || data.subtopic_name || '',
+                   subtopic_name: data.subtopic_name || data.subtopic || '',
+                   subtopic_order: data.subtopic_order !== undefined ? Number(data.subtopic_order) : 1,
+                   subtopicId: data.subtopicId || data.subtopic_id || '',
+                   content_type: data.content_type || data.type || ''
+                });
             }
         });
     } else {
@@ -331,6 +363,7 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
     
     const chunkArray = (arr: any[], size: number) => Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
     const progressMap = new Map<string, number>();
+    const completedToolsMap = new Map<string, Record<string, any>>();
 
     if (studentsSnap.docs.length > 0) {
         const refsChunked = chunkArray([...studentRefs, ...legacyRefs], 100);
@@ -341,10 +374,14 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
                       const data = pDoc.data();
                       const pathParts = pDoc.ref.path.split('/');
                       const uid = pathParts[1]; // users/{uid}/progress/{cKey}
-                      const completedCount = data?.completed_tools ? Object.keys(data.completed_tools).length : 0;
+                      const tools = data?.completed_tools || {};
+                      const completedCount = Object.keys(tools).length;
                       
                       const existingCount = progressMap.get(uid) || 0;
                       progressMap.set(uid, Math.max(existingCount, completedCount));
+
+                      const prevTools = completedToolsMap.get(uid) || {};
+                      completedToolsMap.set(uid, { ...prevTools, ...tools });
                  }
              }
         }
@@ -363,14 +400,15 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
           avatar: sData.avatar || '',
           completedToolsCount: completedCount,
           totalTools: totalCurriculumTools,
-          progressPercentage: pct
+          progressPercentage: pct,
+          completedTools: completedToolsMap.get(sDoc.id) || {}
        });
     }
 
     // Sort alphabetically
     roster.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
     
-    return { success: true, roster };
+    return { success: true, roster, curriculumTools };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -391,3 +429,134 @@ export async function generateTeacherPasswordLink(idToken: string, email: string
     return { success: false, error: error.message };
   }
 }
+
+export async function updateStudentMasteryLevel(
+  idToken: string,
+  studentUid: string,
+  comboId: string,
+  gradeStr: string,
+  subjectStr: string,
+  targetLevel: number,
+  milestones: Array<{
+    level: number;
+    chapterNumber: number;
+    chapterName: string;
+    subtopicName: string;
+    toolIds: string[];
+    id?: string;
+  }>
+) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const teacherUid = decodedToken.uid;
+    const teacherDoc = await adminDb.collection('users').doc(teacherUid).get();
+    if (!teacherDoc.exists) throw new Error("Teacher not found");
+    const teacherData = teacherDoc.data() as any;
+    if (teacherData.role !== 'teacher' && teacherData.role !== 'org_admin' && teacherData.role !== 'admin' && teacherData.role !== 'super_admin') {
+      throw new Error("Unauthorized: Only teachers or admins can update student mastery levels.");
+    }
+
+    const cKey = `${gradeStr.toLowerCase()}_${subjectStr.toLowerCase()}`;
+    const progressRef = adminDb.collection('users').doc(studentUid).collection('progress').doc(cKey);
+    const legacyRef = adminDb.collection('users').doc(studentUid).collection('progress').doc(subjectStr.toLowerCase());
+
+    const pDoc = await progressRef.get();
+    const currentData = pDoc.exists ? pDoc.data() || {} : {};
+    let completedTools = { ...(currentData.completed_tools || {}) };
+
+    const legacyDoc = await legacyRef.get();
+    if (legacyDoc.exists) {
+      completedTools = { ...(legacyDoc.data()?.completed_tools || {}), ...completedTools };
+    }
+
+    const nowIso = new Date().toISOString();
+    const norm = (s: string) => (s || '').toLowerCase().replace(/[-_]/g, '').trim();
+
+    // 1. Process Milestones <= targetLevel: ensure milestone tools exist with score >= 90
+    milestones.forEach(m => {
+      if (m.level <= targetLevel) {
+        let hasPassingTool = false;
+        for (const tId of m.toolIds) {
+          const normT = norm(tId);
+          for (const k of Object.keys(completedTools)) {
+            if (norm(k) === normT) {
+              const currentScore = completedTools[k]?.best_score ?? 0;
+              if (currentScore >= 90) {
+                hasPassingTool = true;
+                break;
+              }
+            }
+          }
+          if (hasPassingTool) break;
+        }
+
+        if (!hasPassingTool) {
+          const primaryKey = m.toolIds[0] || m.id || `milestone_${m.level}`;
+          completedTools[primaryKey] = {
+            best_score: 100,
+            times_completed: completedTools[primaryKey]?.times_completed ? completedTools[primaryKey].times_completed + 1 : 1,
+            last_played_at: nowIso,
+            chapter_name: m.chapterName,
+            subtopic_name: m.subtopicName,
+            teacher_override: true,
+            updated_by_teacher_uid: teacherUid,
+            updated_at: nowIso
+          };
+        }
+      } else {
+        // m.level > targetLevel (Demotion): remove tools for higher milestones
+        const allToolKeysToRemove = new Set<string>();
+        m.toolIds.forEach(tId => {
+          allToolKeysToRemove.add(tId);
+          const normT = norm(tId);
+          Object.keys(completedTools).forEach(k => {
+            if (norm(k) === normT) {
+              allToolKeysToRemove.add(k);
+            }
+          });
+        });
+        if (m.id) allToolKeysToRemove.add(m.id);
+
+        allToolKeysToRemove.forEach(k => {
+          delete completedTools[k];
+        });
+      }
+    });
+
+    // If targetLevel === 0, clear all milestone tools
+    if (targetLevel === 0) {
+      milestones.forEach(m => {
+        m.toolIds.forEach(tId => {
+          delete completedTools[tId];
+          const normT = norm(tId);
+          Object.keys(completedTools).forEach(k => {
+            if (norm(k) === normT) {
+              delete completedTools[k];
+            }
+          });
+        });
+        if (m.id) delete completedTools[m.id];
+      });
+    }
+
+    const updatedProgress = {
+      ...currentData,
+      completed_tools: completedTools,
+      last_played_at: nowIso,
+      manual_mastery_level: targetLevel,
+      last_level_updated_by: teacherUid,
+      last_level_updated_at: nowIso
+    };
+
+    await progressRef.set(updatedProgress, { merge: true });
+    if (legacyDoc.exists) {
+      await legacyRef.set({ completed_tools: completedTools }, { merge: true });
+    }
+
+    return { success: true, updatedCompletedTools: completedTools };
+  } catch (error: any) {
+    console.error("Error updating student mastery level:", error);
+    return { success: false, error: error.message };
+  }
+}
+

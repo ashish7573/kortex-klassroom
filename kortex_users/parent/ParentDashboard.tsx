@@ -11,18 +11,24 @@ import {
 import ChildAcademicView from './ChildAcademicView';
 import AddChildModal from './AddChildModal';
 import RequireMobileModal from './RequireMobileModal';
+import CompleteLocationModal from './CompleteLocationModal';
 import { resolveTransferRequest, updateParentProfile, parentUnlinkChildFromOrg, parentDeleteChildAccount } from '../../app/actions/student';
 
 interface ParentDashboardProps {
   profile: ParentProfile;
 }
 
-export default function ParentDashboard({ profile }: ParentDashboardProps) {
+export default function ParentDashboard({ profile: initialProfile }: ParentDashboardProps) {
+  const [profile, setProfile] = useState<ParentProfile>(initialProfile);
   const [internalShowModal, setInternalShowModal] = useState(false);
   const [children, setChildren] = useState<StudentProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedChildId, setSelectedChildId] = useState<string>('profile');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    setProfile(initialProfile);
+  }, [initialProfile]);
   
   const initialContact = profile.phone || (profile as any).contact_number || '';
   const knownCodes = ['+91', '+1', '+44', '+61', '+971', '+65', '+49', '+33', '+81', '+86', '+55', '+52', '+27', '+64', '+966', '+34', '+39', '+7', '+82', '+62'];
@@ -96,8 +102,39 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
 
-  const isProfileComplete = () => {
-    return !!(profile.full_name && profile.email && (profile.phone || (profile as any).contact_number) && (profile as any).city && (profile as any).state && (profile as any).country);
+  const checkProfileComplete = (p: ParentProfile) => {
+    return !!(
+      p.full_name?.trim() &&
+      p.email?.trim() &&
+      (p.phone || (p as any).contact_number)?.trim() &&
+      (p as any).city?.trim() &&
+      (p as any).state?.trim() &&
+      (p as any).country?.trim()
+    );
+  };
+
+  const isProfileComplete = () => checkProfileComplete(profile);
+
+  const [showLocationModal, setShowLocationModal] = useState(!checkProfileComplete(initialProfile));
+
+  useEffect(() => {
+    setShowLocationModal(!checkProfileComplete(profile));
+  }, [profile.city, profile.state, profile.country, profile.full_name, profile.email, profile.phone]);
+
+  const handleLocationCompleted = ({ city, state, country }: { city: string; state: string; country: string }) => {
+    setProfile(prev => ({
+      ...prev,
+      city,
+      state,
+      country,
+    }));
+    setProfileForm(prev => ({
+      ...prev,
+      city,
+      state,
+      country,
+    }));
+    setShowLocationModal(false);
   };
 
   const [showMobileModal, setShowMobileModal] = useState(false);
@@ -365,6 +402,16 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
       const result = await updateParentProfile(idToken, payload);
       if (!result.success) throw new Error(result.error);
       
+      setProfile(prev => ({
+        ...prev,
+        full_name: payload.fullName,
+        email: payload.email,
+        phone: payload.contactNumber,
+        city: payload.city,
+        state: payload.state,
+        country: payload.country,
+      }));
+
       alert("Profile updated successfully! All your linked children have been synced with the organizations.");
       
       // If the phone number changed but was NOT inline verified, they must be trapped.
@@ -515,11 +562,10 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
             if (isProfileComplete()) {
               setInternalShowModal(true);
             } else {
-              alert("Please complete all mandatory fields in your profile (Full Name, Email, City, State, Country, Phone) and Save before adding a child.");
-              setSelectedChildId('profile');
+              setShowLocationModal(true);
             }
           }}
-          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0"
+          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0 cursor-pointer"
         >
           <Plus size={18} /> Add / Claim Child
         </button>
@@ -574,11 +620,10 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
               if (isProfileComplete()) {
                 setInternalShowModal(true);
               } else {
-                alert("Please complete all mandatory fields in your profile (Full Name, Email, City, State, Country, Phone) and Save before adding a child.");
-                setSelectedChildId('profile');
+                setShowLocationModal(true);
               }
             }}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md transition-all inline-flex items-center gap-2"
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
           >
             <Plus size={18} /> Add Your First Child
           </button>
@@ -651,6 +696,21 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
                          <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-xs font-black font-mono">
                            {profile.kortex_id}
                          </span>
+                       )}
+                       {isProfileComplete() ? (
+                         <span className="px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-black flex items-center gap-1.5">
+                           <CheckCircle2 size={13} className="text-emerald-600" />
+                           Profile Complete
+                         </span>
+                       ) : (
+                         <button
+                           type="button"
+                           onClick={() => setShowLocationModal(true)}
+                           className="px-3 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-black flex items-center gap-1.5 cursor-pointer transition-colors"
+                         >
+                           <AlertCircle size={13} className="text-amber-600" />
+                           Location Required • Click to complete
+                         </button>
                        )}
                        {profile.is_pro && (
                          <span className="px-3 py-1 bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-black uppercase flex items-center gap-1.5">
@@ -1078,6 +1138,17 @@ export default function ParentDashboard({ profile }: ParentDashboardProps) {
           await handleMobileSubmit(mobile);
           setShowMobileModal(false);
         }}
+      />
+
+      <CompleteLocationModal 
+        isOpen={showLocationModal}
+        parentName={profile.full_name || ''}
+        parentEmail={profile.email || ''}
+        parentPhone={profile.phone || (profile as any).contact_number || ''}
+        initialCity={(profile as any).city || ''}
+        initialState={(profile as any).state || ''}
+        initialCountry={(profile as any).country || 'India'}
+        onCompleted={handleLocationCompleted}
       />
     </div>
   );
