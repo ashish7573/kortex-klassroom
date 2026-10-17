@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ShieldCheck, Phone, X } from 'lucide-react';
+import ModalPortal from '../../components/ModalPortal';
 
 const COUNTRY_CODES = [
   { code: '+91', country: 'IN', digits: 10 },
@@ -78,7 +79,8 @@ export default function RequireMobileModal({ isOpen, onClose, onSubmit }: Requir
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in-up">
         {/* Header */}
         <div className="bg-sky-500 p-6 text-white relative">
@@ -164,6 +166,7 @@ export default function RequireMobileModal({ isOpen, onClose, onSubmit }: Requir
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

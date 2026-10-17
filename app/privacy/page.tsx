@@ -48,156 +48,147 @@ export default function PrivacyPolicyPage() {
             <section>
               <h2 className="text-xl font-bold text-slate-900 mb-2">1. Introduction</h2>
               <p>
-                Welcome to Kortex Klassroom (<strong>&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;</strong>). We are deeply
-                committed to protecting the privacy and personal data of all users, including school
-                administrators, teachers, parents, and specifically the young learners utilizing our
-                Foundational Literacy and Numeracy (FLN) platform. This Privacy Policy outlines our
-                rigorous standards for collecting, processing, storing, and safeguarding personal data
-                in compliance with applicable data protection laws, including the Indian Digital
-                Personal Data Protection Act, 2023 (DPDP Act) and the Information Technology Act, 2000.
+                Welcome to Kortex Klassroom (<strong>&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;</strong>). We are committed
+                to protecting the privacy and personal data of all users, including school administrators,
+                teachers, parents, and specifically the young learners utilizing our Foundational Literacy
+                and Numeracy (FLN) platform. This Privacy Policy outlines our rigorous standards for
+                collecting, processing, storing, and safeguarding personal data in compliance with the
+                Indian Digital Personal Data Protection Act, 2023 (DPDP Act) and the Information
+                Technology Act, 2000.
               </p>
             </section>
 
-            {/* Section 2 */}
-            <section>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">2. Information We Collect</h2>
-              <ul className="list-disc pl-6 space-y-2 mt-2">
+            {/* Section 2: NEW GOOGLE MANDATED SECTION */}
+            <section className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100">
+              <h2 className="text-xl font-bold text-indigo-950 mb-3">
+                2. Google API Services &amp; User Data Policy
+              </h2>
+              <p className="mb-4 text-sm text-indigo-900/80">
+                Kortex Klassroom uses Google OAuth 2.0 to securely authenticate users. Our use of
+                information received from Google APIs strictly complies with the following practices:
+              </p>
+              <ul className="list-disc pl-6 space-y-3 mt-2 text-sm text-indigo-950">
                 <li>
-                  <strong className="font-semibold text-slate-900">Account &amp; Profile Information:</strong>{' '}
-                  When an educational organization, educator, or parent signs up, we collect verified
-                  contact information (such as full name, email address, phone number, and location details
-                  including City, State, and Country) via Firebase Authentication and Google OAuth.
+                  <strong className="font-bold">Access &amp; Collection:</strong> When you sign in using
+                  Google, we request and access only your primary Google account email address, your name,
+                  and your profile picture.
                 </li>
                 <li>
-                  <strong className="font-semibold text-slate-900">Student &amp; Classroom Data:</strong> We
-                  process student roster details (student name, internal student ID, roll number, grade,
-                  and section) solely as provisioned by the student&apos;s authorized school or parent. We
-                  record learning progress, chapter completions, and assessment metrics strictly for
-                  pedagogical progression.
+                  <strong className="font-bold">Use of Data:</strong> This specific Google user data is used
+                  exclusively to create your Kortex Klassroom account, authenticate your login sessions,
+                  and display your name/profile picture within your personalized educational dashboard.
                 </li>
                 <li>
-                  <strong className="font-semibold text-slate-900">Assessment Media &amp; Worksheets:</strong>{' '}
-                  When using our Multimodal Visual Assessment features, teachers or parents may submit
-                  photographs of handwritten student worksheets or notebooks. These images are securely
-                  processed to deliver immediate diagnostic feedback and formative learning insights.
+                  <strong className="font-bold">Storage:</strong> Your authenticated email and profile data
+                  are stored securely within our Google Cloud Platform and Firebase Authentication
+                  infrastructure using industry-standard AES-256 encryption.
+                </li>
+                <li>
+                  <strong className="font-bold">Sharing &amp; Disclosure:</strong>{' '}
+                  <strong>
+                    We do not share, sell, rent, or transfer your Google user data to any third-party data
+                    brokers, advertising networks, or external marketing entities.
+                  </strong>{' '}
+                  Your data remains strictly within the Kortex Klassroom platform.
+                </li>
+                <li>
+                  <strong className="font-bold">Limited Use Disclosure:</strong> Kortex Klassroom&apos;s use
+                  and transfer to any other app of information received from Google APIs will adhere to the{' '}
+                  <a
+                    href="https://developers.google.com/terms/api-services-user-data-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-indigo-600 font-semibold hover:text-indigo-800"
+                  >
+                    Google API Services User Data Policy
+                  </a>
+                  , including the Limited Use requirements.
                 </li>
               </ul>
             </section>
 
             {/* Section 3 */}
             <section>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">3. How We Use Your Information</h2>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">
+                3. Educational Data We Collect &amp; Use
+              </h2>
               <ul className="list-disc pl-6 space-y-2 mt-2">
                 <li>
-                  To deliver, maintain, and personalize the Kortex Klassroom interactive curriculum,
-                  gamified maps, conceptualisers, and animated phonics modules.
+                  <strong className="font-semibold text-slate-900">Student &amp; Classroom Data:</strong>{' '}
+                  We process student roster details (name, internal ID, grade) solely as provisioned by an
+                  authorized school or parent. We record learning progress and assessment metrics strictly
+                  for pedagogical progression.
                 </li>
                 <li>
-                  To generate classroom mastery overviews, diagnostic progress reports, and formative
-                  recommendations for teachers and parents using our secure assessment engines.
-                </li>
-                <li>
-                  To enforce strict Role-Based Access Control (RBAC), guaranteeing that student
-                  learning data is accessible exclusively to authorized school personnel and verified
-                  parents.
-                </li>
-                <li>
-                  To ensure account security, authenticate logins, detect unauthorized access, and
-                  prevent platform abuse.
+                  <strong className="font-semibold text-slate-900">Assessment Media:</strong> Photographs
+                  of student worksheets processed via our AI diagnostic tools are evaluated securely. These
+                  images are not utilized to train public consumer AI foundation models.
                 </li>
               </ul>
             </section>
 
             {/* Section 4 */}
             <section>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">4. Children&apos;s Privacy &amp; Parental Consent</h2>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">
+                4. Children&apos;s Privacy &amp; Parental Consent
+              </h2>
               <p>
-                Kortex Klassroom is specially designed for early childhood foundational learning. We do
-                not knowingly collect personal information directly from children under the age of 18
-                without verifiable parental or school authorization. Student profiles are established
-                exclusively through institutional provisioning or verified parent linking. We maintain a
-                strict commitment to student safety:
+                Kortex Klassroom is specially designed for early childhood foundational learning. We do not
+                knowingly collect personal information directly from children under the age of 18 without
+                verifiable parental or school authorization. We maintain a strict commitment to student
+                safety:
               </p>
               <ul className="list-disc pl-6 space-y-2 mt-2">
                 <li>We never display third-party advertisements to students.</li>
                 <li>We never profile children for behavioral advertising or commercial marketing.</li>
-                <li>We do not sell, rent, or lease student information to third-party data brokers.</li>
               </ul>
             </section>
 
             {/* Section 5 */}
             <section>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">5. Cookies, Local Storage &amp; Telemetry</h2>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">5. Cookies &amp; Local Storage</h2>
               <p>
-                To provide seamless and secure platform functionality, we utilize limited technical
-                storage mechanisms:
+                We store essential session tokens in the browser&apos;s local storage to manage
+                single-device session integrity and prevent concurrent unauthorized logins. We use Google
+                Analytics to gather anonymous, aggregated usage statistics to optimize platform
+                reliability.
               </p>
-              <ul className="list-disc pl-6 space-y-2 mt-2">
-                <li>
-                  <strong className="font-semibold text-slate-900">Essential Local Storage:</strong> We
-                  store session tokens and user preference states in the browser&apos;s local storage to
-                  manage single-device session integrity and prevent concurrent unauthorized logins.
-                </li>
-                <li>
-                  <strong className="font-semibold text-slate-900">Security Verification:</strong> We
-                  employ Firebase App Check and Google reCAPTCHA Enterprise to detect automated abuse
-                  and safeguard our APIs.
-                </li>
-                <li>
-                  <strong className="font-semibold text-slate-900">Aggregated Analytics:</strong> We use
-                  Google Analytics to gather anonymous, aggregated usage statistics (such as page load
-                  latencies and error frequencies) to continuously optimize platform reliability. No
-                  student assessment artifacts or identifying student records are sent to Google
-                  Analytics.
-                </li>
-              </ul>
             </section>
 
             {/* Section 6 */}
             <section>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">6. Infrastructure, Third-Party Processors &amp; AI</h2>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">
+                6. Data Retention, Soft-Delete &amp; Erasure Rights
+              </h2>
               <p>
-                Your data is securely hosted on Google Cloud Platform and Firebase infrastructure
-                featuring enterprise-grade encryption in transit (HTTPS/TLS) and at rest (AES-256).
-                When visual assessments are evaluated by our AI engines (such as Google Gemini APIs),
-                inputs are processed via secure enterprise API endpoints and are not utilized to train
-                public consumer AI foundation models.
+                When a profile is removed by a school or parent, we implement a soft-delete (tombstoning)
+                procedure, immediately revoking access while preserving historical academic continuity for
+                the school. Parents and educational institutions retain the right to:
               </p>
+              <ul className="list-disc pl-6 space-y-2 mt-2">
+                <li>Request a comprehensive export of all stored student learning records.</li>
+                <li>
+                  Request immediate and permanent cryptographic deletion (hard delete) of all personal
+                  data, including data obtained via Google OAuth.
+                </li>
+                <li>Revoke consent for data sharing at any time.</li>
+              </ul>
             </section>
 
             {/* Section 7 */}
             <section>
               <h2 className="text-xl font-bold text-slate-900 mb-2">
-                7. Data Retention, Soft-Delete &amp; Erasure Rights
+                7. Grievance Officer &amp; Contact Information
               </h2>
               <p>
-                When a student profile or account is removed by an organization or parent, our platform
-                implements a <strong>soft-delete (tombstoning)</strong> procedure. This immediately
-                revokes access and unbinds the record from active rosters while preserving historical
-                academic continuity for the school. Parents and educational institutions retain the
-                right to:
-              </p>
-              <ul className="list-disc pl-6 space-y-2 mt-2">
-                <li>Request a comprehensive export of all stored student learning records.</li>
-                <li>Request immediate and permanent cryptographic deletion (hard delete) of personal data.</li>
-                <li>Revoke consent for institutional data sharing at any time.</li>
-              </ul>
-            </section>
-
-            {/* Section 8 */}
-            <section>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">
-                8. Grievance Officer &amp; Contact Information
-              </h2>
-              <p>
-                In accordance with the Information Technology Act, 2000 and the Digital Personal Data
-                Protection Act, 2023, if you have any questions, feedback, or grievance regarding this
-                Privacy Policy or data handling practices, please contact our designated Grievance
-                Officer:
+                If you have any questions, wish to request data deletion, or have a grievance regarding this
+                Privacy Policy, please contact our designated Grievance Officer:
               </p>
               <div className="mt-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm space-y-1">
                 <p>
-                  <strong className="font-semibold text-slate-900">Platform Administration / Grievance Officer</strong>
+                  <strong className="font-semibold text-slate-900">
+                    Platform Administration / Grievance Officer
+                  </strong>
                 </p>
                 <p>Kortex Klassroom, New Delhi, India</p>
                 <p>
@@ -210,15 +201,13 @@ export default function PrivacyPolicyPage() {
                   </a>
                 </p>
                 <p className="text-slate-500 text-xs mt-1">
-                  We acknowledge all formal privacy inquiries within 48 hours and resolve verified
-                  requests within 30 days.
+                  We resolve verified deletion and privacy requests within 30 days.
                 </p>
               </div>
             </section>
           </div>
         </div>
 
-        {/* Footer info */}
         <div className="mt-8 text-center text-xs text-slate-400">
           © {new Date().getFullYear()} Kortex Klassroom. All rights reserved.
         </div>

@@ -5,6 +5,7 @@ import { X, ChevronRight, CheckCircle2, Calendar, Users, BookOpen, Search, Arrow
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db, auth } from '../../backend_configurations/firebase';
 import { createAssignment } from '../../app/actions/teacher_assignments';
+import ModalPortal from '../../components/ModalPortal';
 
 
 interface AssignmentBuilderModalProps {
@@ -94,6 +95,7 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
       const res = await createAssignment(token, {
         orgId: combo.orgId,
         comboId: combo.comboId,
+        subject: combo.subjectStr,
         toolId: sourceType === 'kortex' ? selectedTool.id : 'external',
         toolType: sourceType === 'kortex' ? (selectedTool.type || selectedTool.content_type || 'Task') : 'External',
         chapterName: sourceType === 'kortex' ? (selectedTool.chapter_name || 'Unknown') : 'External Source',
@@ -113,7 +115,8 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
@@ -363,5 +366,6 @@ export default function AssignmentBuilderModal({ combo, roster, onClose, onSucce
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

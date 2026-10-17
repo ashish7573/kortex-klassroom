@@ -4,30 +4,37 @@ import React, { createContext, useContext, useEffect, useState, useRef, ReactNod
 import { User, onAuthStateChanged, signOut, sendPasswordResetEmail, ActionCodeSettings } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../backend_configurations/firebase';
-import { UserProfile } from '../types/user';
+import { UserProfile, UserRole } from '../types/user';
+import { switchActiveRole } from '../app/actions/auth';
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   role: string | null;
+  activeRole: UserRole | null;
+  hasBothRoles: boolean;
   isLoggedIn: boolean;
   isPro: boolean;
   loading: boolean;
   sessionAlert: any;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  switchRole: (role: UserRole) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   role: null,
+  activeRole: null,
+  hasBothRoles: false,
   isLoggedIn: false,
   isPro: false,
   loading: true,
   sessionAlert: null,
   logout: async () => {},
   resetPassword: async () => {},
+  switchRole: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -99,6 +106,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  const [activeRoleState, setActiveRoleState] = useState<UserRole | null>(null);
+
+  // Compute dual-role availability
+  const userRoles: UserRole[] = (profile as any)?.roles || (profile?.role ? [profile.role as UserRole] : []);
+  const hasBothRoles = userRoles.includes('teacher') && userRoles.includes('parent');
+
+  useEffect(() => {
+    if (!profile) {
+      setActiveRoleState(null);
+      return;
+    }
+    const currentRoles: UserRole[] = (profile as any)?.roles || (profile?.role ? [profile.role as UserRole] : []);
+    const isDual = currentRoles.includes('teacher') && currentRoles.includes('parent');
+
+    if (isDual) {
+      const stored = typeof window !== 'undefined' ? (localStorage.getItem('kortex_active_role') as UserRole) : null;
+      if (stored && currentRoles.includes(stored)) {
+        setActiveRoleState(stored);
+      } else if (profile.active_role && currentRoles.includes(profile.active_role)) {
+        setActiveRoleState(profile.active_role);
+      } else {
+        setActiveRoleState('teacher');
+      }
+    } else {
+      setActiveRoleState((profile.role as UserRole) || null);
+    }
+  }, [profile]);
+
+  const switchRole = async (newRole: UserRole) => {
+    if (!user) return;
+    setActiveRoleState(newRole);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('kortex_active_role', newRole);
+    }
+    try {
+      const idToken = await user.getIdToken();
+      await switchActiveRole(idToken, newRole);
+    } catch (e) {
+      console.warn("Failed to persist switchActiveRole on server:", e);
+    }
+  };
+
   const logout = async () => {
     // Proactively unsubscribe listener before auth credentials are wiped
     if (snapshotUnsubscribeRef.current) {
@@ -108,6 +157,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (user) {
       localStorage.removeItem(`session_token_${user.uid}`);
     }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('kortex_active_role');
+    }
+    setActiveRoleState(null);
     await signOut(auth);
   };
 
@@ -120,12 +173,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const role = profile?.role || null;
+  const activeRole = hasBothRoles ? (activeRoleState || 'teacher') : (profile?.role as UserRole) || null;
   const isLoggedIn = !!user;
   const isPro = (profile as any)?.is_pro || (profile as any)?.isPro || false;
 
   return (
     <AuthContext.Provider value={{ 
-      user, profile, role, isLoggedIn, isPro, loading, sessionAlert, logout, resetPassword 
+      user, profile, role, activeRole, hasBothRoles, isLoggedIn, isPro, loading, sessionAlert, logout, resetPassword, switchRole 
     }}>
       {children}
     </AuthContext.Provider>

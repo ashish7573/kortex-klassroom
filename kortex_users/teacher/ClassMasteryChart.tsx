@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from '../../backend_configurations/firebase';
+import ModalPortal from '../../components/ModalPortal';
 import { ClassStudentData, TeacherComboData } from '@/types/user';
 import { buildCurriculumFromTools } from './curriculum_mastery/curriculumBuilder';
 import { getCurriculumForSubject } from './curriculum_mastery/masteryRegistry';
@@ -858,7 +859,8 @@ export default function ClassMasteryChart({ roster, combo, initialTools = [], on
       {/* INTERACTIVE STUDENT DETAIL MODAL / DRAWER                 */}
       {/* ========================================================= */}
       {selectedStudent && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:hidden">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:hidden">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-slate-200 relative animate-scale-up max-h-[90vh] overflow-y-auto">
             
             {/* Close Button */}
@@ -1078,6 +1080,7 @@ export default function ClassMasteryChart({ roster, combo, initialTools = [], on
             </button>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ========================================================= */}

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { X, Send, MessageSquare } from 'lucide-react';
 import { submitUserFeedback } from '../../app/actions/feedback';
+import ModalPortal from '../../components/ModalPortal';
 
 interface ContactUsModalProps {
   onClose: () => void;
@@ -44,7 +45,8 @@ export default function ContactUsModal({ onClose, user }: ContactUsModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
       <div className="bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl relative animate-fade-in-up">
         <div className="bg-gradient-to-r from-sky-500 to-indigo-600 p-6 text-white relative">
           <button 
@@ -124,6 +126,7 @@ export default function ContactUsModal({ onClose, user }: ContactUsModalProps) {
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

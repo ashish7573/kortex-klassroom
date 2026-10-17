@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Info, AlertTriangle, CheckCircle, X, Settings, LucideIcon } from 'lucide-react';
+import ModalPortal from '../../components/ModalPortal';
 
 export const Card = ({ children, className = "", onClick }: any) => (
   <div onClick={onClick} className={`bg-white rounded-3xl shadow-sm border-2 border-slate-100 overflow-hidden transition-all duration-300 ${onClick ? 'cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:border-sky-200' : ''} ${className}`}>
@@ -67,26 +68,28 @@ export const GeneralAlertModal = ({ title, message, type = 'info', onClose, acti
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
-      <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative border-4 border-slate-100">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2">
-          <X size={20} />
-        </button>
-        <div className={`w-16 h-16 ${bgClass} rounded-full flex items-center justify-center mx-auto mb-4`}>
-          <Icon size={32} className={colorClass} />
-        </div>
-        <h3 className="text-2xl font-black text-slate-800 mb-2">{title}</h3>
-        <p className="text-slate-500 font-medium mb-6">{message}</p>
-        <div className="flex flex-col gap-3">
-          <Button className="w-full" onClick={onAction || onClose}>{actionLabel || 'Got it'}</Button>
-          {secondaryActionLabel && (
-             <button onClick={onSecondaryAction || onClose} className="w-full py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">
-               {secondaryActionLabel}
-             </button>
-          )}
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative border-4 border-slate-100">
+          <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-2">
+            <X size={20} />
+          </button>
+          <div className={`w-16 h-16 ${bgClass} rounded-full flex items-center justify-center mx-auto mb-4`}>
+            <Icon size={32} className={colorClass} />
+          </div>
+          <h3 className="text-2xl font-black text-slate-800 mb-2">{title}</h3>
+          <p className="text-slate-500 font-medium mb-6">{message}</p>
+          <div className="flex flex-col gap-3">
+            <Button className="w-full" onClick={onAction || onClose}>{actionLabel || 'Got it'}</Button>
+            {secondaryActionLabel && (
+               <button onClick={onSecondaryAction || onClose} className="w-full py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">
+                 {secondaryActionLabel}
+               </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 };
 

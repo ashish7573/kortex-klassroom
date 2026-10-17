@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, CircleDashed, Award } from 'lucide-react';
 import { getAssignmentSubmissions, gradeSubmission } from '../../app/actions/teacher_assignments';
 import { auth } from '../../backend_configurations/firebase';
+import ModalPortal from '../../components/ModalPortal';
 
 interface GradeSubmissionsModalProps {
   assignment: any;
@@ -63,7 +64,8 @@ export default function GradeSubmissionsModal({ assignment, onClose, onGraded }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
       <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
         
         {/* Header */}
@@ -133,5 +135,6 @@ export default function GradeSubmissionsModal({ assignment, onClose, onGraded }:
 
       </div>
     </div>
+    </ModalPortal>
   );
 }

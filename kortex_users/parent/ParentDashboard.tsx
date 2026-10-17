@@ -6,25 +6,72 @@ import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 
 import { ParentProfile, StudentProfile } from '../../types/user';
 import { 
   Users, Plus, ShieldCheck, Heart, Building, CheckCircle2, 
-  AlertCircle, UserPlus, RefreshCw, User
+  AlertCircle, UserPlus, RefreshCw, User, Rocket, ArrowRight, ArrowUpRight, X, Check, Bell
 } from 'lucide-react';
 import ChildAcademicView from './ChildAcademicView';
 import AddChildModal from './AddChildModal';
 import RequireMobileModal from './RequireMobileModal';
 import CompleteLocationModal from './CompleteLocationModal';
-import { resolveTransferRequest, updateParentProfile, parentUnlinkChildFromOrg, parentDeleteChildAccount } from '../../app/actions/student';
+import { resolveTransferRequest, updateParentProfile, parentUnlinkChildFromOrg, parentDeleteChildAccount, registerCourseInterest } from '../../app/actions/student';
+import { KORTEX_COURSES, KortexCourse } from '../../kortex_landing_page/koursesData';
+import ModalPortal from '../../components/ModalPortal';
 
 interface ParentDashboardProps {
   profile: ParentProfile;
+  onExploreTier?: (tierId: string) => void;
 }
 
-export default function ParentDashboard({ profile: initialProfile }: ParentDashboardProps) {
+export default function ParentDashboard({ profile: initialProfile, onExploreTier }: ParentDashboardProps) {
   const [profile, setProfile] = useState<ParentProfile>(initialProfile);
   const [internalShowModal, setInternalShowModal] = useState(false);
   const [children, setChildren] = useState<StudentProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedChildId, setSelectedChildId] = useState<string>('profile');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Kortex Kourses modal state
+  const [selectedCourseModal, setSelectedCourseModal] = useState<KortexCourse | null>(null);
+  const [modalTargetChildUid, setModalTargetChildUid] = useState<string>('');
+  const [isRegisteringCourse, setIsRegisteringCourse] = useState(false);
+  const [courseRegisteredMsg, setCourseRegisteredMsg] = useState<string | null>(null);
+
+  const handleOpenCourseModal = (course: KortexCourse) => {
+    setSelectedCourseModal(course);
+    setCourseRegisteredMsg(null);
+    if (selectedChildId && selectedChildId !== 'profile') {
+      setModalTargetChildUid(selectedChildId);
+    } else if (children.length > 0) {
+      setModalTargetChildUid(children[0].uid);
+    }
+  };
+
+  const handleConfirmCourseInterest = async () => {
+    if (!selectedCourseModal) return;
+    setIsRegisteringCourse(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Please log in first");
+      const idToken = await user.getIdToken();
+      const targetChild = children.find(c => c.uid === modalTargetChildUid);
+
+      const res = await registerCourseInterest(idToken, {
+        programId: selectedCourseModal.id,
+        programTitle: selectedCourseModal.title,
+        targetChildUid: modalTargetChildUid,
+        targetChildName: targetChild?.full_name || 'Child'
+      });
+
+      if (res.success) {
+        setCourseRegisteredMsg(`🎉 Seat Reserved! Interest registered for ${targetChild?.full_name || 'your child'}. We will notify you when enrollment opens.`);
+      } else {
+        alert("Failed to register interest: " + res.error);
+      }
+    } catch (e: any) {
+      alert(e.message || "Something went wrong");
+    } finally {
+      setIsRegisteringCourse(false);
+    }
+  };
 
   useEffect(() => {
     setProfile(initialProfile);
@@ -1068,6 +1115,70 @@ export default function ParentDashboard({ profile: initialProfile }: ParentDashb
 
 
               <ChildAcademicView child={selectedChild} />
+
+              {/* SPECIALIZED PROGRAMS & KORTEX KOURSES CAROUSEL */}
+              <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 sm:p-7 shadow-xs space-y-4 mt-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                      <Rocket className="text-amber-500" size={22} />
+                      Specialized Programs & Kourses for {selectedChild.full_name}
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                      Cross-grade extracurriculars in Coding, Vedic Math, Space, and Logic. Select one to boost {selectedChild.full_name}&apos;s learning.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => onExploreTier?.('kourses')}
+                    className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit cursor-pointer"
+                  >
+                    <span>Explore All Kourses</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+
+                <div className="flex gap-4 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scroll-smooth -mx-3 px-3 sm:mx-0 sm:px-0">
+                  {KORTEX_COURSES.map(course => (
+                    <div
+                      key={course.id}
+                      onClick={() => handleOpenCourseModal(course)}
+                      className="snap-start shrink-0 w-[270px] sm:w-[290px] bg-slate-50/70 hover:bg-white border-2 border-slate-100 hover:border-indigo-300 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between mb-2.5">
+                          <span className="text-3xl p-1.5 bg-white rounded-xl shadow-2xs group-hover:scale-105 transition-transform">
+                            {course.icon}
+                          </span>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${course.badgeColor}`}>
+                            {course.gradeGroup}
+                          </span>
+                        </div>
+
+                        <div className="text-[10px] font-black uppercase tracking-wider text-indigo-600 mb-1">
+                          {course.category}
+                        </div>
+                        <h4 className="font-black text-slate-900 text-base leading-snug group-hover:text-indigo-600 transition-colors mb-1">
+                          {course.title}
+                        </h4>
+                        <p className="text-xs text-slate-500 font-semibold line-clamp-2 mb-3">
+                          {course.tagline}
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between">
+                        <span className="text-xs font-black text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                          Explore & Select <ArrowUpRight size={14} />
+                        </span>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md">
+                          Pre-Enroll
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
               
               {/* DANGER ZONE: Unlink and Delete Account */}
               <div className="bg-red-50 border-2 border-red-100 rounded-3xl p-6 sm:p-8 animate-fade-in mt-6">
@@ -1150,6 +1261,148 @@ export default function ParentDashboard({ profile: initialProfile }: ParentDashb
         initialCountry={(profile as any).country || 'India'}
         onCompleted={handleLocationCompleted}
       />
+
+      {/* KORTEX KOURSE PREVIEW & CHILD SELECTION MODAL */}
+      {selectedCourseModal && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-[2rem] max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto flex flex-col">
+              
+              {/* Close Button */}
+              <button 
+                type="button"
+                onClick={() => setSelectedCourseModal(null)}
+                className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4 pr-6">
+                <span className="text-4xl">{selectedCourseModal.icon}</span>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${selectedCourseModal.badgeColor}`}>
+                      {selectedCourseModal.gradeGroup}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                      {selectedCourseModal.ageBand}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900 leading-snug">
+                    {selectedCourseModal.title}
+                  </h3>
+                </div>
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed mb-4">
+                {selectedCourseModal.description}
+              </p>
+
+              {/* Key Curriculum Highlights */}
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-4">
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                  Program Highlights & Outcomes
+                </h4>
+                <ul className="space-y-1.5">
+                  {selectedCourseModal.learningOutcomes.slice(0, 3).map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                      <Check size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Child Selector & Actions */}
+              {courseRegisteredMsg ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-2">
+                  <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-black text-sm">
+                    <CheckCircle2 size={18} className="text-emerald-600" />
+                    <span>{courseRegisteredMsg}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCourseModal(null)}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {children.length > 0 ? (
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+                        Select Child to Enroll:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {children.map(c => {
+                          const isSelected = modalTargetChildUid === c.uid;
+                          return (
+                            <div
+                              key={c.uid}
+                              onClick={() => setModalTargetChildUid(c.uid)}
+                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-indigo-50 border-indigo-600 text-indigo-900 shadow-xs'
+                                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                              }`}
+                            >
+                              <div>
+                                <div className="font-extrabold text-xs">{c.full_name}</div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase">
+                                  {c.grade || 'Foundational'}
+                                </div>
+                              </div>
+                              {isSelected && <CheckCircle2 size={16} className="text-indigo-600" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800">
+                      Add a child account to your parent portal to enroll in this course.
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      disabled={isRegisteringCourse || children.length === 0}
+                      onClick={handleConfirmCourseInterest}
+                      className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 text-white font-black text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isRegisteringCourse ? (
+                        <span>Reserving Seat...</span>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={16} />
+                          <span>Reserve Seat for {children.find(c => c.uid === modalTargetChildUid)?.full_name || 'Child'}</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCourseModal(null)}
+                      className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs sm:text-sm rounded-xl transition-all cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-center text-slate-400 font-semibold">
+                    Pre-enrolling reserves priority seat allocation and early-bird notifications.
+                  </p>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 }

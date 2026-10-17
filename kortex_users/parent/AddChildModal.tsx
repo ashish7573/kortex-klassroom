@@ -4,6 +4,7 @@ import { auth } from '../../backend_configurations/firebase';
 import { X, Sparkles, UserPlus, CheckCircle2, Copy, Check, KeyRound, Link } from 'lucide-react';
 import { provisionChildAccount, claimProvisionedChild } from '../../app/actions/student';
 import RequireMobileModal from './RequireMobileModal';
+import ModalPortal from '../../components/ModalPortal';
 
 interface AddChildModalProps {
   onClose: () => void;
@@ -121,7 +122,8 @@ export default function AddChildModal({ onClose, onChildCreated, parentContactNu
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative flex flex-col max-h-[90vh]">
         
         {/* Header */}
@@ -312,5 +314,6 @@ export default function AddChildModal({ onClose, onChildCreated, parentContactNu
         }}
       />
     </div>
+    </ModalPortal>
   );
 }

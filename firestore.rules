@@ -108,6 +108,11 @@ service cloud.firestore {
       allow read, update: if isKrewOrAdmin(); // Allows admins to read and resolve feedbacks
     }
 
+    match /metadata/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isKrewOrAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

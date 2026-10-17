@@ -7,13 +7,14 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../backend_configurations/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { ParentProfile } from '../../types/user';
 import { generateParentId, updateUserSessionToken } from '../../app/actions/student';
 import { completeRegistration } from '../../app/actions/auth';
 import QuoteInquiryModal from './QuoteInquiryModal';
+import ModalPortal from '../../components/ModalPortal';
 import { 
   X, 
   Lock, 
@@ -263,33 +264,73 @@ export default function UnifiedAuthModal({
       const userRef = doc(db, 'users', cred.user.uid);
       const userDoc = await getDoc(userRef);
 
-      if (!userDoc.exists()) {
-        // First time sign-up via Google, create a Parent profile
-        const idToken = await cred.user.getIdToken();
-        const parentKortexId = await generateParentId(idToken);
-        
-        const parentProfile: ParentProfile = {
-          uid: cred.user.uid,
-          kortex_id: parentKortexId,
-          email: cred.user.email || '',
-          full_name: cred.user.displayName || 'Parent User',
-          role: 'parent',
-          phone: null,
-          phoneVerified: false,
-          onboardingStatus: 'PENDING_PHONE',
-          children_ids: [],
-          status: 'active',
-          session_token: sessionToken,
-          created_at: new Date().toISOString()
-        };
-        
-        await setDoc(userRef, parentProfile);
-      } else {
+      if (userDoc.exists()) {
+        const existingData = userDoc.data();
+        const existingRoles: string[] = existingData?.roles || (existingData?.role ? [existingData.role] : []);
+        // If signing up and existing user is teacher without parent role, upgrade them to dual role!
+        if (mode === 'signup' && existingRoles.includes('teacher') && !existingRoles.includes('parent')) {
+          await updateDoc(userRef, {
+            roles: arrayUnion('parent'),
+            active_role: 'parent',
+            updated_at: new Date().toISOString()
+          });
+        }
         const idToken = await cred.user.getIdToken();
         try {
           await updateUserSessionToken(idToken, sessionToken);
         } catch (e) {
           console.warn("Session update warning:", e);
+        }
+      } else {
+        // Fallback: check if an existing profile exists with this email (e.g. provisioned teacher)
+        const cleanGoogleEmail = (cred.user.email || '').trim().toLowerCase();
+        let existingDocByEmail = null;
+        if (cleanGoogleEmail) {
+          const emailQuery = query(collection(db, 'users'), where('email', '==', cleanGoogleEmail));
+          const emailSnap = await getDocs(emailQuery);
+          if (!emailSnap.empty) {
+            existingDocByEmail = emailSnap.docs[0];
+          }
+        }
+
+        if (existingDocByEmail) {
+          const existingData = existingDocByEmail.data();
+          const existingRoles: string[] = existingData?.roles || (existingData?.role ? [existingData.role] : []);
+          if (mode === 'signup' && existingRoles.includes('teacher') && !existingRoles.includes('parent')) {
+            await updateDoc(existingDocByEmail.ref, {
+              roles: arrayUnion('parent'),
+              active_role: 'parent',
+              updated_at: new Date().toISOString()
+            });
+          }
+          const idToken = await cred.user.getIdToken();
+          try {
+            await updateUserSessionToken(idToken, sessionToken);
+          } catch (e) {
+            console.warn("Session update warning:", e);
+          }
+        } else {
+          // First time sign-up via Google, create a Parent profile
+          const idToken = await cred.user.getIdToken();
+          const parentKortexId = await generateParentId(idToken);
+          
+          const parentProfile: ParentProfile = {
+            uid: cred.user.uid,
+            kortex_id: parentKortexId,
+            email: cred.user.email || '',
+            full_name: cred.user.displayName || 'Parent User',
+            role: 'parent',
+            roles: ['parent'],
+            phone: null,
+            phoneVerified: false,
+            onboardingStatus: 'PENDING_PHONE',
+            children_ids: [],
+            status: 'active',
+            session_token: sessionToken,
+            created_at: new Date().toISOString()
+          };
+          
+          await setDoc(userRef, parentProfile);
         }
       }
 
@@ -323,7 +364,8 @@ export default function UnifiedAuthModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
+      <ModalPortal>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
         <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl relative border-4 border-slate-100 p-8 pt-12 max-h-[92vh] overflow-y-auto">
           {/* Close Button */}
           <button 
@@ -765,6 +807,7 @@ export default function UnifiedAuthModal({
           )}
         </div>
       </div>
+      </ModalPortal>
 
       {/* Quote / Institutional Proposal Modal */}
       {showQuoteModal && (

@@ -4,6 +4,21 @@ import { serializeFirebaseData } from "../../utils/serialize";
 import { adminDb, adminAuth } from '../../backend_configurations/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { StudentProfile } from '../../types/user';
+import { generateComboId } from '../../kortex_users/org_admin/utils/comboParsers';
+
+function sanitizeAssignedCombos(
+  requestedCombos: string[] | undefined,
+  orgKortexId: string,
+  approvedComboStrings: string[] | undefined
+): string[] {
+  if (!requestedCombos || !Array.isArray(requestedCombos) || requestedCombos.length === 0) {
+    return [];
+  }
+  const allowedComboIdSet = new Set(
+    (approvedComboStrings || []).map(comboStr => generateComboId(orgKortexId, comboStr))
+  );
+  return requestedCombos.filter(id => allowedComboIdSet.has(id));
+}
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -136,7 +151,12 @@ export async function provisionStudentPlaceholder(
       throw new Error("Unauthorized: Only Organization Admins can provision students.");
     }
 
+    const callerData = callerDoc.data();
     const orgId = callerUid;
+    const orgKortexId = callerData?.kortex_id || "";
+    const approvedCombos = callerData?.approved_grade_subject_combos || [];
+    const safeAssignedCombos = sanitizeAssignedCombos(provisionData.assignedCombos, orgKortexId, approvedCombos);
+
     const kortexId = await generateGlobalStudentId();
     const claimCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const cleanRollNo = (provisionData.rollNo || '').trim() || null;
@@ -161,11 +181,11 @@ export async function provisionStudentPlaceholder(
       org_ids: [orgId],
       org_links: {
         [orgId]: {
-          org_name: callerDoc.data()?.organization_name || "Organization",
+          org_name: callerData?.organization_name || "Organization",
           grade: provisionData.grade,
           section: provisionData.section,
           roll_no: cleanRollNo,
-          assigned_combos: provisionData.assignedCombos,
+          assigned_combos: safeAssignedCombos,
           status: 'approved'
         }
       },
@@ -208,6 +228,11 @@ export async function requestStudentImport(
     }
 
     const orgId = callerUid;
+    const orgData = orgDoc.data();
+    const orgKortexId = orgData?.kortex_id || "";
+    const approvedCombos = orgData?.approved_grade_subject_combos || [];
+    const safeAssignedCombos = sanitizeAssignedCombos(importData.assignedCombos, orgKortexId, approvedCombos);
+
     const cleanStudentId = (importData.studentId || '').trim().toUpperCase();
     
     const snapshot = await adminDb.collection('users')
@@ -232,11 +257,11 @@ export async function requestStudentImport(
     await studentDoc.ref.update({
       org_ids: FieldValue.arrayUnion(orgId),
       [`org_links.${orgId}`]: {
-        org_name: orgDoc.data()?.organization_name || "Organization",
+        org_name: orgData?.organization_name || "Organization",
         grade: importData.grade,
         section: importData.section || null,
         roll_no: cleanRollNo,
-        assigned_combos: importData.assignedCombos,
+        assigned_combos: safeAssignedCombos,
         status: 'pending',
         requested_at: new Date().toISOString()
       }
@@ -262,6 +287,15 @@ export async function updateStudentDetails(
   try {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const orgId = decodedToken.uid;
+
+    const callerDoc = await adminDb.collection('users').doc(orgId).get();
+    if (!callerDoc.exists || callerDoc.data()?.role !== 'org_admin') {
+      throw new Error("Unauthorized: Only Organization Admins can update student details.");
+    }
+    const callerData = callerDoc.data();
+    const orgKortexId = callerData?.kortex_id || "";
+    const approvedCombos = callerData?.approved_grade_subject_combos || [];
+    const safeAssignedCombos = sanitizeAssignedCombos(updateData.assignedCombos, orgKortexId, approvedCombos);
     
     const studentRef = adminDb.collection('users').doc(uid);
     const doc = await studentRef.get();
@@ -276,7 +310,7 @@ export async function updateStudentDetails(
     const updates: Record<string, any> = {
       [`org_links.${orgId}.grade`]: updateData.grade,
       [`org_links.${orgId}.section`]: updateData.section || null,
-      [`org_links.${orgId}.assigned_combos`]: updateData.assignedCombos,
+      [`org_links.${orgId}.assigned_combos`]: safeAssignedCombos,
       emergency_contact: updateData.emergencyContact || null
     };
 
@@ -333,7 +367,8 @@ export async function provisionChildAccount(
     const parentUid = decodedToken.uid;
     
     const parentDoc = await adminDb.collection('users').doc(parentUid).get();
-    if (!parentDoc.exists || parentDoc.data()?.role !== 'parent') {
+    const parentRoles: string[] = parentDoc.data()?.roles || (parentDoc.data()?.role ? [parentDoc.data()?.role] : []);
+    if (!parentDoc.exists || !parentRoles.includes('parent')) {
       throw new Error("Unauthorized: Only parents can create direct child accounts.");
     }
     const parentName = parentDoc.data()?.full_name || "Unknown Parent";
@@ -416,7 +451,8 @@ export async function claimProvisionedChild(
     const parentUid = decodedToken.uid;
     
     const parentDoc = await adminDb.collection('users').doc(parentUid).get();
-    if (!parentDoc.exists || parentDoc.data()?.role !== 'parent') {
+    const parentRoles: string[] = parentDoc.data()?.roles || (parentDoc.data()?.role ? [parentDoc.data()?.role] : []);
+    if (!parentDoc.exists || !parentRoles.includes('parent')) {
       throw new Error("Unauthorized: Only parents can claim child accounts.");
     }
     const parentName = parentDoc.data()?.full_name || "Unknown Parent";
@@ -578,6 +614,13 @@ export async function syncOrgStudents(idToken: string) {
       return { success: false, error: "Unauthorized" };
     }
 
+    const callerData = callerDoc.data();
+    const orgKortexId = callerData?.kortex_id || "";
+    const approvedCombos = callerData?.approved_grade_subject_combos || [];
+    const allowedComboIdSet = new Set(
+      approvedCombos.map((comboStr: string) => generateComboId(orgKortexId, comboStr))
+    );
+
     const studentsSnap = await adminDb.collection('users')
       .where('role', '==', 'student')
       .get();
@@ -589,21 +632,38 @@ export async function syncOrgStudents(idToken: string) {
       const data = doc.data() as StudentProfile;
       const orgLink = data.org_links?.[orgId];
       if (orgLink && (orgLink.status === 'approved' || orgLink.status === 'pending')) {
+        let hasChanges = false;
+        const updateObj: any = {};
+
         const orgIds: string[] = data.org_ids || [];
         if (!orgIds.includes(orgId)) {
-          const updateObj: any = {
-            org_ids: FieldValue.arrayUnion(orgId),
-            updated_at: new Date().toISOString()
-          };
-          if (orgLink.roll_no && !data.roll_no) {
-            updateObj.roll_no = orgLink.roll_no;
+          updateObj.org_ids = FieldValue.arrayUnion(orgId);
+          hasChanges = true;
+        }
+        if (orgLink.roll_no && !data.roll_no) {
+          updateObj.roll_no = orgLink.roll_no;
+          hasChanges = true;
+        }
+        if (orgLink.grade && !data.grade) {
+          updateObj.grade = orgLink.grade;
+          hasChanges = true;
+        }
+        if (orgLink.section && !data.section) {
+          updateObj.section = orgLink.section;
+          hasChanges = true;
+        }
+
+        // Sanitize assigned_combos: purge unapproved combos
+        if (Array.isArray(orgLink.assigned_combos) && orgLink.assigned_combos.length > 0) {
+          const sanitizedCombos = orgLink.assigned_combos.filter((cid: string) => allowedComboIdSet.has(cid));
+          if (sanitizedCombos.length !== orgLink.assigned_combos.length) {
+            updateObj[`org_links.${orgId}.assigned_combos`] = sanitizedCombos;
+            hasChanges = true;
           }
-          if (orgLink.grade && !data.grade) {
-            updateObj.grade = orgLink.grade;
-          }
-          if (orgLink.section && !data.section) {
-            updateObj.section = orgLink.section;
-          }
+        }
+
+        if (hasChanges) {
+          updateObj.updated_at = new Date().toISOString();
           batch.update(doc.ref, updateObj);
           fixedCount++;
         }
@@ -621,8 +681,6 @@ export async function syncOrgStudents(idToken: string) {
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
-
-import { generateComboId } from '../../kortex_users/org_admin/utils/comboParsers';
 
 export async function getStudentAcademicDetails(idToken: string, studentUid: string) {
   try {
@@ -945,7 +1003,8 @@ export async function updateParentProfile(
     const parentDoc = await parentRef.get();
     
     const currentData = parentDoc.data();
-    if (!parentDoc.exists || currentData?.role !== 'parent') {
+    const parentRoles: string[] = currentData?.roles || (currentData?.role ? [currentData?.role] : []);
+    if (!parentDoc.exists || !parentRoles.includes('parent')) {
       throw new Error("Unauthorized: Not a parent.");
     }
     
@@ -1134,15 +1193,22 @@ export async function logStudentActivity(
       .where('status', '==', 'active')
       .get();
       
-    assignmentSnap.docs.forEach(doc => {
-       const subRef = studentRef.collection('submissions').doc(doc.id);
-       batch.set(subRef, {
-           assignment_id: doc.id,
-           status: 'submitted',
-           submitted_at: new Date().toISOString(),
-           score: activityData.score !== undefined ? activityData.score : null
-       }, { merge: true });
-    });
+    if (!assignmentSnap.empty) {
+      for (const doc of assignmentSnap.docs) {
+        const subRef = studentRef.collection('submissions').doc(doc.id);
+        const subDoc = await subRef.get();
+        // Guard: If assignment has already been graded by a teacher, lock score & status
+        if (subDoc.exists && subDoc.data()?.status === 'graded') {
+          continue;
+        }
+        batch.set(subRef, {
+            assignment_id: doc.id,
+            status: 'submitted',
+            submitted_at: new Date().toISOString(),
+            score: activityData.score !== undefined ? activityData.score : null
+        }, { merge: true });
+      }
+    }
 
     await batch.commit();
 
@@ -1208,7 +1274,8 @@ export async function getStudentOrgProfiles(idToken: string, orgIds: string[]) {
          const data = snap.data() as any;
          orgProfiles[orgId] = {
            kortex_id: data.kortex_id,
-           full_name: data.full_name,
+           full_name: data.organization_name || data.full_name || 'School',
+           address: data.address || data.address_line1 || '',
            approved_grade_subject_combos: data.approved_grade_subject_combos || []
          };
       }
@@ -1229,7 +1296,8 @@ export async function getStudentAssignments(idToken: string, targetUid?: string)
        // Validate caller is parent of targetUid
        const docSnap = await adminDb.collection('users').doc(studentUid).get();
        const data = docSnap.data();
-       if (data?.role === 'parent' && data?.children_ids?.includes(targetUid)) {
+       const callerRoles: string[] = data?.roles || (data?.role ? [data.role] : []);
+       if (callerRoles.includes('parent') && data?.children_ids?.includes(targetUid)) {
            studentUid = targetUid;
        } else {
            throw new Error("Unauthorized to view this student's assignments");
@@ -1276,8 +1344,11 @@ export async function getStudentAssignments(idToken: string, targetUid?: string)
 
        return {
           id: a.id,
+          orgId: a.org_id,
+          comboId: a.combo_id,
           title: a.title || 'Untitled',
-          subject: a.chapter_name === 'Unknown' ? (a.tool_type !== 'unknown' ? a.tool_type : 'Task') : (a.chapter_name || a.combo_id),
+          subject: a.subject || a.combo_id || (a.chapter_name === 'Unknown' ? (a.tool_type !== 'unknown' ? a.tool_type : 'Task') : (a.chapter_name || 'Assignment')),
+          chapterName: a.chapter_name,
           status: status,
           dueDate: a.due_date,
           link: a.tool_id,
@@ -1319,6 +1390,10 @@ export async function markAssignmentAsDone(idToken: string, assignmentId: string
     const studentUid = decodedToken.uid;
     
     const subRef = adminDb.collection('users').doc(studentUid).collection('submissions').doc(assignmentId);
+    const subDoc = await subRef.get();
+    if (subDoc.exists && subDoc.data()?.status === 'graded') {
+      return { success: false, error: "This assignment has already been graded and cannot be marked again." };
+    }
     await subRef.set({
        assignment_id: assignmentId,
        status: 'submitted',
@@ -1348,8 +1423,12 @@ export async function bulkProvisionStudents(
     if (!callerDoc.exists || callerDoc.data()?.role !== 'org_admin') {
       throw new Error("Unauthorized: Only Organization Admins can bulk provision students.");
     }
+    const callerData = callerDoc.data();
     const orgId = callerUid;
-    const orgName = callerDoc.data()?.organization_name || "Organization";
+    const orgName = callerData?.organization_name || "Organization";
+    const orgKortexId = callerData?.kortex_id || "";
+    const approvedCombos = callerData?.approved_grade_subject_combos || [];
+    const safeAssignedCombos = sanitizeAssignedCombos(assignedCombos, orgKortexId, approvedCombos);
 
     if (students.length === 0) return { success: false, error: "No students provided." };
     if (students.length > 40) return { success: false, error: "Cannot upload more than 40 students at once." };
@@ -1411,7 +1490,7 @@ export async function bulkProvisionStudents(
             grade: grade,
             section: section,
             roll_no: cleanRollNo,
-            assigned_combos: assignedCombos,
+            assigned_combos: safeAssignedCombos,
             status: 'pending'
           }
         },
@@ -1549,10 +1628,12 @@ export async function grantHeart(idToken: string, studentUid: string) {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     
     // Parent can grant to their children, student to themselves
-    if (decodedToken.role === 'parent') {
-      const parentDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-      const parentData = parentDoc.data();
-      if (!parentData?.children?.includes(studentUid)) {
+    const callerDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    const callerData = callerDoc.data();
+    const callerRoles: string[] = callerData?.roles || (callerData?.role ? [callerData?.role] : []);
+    if (callerRoles.includes('parent')) {
+      const parentChildren = callerData?.children_ids || callerData?.children || [];
+      if (!parentChildren.includes(studentUid)) {
         throw new Error("Unauthorized to grant heart for this student");
       }
     } else if (decodedToken.uid !== studentUid) {
@@ -1579,3 +1660,71 @@ export async function grantHeart(idToken: string, studentUid: string) {
     return { success: false, error: "Failed to grant heart" };
   }
 }
+
+export async function getCurriculumTotals() {
+  try {
+    const totalsDoc = await adminDb.collection('metadata').doc('curriculum_totals').get();
+    return { 
+      success: true, 
+      totals: totalsDoc.exists ? (totalsDoc.data() as Record<string, number>) : {} 
+    };
+  } catch (error: any) {
+    console.error("Error fetching curriculum totals:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function registerCourseInterest(
+  idToken: string,
+  payload: {
+    programId: string;
+    programTitle: string;
+    targetChildUid?: string;
+    targetChildName?: string;
+  }
+) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const callerUid = decodedToken.uid;
+    const callerDoc = await adminDb.collection('users').doc(callerUid).get();
+    const callerData = callerDoc.data() || {};
+    const callerRoles: string[] = callerData.roles || (callerData.role ? [callerData.role] : []);
+
+    let childUid = payload.targetChildUid || callerUid;
+    let childName = payload.targetChildName || callerData.full_name || 'Student';
+
+    // If caller is parent, verify ownership of child
+    if (callerRoles.includes('parent') && payload.targetChildUid) {
+      const childDoc = await adminDb.collection('users').doc(payload.targetChildUid).get();
+      if (childDoc.exists) {
+        const cd = childDoc.data()!;
+        if (cd.parent_id !== callerUid && !(callerData.children_ids || []).includes(payload.targetChildUid)) {
+          throw new Error("Unauthorized: Child does not belong to this parent account");
+        }
+        childName = cd.full_name || childName;
+      }
+    }
+
+    const interestRef = adminDb.collection('course_interests').doc();
+    await interestRef.set({
+      id: interestRef.id,
+      program_id: payload.programId,
+      program_title: payload.programTitle,
+      caller_uid: callerUid,
+      caller_name: callerData.full_name || 'User',
+      caller_email: callerData.email || decodedToken.email || '',
+      caller_phone: callerData.phone || '',
+      caller_role: callerRoles[0] || 'user',
+      child_uid: childUid,
+      child_name: childName,
+      created_at: new Date().toISOString(),
+      status: 'interested'
+    });
+
+    return { success: true, message: `Successfully registered interest for ${childName}` };
+  } catch (error: any) {
+    console.error("Error registering course interest:", error);
+    return { success: false, error: error.message };
+  }
+}
+

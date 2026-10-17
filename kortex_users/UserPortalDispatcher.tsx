@@ -11,6 +11,7 @@ import OrgAdminDashboard from './org_admin/OrgAdminDashboard';
 import KrewDashboard from './krew/KrewDashboard';
 import KortexAdminDashboard from './kortex_admin/KortexAdminDashboard';
 import Footer from '../kortex_landing_page/components/Footer';
+import { useAuth } from '../context/AuthContext';
 
 interface UserPortalDispatcherProps {
   profile: UserProfile;
@@ -26,7 +27,10 @@ export default function UserPortalDispatcher({
   onOpenCMS
 }: UserPortalDispatcherProps) {
   const router = useRouter();
+  const { activeRole, hasBothRoles } = useAuth();
   const [isClientGuarded, setIsClientGuarded] = useState(false);
+
+  const effectiveRole = (hasBothRoles && activeRole) ? activeRole : profile.role;
 
   useEffect(() => {
     if (profile.accountStatus === 'DELETED') {
@@ -35,7 +39,7 @@ export default function UserPortalDispatcher({
     }
 
     // RBAC Route Guard Interceptor
-    if (profile.role === 'parent') {
+    if (effectiveRole === 'parent') {
       if (profile.phoneVerified === false || profile.phoneVerified === undefined || profile.onboardingStatus === 'PENDING_PHONE') {
         router.replace('/onboarding/verify-phone');
         return;
@@ -44,7 +48,7 @@ export default function UserPortalDispatcher({
     
     // Bypass for all other roles (kortex_admin, teacher, organization, student)
     setIsClientGuarded(true);
-  }, [profile, router]);
+  }, [profile, router, effectiveRole]);
 
   // Trap render while guarding
   if (!isClientGuarded) {
@@ -70,25 +74,25 @@ export default function UserPortalDispatcher({
   }
 
   const renderDashboard = () => {
-    switch (profile.role) {
+    switch (effectiveRole) {
       case 'parent':
-        return <ParentDashboard profile={profile} />;
+        return <ParentDashboard profile={profile as any} onExploreTier={onExploreTier} />;
 
       case 'student':
-        return <StudentDashboard profile={profile} onExploreTier={onExploreTier} />;
+        return <StudentDashboard profile={profile as any} onExploreTier={onExploreTier} />;
 
       case 'teacher':
-        return <TeacherPortal profile={profile} onExploreTier={onExploreTier} />;
+        return <TeacherPortal profile={profile as any} onExploreTier={onExploreTier} />;
 
       case 'org_admin':
-        return <OrgAdminDashboard profile={profile} />;
+        return <OrgAdminDashboard profile={profile as any} />;
 
       case 'krew':
-        return <KrewDashboard profile={profile} onOpenCMS={onOpenCMS} />;
+        return <KrewDashboard profile={profile as any} onOpenCMS={onOpenCMS} />;
 
       case 'admin':
         // The nodes will be populated by page.tsx if rendered directly, but here we just return the shell if loaded standalone.
-        return <KortexAdminDashboard profile={profile} />;
+        return <KortexAdminDashboard profile={profile as any} />;
 
       default:
         return (

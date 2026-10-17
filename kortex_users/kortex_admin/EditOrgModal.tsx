@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, X, Send, CheckCircle2, Plus, Layers } from 'lucide-react';
+import ModalPortal from '../../components/ModalPortal';
 import { auth } from '../../backend_configurations/firebase';
 import { updateOrganizationAccount } from '../../app/actions/provision';
 import { OrgAdminProfile } from '../../types/user';
@@ -136,7 +137,7 @@ export default function EditOrgModal({ org, onClose, onSuccess }: EditOrgModalPr
   const maxAllowedStudents = approvedCombos.length * 40;
 
   const modalContent = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="bg-indigo-600 p-6 sm:p-8 flex items-center justify-between shrink-0">
@@ -435,5 +436,5 @@ export default function EditOrgModal({ org, onClose, onSuccess }: EditOrgModalPr
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return <ModalPortal>{modalContent}</ModalPortal>;
 }

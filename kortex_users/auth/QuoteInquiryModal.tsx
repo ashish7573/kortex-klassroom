@@ -4,6 +4,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../backend_configurations/firebase';
 import { QuoteInquiry } from '../../types/user';
 import { Building2, X, Send, CheckCircle2 } from 'lucide-react';
+import ModalPortal from '../../components/ModalPortal';
 
 interface QuoteInquiryModalProps {
   onClose: () => void;
@@ -50,7 +51,8 @@ export default function QuoteInquiryModal({ onClose }: QuoteInquiryModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in px-4">
       <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl relative border-4 border-slate-100 p-8 max-h-[90vh] overflow-y-auto">
         <button 
           onClick={onClose} 
@@ -199,5 +201,6 @@ export default function QuoteInquiryModal({ onClose }: QuoteInquiryModalProps) {
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }

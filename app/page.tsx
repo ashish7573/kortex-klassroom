@@ -6,7 +6,7 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 
-import { User, Play, LogOut, Search, Star, Menu, X, Type, Target, MessageSquare } from 'lucide-react';
+import { User, Play, LogOut, Search, Star, Menu, X, Type, Target, MessageSquare, RefreshCw, CheckCircle2 } from 'lucide-react';
 import ContactUsModal from '../kortex_users/shared/ContactUsModal';
 
 import { useAuth } from '../hooks/useAuth';
@@ -39,6 +39,7 @@ import Footer from '../kortex_landing_page/components/Footer';
 import LandingView from '../kortex_landing_page/LandingPage';
 import LessonsView from '../kortex_landing_page/all_lessons_page';
 import TierLibraryView from '../kortex_landing_page/TierLibraryView';
+import KortexKoursesPage from '../kortex_landing_page/KortexKoursesPage';
 
 // ============================================================================
 // LAZY-LOADED COMPONENTS (Loaded on-demand for maximum page performance)
@@ -107,6 +108,9 @@ function MainApp() {
     user: authUser, 
     profile: authProfile, 
     role: authRole, 
+    activeRole,
+    hasBothRoles,
+    switchRole,
     isLoggedIn: authIsLoggedIn, 
     isPro: authIsPro, 
     logout: authLogout, 
@@ -121,6 +125,8 @@ function MainApp() {
   const [isPro, setIsPro] = useState(false);
   const [userEmail, setUserEmail] = useState(''); 
   const [userName, setUserName] = useState(''); 
+
+  const displayRole = (hasBothRoles && activeRole) ? activeRole : role; 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showContactUs, setShowContactUs] = useState(false);
@@ -546,6 +552,18 @@ useEffect(() => {
   };
 
   const renderContent = () => {
+    if (currentView === 'kourses') {
+      return (
+        <KortexKoursesPage 
+          authProfile={authProfile} 
+          isLoggedIn={isLoggedIn} 
+          onNavigateHome={() => setCurrentView('home')} 
+          onNavigateToPortal={() => setCurrentView('portal')} 
+          onRequireAuth={() => { setAuthMode('signin'); setShowAuthModal(true); }} 
+        />
+      );
+    }
+
     if (currentView?.startsWith('lessons')) {
         let defaultClass = "";
         let defaultSubject = "";
@@ -739,9 +757,10 @@ useEffect(() => {
           <div className="flex items-center gap-4 xl:gap-8 ml-auto">
             
             {/* 6 Nav Links (Hidden on mobile) */}
-            {role !== 'parent' && (
+            {displayRole !== 'parent' && (
               <div className="hidden lg:flex items-center gap-4 xl:gap-8 font-extrabold text-slate-500 text-xs text-center leading-tight">
                  <button onClick={() => setCurrentView('lessons')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'lessons' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>All<br/>Lessons</button>
+                 <button onClick={() => setCurrentView('kourses')} className={`py-2 px-1 transition-colors hover:text-indigo-600 ${currentView === 'kourses' ? 'text-indigo-600 border-b-2 border-indigo-600' : ''}`}>Kortex<br/>Kourses</button>
                  <button onClick={() => setCurrentView('conceptualiser')} className={`py-2 px-1 transition-colors hover:text-purple-500 ${currentView === 'conceptualiser' ? 'text-purple-500 border-b-2 border-purple-500' : ''}`}>Interactive<br/>Sandbox</button>
                  <button onClick={() => setCurrentView('theatre')} className={`py-2 px-1 transition-colors hover:text-pink-500 ${currentView === 'theatre' ? 'text-pink-500 border-b-2 border-pink-500' : ''}`}>Kortex<br/>Theatre</button>
                  <button onClick={() => setCurrentView('dojo')} className={`py-2 px-1 transition-colors hover:text-orange-500 ${currentView === 'dojo' ? 'text-orange-500 border-b-2 border-orange-500' : ''}`}>The<br/>Dojo</button>
@@ -754,6 +773,23 @@ useEffect(() => {
             <div className="flex items-center gap-3 shrink-0">
               {isLoggedIn ? (
                  <div className="hidden sm:flex items-center gap-3 border-l-2 border-slate-100 pl-4 xl:pl-8">
+                   {/* DUAL ROLE SWITCHER: ONLY VISIBLE IF hasBothRoles IS TRUE */}
+                   {hasBothRoles && (
+                     <button
+                       type="button"
+                       onClick={() => {
+                         const nextRole = activeRole === 'teacher' ? 'parent' : 'teacher';
+                         switchRole(nextRole);
+                         setCurrentView('portal');
+                       }}
+                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition-all cursor-pointer shadow-xs active:scale-95"
+                       title={`Switch to ${activeRole === 'teacher' ? 'Parent' : 'Teacher'} Dashboard`}
+                     >
+                       <RefreshCw className="w-3.5 h-3.5" />
+                       <span>Switch to {activeRole === 'teacher' ? 'Parent' : 'Teacher'}</span>
+                     </button>
+                   )}
+
                    <button 
                      type="button"
                      onClick={() => setCurrentView('portal')}
@@ -761,7 +797,7 @@ useEffect(() => {
                      title="Open Your User Portal"
                    >
                      <div className="text-sm font-bold text-slate-800 leading-none">{userName || (userEmail ? userEmail.split('@')[0] : 'User')}</div>
-                     <div className="text-xs font-bold text-sky-500 capitalize">{role?.replace('_', ' ')} {isPro ? '(Pro)' : ''}</div>
+                     <div className="text-xs font-bold text-sky-500 capitalize">{displayRole?.replace('_', ' ')} {isPro ? '(Pro)' : ''}</div>
                    </button>
                    <div 
                      onClick={() => setCurrentView('portal')}
@@ -792,9 +828,10 @@ useEffect(() => {
         {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && (
            <div className="lg:hidden bg-white border-t border-slate-100 p-4 space-y-2 absolute w-full shadow-xl font-bold text-slate-700">
-              {role !== 'parent' && (
+              {displayRole !== 'parent' && (
                 <>
                   <button onClick={() => { setCurrentView('lessons'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'lessons' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>All Lessons</button>
+                  <button onClick={() => { setCurrentView('kourses'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'kourses' ? 'text-indigo-600 bg-indigo-50' : 'hover:bg-slate-50'}`}>Kortex Kourses</button>
                   <button onClick={() => { setCurrentView('conceptualiser'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'conceptualiser' ? 'text-purple-500 bg-purple-50' : 'hover:bg-slate-50'}`}>Interactive Sandbox</button>
                   <button onClick={() => { setCurrentView('theatre'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'theatre' ? 'text-pink-500 bg-pink-50' : 'hover:bg-slate-50'}`}>Kortex Theatre</button>
                   <button onClick={() => { setCurrentView('dojo'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'dojo' ? 'text-orange-500 bg-orange-50' : 'hover:bg-slate-50'}`}>The Dojo</button>
@@ -805,7 +842,53 @@ useEffect(() => {
 
               {isLoggedIn ? (
                 <>
-                  <button onClick={() => { setCurrentView('portal'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg font-black ${currentView === 'portal' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>My Portal ({role?.replace('_', ' ')})</button>
+                  {hasBothRoles ? (
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-2">
+                      <div className="text-xs uppercase tracking-wider font-extrabold text-slate-400 mb-2 px-1">
+                        Switch Dashboard
+                      </div>
+                      <div className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            switchRole('teacher');
+                            setCurrentView('portal');
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-lg text-sm font-bold transition-all ${
+                            activeRole === 'teacher'
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'text-slate-700 hover:bg-slate-200/60'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            🎓 Teacher Portal
+                          </span>
+                          {activeRole === 'teacher' && <CheckCircle2 className="w-4 h-4 text-white" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            switchRole('parent');
+                            setCurrentView('portal');
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-lg text-sm font-bold transition-all ${
+                            activeRole === 'parent'
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'text-slate-700 hover:bg-slate-200/60'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            👨‍👩‍👧 Parent Dashboard
+                          </span>
+                          {activeRole === 'parent' && <CheckCircle2 className="w-4 h-4 text-white" />}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setCurrentView('portal'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg font-black ${currentView === 'portal' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>My Portal ({displayRole?.replace('_', ' ')})</button>
+                  )}
                   <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left p-3 text-red-500 mt-2 border-t-2 border-slate-100 pt-4">Log Out</button>
                 </>
               ) : (

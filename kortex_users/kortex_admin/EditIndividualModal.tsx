@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { auth } from '../../backend_configurations/firebase';
 import { updateIndividualUser, generateUserPasswordResetLink } from '../../app/actions/student';
+import ModalPortal from '../../components/ModalPortal';
 import { GRADES, SUBJECTS, SECTIONS } from '../../kortex_landing_page/curriculumConfig';
 
 interface EditIndividualModalProps {
@@ -268,7 +269,7 @@ export default function EditIndividualModal({
   const allParents = individuals.filter(ind => ind.role === 'parent');
 
   const modalContent = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-100">
         
         {/* Header */}
@@ -1051,6 +1052,6 @@ export default function EditIndividualModal({
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return <ModalPortal>{modalContent}</ModalPortal>;
 }
 

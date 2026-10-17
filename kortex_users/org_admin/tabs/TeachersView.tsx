@@ -7,6 +7,7 @@ import { provisionTeacherAccount, updateTeacherAccount, generateTeacherPasswordL
 import { softDeleteUser, restoreUser } from '../../../app/actions/userManagement';
 import { auth, db } from '../../../backend_configurations/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import ModalPortal from '../../../components/ModalPortal';
 
 export default function TeachersView({ profile }: { profile: OrgAdminProfile }) {
   // State: Listing & Fetching
@@ -598,7 +599,8 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
           ADD TEACHER MODAL 
       ============================================= */}
       {showAddModal && !successData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
              <div className="bg-indigo-600 p-6 flex items-center justify-between shrink-0">
                <div className="flex items-center gap-4 text-white">
@@ -702,13 +704,15 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
              </form>
            </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* =========================================
           EDIT TEACHER MODAL 
       ============================================= */}
       {editingTeacher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
              <div className="bg-indigo-600 p-6 flex items-center justify-between shrink-0">
                <div className="flex items-center gap-4 text-white">
@@ -789,13 +793,15 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
              </form>
            </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* =========================================
           DELETE CONFIRMATION MODAL 
       ============================================= */}
       {deletingTeacher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col text-center">
              <div className="p-6 pb-2 pt-8 flex justify-center text-rose-500">
                 <AlertTriangle size={48} strokeWidth={1.5} />
@@ -820,13 +826,15 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
              </div>
            </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* =========================================
           SUCCESS MODAL (Credentials Output)
       ============================================= */}
       {successData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden flex flex-col text-center">
              <div className="bg-emerald-500 p-8 flex flex-col items-center justify-center relative">
                <button onClick={closeModals} className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-full transition-colors"><X size={20}/></button>
@@ -873,6 +881,7 @@ export default function TeachersView({ profile }: { profile: OrgAdminProfile }) 
              </div>
            </div>
         </div>
+      </ModalPortal>
       )}
     </div>
   );

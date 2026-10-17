@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { MapPin, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { auth } from '../../backend_configurations/firebase';
 import { updateParentProfile } from '../../app/actions/student';
+import ModalPortal from '../../components/ModalPortal';
 
 interface CompleteLocationModalProps {
   isOpen: boolean;
@@ -80,7 +81,8 @@ export default function CompleteLocationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-fade-in">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-fade-in">
       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border-2 border-slate-100 overflow-hidden animate-scale-up">
         {/* Top Header Banner */}
         <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 p-6 text-white text-center relative">
@@ -192,6 +194,7 @@ export default function CompleteLocationModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

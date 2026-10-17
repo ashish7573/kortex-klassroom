@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+body.modal-open {
+  overflow: hidden !important;
+}
+
+body.modal-open nav {
+  z-index: 10 !important;
+  pointer-events: none !important;
+}
+

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { OrgAdminProfile } from '../../../types/user';
 import { FileSpreadsheet, Download, CheckCircle2, AlertTriangle, ShieldCheck, X, List } from 'lucide-react';
+import ModalPortal from '../../../components/ModalPortal';
 
 export default function SubscriptionView({ profile }: { profile: OrgAdminProfile }) {
   const [showCombosModal, setShowCombosModal] = useState(false);
@@ -115,48 +116,50 @@ export default function SubscriptionView({ profile }: { profile: OrgAdminProfile
 
       {/* Combos Modal */}
       {showCombosModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
-            <div className="bg-indigo-600 p-6 flex items-center justify-between shrink-0">
-              <h3 className="text-white font-black text-xl flex items-center gap-2">
-                <List size={24} /> Approved Combinations
-              </h3>
-              <button 
-                onClick={() => setShowCombosModal(false)}
-                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto">
-              {approvedCombos.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  {approvedCombos.map((combo, idx) => (
-                    <div key={idx} className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 flex items-center">
-                      <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs mr-3 shrink-0">
-                        {idx + 1}
-                      </span>
-                      {combo}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-slate-400 font-bold">
-                  No combinations have been approved yet.
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
-              <button 
-                onClick={() => setShowCombosModal(false)}
-                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-colors"
-              >
-                Close
-              </button>
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+              <div className="bg-indigo-600 p-6 flex items-center justify-between shrink-0">
+                <h3 className="text-white font-black text-xl flex items-center gap-2">
+                  <List size={24} /> Approved Combinations
+                </h3>
+                <button 
+                  onClick={() => setShowCombosModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto">
+                {approvedCombos.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {approvedCombos.map((combo, idx) => (
+                      <div key={idx} className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 flex items-center">
+                        <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs mr-3 shrink-0">
+                          {idx + 1}
+                        </span>
+                        {combo}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-400 font-bold">
+                    No combinations have been approved yet.
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
+                <button 
+                  onClick={() => setShowCombosModal(false)}
+                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
     </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { PlayCircle, ShieldCheck, Clock, X } from 'lucide-react';
+import ModalPortal from '../../components/ModalPortal';
 
 export default function PlaceholderAd({ onComplete, onSkip, type = 'rewarded' }: { onComplete: () => void, onSkip?: () => void, type?: 'rewarded' | 'interstitial' }) {
     const [timeLeft, setTimeLeft] = useState(5);
@@ -18,7 +19,8 @@ export default function PlaceholderAd({ onComplete, onSkip, type = 'rewarded' }:
     }, [isPlaying, timeLeft]);
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in font-sans">
+        <ModalPortal>
+            <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in font-sans">
             
             {/* Header / Skip */}
             <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-10">
@@ -91,6 +93,7 @@ export default function PlaceholderAd({ onComplete, onSkip, type = 'rewarded' }:
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

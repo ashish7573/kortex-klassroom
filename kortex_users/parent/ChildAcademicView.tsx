@@ -6,6 +6,7 @@ import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore
 import { useStudentAssignments } from '../../hooks/useStudentAssignments';
 import { getStudentAcademicDetails, getChildProgressAndTotals } from '../../app/actions/student';
 import { Building, AlertCircle, Sparkles, TrendingUp, Clock, CheckCircle2, FileText, BarChart2, Lock, X, ClipboardList, CircleDashed, Award } from 'lucide-react';
+import ModalPortal from '../../components/ModalPortal';
 
 interface ChildAcademicViewProps {
   child: StudentProfile;
@@ -441,45 +442,47 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
 
       {/* The Upsell Modal */}
       {showUpsellModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center px-4 animate-fade-in">
-          <div className="bg-white rounded-[2rem] max-w-lg w-full shadow-2xl overflow-hidden animate-fade-in-up">
-            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-8 text-center relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4">
-                 <button onClick={() => setShowUpsellModal(false)} className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/40 shadow-sm transition-colors"><X size={18} /></button>
-               </div>
-               <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white/30 shadow-sm backdrop-blur-md">
-                 <Sparkles size={36} className="text-white" />
-               </div>
-               <h2 className="text-3xl font-black text-white mb-2 tracking-tight">Unlock Kortex Pro</h2>
-               <p className="text-indigo-100 font-bold text-lg">Give {child.full_name} the ultimate learning advantage.</p>
-            </div>
-            <div className="p-8 space-y-6">
-               <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                     <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
-                     <p className="font-bold text-slate-700">Unlimited Daily Energy (Hearts)</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                     <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
-                     <p className="font-bold text-slate-700">Access the entire curriculum library</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                     <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
-                     <p className="font-bold text-slate-700">Unlock detailed performance analytics</p>
-                  </div>
-               </div>
-               <button 
-                 onClick={() => {
-                   alert("Coming soon!");
-                   setShowUpsellModal(false);
-                 }}
-                 className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-black rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 text-lg"
-               >
-                 Upgrade Now for ₹199/mo
-               </button>
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center px-4 animate-fade-in">
+            <div className="bg-white rounded-[2rem] max-w-lg w-full shadow-2xl overflow-hidden animate-fade-in-up">
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-8 text-center relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4">
+                   <button onClick={() => setShowUpsellModal(false)} className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/40 shadow-sm transition-colors"><X size={18} /></button>
+                 </div>
+                 <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white/30 shadow-sm backdrop-blur-md">
+                   <Sparkles size={36} className="text-white" />
+                 </div>
+                 <h2 className="text-3xl font-black text-white mb-2 tracking-tight">Unlock Kortex Pro</h2>
+                 <p className="text-indigo-100 font-bold text-lg">Give {child.full_name} the ultimate learning advantage.</p>
+              </div>
+              <div className="p-8 space-y-6">
+                 <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                       <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
+                       <p className="font-bold text-slate-700">Unlimited Daily Energy (Hearts)</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                       <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
+                       <p className="font-bold text-slate-700">Access the entire curriculum library</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                       <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
+                       <p className="font-bold text-slate-700">Unlock detailed performance analytics</p>
+                    </div>
+                 </div>
+                 <button 
+                   onClick={() => {
+                     alert("Coming soon!");
+                     setShowUpsellModal(false);
+                   }}
+                   className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-black rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 text-lg"
+                 >
+                   Upgrade Now for ₹199/mo
+                 </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

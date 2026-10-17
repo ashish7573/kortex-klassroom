@@ -13,7 +13,8 @@ export async function createAssignment(idToken: string, payload: CreateAssignmen
     // Verify teacher and classroom ownership
     const docSnap = await adminDb.collection('users').doc(teacherUid).get();
     const teacherData = docSnap.data() as any;
-    if (teacherData.role !== 'teacher') throw new Error("Unauthorized");
+    const teacherRoles: string[] = teacherData?.roles || (teacherData?.role ? [teacherData.role] : []);
+    if (!teacherRoles.includes('teacher')) throw new Error("Unauthorized");
     
     const assignedCombos = teacherData.assigned_combos || [];
     if (!assignedCombos.includes(payload.comboId)) {
@@ -39,6 +40,7 @@ export async function createAssignment(idToken: string, payload: CreateAssignmen
        org_id: payload.orgId,
        teacher_uid: teacherUid,
        combo_id: payload.comboId,
+       subject: payload.subject || '',
        tool_id: payload.toolId,
        tool_type: payload.toolType || 'unknown',
        chapter_name: payload.chapterName || 'Unknown Chapter',
@@ -117,7 +119,9 @@ export async function gradeSubmission(idToken: string, studentUid: string, assig
     
     // Verify teacher role
     const docSnap = await adminDb.collection('users').doc(teacherUid).get();
-    if (docSnap.data()?.role !== 'teacher') throw new Error("Unauthorized");
+    const teacherData = docSnap.data() as any;
+    const teacherRoles: string[] = teacherData?.roles || (teacherData?.role ? [teacherData.role] : []);
+    if (!teacherRoles.includes('teacher')) throw new Error("Unauthorized");
     
     // Security Guard: Verify this teacher actually owns the assignment!
     const assignmentDoc = await adminDb.collection('assignments').doc(assignmentId).get();
@@ -142,7 +146,10 @@ export async function revertSubmission(idToken: string, studentUid: string, assi
   try {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const teacherUid = decodedToken.uid;
-    if ((await adminDb.collection('users').doc(teacherUid).get()).data()?.role !== 'teacher') throw new Error("Unauthorized");
+    const teacherDoc = await adminDb.collection('users').doc(teacherUid).get();
+    const teacherData = teacherDoc.data() as any;
+    const teacherRoles: string[] = teacherData?.roles || (teacherData?.role ? [teacherData.role] : []);
+    if (!teacherRoles.includes('teacher')) throw new Error("Unauthorized");
     
     // Security Guard: Verify this teacher actually owns the assignment!
     const assignmentDoc = await adminDb.collection('assignments').doc(assignmentId).get();
@@ -188,7 +195,9 @@ export async function getAssignmentSubmissions(idToken: string, assignmentId: st
     
     // Verify teacher role
     const teacherDoc = await adminDb.collection('users').doc(teacherUid).get();
-    if (teacherDoc.data()?.role !== 'teacher') throw new Error("Unauthorized");
+    const teacherData = teacherDoc.data() as any;
+    const teacherRoles: string[] = teacherData?.roles || (teacherData?.role ? [teacherData.role] : []);
+    if (!teacherRoles.includes('teacher')) throw new Error("Unauthorized");
     
     // Get Assignment
     const assignmentDoc = await adminDb.collection('assignments').doc(assignmentId).get();

@@ -7,6 +7,8 @@ export type AssignmentStatus = 'pending' | 'submitted' | 'graded';
 
 export interface MergedAssignment {
   id: string;
+  orgId?: string;
+  comboId?: string;
   title: string;
   subject: string;
   status: AssignmentStatus;
@@ -20,6 +22,7 @@ export interface MergedAssignment {
   grade?: string;
   instructions?: string;
   externalLink?: string;
+  chapterName?: string;
 }
 
 export function useStudentAssignments(studentUid: string) {

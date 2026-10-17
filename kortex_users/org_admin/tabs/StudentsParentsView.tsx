@@ -7,6 +7,7 @@ import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, Refresh
 import { GRADES, SECTIONS, SUBJECT_CATEGORIES, GRADE_CORE_MAP } from '../../../kortex_landing_page/curriculumConfig';
 import { generateComboId } from '../utils/comboParsers';
 import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess, bulkProvisionStudents, syncOrgStudents } from '../../../app/actions/student';
+import ModalPortal from '../../../components/ModalPortal';
 
 export default function StudentsParentsView({ profile }: { profile: OrgAdminProfile }) {
   const [students, setStudents] = useState<StudentProfile[]>([]);
@@ -44,6 +45,12 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
     const parts = found.split('-');
     return parts.length > 2 ? parts[parts.length - 1].trim() : found;
   };
+
+  const approvedComboIdSet = useMemo(() => {
+    return new Set(
+      (profile.approved_grade_subject_combos || []).map(c => generateComboId(profile.kortex_id || '', c))
+    );
+  }, [profile.approved_grade_subject_combos, profile.kortex_id]);
 
   // Extract distinct subjects from org combos
   const availableSubjects = useMemo(() => {
@@ -129,7 +136,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
     let matchesSubject = true;
     if (subjectFilter !== 'all') {
       const defaultCombos = getStudentDefaultCombos(student);
-      const assignedCombos = student.org_links?.[profile.uid]?.assigned_combos || [];
+      const assignedCombos = (student.org_links?.[profile.uid]?.assigned_combos || []).filter(cid => approvedComboIdSet.has(cid));
       const allComboStrings = [
         ...defaultCombos,
         ...assignedCombos.map(decodeCombo)
@@ -207,13 +214,15 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   // Pre-check Core Subjects for Bulk Import when Grade changes
   useEffect(() => {
     if (addMode === 'bulk') {
+      const approvedCombos = profile.approved_grade_subject_combos || [];
       const coreSubjects = GRADE_CORE_MAP[studentForm.grade] || [];
-      const coreComboIds = coreSubjects.map(subj => 
-        generateComboId(profile.kortex_id || '', `${studentForm.grade} - Section ${studentForm.section} - ${subj}`)
-      );
-      setStudentForm(prev => ({ ...prev, assignedCombos: coreComboIds }));
+      const validCoreComboIds = coreSubjects
+        .map(subj => `${studentForm.grade} - Section ${studentForm.section} - ${subj}`)
+        .filter(comboStr => approvedCombos.includes(comboStr))
+        .map(comboStr => generateComboId(profile.kortex_id || '', comboStr));
+      setStudentForm(prev => ({ ...prev, assignedCombos: validCoreComboIds }));
     }
-  }, [studentForm.grade, studentForm.section, addMode, profile.kortex_id]);
+  }, [studentForm.grade, studentForm.section, addMode, profile.kortex_id, profile.approved_grade_subject_combos]);
 
 
   // Real-time listener for Students
@@ -438,12 +447,15 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
 
   const openEdit = (student: StudentProfile) => {
     setEditingStudent(student);
+    const rawAssigned = student.org_links?.[profile.uid]?.assigned_combos || [];
+    const validAssigned = rawAssigned.filter(cid => approvedComboIdSet.has(cid));
+
     setStudentForm({
       nameOrId: student.full_name,
       rollNo: student.roll_no || student.org_links?.[profile.uid]?.roll_no || '',
       grade: student.org_links?.[profile.uid]?.grade || student.grade,
       section: student.org_links?.[profile.uid]?.section || student.section || SECTIONS[0],
-      assignedCombos: student.org_links?.[profile.uid]?.assigned_combos || [],
+      assignedCombos: validAssigned,
       emergencyContact: student.emergency_contact || ''
     });
     setShowEditModal(true);
@@ -699,9 +711,11 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                   {loading ? (
                     <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">Loading students...</td></tr>
                   ) : processedStudents.length > 0 ? processedStudents.map(student => {
+                    const rawAssigned = student.org_links?.[profile.uid]?.assigned_combos || [];
+                    const validAssignedCombos = rawAssigned.filter(cid => approvedComboIdSet.has(cid));
+                    const assignedCount = validAssignedCombos.length;
                     const legacyCount = getStudentDefaultCombos(student).length;
-                    const assignedCount = student.org_links?.[profile.uid]?.assigned_combos?.length || 0;
-                    const totalCount = assignedCount > 0 ? assignedCount : legacyCount;
+                    const totalCount = assignedCount > 0 ? assignedCount : (rawAssigned.length === 0 ? legacyCount : 0);
                     
                     return (
                     <tr key={student.uid} className="hover:bg-slate-50 transition-colors">
@@ -796,7 +810,8 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
 
       {/* Add / Import Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
              
              <div className="bg-indigo-600 p-6 flex flex-col gap-4 text-white shrink-0">
@@ -927,7 +942,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                            const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
                            return (
                              <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                               <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                               <input type="checkbox" checked={isApproved && isChecked} disabled={!isApproved} onChange={(e) => {
                                  if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
                                  else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
                                }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-indigo-600 focus:ring-indigo-500' : 'text-slate-400 bg-slate-200'}`} />
@@ -949,7 +964,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                            const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
                            return (
                              <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                               <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                               <input type="checkbox" checked={isApproved && isChecked} disabled={!isApproved} onChange={(e) => {
                                  if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
                                  else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
                                }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-amber-600 focus:ring-amber-500' : 'text-slate-400 bg-slate-200'}`} />
@@ -971,7 +986,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                            const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
                            return (
                              <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                               <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                               <input type="checkbox" checked={isApproved && isChecked} disabled={!isApproved} onChange={(e) => {
                                  if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
                                  else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
                                }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-emerald-600 focus:ring-emerald-500' : 'text-slate-400 bg-slate-200'}`} />
@@ -1014,11 +1029,13 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
              </div>
            </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* Edit Modal */}
       {showEditModal && editingStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
              <div className="bg-indigo-600 p-6 flex items-center gap-4 text-white shrink-0">
                <div className="p-3 bg-white/20 rounded-xl"><Pencil size={24} /></div>
@@ -1071,7 +1088,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                                const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
                                return (
                                  <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                                   <input type="checkbox" checked={isApproved && isChecked} disabled={!isApproved} onChange={(e) => {
                                      if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
                                      else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
                                    }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-indigo-600 focus:ring-indigo-500' : 'text-slate-400 bg-slate-200'}`} />
@@ -1093,7 +1110,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                                const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
                                return (
                                  <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                                   <input type="checkbox" checked={isApproved && isChecked} disabled={!isApproved} onChange={(e) => {
                                      if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
                                      else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
                                    }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-amber-600 focus:ring-amber-500' : 'text-slate-400 bg-slate-200'}`} />
@@ -1115,7 +1132,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                                const isApproved = profile.approved_grade_subject_combos?.includes(comboStr) || false;
                                return (
                                  <label key={comboId} className={`flex items-center gap-2 ${isApproved ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                                   <input type="checkbox" checked={isChecked} disabled={!isApproved} onChange={(e) => {
+                                   <input type="checkbox" checked={isApproved && isChecked} disabled={!isApproved} onChange={(e) => {
                                      if (e.target.checked) setStudentForm(prev => ({...prev, assignedCombos: [...prev.assignedCombos, comboId]}));
                                      else setStudentForm(prev => ({...prev, assignedCombos: prev.assignedCombos.filter(id => id !== comboId)}));
                                    }} className={`w-4 h-4 rounded border-slate-300 ${isApproved ? 'text-emerald-600 focus:ring-emerald-500' : 'text-slate-400 bg-slate-200'}`} />
@@ -1138,11 +1155,13 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
              </div>
            </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* Revoke Modal */}
       {showRevokeModal && revokingStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
              <div className="p-6">
                 <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-4">
@@ -1167,11 +1186,13 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
              </div>
            </div>
         </div>
+      </ModalPortal>
       )}
 
       {/* Subjects View Modal */}
       {showSubjectsModal && viewingSubjectsStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
              <div className="bg-indigo-600 p-6 flex items-center justify-between text-white shrink-0">
                <div>
@@ -1185,19 +1206,21 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
              </div>
              
              <div className="overflow-y-auto p-6 space-y-6">
-               {viewingSubjectsStudent.org_links?.[profile.uid]?.assigned_combos && viewingSubjectsStudent.org_links?.[profile.uid]?.assigned_combos.length > 0 ? (
-                 <div>
-                   <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3">Assigned Subjects</h4>
-                   <div className="space-y-2">
-                     {viewingSubjectsStudent.org_links?.[profile.uid]?.assigned_combos.map(comboId => (
-                       <div key={comboId} className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                         <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                         <span className="font-bold text-indigo-900 text-sm">{decodeCombo(comboId)}</span>
-                       </div>
-                     ))}
+               {(() => {
+                 const validAssigned = (viewingSubjectsStudent.org_links?.[profile.uid]?.assigned_combos || []).filter(comboId => approvedComboIdSet.has(comboId));
+                 return validAssigned.length > 0 ? (
+                   <div>
+                     <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3">Assigned Subjects</h4>
+                     <div className="space-y-2">
+                       {validAssigned.map(comboId => (
+                         <div key={comboId} className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                           <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                           <span className="font-bold text-indigo-900 text-sm">{decodeCombo(comboId)}</span>
+                         </div>
+                       ))}
+                     </div>
                    </div>
-                 </div>
-               ) : (
+                 ) : (
                  <div>
                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3">Legacy Default Subjects</h4>
                    <div className="space-y-2">
@@ -1216,7 +1239,8 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                      Note: This student is using legacy auto-assignment. Please click Edit and explicitly save their subjects.
                    </p>
                  </div>
-               )}
+               );
+             })()}
              </div>
 
              <div className="p-4 bg-slate-50 border-t border-slate-100 shrink-0">
@@ -1226,6 +1250,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
              </div>
            </div>
         </div>
+      </ModalPortal>
       )}
 
     </div>

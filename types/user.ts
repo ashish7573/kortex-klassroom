@@ -14,6 +14,8 @@ export interface BaseUserProfile {
   email?: string;
   full_name: string;
   role: UserRole;
+  roles?: UserRole[];
+  active_role?: UserRole;
   created_at: string;
   updated_at?: string;
   session_token?: string;
@@ -126,6 +128,8 @@ export interface TeacherProfile extends BaseUserProfile {
   org_id: string;
   assigned_combos: string[];
   assigned_student_ids: string[];
+  children_ids?: string[];
+  pending_org_approvals?: OrgApprovalRequest[];
 }
 
 // 4. Organization Admin Profile (Schools, Academies, Institutions)
@@ -220,6 +224,7 @@ export interface ClassStudentData {
 export interface CreateAssignmentPayload {
   comboId: string;
   orgId: string;
+  subject?: string;
   toolId?: string;
   toolType: string;
   toolTitle?: string;

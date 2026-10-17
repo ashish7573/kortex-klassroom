@@ -5,6 +5,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { RecaptchaVerifier, signInWithPhoneNumber, linkWithPhoneNumber } from 'firebase/auth';
 import { auth } from '../../../backend_configurations/firebase';
 import { db } from '../../../backend_configurations/firebase';
+import ModalPortal from '../../../components/ModalPortal';
 
 export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -290,37 +291,39 @@ export default function ProfileView({ profile }: { profile: OrgAdminProfile }) {
 
       {/* Inline OTP Modal for Org */}
       {showOtpModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative text-center">
-            <h3 className="text-xl font-black text-slate-800 mb-2">Enter OTP</h3>
-            <p className="text-xs text-slate-400 mb-6">Sent to {profile.phone}</p>
-            <form onSubmit={handleConfirmOtp} className="space-y-4">
-              <input
-                type="text"
-                required
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                placeholder="123456"
-                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 text-center tracking-widest text-lg"
-              />
-              <button
-                type="submit"
-                disabled={otpLoading || otp.length < 6}
-                className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl shadow-md disabled:opacity-50"
-              >
-                {otpLoading ? 'Verifying...' : 'Confirm'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowOtpModal(false); setOtp(''); }}
-                className="text-xs font-bold text-slate-400 hover:text-slate-600 py-2"
-              >
-                Cancel
-              </button>
-            </form>
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+            <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative text-center">
+              <h3 className="text-xl font-black text-slate-800 mb-2">Enter OTP</h3>
+              <p className="text-xs text-slate-400 mb-6">Sent to {profile.phone}</p>
+              <form onSubmit={handleConfirmOtp} className="space-y-4">
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="123456"
+                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 text-center tracking-widest text-lg"
+                />
+                <button
+                  type="submit"
+                  disabled={otpLoading || otp.length < 6}
+                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl shadow-md disabled:opacity-50"
+                >
+                  {otpLoading ? 'Verifying...' : 'Confirm'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowOtpModal(false); setOtp(''); }}
+                  className="text-xs font-bold text-slate-400 hover:text-slate-600 py-2"
+                >
+                  Cancel
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

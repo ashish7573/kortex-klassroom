@@ -1,6 +1,7 @@
 "use server";
 
 import { adminAuth, adminDb } from '../../backend_configurations/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { TeacherProfile, TeacherComboData, ClassStudentData } from '../../types/user';
 import { generateComboId } from '../../kortex_users/org_admin/utils/comboParsers';
 
@@ -46,6 +47,41 @@ export async function provisionTeacherAccount(
     
     const emailSnapshot = await adminDb.collection('users').where('email', '==', cleanEmail).get();
     if (!emailSnapshot.empty) {
+      const existingUserDoc = emailSnapshot.docs[0];
+      const existingData = existingUserDoc.data();
+      const existingRoles: string[] = existingData.roles || (existingData.role ? [existingData.role] : []);
+
+      // If user is an existing parent, upgrade them to also have the teacher role!
+      if (existingRoles.includes('parent') && !existingRoles.includes('teacher')) {
+        await existingUserDoc.ref.update({
+          roles: FieldValue.arrayUnion('parent', 'teacher'),
+          org_id: callerUid,
+          assigned_combos: assignedCombos,
+          kortex_id: cleanTeacherId,
+          updated_at: new Date().toISOString()
+        });
+
+        // Link the teacher to the Org Admin's teacher_ids array
+        const orgTeacherIds = callerDoc.data()?.teacher_ids || [];
+        if (!orgTeacherIds.includes(existingUserDoc.id)) {
+          await adminDb.collection('users').doc(callerUid).update({
+            teacher_ids: [...orgTeacherIds, existingUserDoc.id]
+          });
+        }
+
+        const link = await adminAuth.generatePasswordResetLink(cleanEmail).catch(() => null);
+
+        return { 
+          success: true, 
+          kortexId: cleanTeacherId,
+          email: cleanEmail,
+          passwordLink: link,
+          uid: existingUserDoc.id,
+          isUpgraded: true,
+          message: "Existing parent account recognized. Teacher access and classroom combos linked successfully."
+        };
+      }
+
       throw new Error(`The email "${cleanEmail}" is already registered in the system.`);
     }
 
@@ -62,6 +98,7 @@ export async function provisionTeacherAccount(
       email: cleanEmail,
       full_name: fullName.trim(),
       role: 'teacher',
+      roles: ['teacher'],
       org_id: callerUid,
       created_at: new Date().toISOString(),
       status: 'active',
@@ -182,7 +219,8 @@ export async function getTeacherDashboardData(idToken: string) {
     if (!docSnap.exists) throw new Error("Teacher not found");
     
     const teacherData = docSnap.data() as any;
-    if (teacherData.role !== 'teacher') throw new Error("Unauthorized");
+    const teacherRoles: string[] = teacherData.roles || (teacherData.role ? [teacherData.role] : []);
+    if (!teacherRoles.includes('teacher')) throw new Error("Unauthorized");
     
     // Fetch all related organizations
     const orgsToFetch = teacherData.org_ids || [];
@@ -288,7 +326,8 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
     // Verify teacher is authorized
     const docSnap = await adminDb.collection('users').doc(teacherUid).get();
     const teacherData = docSnap.data() as any;
-    if (teacherData.role !== 'teacher') throw new Error("Unauthorized");
+    const teacherRoles: string[] = teacherData.roles || (teacherData.role ? [teacherData.role] : []);
+    if (!teacherRoles.includes('teacher')) throw new Error("Unauthorized");
     
     // Security Guard: Verify teacher actually belongs to the requested Org
     if (teacherData.org_id !== orgId && !(teacherData.org_ids && teacherData.org_ids.includes(orgId))) {
@@ -452,7 +491,9 @@ export async function updateStudentMasteryLevel(
     const teacherDoc = await adminDb.collection('users').doc(teacherUid).get();
     if (!teacherDoc.exists) throw new Error("Teacher not found");
     const teacherData = teacherDoc.data() as any;
-    if (teacherData.role !== 'teacher' && teacherData.role !== 'org_admin' && teacherData.role !== 'admin' && teacherData.role !== 'super_admin') {
+    const teacherRoles: string[] = teacherData.roles || (teacherData.role ? [teacherData.role] : []);
+    const isAuthorized = teacherRoles.includes('teacher') || ['org_admin', 'admin', 'super_admin'].includes(teacherData.role);
+    if (!isAuthorized) {
       throw new Error("Unauthorized: Only teachers or admins can update student mastery levels.");
     }
 
