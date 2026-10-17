@@ -31,6 +31,7 @@ import {
   Card, Button, ProgressBar, GeneralAlertModal, WorkInProgressView 
 } from '../kortex_landing_page/components/SharedUI';
 import PlaceholderAd from '../kortex_landing_page/components/PlaceholderAd';
+import Footer from '../kortex_landing_page/components/Footer';
 
 // ============================================================================
 // CORE VIEWS (Static for immediate first-paint)
@@ -824,15 +825,9 @@ useEffect(() => {
         {renderContent()}
       </main>
 
-      {currentView === 'home' && !role && (
-         <footer className="bg-slate-900 text-slate-400 py-12 text-center text-sm font-medium mt-auto">
-            <div className="max-w-6xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 mb-8 text-left">
-               <div><h4 className="text-white font-bold mb-4 uppercase">Content</h4><ul className="space-y-2"><li>Resources</li><li>Games</li><li>Lesson Plans</li></ul></div>
-               <div><h4 className="text-white font-bold mb-4 uppercase">NEP 2020</h4><ul className="space-y-2"><li>Foundational Stage</li><li>Preparatory Stage</li><li>Middle Stage</li></ul></div>
-               <div><h4 className="text-white font-bold mb-4 uppercase">Features</h4><ul className="space-y-2"><li>Competency Tracker</li><li>Lesson Management</li><li>Panchakosha Wellness</li></ul></div>
-            </div>
-            <p>© {new Date().getFullYear()} Kortex Klassroom. An Education Platform.</p>
-         </footer>
+      {/* GLOBAL PUBLIC FOOTER */}
+      {currentView !== 'portal' && (
+        <Footer variant="full" />
       )}
       
       <style dangerouslySetInnerHTML={{__html: `

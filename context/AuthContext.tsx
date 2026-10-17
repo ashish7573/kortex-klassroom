@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
-import { User, onAuthStateChanged, signOut, sendPasswordResetEmail } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut, sendPasswordResetEmail, ActionCodeSettings } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../backend_configurations/firebase';
 import { UserProfile } from '../types/user';
@@ -112,7 +112,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const resetPassword = async (email: string) => {
-    await sendPasswordResetEmail(auth, email);
+    const actionCodeSettings: ActionCodeSettings = {
+      url: typeof window !== 'undefined' ? `${window.location.origin}/` : 'https://kortexklassroom.com/',
+      handleCodeInApp: false,
+    };
+    await sendPasswordResetEmail(auth, email, actionCodeSettings);
   };
 
   const role = profile?.role || null;

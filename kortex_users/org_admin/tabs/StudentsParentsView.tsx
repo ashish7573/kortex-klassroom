@@ -6,7 +6,7 @@ import { OrgAdminProfile, StudentProfile } from '../../../types/user';
 import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen, Download, Search, Filter, ChevronUp, ChevronDown, ArrowUpDown, Eye, EyeOff } from 'lucide-react';
 import { GRADES, SECTIONS, SUBJECT_CATEGORIES, GRADE_CORE_MAP } from '../../../kortex_landing_page/curriculumConfig';
 import { generateComboId } from '../utils/comboParsers';
-import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess, bulkProvisionStudents } from '../../../app/actions/student';
+import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess, bulkProvisionStudents, syncOrgStudents } from '../../../app/actions/student';
 
 export default function StudentsParentsView({ profile }: { profile: OrgAdminProfile }) {
   const [students, setStudents] = useState<StudentProfile[]>([]);
@@ -219,6 +219,21 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
   // Real-time listener for Students
   useEffect(() => {
     if (!profile.uid) return;
+
+    // Background self-healing sync: ensures any approved or pending transfer students have orgId in org_ids
+    const runSync = async () => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const token = await user.getIdToken();
+          await syncOrgStudents(token);
+        }
+      } catch (e) {
+        console.warn("Background syncOrgStudents error:", e);
+      }
+    };
+    runSync();
+
     const q = query(
       collection(db, 'users'),
       and(
@@ -341,6 +356,7 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
       } else {
         const result = await requestStudentImport(idToken, {
           studentId: studentForm.nameOrId,
+          rollNo: studentForm.rollNo,
           grade: studentForm.grade,
           section: studentForm.section,
           assignedCombos: studentForm.assignedCombos
@@ -871,23 +887,24 @@ export default function StudentsParentsView({ profile }: { profile: OrgAdminProf
                      </select>
                    </div>
 
+                   {(addMode === 'new' || addMode === 'import') && (
+                     <div>
+                       <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Roll Number (Optional)</label>
+                       <input 
+                         type="text" 
+                         value={studentForm.rollNo} 
+                         onChange={e => setStudentForm({...studentForm, rollNo: e.target.value})} 
+                         className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" 
+                         placeholder="e.g. 15" 
+                       />
+                     </div>
+                   )}
+
                    {addMode === 'new' && (
-                     <>
-                       <div>
-                         <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Roll Number (Optional)</label>
-                         <input 
-                           type="text" 
-                           value={studentForm.rollNo} 
-                           onChange={e => setStudentForm({...studentForm, rollNo: e.target.value})} 
-                           className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" 
-                           placeholder="e.g. 15" 
-                         />
-                       </div>
-                       <div>
-                         <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Emergency Contact Number</label>
-                         <input type="text" value={studentForm.emergencyContact} onChange={e => setStudentForm({...studentForm, emergencyContact: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. +91 98765 43210 (Optional)" />
-                       </div>
-                     </>
+                     <div>
+                       <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Emergency Contact Number</label>
+                       <input type="text" value={studentForm.emergencyContact} onChange={e => setStudentForm({...studentForm, emergencyContact: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. +91 98765 43210 (Optional)" />
+                     </div>
                    )}
 
                    

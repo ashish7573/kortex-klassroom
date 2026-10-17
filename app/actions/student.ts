@@ -194,6 +194,7 @@ export async function requestStudentImport(
     studentId: string;
     grade: string;
     section?: string;
+    rollNo?: string;
     assignedCombos: string[];
   }
 ) {
@@ -207,10 +208,11 @@ export async function requestStudentImport(
     }
 
     const orgId = callerUid;
+    const cleanStudentId = (importData.studentId || '').trim().toUpperCase();
     
     const snapshot = await adminDb.collection('users')
       .where('role', '==', 'student')
-      .where('kortex_id', '==', importData.studentId)
+      .where('kortex_id', '==', cleanStudentId)
       .limit(1)
       .get();
       
@@ -221,15 +223,19 @@ export async function requestStudentImport(
     const studentDoc = snapshot.docs[0];
     const studentData = studentDoc.data() as StudentProfile;
     
-    if (studentData.org_ids?.includes(orgId)) {
+    if (studentData.org_ids?.includes(orgId) && studentData.org_links?.[orgId]?.status === 'approved') {
       throw new Error("Student is already linked to your organization.");
     }
+
+    const cleanRollNo = (importData.rollNo || '').trim() || null;
     
     await studentDoc.ref.update({
+      org_ids: FieldValue.arrayUnion(orgId),
       [`org_links.${orgId}`]: {
         org_name: orgDoc.data()?.organization_name || "Organization",
         grade: importData.grade,
         section: importData.section || null,
+        roll_no: cleanRollNo,
         assigned_combos: importData.assignedCombos,
         status: 'pending',
         requested_at: new Date().toISOString()
@@ -516,13 +522,32 @@ export async function resolveTransferRequest(
     }
 
     if (accept) {
-      await studentRef.update({
+      const orgLink = link;
+      const updatePayload: any = {
         [`org_links.${orgId}.status`]: 'approved',
+        org_ids: FieldValue.arrayUnion(orgId),
         parent_email: parentEmail,
         emergency_contact: parentContact,
         parent_name: parentName,
         updated_at: new Date().toISOString()
-      });
+      };
+      if (orgLink.roll_no !== undefined && orgLink.roll_no !== null) {
+        updatePayload.roll_no = orgLink.roll_no;
+      }
+      if (orgLink.grade) {
+        updatePayload.grade = orgLink.grade;
+      }
+      if (orgLink.section !== undefined && orgLink.section !== null) {
+        updatePayload.section = orgLink.section;
+      }
+
+      await studentRef.update(updatePayload);
+
+      // Increment active_students_count for the organization if present
+      await adminDb.collection('users').doc(orgId).update({
+        active_students_count: FieldValue.increment(1),
+        updated_at: new Date().toISOString()
+      }).catch(err => console.warn("Failed to increment active_students_count:", err));
     } else {
       await studentRef.update({
         org_ids: FieldValue.arrayRemove(orgId),
@@ -534,6 +559,65 @@ export async function resolveTransferRequest(
     return { success: true };
   } catch (error: unknown) {
     console.error("Error resolving transfer:", error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Self-healing synchronization action:
+ * Finds any students linked to this organization (with status 'approved' or 'pending')
+ * whose org_ids array is missing the organization's UID, and repairs them.
+ */
+export async function syncOrgStudents(idToken: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const orgId = decodedToken.uid;
+
+    const callerDoc = await adminDb.collection('users').doc(orgId).get();
+    if (!callerDoc.exists || callerDoc.data()?.role !== 'org_admin') {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const studentsSnap = await adminDb.collection('users')
+      .where('role', '==', 'student')
+      .get();
+
+    const batch = adminDb.batch();
+    let fixedCount = 0;
+
+    studentsSnap.docs.forEach(doc => {
+      const data = doc.data() as StudentProfile;
+      const orgLink = data.org_links?.[orgId];
+      if (orgLink && (orgLink.status === 'approved' || orgLink.status === 'pending')) {
+        const orgIds: string[] = data.org_ids || [];
+        if (!orgIds.includes(orgId)) {
+          const updateObj: any = {
+            org_ids: FieldValue.arrayUnion(orgId),
+            updated_at: new Date().toISOString()
+          };
+          if (orgLink.roll_no && !data.roll_no) {
+            updateObj.roll_no = orgLink.roll_no;
+          }
+          if (orgLink.grade && !data.grade) {
+            updateObj.grade = orgLink.grade;
+          }
+          if (orgLink.section && !data.section) {
+            updateObj.section = orgLink.section;
+          }
+          batch.update(doc.ref, updateObj);
+          fixedCount++;
+        }
+      }
+    });
+
+    if (fixedCount > 0) {
+      await batch.commit();
+      console.log(`[syncOrgStudents] Repaired ${fixedCount} student record(s) for org ${orgId}`);
+    }
+
+    return { success: true, fixed: fixedCount };
+  } catch (error: unknown) {
+    console.error("Error in syncOrgStudents:", error);
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

@@ -34,6 +34,8 @@ const securityHeaders = [
   }
 ];
 
+const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'kortex-klassroom';
+
 const nextConfig: NextConfig = {
   // 🔒 FIX: Prevent Turbopack from bundling firebase-admin and crashing on ESM imports
   serverExternalPackages: ['firebase-admin', 'jwks-rsa', 'jose'],
@@ -44,6 +46,16 @@ const nextConfig: NextConfig = {
       {
         source: '/(.*)', // The regex /(.*) matches every single route in your app
         headers: securityHeaders,
+      },
+    ];
+  },
+
+  // 🔄 Reverse proxy for Firebase Authentication custom domain white-labeling
+  async rewrites() {
+    return [
+      {
+        source: '/__/auth/:path*',
+        destination: `https://${FIREBASE_PROJECT_ID}.firebaseapp.com/__/auth/:path*`,
       },
     ];
   },

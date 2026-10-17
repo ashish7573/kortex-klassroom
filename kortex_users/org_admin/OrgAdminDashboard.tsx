@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { OrgAdminProfile } from '../../types/user';
 import { 
   Building2, Users, GraduationCap, FileSpreadsheet, 
@@ -144,6 +145,15 @@ export default function OrgAdminDashboard({ profile, onAddTeacher, onEnrollStude
             </div>
           ))}
         </nav>
+
+        {/* Sidebar Mini Legal Links */}
+        <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 px-3 print:hidden">
+          <Link href="/privacy" className="hover:text-indigo-600 transition-colors">Privacy</Link>
+          <span>•</span>
+          <Link href="/terms" className="hover:text-indigo-600 transition-colors">Terms</Link>
+          <span>•</span>
+          <a href="mailto:kortexklassroom@gmail.com" className="hover:text-indigo-600 transition-colors">Support</a>
+        </div>
       </aside>
 
       {/* Main Dynamic Content Area */}
