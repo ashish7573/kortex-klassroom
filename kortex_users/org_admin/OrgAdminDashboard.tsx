@@ -1,10 +1,13 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { OrgAdminProfile } from '../../types/user';
+import { collection, query, where, and, onSnapshot } from 'firebase/firestore';
+import { db } from '../../backend_configurations/firebase';
+import { OrgAdminProfile, StudentProfile } from '../../types/user';
+import { computeOrgSeatMetrics } from './utils/seatLedger';
 import { 
   Building2, Users, GraduationCap, FileSpreadsheet, 
-  Calendar, Headset, Megaphone, CheckCircle2, AlertCircle, Menu, X
+  Calendar, Headset, Megaphone, CheckCircle2, AlertCircle, Menu, X, Layers
 } from 'lucide-react';
 
 // Import Tabs
@@ -32,6 +35,46 @@ type TabKey =
 export default function OrgAdminDashboard({ profile, onAddTeacher, onEnrollStudents }: OrgAdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('profile');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [students, setStudents] = useState<StudentProfile[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+
+  // Real-time listener for all students in this organization
+  useEffect(() => {
+    if (!profile.uid) return;
+
+    const q = query(
+      collection(db, 'users'),
+      and(
+        where('role', '==', 'student'),
+        where('org_ids', 'array-contains', profile.uid)
+      )
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      })) as StudentProfile[];
+      setStudents(docs);
+      setStudentsLoading(false);
+    }, (err) => {
+      console.error("Error fetching students in OrgAdminDashboard:", err);
+      setStudentsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [profile.uid]);
+
+  // Compute live seat metrics
+  const seatMetrics = useMemo(() => {
+    return computeOrgSeatMetrics(
+      profile.kortex_id || '',
+      profile.uid,
+      profile.approved_grade_subject_combos || [],
+      students,
+      profile.license_quota
+    );
+  }, [profile.kortex_id, profile.uid, profile.approved_grade_subject_combos, profile.license_quota, students]);
 
   // Grouped Navigation Structure
   const navigationGroups = [
@@ -69,9 +112,9 @@ export default function OrgAdminDashboard({ profile, onAddTeacher, onEnrollStude
   const renderContent = () => {
     switch (activeTab) {
       case 'profile': return <ProfileView profile={profile} />;
-      case 'subscription': return <SubscriptionView profile={profile} />;
+      case 'subscription': return <SubscriptionView profile={profile} students={students} loading={studentsLoading} />;
       case 'teachers': return <TeachersView profile={profile} />;
-      case 'students': return <StudentsParentsView profile={profile} />;
+      case 'students': return <StudentsParentsView profile={profile} initialStudents={students} initialLoading={studentsLoading} />;
       case 'reports': return <StudentReportsView profile={profile} />;
       case 'timetable': return <TimetableView />;
       case 'complaints': return <ComplaintsView />;
@@ -108,6 +151,26 @@ export default function OrgAdminDashboard({ profile, onAddTeacher, onEnrollStude
           </div>
           <h2 className="text-2xl font-black leading-tight break-words">{profile.organization_name}</h2>
           <p className="text-indigo-200 text-xs font-semibold mt-2">{profile.email}</p>
+
+          {/* Quick Seat Summary Pill */}
+          <div className="mt-4 pt-4 border-t border-white/15 space-y-2 text-xs font-bold text-indigo-100">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Layers size={13} className="text-indigo-300" /> Subject Seats:
+              </span>
+              <span className={`px-2 py-0.5 rounded-md text-[11px] font-black ${
+                seatMetrics.isAtCapacity ? 'bg-rose-500/90 text-white' : 'bg-white/20 text-white'
+              }`}>
+                {seatMetrics.totalConsumed} / {seatMetrics.totalCapacity}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Users size={13} className="text-indigo-300" /> Students:
+              </span>
+              <span className="text-white font-mono font-black">{students.length}</span>
+            </div>
+          </div>
         </div>
 
         {/* Navigation Groups */}

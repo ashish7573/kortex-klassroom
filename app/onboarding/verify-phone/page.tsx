@@ -43,7 +43,7 @@ export default function VerifyPhonePage() {
       if (snap.exists()) {
         const data = snap.data();
         if (data.phoneVerified && data.onboardingStatus === 'ACTIVE') {
-          router.replace('/dashboard');
+          window.location.href = '/?view=portal';
         } else {
           setUser(u);
           setLoading(false);
@@ -139,7 +139,7 @@ export default function VerifyPhonePage() {
       }, { merge: true });
 
       // Redirect back to dispatcher
-      router.replace('/');
+      window.location.href = '/?view=portal';
     } catch (err: any) {
       console.error(err);
       setErrorMsg("Invalid OTP. Please try again.");

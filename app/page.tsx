@@ -87,6 +87,12 @@ function MainApp() {
   const urlView = searchParams ? searchParams.get('view') : null; 
 
   const [currentView, _setCurrentView] = useState<string>(urlView || 'home');
+
+  useEffect(() => {
+    if (urlView) {
+      _setCurrentView(urlView);
+    }
+  }, [urlView]);
   
   const setCurrentView = (view: string) => {
      if (typeof window !== 'undefined') {
@@ -186,40 +192,50 @@ function MainApp() {
 
 
   // ==========================================================================
-  // NEW: SILENT ANALYTICS ENGINE
+  // NEW: SILENT ANALYTICS ENGINE (Non-blocking / Deferred)
   // ==========================================================================
-  const trackEvent = async (eventType: string, eventData: any = {}) => {
-    try {
-      // 1. Get or Create a Silent Device ID
-      let deviceId = localStorage.getItem('kortex_device_id');
-      let isFirstVisit = false;
+  const trackEvent = (eventType: string, eventData: any = {}) => {
+    const runPing = async () => {
+      try {
+        // 1. Get or Create a Silent Device ID
+        let deviceId = localStorage.getItem('kortex_device_id');
+        let isFirstVisit = false;
 
-      if (!deviceId) {
-        deviceId = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-        localStorage.setItem('kortex_device_id', deviceId);
-        isFirstVisit = true;
-      }
-      
-      // 2. Basic non-identifying device info
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (!deviceId) {
+          deviceId = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+          localStorage.setItem('kortex_device_id', deviceId);
+          isFirstVisit = true;
+        }
+        
+        // 2. Basic non-identifying device info
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-      // 3. If brand new, log the acquisition event first
-      if (isFirstVisit) {
+        // 3. If brand new, log the acquisition event first
+        if (isFirstVisit) {
+          await addDoc(collection(db, 'analytics_events'), {
+            device_id: deviceId, event_type: 'new_visitor', timestamp: new Date().toISOString(), is_mobile: isMobile
+          });
+        }
+
+        // 4. Log the actual requested event
         await addDoc(collection(db, 'analytics_events'), {
-          device_id: deviceId, event_type: 'new_visitor', timestamp: new Date().toISOString(), is_mobile: isMobile
+          device_id: deviceId,
+          event_type: eventType,
+          payload: eventData,
+          timestamp: new Date().toISOString(),
+          is_mobile: isMobile
         });
+      } catch (error) {
+        console.warn("Analytics ping failed silently.", error); // Won't crash the app
       }
+    };
 
-      // 4. Log the actual requested event
-      await addDoc(collection(db, 'analytics_events'), {
-        device_id: deviceId,
-        event_type: eventType,
-        payload: eventData,
-        timestamp: new Date().toISOString(),
-        is_mobile: isMobile
-      });
-    } catch (error) {
-      console.warn("Analytics ping failed silently.", error); // Won't crash the app
+    if (typeof window !== 'undefined') {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(runPing);
+      } else {
+        setTimeout(runPing, 500);
+      }
     }
   };
 
@@ -242,60 +258,7 @@ function MainApp() {
   }, [playingLesson]);
 
 
-  // FIXED: Real-time listener with STRICT token enforcement & Race Condition Fix
-  useEffect(() => {
-    let unsubscribeSnapshot = () => {}; 
-
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setIsLoggedIn(true);
-        setUserEmail(user.email); 
-        
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          
-          unsubscribeSnapshot = onSnapshot(
-             userDocRef, 
-             (docSnap) => {
-               if (docSnap.exists()) {
-                  const data = docSnap.data();
-                  const localToken = localStorage.getItem('kortex_session_token');
-                  const isAuthenticating = sessionStorage.getItem('kortex_is_authenticating');
-                  
-                  if (!isAuthenticating && data.session_token && data.session_token !== localToken) {
-                     unsubscribeSnapshot(); 
-                     logout();              
-                     setAlertConfig({ 
-                        title: "Session Expired", 
-                        message: "You have been securely logged out because your account was accessed from another device.",
-                        type: "warning" 
-                     });
-                     return; 
-                  }
-
-                  setRole(data.role);
-                  setIsPro(data.is_pro || data.isPro || false); 
-                  setUserName(data.organization_name || data.full_name || ''); 
-               } else {
-                  setUserName(user.displayName || '');
-               }
-             },
-             (error) => { console.warn("Secure disconnect triggered."); }
-          );
-        } catch (error: any) { console.error("🚨 ERROR FETCHING FIRESTORE PROFILE:", error); }
-      } else {
-        setIsLoggedIn(false); 
-        setUserEmail(''); 
-        setUserName(''); 
-        unsubscribeSnapshot(); 
-      }
-    });
-    
-    return () => {
-       unsubscribeAuth();
-       unsubscribeSnapshot();
-    };
-  }, []);
+  // Auth state & profile synchronization are managed centrally by useAuth() above.
 
   // Automatically open shared links
   useEffect(() => {
@@ -323,12 +286,13 @@ function MainApp() {
           if (itemData) {
             // Check central energy/guest limits
             const toolSubject = itemData.subject || 'unknown';
+            const toolGrade = itemData.grade;
             const playableLesson = {
               chapter: itemData.chapter_name || itemData.chapter || itemData.title || 'Interactive Module',
               book: itemData.book || 'Kortex Klassroom',
               flow: [itemData]
             };
-            const hasEnergy = await ensureEnergy(toolSubject, () => {
+            const hasEnergy = await ensureEnergy(toolSubject, toolGrade, () => {
                 setPlayingLesson(playableLesson);
                 setPlayingStep(0);
             });
@@ -448,7 +412,7 @@ useEffect(() => {
     setPlayingStep(0);
   };
 
-  const ensureEnergy = async (toolSubject?: string, resumeCallback?: () => void) => {
+  const ensureEnergy = async (toolSubject?: string, toolGrade?: string, resumeCallback?: () => void) => {
     // 🔒 GUEST LIMIT CHECK
     if (!authIsLoggedIn) {
        const today = new Date().toISOString().split('T')[0];
@@ -473,24 +437,111 @@ useEffect(() => {
        return true;
     }
 
-    if ((role === 'student' || role === 'parent') && !isPro && authProfile) {
-        // --- B2B / B2C BYPASS CHECK ---
-        if (toolSubject) {
-            let isOwned = false;
+    if ((role === 'student' || role === 'parent') && authProfile) {
+        const profileAny = authProfile as any;
+        const isUserPro = isPro || authIsPro || profileAny.is_pro === true;
+        const isSchoolStudent = (profileAny.org_ids && profileAny.org_ids.length > 0) || 
+                                (profileAny.org_links && (Array.isArray(profileAny.org_links) ? profileAny.org_links.length > 0 : Object.keys(profileAny.org_links).length > 0));
+
+        // 🔒 STRICT CONTENT SCOPING FOR SCHOOL PROVISIONED STUDENTS
+        if (role === 'student' && isSchoolStudent) {
+            const cleanSubj = (toolSubject || '').trim().toLowerCase();
+            const cleanGradeNum = (toolGrade || '').replace(/\D/g, '');
+
+            let isAuthorized = false;
+
+            // 1. Check parent-purchased B2C courses / licenses
+            const b2cList: string[] = profileAny.active_b2c_licenses || [];
+            for (const b2c of b2cList) {
+                const b2cLower = b2c.toLowerCase();
+                const b2cGradeNum = b2c.replace(/\D/g, '');
+                const subjMatches = !cleanSubj || b2cLower.includes(cleanSubj) || 
+                  (cleanSubj.includes('math') && b2cLower.includes('math')) || 
+                  (cleanSubj.includes('eng') && b2cLower.includes('eng')) || 
+                  (cleanSubj.includes('hindi') && b2cLower.includes('hindi'));
+                const gradeMatches = !cleanGradeNum || !b2cGradeNum || b2cGradeNum.includes(cleanGradeNum) || cleanGradeNum.includes(b2cGradeNum);
+                if (subjMatches && gradeMatches) {
+                    isAuthorized = true;
+                    break;
+                }
+            }
+
+            // 2. Check School Enrollments (org_links)
+            if (!isAuthorized) {
+                const orgLinks = profileAny.org_links || {};
+                const orgIds = profileAny.org_ids || Object.keys(orgLinks);
+
+                for (const orgId of orgIds) {
+                    const link = orgLinks[orgId];
+                    if (!link) continue;
+
+                    const studentGrade = (link.grade || profileAny.grade || '').toString();
+                    const studentGradeNum = studentGrade.replace(/\D/g, '');
+                    const assignedCombos: string[] = link.assigned_combos || [];
+
+                    // Check explicit assigned combinations
+                    for (const combo of assignedCombos) {
+                        const comboLower = combo.toLowerCase();
+                        const comboGradeNum = combo.replace(/\D/g, '');
+                        const subjMatches = !cleanSubj || comboLower.includes(cleanSubj) || 
+                          (cleanSubj.includes('math') && comboLower.includes('math')) || 
+                          (cleanSubj.includes('eng') && comboLower.includes('eng')) || 
+                          (cleanSubj.includes('hindi') && comboLower.includes('hindi'));
+                        const gradeMatches = !cleanGradeNum || !comboGradeNum || comboGradeNum.includes(cleanGradeNum) || cleanGradeNum.includes(comboGradeNum);
+                        if (subjMatches && gradeMatches) {
+                            isAuthorized = true;
+                            break;
+                        }
+                    }
+                    if (isAuthorized) break;
+
+                    // If student has this grade in school and no explicit combo restrictions, default to matching grade
+                    if (cleanGradeNum && studentGradeNum && cleanGradeNum === studentGradeNum) {
+                        if (assignedCombos.length === 0) {
+                            isAuthorized = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // If grade is 'All Grades' or not specified, grant access
+            if (!toolGrade || toolGrade.toLowerCase() === 'all grades' || toolGrade.toLowerCase() === 'all') {
+                isAuthorized = true;
+            }
+
+            if (!isAuthorized) {
+                const gradeLabel = toolGrade ? `Grade ${cleanGradeNum || toolGrade}` : '';
+                const subjectLabel = toolSubject || 'this subject';
+                setAlertConfig({
+                    title: "Content Not Enrolled (विषय पाठ्यक्रम में नहीं है)",
+                    message: `You are enrolled through your school in specific subjects. ${gradeLabel} ${subjectLabel} is not in your enrolled courses. Please access your assigned subjects from your Student Realm.`,
+                    type: "warning",
+                    actionLabel: "Go to My Dashboard (डैशबोर्ड पर जाएं)",
+                    onAction: () => {
+                        setAlertConfig(null);
+                        setCurrentView('portal');
+                    },
+                    secondaryActionLabel: "Close",
+                    onSecondaryAction: () => setAlertConfig(null)
+                } as any);
+                return false;
+            }
+
+            // Student is authorized: UNLIMITED energy for enrolled school content!
+            return true;
+        }
+
+        // 1. Pro accounts (Parent Pro) enjoy unlimited platform energy/hearts
+        if (isUserPro) {
+            return true;
+        }
+
+        // 2. Check B2C licenses if toolSubject is provided
+        if (toolSubject && profileAny.active_b2c_licenses && profileAny.active_b2c_licenses.length > 0) {
             const matchStr = toolSubject.toLowerCase();
-            
-            // 1. If they belong to an organization, they get unlimited access to their school subjects
-            // For simplicity, we bypass energy if they are in an org, as the org pays a bulk license.
-            if ((authProfile as any).org_ids && (authProfile as any).org_ids.length > 0) {
-                isOwned = true;
-            }
-            
-            // 2. Check B2C licenses
-            if (!isOwned && (authProfile as any).active_b2c_licenses) {
-                isOwned = (authProfile as any).active_b2c_licenses.some((c: string) => c.toLowerCase().includes(matchStr));
-            }
-            
-            if (isOwned) return true;
+            const ownsSubject = profileAny.active_b2c_licenses.some((c: string) => c.toLowerCase().includes(matchStr));
+            if (ownsSubject) return true;
         }
 
         try {
@@ -531,7 +582,8 @@ useEffect(() => {
         book: item.book || item.lessonContext?.book || 'Kortex Klassroom',
         flow: [item] 
       };
-      const hasEnergy = await ensureEnergy(item.subject, () => {
+      const toolGrade = item.grade || item.lessonContext?.grade;
+      const hasEnergy = await ensureEnergy(item.subject, toolGrade, () => {
           setPlayingLesson(playableLesson);
           setPlayingStep(0);
       });
@@ -542,7 +594,8 @@ useEffect(() => {
 
   const handleStartLesson = async (lesson: any, stepIndex: any) => {
        const toolSubject = lesson.subject || (lesson.flow && lesson.flow[stepIndex]?.subject) || 'unknown';
-       const hasEnergy = await ensureEnergy(toolSubject, () => {
+       const toolGrade = lesson.grade || (lesson.flow && lesson.flow[stepIndex]?.grade);
+       const hasEnergy = await ensureEnergy(toolSubject, toolGrade, () => {
            setPlayingLesson(lesson); 
            setPlayingStep(stepIndex); 
        });
@@ -591,11 +644,20 @@ useEffect(() => {
       return <TierLibraryView activeTier={activeTierObj} isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onOpenTool={handleOpenFeatured} authProfile={authProfile} role={role} isPro={isPro} />;
     }
 
-    if (currentView === 'portal' && authProfile) {
-      return (
-        <UserPortalDispatcher 
-          profile={authProfile} 
-          onNavigateHome={() => setCurrentView('home')} 
+    if (currentView === 'portal') {
+      if (authLoading) {
+        return (
+          <div className="min-h-[60vh] flex flex-col items-center justify-center">
+            <div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-slate-500 font-bold">Opening your learning portal...</p>
+          </div>
+        );
+      }
+      if (authProfile) {
+        return (
+          <UserPortalDispatcher 
+            profile={authProfile} 
+            onNavigateHome={() => setCurrentView('home')} 
           onExploreTier={(tierId: any) => {
              if (tierId && tierId.startsWith('play_tool:')) {
                 const toolId = tierId.split(':')[1];
@@ -616,7 +678,8 @@ useEffect(() => {
                          };
                          // we must call ensureEnergy
                          const toolSubject = toolData.subject || 'unknown';
-                         const hasEnergy = await ensureEnergy(toolSubject, () => {
+                         const toolGrade = toolData.grade;
+                         const hasEnergy = await ensureEnergy(toolSubject, toolGrade, () => {
                             setPlayingLesson(playableLesson);
                             setPlayingStep(0);
                          });
@@ -634,6 +697,7 @@ useEffect(() => {
           onOpenCMS={() => setCurrentView('home')}
         />
       );
+      }
     }
 
     if (role === 'admin' && authProfile) return <UserPortalDispatcher profile={authProfile} onNavigateHome={() => setCurrentView('home')} onExploreTier={(tierId: any) => setCurrentView(tierId)} onOpenCMS={() => setCurrentView('home')} />;

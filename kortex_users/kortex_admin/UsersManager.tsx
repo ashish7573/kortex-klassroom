@@ -1,19 +1,16 @@
 "use client";
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../../backend_configurations/firebase';
+import { db, auth } from '../../backend_configurations/firebase';
 import { BaseUserProfile, OrgAdminProfile } from '../../types/user';
 import { 
-  Users, Building2, UserPlus, Search, ShieldCheck, X, CheckCircle2, 
+  Users, Building2, UserPlus, Search, ShieldCheck, 
   AlertCircle, Trash2, RotateCcw, Pencil, FileText, ExternalLink, Download, ArrowUpDown, ChevronUp, ChevronDown, Globe,
-  Filter, Eye, EyeOff
+  Filter, Eye, EyeOff, Phone, CheckCircle2
 } from 'lucide-react';
 import ProvisionOrgModal from './ProvisionOrgModal';
 import EditOrgModal from './EditOrgModal';
 import EditIndividualModal from './EditIndividualModal';
-import { auth } from '../../backend_configurations/firebase';
-import { deleteOrganizationAccount } from '../../app/actions/provision';
-import { updateIndividualUser } from '../../app/actions/student';
 import { softDeleteUser, restoreUser } from '../../app/actions/userManagement';
 
 export default function UsersManager() {
@@ -127,20 +124,44 @@ export default function UsersManager() {
 
     let formattedData = data;
     if (activeTab === 'organizations') {
-      formattedData = data.map(org => ({
-        kortex_id: org.kortex_id || '',
-        organization_name: org.organization_name || '',
-        country: org.country || 'N/A',
-        state: org.state || '',
-        city: org.city || '',
-        address: org.address || '',
-        email: org.email || '',
-        combos_approved: org.approved_grade_subject_combos?.length || 0,
-        student_seats: `${org.active_students_count || 0} / ${org.license_quota || 0}`,
-        status: org.accountStatus || 'ACTIVE',
-        subscription_end_date: org.subscription_end_date || '',
-        created_at: org.created_at || ''
-      }));
+      formattedData = data.map(org => {
+        const orgStudents = individuals.filter(ind => ind.role === 'student' && (ind as any).org_ids?.includes(org.uid));
+        const headcount = orgStudents.length > 0 ? orgStudents.length : (org.active_students_count || 0);
+        let totalConsumedSeats = 0;
+        if (orgStudents.length > 0) {
+          orgStudents.forEach(st => {
+            const stAny = st as any;
+            const assigned = stAny.org_links?.[org.uid]?.assigned_combos;
+            if (Array.isArray(assigned) && assigned.length > 0) {
+              totalConsumedSeats += assigned.length;
+            } else {
+              const prefix = `${stAny.grade} - Section ${stAny.section || 'A'}`;
+              const defaultCombos = (org.approved_grade_subject_combos || []).filter((c: string) => c.startsWith(prefix));
+              totalConsumedSeats += defaultCombos.length > 0 ? defaultCombos.length : 3;
+            }
+          });
+        } else {
+          totalConsumedSeats = org.consumed_seats_count || ((org.active_students_count || 0) * 3);
+        }
+        const totalSeatQuota = org.license_quota || ((org.approved_grade_subject_combos?.length || 0) * 40);
+        const seatUsagePct = totalSeatQuota > 0 ? Math.min(100, Math.round((totalConsumedSeats / totalSeatQuota) * 100)) : 0;
+
+        return {
+          kortex_id: org.kortex_id || '',
+          organization_name: org.organization_name || '',
+          country: org.country || 'N/A',
+          state: org.state || '',
+          city: org.city || '',
+          address: org.address || '',
+          email: org.email || '',
+          combos_approved: org.approved_grade_subject_combos?.length || 0,
+          subject_seats: `${totalConsumedSeats} / ${totalSeatQuota} (${seatUsagePct}%)`,
+          student_headcount: headcount,
+          status: org.accountStatus || 'ACTIVE',
+          subscription_end_date: org.subscription_end_date || '',
+          created_at: org.created_at || ''
+        };
+      });
     } else if (activeTab === 'individuals') {
       formattedData = data.map(ind => ({
         kortex_id: ind.kortex_id || '',
@@ -150,6 +171,9 @@ export default function UsersManager() {
         state: getResolvedState(ind) || '',
         city: getResolvedCity(ind) || '',
         email: getSortableEmail(ind) || '',
+        parent_name: ind.role === 'student' ? (ind.parent_name || '') : '',
+        parent_phone: ind.role === 'student' ? (ind.emergency_contact || '') : '',
+        parent_consent: ind.role === 'student' ? (ind.parent_consent_verified ? 'Verified' : 'Pending') : '',
         organization: getSortableOrgName(ind) || '',
         is_pro: ind.is_pro ? 'Yes' : 'No',
         subscription_end_date: ind.subscription_end_date || '',
@@ -181,7 +205,7 @@ export default function UsersManager() {
     document.body.removeChild(a);
   };
 
-  let processedOrgs = [...organizations].filter(org => {
+  const processedOrgs = [...organizations].filter(org => {
     const searchLower = searchQuery.toLowerCase();
     const orgCountry = (org.country || '').trim().toLowerCase();
     const orgState = (org.state || '').trim().toLowerCase();
@@ -214,7 +238,7 @@ export default function UsersManager() {
      });
   }
 
-  const handleDeleteIndividual = async (uid: string, name: string, role: string) => {
+  const handleDeleteIndividual = async (uid: string, name: string) => {
     if (!confirm(`Are you sure you want to soft-delete ${name}?`)) return;
     try {
       const idToken = await auth.currentUser?.getIdToken();
@@ -252,9 +276,14 @@ export default function UsersManager() {
   };
 
   const getSortableEmail = (ind: any) => {
-    if (ind.role === 'student' && ind.parent_id && ind.parent_id !== 'PENDING') {
-      const parent = individuals.find(p => p.uid === ind.parent_id);
-      return (parent?.email || '').toLowerCase();
+    if (ind.role === 'student') {
+      if (ind.parent_id && ind.parent_id !== 'PENDING') {
+        const parent = individuals.find(p => p.uid === ind.parent_id);
+        if (parent?.email) return parent.email.toLowerCase();
+      }
+      if (ind.parent_email) return ind.parent_email.toLowerCase();
+      if (ind.emergency_contact) return ind.emergency_contact.toLowerCase();
+      if (ind.parent_name) return ind.parent_name.toLowerCase();
     }
     return (ind.email || '').toLowerCase();
   };
@@ -268,7 +297,7 @@ export default function UsersManager() {
     return 'independent';
   };
 
-  let processedIndividuals = [...individuals].filter(ind => {
+  const processedIndividuals = [...individuals].filter(ind => {
     const searchLower = searchQuery.toLowerCase();
     const resolvedEmail = getSortableEmail(ind);
     const resolvedCountry = getResolvedCountry(ind);
@@ -280,6 +309,9 @@ export default function UsersManager() {
     const matchesSearch = (ind.full_name || '').toLowerCase().includes(searchLower) || 
                           resolvedEmail.includes(searchLower) ||
                           (ind.kortex_id || '').toLowerCase().includes(searchLower) ||
+                          ((ind as any).parent_name || '').toLowerCase().includes(searchLower) ||
+                          ((ind as any).emergency_contact || '').includes(searchLower) ||
+                          ((ind as any).claim_code || '').toLowerCase().includes(searchLower) ||
                           resolvedCountry.toLowerCase().includes(searchLower) ||
                           resolvedState.toLowerCase().includes(searchLower) ||
                           resolvedCity.toLowerCase().includes(searchLower) ||
@@ -374,19 +406,68 @@ export default function UsersManager() {
 
   const getEmailContent = (ind: any) => {
     if (ind.role === 'student') {
+      // 1. Registered Parent Account is linked
       if (ind.parent_id && ind.parent_id !== 'PENDING') {
          const parent = individuals.find(p => p.uid === ind.parent_id);
          if (parent) {
            return (
-             <div className="flex flex-col">
-               <span className="font-bold text-slate-700 text-sm">{parent.email || 'N/A'}</span>
-               <span className="text-[11px] font-bold text-slate-500">{parent.full_name} <span className="font-normal">(Parent)</span></span>
+             <div className="flex flex-col gap-0.5">
+               <span className="font-bold text-slate-800 text-sm">{parent.email || ind.parent_email || 'N/A'}</span>
+               <div className="flex items-center gap-1.5 flex-wrap">
+                 <span className="text-[11px] font-bold text-slate-600">{parent.full_name} <span className="font-normal text-slate-400">(Parent Account)</span></span>
+                 {ind.parent_consent_verified && (
+                   <span className="text-[9px] font-black uppercase text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded inline-flex items-center gap-0.5">
+                     <CheckCircle2 size={10} className="text-emerald-600" /> Consent
+                   </span>
+                 )}
+               </div>
+               {ind.emergency_contact && (
+                 <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                   <Phone size={11} className="text-slate-400" /> {ind.emergency_contact}
+                 </span>
+               )}
                <span className="text-[9px] font-mono font-bold text-slate-400">{parent.kortex_id || parent.uid}</span>
              </div>
            );
          }
       }
-      return <span className="text-slate-400 italic text-[11px] font-bold">No Parent Linked</span>;
+
+      // 2. Parent gave consent via Claim / WhatsApp / DPDP flow (parent_name, emergency_contact, parent_consent_verified)
+      if (ind.parent_consent_verified || ind.parent_name || ind.emergency_contact) {
+        return (
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-slate-800 text-sm">{ind.parent_name || 'Parent Consent Given'}</span>
+              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded border border-emerald-200 inline-flex items-center gap-1">
+                <CheckCircle2 size={10} className="text-emerald-600" /> Consent Given
+              </span>
+            </div>
+            {ind.emergency_contact && (
+              <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                <Phone size={11} className="text-slate-400" /> {ind.emergency_contact}
+              </span>
+            )}
+            {ind.parent_email && (
+              <span className="text-[11px] font-medium text-slate-400">{ind.parent_email}</span>
+            )}
+            <span className="text-[9px] font-bold text-amber-600/90 italic">
+              Account: PENDING Claim
+            </span>
+          </div>
+        );
+      }
+
+      // 3. Completely unlinked & awaiting consent
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-amber-500 italic text-xs font-bold">Awaiting Parent Link</span>
+          {ind.claim_code && (
+            <span className="text-[10px] font-mono font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded w-fit">
+              Code: {ind.claim_code}
+            </span>
+          )}
+        </div>
+      );
     }
     
     return <span className="font-semibold text-slate-600">{ind.email || 'N/A'}</span>;
@@ -537,7 +618,7 @@ export default function UsersManager() {
           </div>
           <h3 className="text-xl font-black text-slate-800 mb-1.5">No List Generated</h3>
           <p className="text-sm font-semibold text-slate-500 max-w-md mx-auto mb-6">
-            Configure your filters above (User Type, Role, Country, or Search) and click <span className="font-bold text-indigo-600">"Show List"</span> to view accounts on demand.
+            Configure your filters above (User Type, Role, Country, or Search) and click <span className="font-bold text-indigo-600">&quot;Show List&quot;</span> to view accounts on demand.
           </p>
           <div className="inline-flex flex-wrap items-center justify-center gap-4 text-xs font-bold text-slate-500 bg-white px-5 py-2.5 rounded-2xl border border-slate-200 shadow-sm">
             <span className="flex items-center gap-1.5">
@@ -604,7 +685,7 @@ export default function UsersManager() {
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("country")}>Country {sortIndicator("country")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("email")}>Contact Email {sortIndicator("email")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Combos Approved</th>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Student Seats</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Seat Licenses & Students</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Documents</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Status</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider">Actions</th>
@@ -616,7 +697,7 @@ export default function UsersManager() {
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("role")}>Role {sortIndicator("role")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("country")}>Country {sortIndicator("country")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("organization")}>Organization {sortIndicator("organization")}</th>
-                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("email")}>Email {sortIndicator("email")}</th>
+                    <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("email")}>Email / Parent Contact {sortIndicator("email")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("created_at")}>Join Date {sortIndicator("created_at")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider cursor-pointer hover:bg-slate-200 group transition-colors select-none" onClick={() => handleSort("subscription_end_date")}>Pro Renewal {sortIndicator("subscription_end_date")}</th>
                     <th className="px-6 py-4 font-black uppercase text-xs tracking-wider text-right">Actions</th>
@@ -629,8 +710,26 @@ export default function UsersManager() {
                 <tr><td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-bold">Loading records...</td></tr>
               ) : activeTab === 'organizations' ? (
                 processedOrgs.length > 0 ? processedOrgs.map((org, index) => {
-                  const studentsUsed = org.active_students_count || 0;
-                  const maxStudents = org.license_quota || 0;
+                  const orgStudents = individuals.filter(ind => ind.role === 'student' && (ind as any).org_ids?.includes(org.uid));
+                  const headcount = orgStudents.length > 0 ? orgStudents.length : (org.active_students_count || 0);
+                  let totalConsumedSeats = 0;
+                  if (orgStudents.length > 0) {
+                    orgStudents.forEach(st => {
+                      const stAny = st as any;
+                      const assigned = stAny.org_links?.[org.uid]?.assigned_combos;
+                      if (Array.isArray(assigned) && assigned.length > 0) {
+                        totalConsumedSeats += assigned.length;
+                      } else {
+                        const prefix = `${stAny.grade} - Section ${stAny.section || 'A'}`;
+                        const defaultCombos = (org.approved_grade_subject_combos || []).filter((c: string) => c.startsWith(prefix));
+                        totalConsumedSeats += defaultCombos.length > 0 ? defaultCombos.length : 3;
+                      }
+                    });
+                  } else {
+                    totalConsumedSeats = org.consumed_seats_count || ((org.active_students_count || 0) * 3);
+                  }
+                  const totalSeatQuota = org.license_quota || ((org.approved_grade_subject_combos?.length || 0) * 40);
+                  const seatUsagePct = totalSeatQuota > 0 ? Math.min(100, Math.round((totalConsumedSeats / totalSeatQuota) * 100)) : 0;
                   const combosCount = org.approved_grade_subject_combos?.length || 0;
                   const isExpired = org.subscription_end_date && new Date(org.subscription_end_date) < new Date();
 
@@ -661,8 +760,21 @@ export default function UsersManager() {
                         <span className="text-slate-400 font-bold text-xs ml-1">combos</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="font-black text-slate-700">{studentsUsed}</span>
-                        <span className="text-slate-400 font-bold"> / {maxStudents}</span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-black text-slate-800 text-sm">{totalConsumedSeats}</span>
+                            <span className="text-slate-400 font-bold text-xs">/ {totalSeatQuota} seats</span>
+                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                              seatUsagePct >= 100 ? 'bg-rose-100 text-rose-700' : seatUsagePct >= 80 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {seatUsagePct}%
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs font-semibold text-slate-500">
+                            <Users size={12} className="text-slate-400" />
+                            <span>{headcount} enrolled {headcount === 1 ? 'student' : 'students'}</span>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -812,7 +924,7 @@ export default function UsersManager() {
                           </button>
                         ) : (
                           <button 
-                             onClick={() => handleDeleteIndividual(ind.uid, ind.full_name || 'User', ind.role)}
+                             onClick={() => handleDeleteIndividual(ind.uid, ind.full_name || 'User')}
                              className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors"
                              title="Delete User"
                           >

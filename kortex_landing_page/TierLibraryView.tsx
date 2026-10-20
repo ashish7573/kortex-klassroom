@@ -12,6 +12,9 @@ import {
   getSubjectFallbackImage 
 } from './curriculumConfig';
 
+// Module-level in-memory cache to prevent re-querying Firestore on every tier tab switch
+let tierFeaturedCache: any[] | null = null;
+
 const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, authProfile, role, isPro }: any) => {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -23,14 +26,19 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, auth
     async function fetchTierData() {
       setIsLoading(true);
       try {
-
-        const toolsQuery = query(collection(db, 'learning_tools'));
-        const snapshot = await getDocs(toolsQuery).catch(() => ({ docs: [] }));
+        let rawDocs: any[] = [];
+        if (tierFeaturedCache) {
+          rawDocs = tierFeaturedCache;
+        } else {
+          const toolsQuery = query(collection(db, 'learning_tools'), where('is_featured', '==', true));
+          const snapshot = await getDocs(toolsQuery).catch(() => ({ docs: [] }));
+          rawDocs = snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+          tierFeaturedCache = rawDocs;
+        }
         
         let extractedItems: any[] = [];
         
-        snapshot.docs.forEach((doc: any) => {
-          const item: any = { id: doc.id, ...doc.data() };
+        rawDocs.forEach((item: any) => {
           const type = (item.content_type || item.type)?.toLowerCase() || '';
           
           let belongsToTier = false;
@@ -154,7 +162,14 @@ const TierLibraryView = ({ activeTier, isLoggedIn, requireAuth, onOpenTool, auth
                  else onOpenTool(item);
                }}>
                  <div className="relative h-36 w-full bg-slate-200 overflow-hidden">
-                    <img src={item.image} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                    <img 
+                      src={item.image || getSubjectFallbackImage(item.subject)} 
+                      alt={item.title} 
+                      loading="lazy" 
+                      decoding="async" 
+                      onError={(e) => { e.currentTarget.src = getSubjectFallbackImage(item.subject); }}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                    />
                     <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-transparent to-transparent pointer-events-none"></div>
                     {item.isPremium && !isLockedByDepth && <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm flex items-center gap-1"><Star size={10} className="fill-white" /> PRO</div>}
    {isLockedByDepth && <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-[2px] z-10"><div className="bg-slate-900 text-white p-3 rounded-full shadow-xl"><Lock size={24} /></div></div>}

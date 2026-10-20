@@ -90,7 +90,7 @@ export default function EditOrgModal({ org, onClose, onSuccess }: EditOrgModalPr
 
     const maxAllowed = approvedCombos.length * 40;
     if (maxStudentSeats > maxAllowed) {
-      setErrorMsg(`Student seats cannot exceed ${maxAllowed} (Max 40 students per combination for ${approvedCombos.length} combinations).`);
+      setErrorMsg(`Subject-seat quota cannot exceed ${maxAllowed} (Max 40 seats per combination for ${approvedCombos.length} combinations).`);
       return;
     }
 
@@ -370,14 +370,14 @@ export default function EditOrgModal({ org, onClose, onSuccess }: EditOrgModalPr
                 </div>
               </div>
 
-              {/* Student Seats Allocation */}
+              {/* Subject-Seat Licenses Allocation */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
-                    Student Accounts Needed *
+                    Total Subject-Seat License Quota *
                   </label>
                   <span className="text-[11px] font-bold text-indigo-600">
-                    Max: {maxAllowedStudents} ({approvedCombos.length} × 40)
+                    Max Capacity: {maxAllowedStudents} ({approvedCombos.length} × 40 subject seats)
                   </span>
                 </div>
                 <input 
@@ -390,7 +390,7 @@ export default function EditOrgModal({ org, onClose, onSuccess }: EditOrgModalPr
                   className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 font-black text-slate-800 outline-none focus:border-indigo-500 transition-colors" 
                 />
                 <p className="text-[11px] text-slate-400 font-medium mt-1">
-                  Auto-filled to capacity ({maxAllowedStudents}). Editable to any number below this maximum.
+                  Auto-filled to capacity ({maxAllowedStudents} subject seats). Each enrolled student consumes 1 seat per subject.
                 </p>
               </div>
 

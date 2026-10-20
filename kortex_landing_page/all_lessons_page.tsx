@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, Layers, Gamepad2, Video, ChevronLeft, ChevronUp, ChevronDown, CheckCircle2, 
-  Lightbulb, Target, FileText, Star, Lock, Search, X, Trophy 
+  Lightbulb, Target, FileText, Star, Lock, Search, X, Trophy, Sparkles 
 } from 'lucide-react';
 import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../backend_configurations/firebase';
@@ -16,6 +16,9 @@ import {
   getSubjectFallbackImage,
   getTierForTool
 } from './curriculumConfig';
+
+// Module-level cache to keep parsed curriculum in memory across view transitions
+const lessonsMemoryCache = new Map<string, any[]>();
 
 const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, defaultSubject, authProfile, role, isPro }: any) => {
   const showProgress = role === 'teacher' || (role === 'student' && isPro);
@@ -31,10 +34,101 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
   const [searchQuery, setSearchQuery] = useState("");
   const [allLessons, setAllLessons] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(20); // ⚡ Performance: 20 items initial load
   
   const [activeLesson, setActiveLesson] = useState(null);
   const [expandedSubTopics, setExpandedSubTopics] = useState({});
   const [studentProgress, setStudentProgress] = useState<any[]>([]);
+
+  // Scope student views to enrolled combinations
+  const studentEnrollments = React.useMemo(() => {
+    if (role !== 'student' || !authProfile) return null;
+    const orgLinks = authProfile.org_links || {};
+    const orgIds = authProfile.org_ids || Object.keys(orgLinks);
+    const hasSchool = (orgIds && orgIds.length > 0) || (authProfile.active_b2c_licenses && authProfile.active_b2c_licenses.length > 0);
+    if (!hasSchool) return null;
+
+    const gradesSet = new Set<string>();
+    const subjectsSet = new Set<string>();
+
+    for (const orgId of orgIds) {
+      const link = orgLinks[orgId];
+      if (!link) continue;
+      const g = link.grade || authProfile.grade;
+      if (g && g !== 'Unassigned') {
+        const cleanG = g.toString().replace(/^Grade\s*/i, 'Grade ');
+        gradesSet.add(cleanG);
+      }
+      
+      const assigned: string[] = link.assigned_combos || [];
+      assigned.forEach((comboStr: string) => {
+        const parts = comboStr.split('-');
+        if (parts.length > 0) {
+          const rawGrade = parts[0].trim().replace(/^org_[^_]+_/, '');
+          if (rawGrade) gradesSet.add(rawGrade);
+        }
+        if (parts.length > 1) {
+          const rawSubj = parts[parts.length - 1].trim();
+          if (rawSubj) subjectsSet.add(rawSubj);
+        }
+      });
+    }
+
+    (authProfile.active_b2c_licenses || []).forEach((comboStr: string) => {
+      const parts = comboStr.split('-');
+      if (parts.length > 0) {
+        const rawGrade = parts[0].trim();
+        if (rawGrade) gradesSet.add(rawGrade);
+      }
+      if (parts.length > 1) {
+        const rawSubj = parts[parts.length - 1].trim();
+        if (rawSubj) subjectsSet.add(rawSubj);
+      }
+    });
+
+    return {
+      grades: Array.from(gradesSet),
+      subjects: Array.from(subjectsSet)
+    };
+  }, [role, authProfile]);
+
+  // Auto-default to student's enrolled grade
+  useEffect(() => {
+    if (studentEnrollments && studentEnrollments.grades.length > 0 && !selectedClass) {
+      setSelectedClass(studentEnrollments.grades[0]);
+    }
+  }, [studentEnrollments]);
+
+  const availableGrades = React.useMemo(() => {
+    if (studentEnrollments && studentEnrollments.grades.length > 0) {
+      return GRADES.filter(g => {
+        const gNum = g.replace(/\D/g, '');
+        return studentEnrollments.grades.some(sg => {
+          const sgNum = sg.replace(/\D/g, '');
+          return sg.toLowerCase() === g.toLowerCase() || (gNum && sgNum && gNum === sgNum);
+        });
+      });
+    }
+    return GRADES;
+  }, [studentEnrollments]);
+
+  const availableSubjects = React.useMemo(() => {
+    if (studentEnrollments && studentEnrollments.subjects.length > 0) {
+      return SUBJECTS.filter(s => {
+        const sLower = s.toLowerCase();
+        return studentEnrollments.subjects.some(ss => {
+          const ssLower = ss.toLowerCase();
+          return ssLower === sLower || (ssLower.includes('math') && sLower.includes('math')) || (ssLower.includes('eng') && sLower.includes('eng')) || (ssLower.includes('hindi') && sLower.includes('hindi'));
+        });
+      });
+    }
+    return SUBJECTS;
+  }, [studentEnrollments]);
+
+  // Reset pagination window when filters or search change
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [selectedClass, selectedSubject, selectedCategory, searchQuery]);
 
   const toggleSubTopic = (id: any) => setExpandedSubTopics(prev => ({ ...prev, [id]: !prev[id] }));
 
@@ -50,7 +144,15 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
 
   useEffect(() => {
     async function fetchLessons() {
+      const cacheKey = `${selectedClass || 'ALL'}_${selectedSubject || 'ALL'}`;
+      if (lessonsMemoryCache.has(cacheKey)) {
+        setAllLessons(lessonsMemoryCache.get(cacheKey)!);
+        setIsLoading(false);
+        return;
+      }
+
       try {
+        setIsLoading(true);
         // Fetch the new flat collection (Optimized)
         let toolsQuery = collection(db, 'learning_tools') as any;
         if (selectedClass && selectedClass !== '') {
@@ -158,6 +260,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
         // C. Sort the final Chapters array by chapter_number
         processedModules.sort((a: any, b: any) => a.chapter_number - b.chapter_number);
 
+        lessonsMemoryCache.set(cacheKey, processedModules);
         setAllLessons(processedModules);
       } catch (error: any) { 
         console.error("Error fetching lessons:", error); 
@@ -170,12 +273,33 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
   }, [selectedClass, selectedSubject]);
 
   const filteredLessons = allLessons.filter((lesson: any) => {
-    const matchClass = selectedClass 
-      ? lesson.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() || 
-        lesson.grade?.toLowerCase().trim() === 'all grades'
-      : true;
+    let matchClass = true;
+    if (selectedClass) {
+      matchClass = lesson.grade?.toLowerCase().trim() === selectedClass.toLowerCase().trim() || 
+                   lesson.grade?.toLowerCase().trim() === 'all grades';
+    } else if (studentEnrollments && studentEnrollments.grades.length > 0) {
+      const lessonGradeNum = (lesson.grade || '').replace(/\D/g, '');
+      matchClass = lesson.grade?.toLowerCase().trim() === 'all grades' || 
+                   studentEnrollments.grades.some(sg => {
+                     const sgNum = sg.replace(/\D/g, '');
+                     return sg.toLowerCase().trim() === lesson.grade?.toLowerCase().trim() || (lessonGradeNum && sgNum && lessonGradeNum === sgNum);
+                   });
+    }
+
+    let matchSubject = true;
     const dbSubj = lesson.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : lesson.subject?.toLowerCase().trim();
-    const matchSubject = selectedSubject ? dbSubj === selectedSubject.toLowerCase().trim() : true;
+    if (selectedSubject) {
+      matchSubject = dbSubj === selectedSubject.toLowerCase().trim();
+    } else if (studentEnrollments && studentEnrollments.subjects.length > 0) {
+      matchSubject = studentEnrollments.subjects.some(ss => {
+        const ssLower = ss.toLowerCase().trim();
+        return ssLower === dbSubj || ssLower === lesson.subject?.toLowerCase().trim() || 
+               (ssLower.includes('math') && dbSubj?.includes('math')) || 
+               (ssLower.includes('eng') && dbSubj?.includes('eng')) || 
+               (ssLower.includes('hindi') && dbSubj?.includes('hindi'));
+      });
+    }
+
     const matchQuery = searchQuery ? lesson.chapter?.toLowerCase().includes(searchQuery.toLowerCase()) || lesson.book?.toLowerCase().includes(searchQuery.toLowerCase()) : true;
     const cat = getCategoryName(lesson.subject);
     const matchCategory = selectedCategory ? cat.toLowerCase() === selectedCategory.toLowerCase() : true;
@@ -218,6 +342,13 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
             </div>
           </div>
 
+          {studentEnrollments && (
+             <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border-2 border-indigo-100 text-indigo-700 text-xs font-bold rounded-2xl">
+               <Sparkles size={16} className="text-indigo-500 shrink-0" />
+               <span>Showing courses scoped to your school enrollment ({studentEnrollments.grades.join(', ')})</span>
+             </div>
+          )}
+
           <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                 <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
@@ -228,10 +359,10 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
                   <option value="Co-Curricular & Skills">Co-Curricular</option>
                 </select>
                 <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedClass} onChange={(e: any) => setSelectedClass(e.target.value)}>
-                  <option value="">All Grades</option>{GRADES.map((g: any) => <option key={g} value={g}>{g}</option>)}
+                  <option value="">{studentEnrollments ? 'My Enrolled Grades' : 'All Grades'}</option>{availableGrades.map((g: any) => <option key={g} value={g}>{g}</option>)}
                 </select>
                 <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
-                  <option value="">All Subjects</option>{SUBJECTS.map((s: any) => <option key={s} value={s}>{s}</option>)}
+                  <option value="">{studentEnrollments ? 'My Enrolled Subjects' : 'All Subjects'}</option>{availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
                 </select>
              </div>
              <div className="relative w-full md:flex-1 flex gap-2">
@@ -247,66 +378,92 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
             <h2 className="text-2xl font-extrabold text-slate-800 mb-6">All Lessons</h2>
             {isLoading ? (<div className="py-20 text-center font-bold text-sky-500 animate-pulse">Loading Lessons...</div>) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredLessons.length > 0 ? filteredLessons.map((lesson: any, idx: any) => (
-                  <Card key={idx} className={`border-b-8 ${lesson.color} cursor-pointer group transition-all p-0 flex flex-col hover:border-sky-300`} onClick={() => setActiveLesson(lesson)}>
-                    <div className="relative h-48 w-full bg-slate-200 overflow-hidden">
-                       <img src={lesson.image} alt={lesson.chapter} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                       <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/20 to-transparent"></div>
-                       <div className="absolute top-4 left-4 right-4 flex justify-between items-start gap-2">
-                          <span className="bg-white/90 text-slate-800 text-xs font-bold uppercase px-3 py-1.5 rounded-full shadow-sm max-w-[65%] truncate">{lesson.book}</span>
-                          <div className="bg-slate-900/60 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm shrink-0"><Layers size={14} /> {lesson.items} Items</div>
-                       </div>
-                    </div>
-                    <div className="p-6 bg-white flex-1 flex flex-col group-hover:bg-slate-50 transition-colors">
-                       
-                       <h3 className="text-2xl font-black text-slate-800 mb-2 group-hover:text-sky-600 leading-tight">{lesson.chapter}</h3>
-                       <div className="flex flex-wrap items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500 mb-4">
-    <span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{lesson.grade}</span>
-    {getCategoryName(lesson.subject) && <><span>•</span><span className="text-slate-400">{getCategoryName(lesson.subject)}</span></>}
-    <span>•</span><span>{lesson.subject}</span>
-  </div>
-                       {(() => {
-                           const cKey = `${lesson.grade}_${lesson.subject}`.toLowerCase();
-                           const subjProg = studentProgress.find(p => p.id?.toLowerCase() === cKey || p.id?.toLowerCase() === lesson.subject?.toLowerCase());
-                           const compObj = subjProg?.completed_tools || {};
-                           let totalTools = 0;
-                           let completedTools = 0;
-                           if (lesson.subTopics) {
-                               lesson.subTopics.forEach((st: any) => {
-                                  if (st.tools) {
-                                      totalTools += st.tools.length;
-                                      st.tools.forEach((t: any) => { if (compObj[t.id]) completedTools++; });
-                                  }
-                               });
-                           } else if (lesson.flow) {
-                               totalTools += lesson.flow.length;
-                               lesson.flow.forEach((t: any) => { if (compObj[t.id]) completedTools++; });
-                           }
-                           const pct = totalTools > 0 ? Math.round((completedTools / totalTools) * 100) : 0;
+                {filteredLessons.length > 0 ? (
+                  <>
+                    {filteredLessons.slice(0, visibleCount).map((lesson: any, idx: any) => (
+                      <Card key={idx} className={`border-b-8 ${lesson.color} cursor-pointer group transition-all p-0 flex flex-col hover:border-sky-300`} onClick={() => setActiveLesson(lesson)}>
+                        <div className="relative h-48 w-full bg-slate-200 overflow-hidden">
+                           <img 
+                             src={lesson.image || getSubjectFallbackImage(lesson.subject)} 
+                             alt={lesson.chapter} 
+                             loading="lazy" 
+                             decoding="async" 
+                             onError={(e) => { e.currentTarget.src = getSubjectFallbackImage(lesson.subject); }}
+                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                           />
+                           <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/20 to-transparent pointer-events-none"></div>
+                           <div className="absolute top-4 left-4 right-4 flex justify-between items-start gap-2 pointer-events-none">
+                              <span className="bg-white/90 text-slate-800 text-xs font-bold uppercase px-3 py-1.5 rounded-full shadow-sm max-w-[65%] truncate">{lesson.book}</span>
+                              <div className="bg-slate-900/60 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm shrink-0"><Layers size={14} /> {lesson.items} Items</div>
+                           </div>
+                        </div>
+                        <div className="p-6 bg-white flex-1 flex flex-col group-hover:bg-slate-50 transition-colors">
                            
-                           return (totalTools > 0 && showProgress) ? (
-                               <div className="mb-4">
-                                   <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider mb-1 text-slate-500">
-                                       <span>Progress</span>
-                                       <span className={pct === 100 ? 'text-emerald-500' : 'text-sky-500'}>{pct}%</span>
+                           <h3 className="text-2xl font-black text-slate-800 mb-2 group-hover:text-sky-600 leading-tight">{lesson.chapter}</h3>
+                           <div className="flex flex-wrap items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500 mb-4">
+        <span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{lesson.grade}</span>
+        {getCategoryName(lesson.subject) && <><span>•</span><span className="text-slate-400">{getCategoryName(lesson.subject)}</span></>}
+        <span>•</span><span>{lesson.subject}</span>
+      </div>
+                           {(() => {
+                               const cKey = `${lesson.grade}_${lesson.subject}`.toLowerCase();
+                               const subjProg = studentProgress.find(p => p.id?.toLowerCase() === cKey || p.id?.toLowerCase() === lesson.subject?.toLowerCase());
+                               const compObj = subjProg?.completed_tools || {};
+                               let totalTools = 0;
+                               let completedTools = 0;
+                               if (lesson.subTopics) {
+                                   lesson.subTopics.forEach((st: any) => {
+                                      if (st.tools) {
+                                          totalTools += st.tools.length;
+                                          st.tools.forEach((t: any) => { if (compObj[t.id]) completedTools++; });
+                                      }
+                                   });
+                               } else if (lesson.flow) {
+                                   totalTools += lesson.flow.length;
+                                   lesson.flow.forEach((t: any) => { if (compObj[t.id]) completedTools++; });
+                               }
+                               const pct = totalTools > 0 ? Math.round((completedTools / totalTools) * 100) : 0;
+                               
+                               return (totalTools > 0 && showProgress) ? (
+                                   <div className="mb-4">
+                                       <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider mb-1 text-slate-500">
+                                           <span>Progress</span>
+                                           <span className={pct === 100 ? 'text-emerald-500' : 'text-sky-500'}>{pct}%</span>
+                                       </div>
+                                       <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                           <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${pct}%` }}></div>
+                                       </div>
                                    </div>
-                                   <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                       <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${pct}%` }}></div>
-                                   </div>
-                               </div>
-                           ) : null;
-                       })()}
+                               ) : null;
+                           })()}
 
-                       <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-600 mt-auto pt-4 border-t border-slate-100">
-                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-purple-300 transition-colors"><Lightbulb size={14} className="text-purple-500"/> Concepts</span>
-                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-pink-300 transition-colors"><Video size={14} className="text-pink-500"/> Videos</span>
-                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-lime-300 transition-colors"><Gamepad2 size={14} className="text-lime-500"/> Games</span>
-                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-orange-300 transition-colors"><Target size={14} className="text-orange-500"/> Quizzes</span>
-                          <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-sky-300 transition-colors"><FileText size={14} className="text-sky-500"/> Docs</span>
-                       </div>
-                    </div>
-                  </Card>
-                )) : (<div className="col-span-full py-16 text-center bg-white rounded-3xl border-2"><h3 className="text-xl font-bold">No lessons found</h3></div>)}
+                           <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-600 mt-auto pt-4 border-t border-slate-100">
+                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-purple-300 transition-colors"><Lightbulb size={14} className="text-purple-500"/> Concepts</span>
+                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-pink-300 transition-colors"><Video size={14} className="text-pink-500"/> Videos</span>
+                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-lime-300 transition-colors"><Gamepad2 size={14} className="text-lime-500"/> Games</span>
+                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-orange-300 transition-colors"><Target size={14} className="text-orange-500"/> Quizzes</span>
+                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-sky-300 transition-colors"><FileText size={14} className="text-sky-500"/> Docs</span>
+                           </div>
+                        </div>
+                      </Card>
+                    ))}
+
+                    {filteredLessons.length > visibleCount && (
+                      <div className="col-span-full pt-8 pb-4 flex flex-col items-center justify-center gap-3">
+                        <p className="text-sm font-bold text-slate-400">
+                          Showing {visibleCount} of {filteredLessons.length} chapters
+                        </p>
+                        <button
+                          onClick={() => setVisibleCount(prev => prev + 20)}
+                          className="px-8 py-3.5 bg-white border-2 border-sky-400 text-sky-600 hover:bg-sky-500 hover:text-white rounded-2xl font-black text-sm transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
+                        >
+                          <span>Load More Chapters ({filteredLessons.length - visibleCount} remaining)</span>
+                          <ChevronDown size={18} />
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (<div className="col-span-full py-16 text-center bg-white rounded-3xl border-2"><h3 className="text-xl font-bold">No lessons found</h3></div>)}
               </div>
             )}
           </div>

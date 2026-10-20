@@ -65,7 +65,7 @@ export const SUBJECT_IMAGES: Record<string, string> = {
   'Hindi': '/thumbnails/hindi-cover.webp',
   'Maths': '/thumbnails/maths-cover.webp',
   'EVS': '/thumbnails/evs-cover.webp',
-  'Science': '/thumbnails/evs-cover.webp',
+  'Science': '/thumbnails/science-cover.webp',
   'SST': '/thumbnails/sst-cover.webp',
   'FLN English': '/thumbnails/english-cover.webp',
   'FLN Hindi': '/thumbnails/hindi-cover.webp',

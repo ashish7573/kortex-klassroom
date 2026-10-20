@@ -292,6 +292,11 @@ export default function EditIndividualModal({
                     <Sparkles size={10} /> Pro
                   </span>
                 )}
+                {user.role === 'student' && user.parent_consent_verified && (
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-md text-[10px] font-black uppercase flex items-center gap-1 border border-emerald-500/30">
+                    <CheckCircle2 size={10} /> Consent Verified
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 text-xs text-slate-400 font-medium mt-1">
                 <span>ID: <span className="font-mono text-indigo-300 font-bold">{formData.kortex_id || 'NO_ID'}</span></span>
@@ -435,6 +440,56 @@ export default function EditIndividualModal({
                   </div>
                 </div>
 
+                {user.role === 'student' && (
+                  <div className="p-4 bg-sky-50/70 border-2 border-sky-100 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-sky-600" />
+                        <span className="text-xs font-black uppercase tracking-wider text-sky-900">Parent / Guardian Consent & Contact</span>
+                      </div>
+                      {user.parent_consent_verified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase rounded-md border border-emerald-200">
+                          <CheckCircle2 size={11} className="text-emerald-600" /> Consent Verified (सत्यापित)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-black uppercase rounded-md border border-amber-200">
+                          Awaiting Consent
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                      <div>
+                        <span className="text-slate-400 font-bold block text-[10px] uppercase">Consenting Parent Name:</span>
+                        <span className="font-bold text-slate-800 text-sm">{formData.parent_name || user.parent_name || <span className="text-slate-400 italic font-normal">Not provided</span>}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-bold block text-[10px] uppercase">Parent Phone (Emergency Contact):</span>
+                        <span className="font-bold text-slate-800 text-sm flex items-center gap-1">
+                          <Phone size={12} className="text-slate-400" />
+                          {formData.emergency_contact || user.emergency_contact || <span className="text-slate-400 italic font-normal">Not provided</span>}
+                        </span>
+                      </div>
+                      {user.claim_code && (
+                        <div>
+                          <span className="text-slate-400 font-bold block text-[10px] uppercase">Claim Code:</span>
+                          <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-xs border border-indigo-100 inline-block">
+                            {user.claim_code}
+                          </span>
+                        </div>
+                      )}
+                      {user.parent_consent_date && (
+                        <div>
+                          <span className="text-slate-400 font-bold block text-[10px] uppercase">Consent Date:</span>
+                          <span className="font-medium text-slate-600 text-xs">
+                            {new Date(user.parent_consent_date).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
                   <div className="flex items-center justify-between">
                     <div>
@@ -545,9 +600,10 @@ export default function EditIndividualModal({
                           <div className="relative">
                             <input 
                               type={showPin ? "text" : "password"} 
+                              maxLength={6}
                               value={formData.plain_pin} 
-                              onChange={e => setFormData({ ...formData, plain_pin: e.target.value })} 
-                              placeholder="4-6 digit PIN"
+                              onChange={e => setFormData({ ...formData, plain_pin: e.target.value.replace(/[^0-9]/g, '') })} 
+                              placeholder="6-digit PIN"
                               className="w-full bg-white border-2 border-amber-200 rounded-xl pl-3 pr-10 py-2 font-mono font-bold text-slate-800 outline-none focus:border-amber-500 text-sm"
                             />
                             <button
@@ -615,19 +671,46 @@ export default function EditIndividualModal({
 
                     {/* Parent Association */}
                     <div className="p-5 bg-sky-50/50 rounded-2xl border border-sky-200 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Users className="text-sky-600" size={18} />
-                        <h4 className="text-sm font-black text-sky-900 uppercase tracking-wider">Linked Parent</h4>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Users className="text-sky-600" size={18} />
+                          <h4 className="text-sm font-black text-sky-900 uppercase tracking-wider">Parent & Guardian Affiliation</h4>
+                        </div>
+                        {user.parent_consent_verified ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase rounded-md border border-emerald-300">
+                            <CheckCircle2 size={11} className="text-emerald-600" /> Consent Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-black uppercase rounded-md border border-amber-300">
+                            Awaiting Link
+                          </span>
+                        )}
                       </div>
 
+                      {user.parent_consent_verified && (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs space-y-1">
+                          <p className="font-bold flex items-center gap-1.5">
+                            <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                            Parent consent was recorded via school claim flow.
+                          </p>
+                          <p className="text-[11px] text-emerald-700">
+                            Parent: <strong>{formData.parent_name || user.parent_name || 'N/A'}</strong> | Phone: <strong>{formData.emergency_contact || user.emergency_contact || 'N/A'}</strong>
+                          </p>
+                        </div>
+                      )}
+
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Select Parent Account</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Select Registered Parent Account</label>
                         <select
                           value={formData.parent_id}
                           onChange={e => handleParentSelect(e.target.value)}
                           className="w-full bg-white border-2 border-sky-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-sky-500"
                         >
-                          <option value="PENDING">PENDING (No Parent Linked)</option>
+                          <option value="PENDING">
+                            {user.parent_consent_verified || formData.parent_name
+                              ? `PENDING — Consent Given by ${formData.parent_name || 'Parent'} (No Registered Portal Account Linked)`
+                              : `PENDING (No Parent Account Linked)`}
+                          </option>
                           {allParents.map(p => (
                             <option key={p.uid} value={p.uid}>
                               {p.full_name} ({p.email || p.phone || 'No Contact'}) — {p.kortex_id}
@@ -638,23 +721,36 @@ export default function EditIndividualModal({
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Parent Name Cache</label>
+                          <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Parent / Guardian Name</label>
                           <input 
                             type="text" 
                             value={formData.parent_name} 
                             onChange={e => setFormData({ ...formData, parent_name: e.target.value })} 
-                            className="w-full bg-white border-2 border-sky-100 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 outline-none"
+                            placeholder="e.g. Ramesh Kumar"
+                            className="w-full bg-white border-2 border-sky-100 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-sky-400"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Parent Email Cache</label>
+                          <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Parent Phone (Emergency Contact)</label>
                           <input 
-                            type="email" 
-                            value={formData.parent_email} 
-                            onChange={e => setFormData({ ...formData, parent_email: e.target.value })} 
-                            className="w-full bg-white border-2 border-sky-100 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 outline-none"
+                            type="text" 
+                            value={formData.emergency_contact} 
+                            onChange={e => setFormData({ ...formData, emergency_contact: e.target.value })} 
+                            placeholder="e.g. 9876543210"
+                            className="w-full bg-white border-2 border-sky-100 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-sky-400"
                           />
                         </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Parent Email Cache</label>
+                        <input 
+                          type="email" 
+                          value={formData.parent_email} 
+                          onChange={e => setFormData({ ...formData, parent_email: e.target.value })} 
+                          placeholder="parent@example.com"
+                          className="w-full bg-white border-2 border-sky-100 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-sky-400"
+                        />
                       </div>
                     </div>
 

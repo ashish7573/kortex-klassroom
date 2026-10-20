@@ -4,7 +4,7 @@ import { StudentProfile } from '../../types/user';
 import { auth, db } from '../../backend_configurations/firebase';
 import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useStudentAssignments } from '../../hooks/useStudentAssignments';
-import { getStudentAcademicDetails, getChildProgressAndTotals } from '../../app/actions/student';
+import { getStudentAcademicDetails, getChildProgressAndTotals, getStudentDailyActivity } from '../../app/actions/student';
 import { Building, AlertCircle, Sparkles, TrendingUp, Clock, CheckCircle2, FileText, BarChart2, Lock, X, ClipboardList, CircleDashed, Award } from 'lucide-react';
 import ModalPortal from '../../components/ModalPortal';
 
@@ -56,6 +56,8 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   const filteredAssignments = assignments.filter((a: any) => a.status === assignmentFilter);
   const [progressData, setProgressData] = useState<any[]>([]);
   const [subjectTotals, setSubjectTotals] = useState<Record<string, number>>({});
+  const [dailyHistory, setDailyHistory] = useState<any[]>([]);
+  const [dailyTotals, setDailyTotals] = useState<{ totalMinutes: number; totalLessons: number; totalStars: number } | null>(null);
 
   useEffect(() => {
     async function loadProgressAndTotals() {
@@ -64,13 +66,21 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
         const user = auth.currentUser;
         if (!user) return;
         const idToken = await user.getIdToken();
-        const result = await getChildProgressAndTotals(idToken, child.uid);
-        if (result.success) {
-           setProgressData(result.progressData || []);
-           setSubjectTotals(result.subjectTotals || {});
+        const [progResult, actResult] = await Promise.all([
+          getChildProgressAndTotals(idToken, child.uid),
+          getStudentDailyActivity(idToken, child.uid, 7)
+        ]);
+
+        if (progResult.success) {
+           setProgressData(progResult.progressData || []);
+           setSubjectTotals(progResult.subjectTotals || {});
+        }
+        if (actResult.success && actResult.history) {
+           setDailyHistory(actResult.history);
+           setDailyTotals(actResult.totals || null);
         }
       } catch (e) {
-        console.error("Error loading child progress:", e);
+        console.error("Error loading child progress and activity:", e);
       }
     }
     loadProgressAndTotals();
@@ -358,35 +368,77 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
             </div>
           </div>
 
-          {(!child.org_ids || child.org_ids.length === 0) && (
-            <>
               {/* Screen Time Section */}
               <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8 relative overflow-hidden">
-                 <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-6">
-                    <Clock className="text-sky-500" size={24} /> Screen Time
-                 </h3>
-                 <div className={!isPro ? "blur-sm opacity-60 select-none grayscale" : ""}>
-                    <div className="flex items-end gap-6 h-32 mb-4">
-                       <div className="w-1/5 bg-sky-200 rounded-t-lg h-[40%]"></div>
-                       <div className="w-1/5 bg-sky-200 rounded-t-lg h-[60%]"></div>
-                       <div className="w-1/5 bg-sky-500 rounded-t-lg h-[80%]"></div>
-                       <div className="w-1/5 bg-sky-200 rounded-t-lg h-[30%]"></div>
-                       <div className="w-1/5 bg-sky-200 rounded-t-lg h-[50%]"></div>
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                   <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                      <Clock className="text-sky-500" size={24} /> Screen Time (Past 7 Days • IST)
+                   </h3>
+                   {dailyTotals && isPro && (
+                     <div className="flex items-center gap-3 text-xs font-black">
+                       <span className="px-3 py-1.5 bg-sky-50 text-sky-700 rounded-xl border border-sky-100">
+                         ⏱️ {dailyTotals.totalMinutes} mins total
+                       </span>
+                       <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100">
+                         📚 {dailyTotals.totalLessons} lessons
+                       </span>
+                     </div>
+                   )}
+                 </div>
+
+                 <div className={!isPro ? "blur-sm opacity-50 select-none grayscale" : ""}>
+                    <div className="flex items-end gap-3 sm:gap-6 h-36 mb-4 px-2">
+                       {dailyHistory.length > 0 ? (
+                         dailyHistory.map((day, idx) => {
+                           const maxMins = Math.max(...dailyHistory.map(d => d.active_minutes), 30);
+                           const heightPct = Math.min(100, Math.round((day.active_minutes / maxMins) * 100));
+                           const isToday = idx === dailyHistory.length - 1;
+
+                           return (
+                             <div key={day.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                               <div className="text-[10px] font-bold text-slate-400 group-hover:text-sky-600 transition-colors">
+                                 {day.active_minutes}m
+                               </div>
+                               <div className="w-full bg-slate-100 rounded-t-xl h-24 flex items-end justify-center overflow-hidden p-0.5">
+                                 <div 
+                                   className={`w-full rounded-t-lg transition-all duration-500 ${isToday ? 'bg-sky-500 shadow-sm' : 'bg-sky-300 group-hover:bg-sky-400'}`}
+                                   style={{ height: `${Math.max(heightPct, 6)}%` }}
+                                 />
+                               </div>
+                               <span className={`text-xs ${isToday ? 'font-black text-sky-600' : 'font-bold text-slate-500'}`}>
+                                 {day.dayName}
+                               </span>
+                             </div>
+                           );
+                         })
+                       ) : (
+                         ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((dayName, idx) => (
+                           <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                             <div className="text-[10px] font-bold text-slate-300">0m</div>
+                             <div className="w-full bg-slate-100 rounded-t-xl h-24 flex items-end justify-center p-0.5">
+                               <div className="w-full bg-sky-200 rounded-t-lg h-[8%]" />
+                             </div>
+                             <span className="text-xs font-bold text-slate-400">{dayName}</span>
+                           </div>
+                         ))
+                       )}
                     </div>
-                    <div className="flex justify-between text-xs font-bold text-slate-500">
-                       <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span>
+                    <div className="text-center text-xs font-semibold text-slate-400 pt-2 border-t border-slate-100">
+                      Calculated automatically in Indian Standard Time (Asia/Kolkata)
                     </div>
                  </div>
 
                  {!isPro && (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/40 backdrop-blur-[2px]">
-                       <div className="bg-slate-900/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl flex flex-col items-center shadow-xl text-center">
-                          <Lock size={24} className="text-amber-400 mb-2" />
+                       <div className="bg-slate-900/90 backdrop-blur-md text-white px-6 py-5 rounded-2xl flex flex-col items-center shadow-xl text-center max-w-sm mx-4">
+                          <Lock size={28} className="text-amber-400 mb-2" />
                           <h4 className="font-black text-lg mb-1">Screen Time Analytics</h4>
-                          <p className="text-sm font-medium text-slate-300 mb-4 max-w-xs">See exactly how much time your child spends learning.</p>
+                          <p className="text-xs font-medium text-slate-300 mb-4 leading-relaxed">
+                            Upgrade to Kortex Pro to unlock minute-by-minute screen time, activity histories, and weekly academic reporting.
+                          </p>
                           <button 
-                            onClick={() => alert("Coming soon!")}
-                            className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-black rounded-xl shadow-md transition-all active:scale-95"
+                            onClick={() => setShowUpsellModal(true)}
+                            className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-sm rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
                           >
                             Unlock Kortex Pro
                           </button>
@@ -418,25 +470,23 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
                  
                  {!isPro && (
                     <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-2xl border border-indigo-100 text-center flex flex-col items-center">
-                       <h4 className="text-lg font-black text-indigo-900 mb-2">Track your child's progress</h4>
+                       <h4 className="text-lg font-black text-indigo-900 mb-2">Track your child&apos;s progress</h4>
                        <p className="text-sm font-semibold text-indigo-700 mb-4 max-w-md">Unlock Kortex Pro to get detailed analytics and track daily learning progress.</p>
                        <button 
-                         onClick={() => alert("Coming soon!")}
-                         className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md transition-all active:scale-95"
+                         onClick={() => setShowUpsellModal(true)}
+                         className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
                        >
                          Unlock Kortex Pro
                        </button>
                     </div>
                  )}
               </div>
-            </>
-          )}
 
           <PerformanceBlock 
             title="Independent Progress" 
             icon={<TrendingUp size={24} className="text-purple-600" />} 
             performanceData={independentPerformance}
-            onUnlockClick={() => alert("Coming soon!")}
+            onUnlockClick={() => setShowUpsellModal(true)}
           />
       </div>
 

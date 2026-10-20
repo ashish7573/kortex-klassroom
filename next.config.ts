@@ -40,12 +40,42 @@ const nextConfig: NextConfig = {
   // 🔒 FIX: Prevent Turbopack from bundling firebase-admin and crashing on ESM imports
   serverExternalPackages: ['firebase-admin', 'jwks-rsa', 'jose'],
   
+  // ⚡ Performance: Image optimization configuration
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'img.youtube.com' },
+      { protocol: 'https', hostname: 'i.ytimg.com' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'firebasestorage.googleapis.com' },
+    ],
+    minimumCacheTTL: 86400,
+  },
+  
   // Inject the headers into every single page of the application
   async headers() {
     return [
       {
         source: '/(.*)', // The regex /(.*) matches every single route in your app
         headers: securityHeaders,
+      },
+      {
+        source: '/thumbnails/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/assets/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
       },
     ];
   },

@@ -71,7 +71,7 @@ export default function ProvisionOrgModal({ onClose, onSuccess }: ProvisionOrgMo
 
     const maxAllowed = approvedCombos.length * 40;
     if (maxStudentSeats > maxAllowed) {
-      setErrorMsg(`Student seats cannot exceed ${maxAllowed} (Max 40 students per combination for ${approvedCombos.length} combinations).`);
+      setErrorMsg(`Subject-seat quota cannot exceed ${maxAllowed} (Max 40 seats per combination for ${approvedCombos.length} combinations).`);
       return;
     }
 
@@ -379,9 +379,9 @@ Ashish & The Kortex Team
 
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Student Seats Quota *</label>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Total Subject-Seat License Quota *</label>
               <span className="text-[11px] font-bold text-indigo-600">
-                Max Allowed: {maxAllowedStudents} ({approvedCombos.length} × 40)
+                Max Capacity: {maxAllowedStudents} ({approvedCombos.length} × 40 subject seats)
               </span>
             </div>
             <input
@@ -394,7 +394,7 @@ Ashish & The Kortex Team
               className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
             />
             <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-              Auto-filled to {maxAllowedStudents} students (40 students/combo). Any number below this is allowed.
+              Auto-filled to {maxAllowedStudents} total subject seats (40 seats/combination). Each student takes 1 seat per enrolled subject.
             </p>
           </div>
 

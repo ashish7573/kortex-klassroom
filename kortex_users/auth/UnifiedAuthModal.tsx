@@ -27,7 +27,8 @@ import {
   Eye,
   EyeOff, 
   ArrowRight,
-  Sparkles
+  Sparkles,
+  GraduationCap
 } from 'lucide-react';
 
 interface UnifiedAuthModalProps {
@@ -114,7 +115,8 @@ export default function UnifiedAuthModal({
       let emailToAuth = loginIdentifier.trim().toLowerCase();
 
       // If identifier is not an email, treat as student Kortex ID
-      if (!emailToAuth.includes('@')) {
+      const isStudentUsername = !emailToAuth.includes('@');
+      if (isStudentUsername) {
         const cleanId = loginIdentifier.trim().toLowerCase(); // e.g. stu_abc_123
         emailToAuth = `${cleanId}@student.kortex.app`;
       }
@@ -126,7 +128,7 @@ export default function UnifiedAuthModal({
         sessionStorage.setItem('kortex_is_authenticating', 'true');
       }
 
-      const cred = await signInWithEmailAndPassword(auth, emailToAuth, loginPassword);
+      const cred = await signInWithEmailAndPassword(auth, emailToAuth, loginPassword.trim());
 
       // Update session token in Firestore (via Server Action to bypass strict security rules)
       try {
@@ -518,6 +520,17 @@ export default function UnifiedAuthModal({
                   </svg>
                   Google
                 </button>
+
+                <div className="pt-3 mt-1 border-t border-slate-100">
+                  <a
+                    href="/start"
+                    className="w-full py-3 bg-gradient-to-r from-sky-50 to-indigo-50 hover:from-sky-100 hover:to-indigo-100 border-2 border-sky-200 text-sky-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 group cursor-pointer text-center"
+                  >
+                    <GraduationCap size={18} className="text-sky-600 group-hover:scale-110 transition-transform shrink-0" />
+                    <span>School Student? 1-Tap Login with Code (छात्र कोड से लॉगिन)</span>
+                    <ArrowRight size={14} className="text-sky-500 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </a>
+                </div>
 
               </form>
 

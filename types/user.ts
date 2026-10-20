@@ -99,6 +99,9 @@ export interface StudentProfile extends BaseUserProfile {
     [orgId: string]: OrgLinkData
   };
   is_pro?: boolean;
+  pro_tier?: string | null;
+  parent_consent_verified?: boolean;
+  parent_consent_at?: string | null;
 
   // Gamification & Progress
   current_streak_days?: number;
@@ -141,6 +144,7 @@ export interface OrgAdminProfile extends BaseUserProfile {
   org_type?: 'school' | 'coaching' | 'ngo' | 'other';
   license_quota: number;
   active_students_count: number;
+  consumed_seats_count?: number;
   teacher_ids: string[];
   approved_grade_subject_combos?: string[];
   agreement_url?: string;

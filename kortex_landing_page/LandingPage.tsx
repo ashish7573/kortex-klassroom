@@ -12,8 +12,12 @@ import {
   SUBJECTS, 
   SUBJECT_ICONS, 
   FIVE_TIERS, 
-  TESTIMONIALS 
+  TESTIMONIALS,
+  getSubjectFallbackImage
 } from './curriculumConfig';
+
+// Module-level in-memory cache to prevent redundant Firestore fetches on view switches
+let landingTierCache: any = null;
 
 const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenFeatured, onNavigateToSubject }: any) => {
   const [activeUsp, setActiveUsp] = useState(0);
@@ -37,6 +41,11 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
   
   useEffect(() => {
     async function fetchTierData() {
+      if (landingTierCache) {
+        setTierData(landingTierCache);
+        setIsLoadingTiers(false);
+        return;
+      }
       setIsLoadingTiers(true);
       try {
         // Grab featured items (Removed the limit here so we don't accidentally cut off games!)
@@ -65,6 +74,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
           else if (type === 'conceptualiser' && categorized.conceptualiser.length < 10) categorized.conceptualiser.push(item);
         });
         
+        landingTierCache = categorized;
         setTierData(categorized);
       } catch (error) { console.error(error); } finally { setIsLoadingTiers(false); }
     }
@@ -206,7 +216,14 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
                 {/* Image Area */}
                 <div className={`h-40 sm:h-48 w-full ${activeTier.lightColor} relative flex items-center justify-center overflow-hidden`}>
                   {item.image ? (
-                     <img src={item.image} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                     <img 
+                       src={item.image} 
+                       alt={item.title} 
+                       loading="lazy" 
+                       decoding="async" 
+                       onError={(e) => { e.currentTarget.src = getSubjectFallbackImage(item.subject); }}
+                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                     />
                   ) : (
                      <activeTier.icon size={80} className={`${activeTier.textColor} opacity-20 transform group-hover:scale-110 transition-transform duration-500`} />
                   )}
@@ -333,8 +350,8 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
        <div className="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-12 items-center relative z-10">
           <div className="order-2 md:order-1 relative h-[400px] w-full hidden md:block">
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-amber-200 rounded-full blur-2xl opacity-60"></div>
-             <div className="absolute top-10 left-10 w-48 h-48 bg-white rounded-[2rem] border-4 border-amber-100 shadow-xl flex items-center justify-center transform -rotate-6 overflow-hidden"><img src="https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=400&q=80" className="object-cover w-full h-full opacity-90"/></div>
-             <div className="absolute bottom-10 right-10 w-56 h-56 bg-white rounded-[2.5rem] border-4 border-amber-100 shadow-2xl flex items-center justify-center transform rotate-3 overflow-hidden"><img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=400&q=80" className="object-cover w-full h-full opacity-90"/></div>
+             <div className="absolute top-10 left-10 w-48 h-48 bg-white rounded-[2rem] border-4 border-amber-100 shadow-xl flex items-center justify-center transform -rotate-6 overflow-hidden"><img src="https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=400&q=80" alt="Educator" loading="lazy" decoding="async" className="object-cover w-full h-full opacity-90"/></div>
+             <div className="absolute bottom-10 right-10 w-56 h-56 bg-white rounded-[2.5rem] border-4 border-amber-100 shadow-2xl flex items-center justify-center transform rotate-3 overflow-hidden"><img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=400&q=80" alt="Students" loading="lazy" decoding="async" className="object-cover w-full h-full opacity-90"/></div>
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-amber-500 rounded-full border-8 border-white shadow-2xl flex items-center justify-center z-20"><Users size={48} className="text-white" /></div>
           </div>
           <div className="order-1 md:order-2 space-y-6 text-center md:text-left">

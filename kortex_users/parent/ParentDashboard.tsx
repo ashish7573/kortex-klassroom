@@ -324,7 +324,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
 
   const handleUpdatePin = async (e: React.FormEvent, childUid: string) => {
     e.preventDefault();
-    if (newPin.length < 4) return alert("PIN must be at least 4 characters.");
+    if (newPin.length !== 6) return alert("PIN must be exactly 6 digits.");
     setIsUpdatingPin(true);
     try {
       const user = auth.currentUser;
@@ -1092,16 +1092,16 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                           <input 
                             type="text" 
                             required 
-                            minLength={4}
+                            maxLength={6}
                             value={newPin}
-                            onChange={(e) => setNewPin(e.target.value)}
-                            placeholder="e.g. 1234 or apple123"
+                            onChange={(e) => setNewPin(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="e.g. 123456"
                             className="w-full bg-white border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
                           />
                         </div>
                         <button 
                           type="submit" 
-                          disabled={isUpdatingPin || newPin.length < 4}
+                          disabled={isUpdatingPin || newPin.length !== 6}
                           className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
                         >
                           {isUpdatingPin ? 'Updating...' : 'Update PIN securely'}
@@ -1236,6 +1236,8 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
           onChildCreated={() => setInternalShowModal(false)}
           parentContactNumber={`${profileForm.countryCode === 'other' ? profileForm.customCountryCode.trim() : profileForm.countryCode} ${profileForm.mobileNumber}`}
           onContactUpdate={handleMobileSubmit}
+          isPro={Boolean(profile.is_pro)}
+          childrenCount={children.length}
         />
       )}
 

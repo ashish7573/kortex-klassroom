@@ -123,7 +123,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
           const data = orgData[orgId];
           if (data) {
             const link = profile.org_links?.[orgId];
-            if (link && link.status === 'approved') {
+            if (link && (link.status === 'approved' || profile.parent_consent_verified || !link.status)) {
               const orgName = data.full_name || 'School';
               const allOrgCombos: string[] = data.approved_grade_subject_combos || [];
               
@@ -272,7 +272,10 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
   };
 
   const toggleOrg = (orgId: string) => {
-    setExpandedOrgs(prev => ({ ...prev, [orgId]: !prev[orgId] }));
+    setExpandedOrgs(prev => ({
+      ...prev,
+      [orgId]: prev[orgId] === undefined ? false : !prev[orgId]
+    }));
   };
 
   const toggleGradedSubject = (key: string) => {
@@ -386,7 +389,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
 
   const activeOrgs = (profile.org_ids || []).filter(orgId => {
     const link = profile.org_links?.[orgId];
-    return link && link.status === 'approved';
+    return link && (link.status === 'approved' || profile.parent_consent_verified || !!link.grade);
   });
 
   // Dynamically resolve student grade (org grade > profile grade > fallback)
@@ -509,7 +512,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
               const orgName = orgData.full_name || 'School';
               const orgAddress = orgData.address ? `, ${orgData.address}` : '';
               const fullHeaderTitle = `${orgName}${orgAddress}`;
-              const isExpanded = !!expandedOrgs[orgId];
+              const isExpanded = expandedOrgs[orgId] !== false;
 
               // Scoped assignments for this org
               const orgAssignments = getOrgAssignments(orgId, orgData.kortex_id);

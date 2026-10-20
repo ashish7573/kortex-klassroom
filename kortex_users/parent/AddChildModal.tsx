@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { auth } from '../../backend_configurations/firebase';
-import { X, Sparkles, UserPlus, CheckCircle2, Copy, Check, KeyRound, Link } from 'lucide-react';
+import { X, Sparkles, UserPlus, CheckCircle2, Copy, Check, KeyRound, Link, Crown } from 'lucide-react';
 import { provisionChildAccount, claimProvisionedChild } from '../../app/actions/student';
 import RequireMobileModal from './RequireMobileModal';
 import ModalPortal from '../../components/ModalPortal';
@@ -11,6 +11,9 @@ interface AddChildModalProps {
   onChildCreated: (childId: string) => void;
   parentContactNumber?: string;
   onContactUpdate?: (mobile: string) => Promise<void>;
+  isPro?: boolean;
+  childrenCount?: number;
+  onUpgradePro?: () => void;
 }
 
 const GRADES = [
@@ -19,7 +22,15 @@ const GRADES = [
   'Grade 6', 'Grade 7', 'Grade 8'
 ];
 
-export default function AddChildModal({ onClose, onChildCreated, parentContactNumber, onContactUpdate }: AddChildModalProps) {
+export default function AddChildModal({ 
+  onClose, 
+  onChildCreated, 
+  parentContactNumber, 
+  onContactUpdate,
+  isPro = false,
+  childrenCount = 0,
+  onUpgradePro
+}: AddChildModalProps) {
   const [mode, setMode] = useState<'new' | 'claim'>('new');
   
   // New
@@ -80,8 +91,8 @@ export default function AddChildModal({ onClose, onChildCreated, parentContactNu
     setIsSubmitting(true);
     setErrorMsg('');
 
-    if (pin.length < 4) {
-      setErrorMsg("Please choose a PIN with at least 4 digits.");
+    if (pin.length !== 6) {
+      setErrorMsg("Please choose a 6-digit PIN.");
       setIsSubmitting(false);
       return;
     }
@@ -121,6 +132,9 @@ export default function AddChildModal({ onClose, onChildCreated, parentContactNu
     }
   };
 
+  const isFreeQuotaExceeded = !isPro && childrenCount >= 1;
+  const isProQuotaExceeded = isPro && childrenCount >= 5;
+
   return (
     <ModalPortal>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
@@ -131,12 +145,26 @@ export default function AddChildModal({ onClose, onChildCreated, parentContactNu
           <div className="flex justify-between items-start mb-4">
             <div className="flex gap-4">
               <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
-                {mode === 'new' ? <UserPlus size={24} className="text-white" /> : <Link size={24} className="text-white" />}
+                {isFreeQuotaExceeded || isProQuotaExceeded ? (
+                  <Crown size={24} className="text-amber-300" />
+                ) : mode === 'new' ? (
+                  <UserPlus size={24} className="text-white" />
+                ) : (
+                  <Link size={24} className="text-white" />
+                )}
               </div>
               <div>
-                <h3 className="text-xl font-black">{mode === 'new' ? 'Add a Child' : 'Claim Organization ID'}</h3>
+                <h3 className="text-xl font-black">
+                  {isFreeQuotaExceeded ? 'Upgrade to Pro' : isProQuotaExceeded ? 'Child Limit Reached' : (mode === 'new' ? 'Add a Child' : 'Claim Organization ID')}
+                </h3>
                 <p className="text-indigo-200 font-bold text-xs mt-1 leading-relaxed">
-                  {mode === 'new' ? 'Create a Kortex ID for your child to start learning.' : 'Link an existing ID provided by your organization.'}
+                  {isFreeQuotaExceeded 
+                    ? 'Free accounts include 1 child profile.'
+                    : isProQuotaExceeded
+                    ? 'Maximum 5 children reached on Pro.'
+                    : mode === 'new' 
+                    ? 'Create a Kortex ID for your child to start learning.' 
+                    : 'Link an existing ID provided by your organization.'}
                 </p>
               </div>
             </div>
@@ -145,7 +173,7 @@ export default function AddChildModal({ onClose, onChildCreated, parentContactNu
             </button>
           </div>
           
-          {!createdCredentials && (
+          {!createdCredentials && !isFreeQuotaExceeded && !isProQuotaExceeded && (
             <div className="flex bg-indigo-700 p-1 rounded-xl w-full">
               <button 
                 type="button"
@@ -167,7 +195,82 @@ export default function AddChildModal({ onClose, onChildCreated, parentContactNu
 
         {/* Content */}
         <div className="p-6 overflow-y-auto">
-          {createdCredentials ? (
+          {isFreeQuotaExceeded ? (
+            <div className="space-y-5 text-center py-2 animate-fade-in">
+              <div className="w-16 h-16 bg-gradient-to-tr from-amber-400 to-amber-500 text-white rounded-3xl flex items-center justify-center mx-auto shadow-lg shadow-amber-500/25">
+                <Crown size={32} />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 bg-amber-100 text-amber-800 rounded-md">
+                  Free Tier Limit: 1 Child Profile
+                </span>
+                <h4 className="text-xl font-black text-slate-800 mt-2">
+                  Upgrade to Kortex Pro
+                </h4>
+                <p className="text-xs font-semibold text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
+                  Free accounts include 1 child profile. Upgrade to <strong className="text-indigo-600">Kortex Pro</strong> to add up to 5 children with unlimited hearts, weekly screen time analytics, and homework tracking!
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 border border-indigo-100 text-left space-y-2 text-xs font-bold text-slate-700">
+                <div className="flex items-center gap-2 text-indigo-700">
+                  <Sparkles size={16} className="text-indigo-500 shrink-0" />
+                  <span>Add up to 5 children under one parent account</span>
+                </div>
+                <div className="flex items-center gap-2 text-indigo-700">
+                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                  <span>Unlimited energy/hearts across all grade lessons</span>
+                </div>
+                <div className="flex items-center gap-2 text-indigo-700">
+                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                  <span>Real 7-day IST screen time & activity tracking</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onUpgradePro) onUpgradePro();
+                    else alert("Please contact support or visit your account settings to upgrade to Kortex Pro.");
+                  }}
+                  className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black text-base rounded-2xl shadow-lg shadow-indigo-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                >
+                  <Crown size={18} />
+                  <span>Upgrade to Kortex Pro</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full py-3 bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-600 font-bold rounded-xl transition-colors text-sm"
+                >
+                  Maybe Later
+                </button>
+              </div>
+            </div>
+          ) : isProQuotaExceeded ? (
+            <div className="space-y-5 text-center py-4 animate-fade-in">
+              <div className="w-16 h-16 bg-slate-100 text-slate-500 rounded-3xl flex items-center justify-center mx-auto">
+                <Crown size={32} />
+              </div>
+              <div>
+                <h4 className="text-xl font-black text-slate-800">
+                  Pro Limit Reached (5/5 Children)
+                </h4>
+                <p className="text-xs font-semibold text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
+                  You have reached the maximum of 5 children on your Kortex Pro plan. If your family requires additional seats, please contact our support team.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-3 bg-slate-900 text-white font-black rounded-xl hover:bg-slate-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          ) : createdCredentials ? (
             <div className="space-y-6 animate-fade-in">
               <div className="text-center">
                 <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -278,7 +381,7 @@ export default function AddChildModal({ onClose, onChildCreated, parentContactNu
                   value={pin}
                   onChange={e => setPin(e.target.value.replace(/[^0-9]/g, ''))}
                   className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors font-mono tracking-widest text-lg placeholder:tracking-normal placeholder:text-sm placeholder:font-sans"
-                  placeholder="4-6 digit PIN"
+                  placeholder="6-digit PIN"
                 />
                 <p className="text-[11px] font-semibold text-slate-400 mt-2 ml-1">
                   You must set a PIN so your child can log in. Keep it secret!

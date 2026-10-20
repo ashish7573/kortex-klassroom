@@ -1,0 +1,30 @@
+<svg width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g_english-cover" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3730a3" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+    <radialGradient id="glow_english-cover" cx="80%" cy="20%" r="60%">
+      <stop offset="0%" stop-color="#a5b4fc" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#a5b4fc" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="800" height="500" rx="32" fill="url(#g_english-cover)" />
+  <rect width="800" height="500" rx="32" fill="url(#glow_english-cover)" />
+  <g opacity="0.08" stroke="#ffffff" stroke-width="1.5" fill="none">
+    <circle cx="700" cy="100" r="140" />
+    <circle cx="700" cy="100" r="220" />
+    <circle cx="100" cy="450" r="160" />
+  </g>
+  <g transform="translate(60, 80)">
+    <g transform="scale(3)">
+      <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+    <text x="0" y="220" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="52" font-weight="900" fill="#ffffff">English</text>
+    <text x="0" y="270" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="24" font-weight="600" fill="#a5b4fc">Language &amp; Literature</text>
+    <g transform="translate(0, 310)">
+      <rect width="180" height="40" rx="20" fill="rgba(255,255,255,0.18)" />
+      <text x="90" y="25" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="14" font-weight="800" fill="#ffffff" text-anchor="middle">KORTEX KLASSROOM</text>
+    </g>
+  </g>
+</svg>

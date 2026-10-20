@@ -1,4 +1,5 @@
 "use server";
+import crypto from 'crypto';
 import { serializeFirebaseData } from "../../utils/serialize";
 
 import { adminDb, adminAuth } from '../../backend_configurations/firebase-admin';
@@ -35,6 +36,7 @@ function getNextAlphabet(current: string): string {
   }
   return 'A' + chars.join('');
 }
+
 
 async function generateMultipleGlobalStudentIds(count: number): Promise<string[]> {
   const counterRef = adminDb.collection('system').doc('student_counter');
@@ -157,6 +159,34 @@ export async function provisionStudentPlaceholder(
     const approvedCombos = callerData?.approved_grade_subject_combos || [];
     const safeAssignedCombos = sanitizeAssignedCombos(provisionData.assignedCombos, orgKortexId, approvedCombos);
 
+    // Strict Quota Check per Combination (40 seats max)
+    if (safeAssignedCombos.length > 0) {
+      const existingStudentsSnap = await adminDb.collection('users')
+        .where('role', '==', 'student')
+        .where('org_ids', 'array-contains', orgId)
+        .get();
+
+      const comboEnrollmentCounts: Record<string, number> = {};
+      existingStudentsSnap.docs.forEach(doc => {
+        const link = doc.data()?.org_links?.[orgId];
+        if (link && Array.isArray(link.assigned_combos)) {
+          link.assigned_combos.forEach((cid: string) => {
+            comboEnrollmentCounts[cid] = (comboEnrollmentCounts[cid] || 0) + 1;
+          });
+        }
+      });
+
+      for (const cid of safeAssignedCombos) {
+        const currentAssigned = comboEnrollmentCounts[cid] || 0;
+        if (currentAssigned >= 40) {
+          return {
+            success: false,
+            error: `Provisioning rejected. Combination "${cid}" has reached its full 40-seat capacity.`
+          };
+        }
+      }
+    }
+
     const kortexId = await generateGlobalStudentId();
     const claimCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const cleanRollNo = (provisionData.rollNo || '').trim() || null;
@@ -195,6 +225,13 @@ export async function provisionStudentPlaceholder(
     };
 
     await placeholderRef.set(newStudent);
+
+    // Sync organization seat and headcount counters
+    await adminDb.collection('users').doc(orgId).update({
+      active_students_count: FieldValue.increment(1),
+      consumed_seats_count: FieldValue.increment(safeAssignedCombos.length),
+      updated_at: new Date().toISOString()
+    }).catch(err => console.warn("Failed to increment org counters:", err));
 
     return { 
       success: true, 
@@ -343,10 +380,20 @@ export async function revokeStudentAccess(idToken: string, uid: string) {
       throw new Error("Unauthorized: Student does not belong to your organization.");
     }
     
+    const link = data.org_links?.[orgId];
+    const revokedCombosCount = Array.isArray(link?.assigned_combos) ? link.assigned_combos.length : 0;
+
     await studentRef.update({
       org_ids: FieldValue.arrayRemove(orgId),
       [`org_links.${orgId}`]: FieldValue.delete()
     });
+
+    // Decrement organization counters
+    await adminDb.collection('users').doc(orgId).update({
+      active_students_count: FieldValue.increment(-1),
+      consumed_seats_count: FieldValue.increment(-revokedCombosCount),
+      updated_at: new Date().toISOString()
+    }).catch(err => console.warn("Failed to decrement org counters:", err));
     
     return { success: true };
   } catch (error: unknown) {
@@ -388,6 +435,9 @@ export async function provisionChildAccount(
     
     const studentUid = userRecord.uid;
 
+    const isParentPro = Boolean(parentDoc.data()?.is_pro);
+    const parentProTier = parentDoc.data()?.pro_tier || 'pro';
+
     const newStudent: StudentProfile = {
       uid: studentUid,
       kortex_id: studentId,
@@ -404,7 +454,9 @@ export async function provisionChildAccount(
       org_links: {},
       teacher_ids: [],
       active_b2c_licenses: [],
-      hearts_remaining: 5,
+      is_pro: isParentPro,
+      pro_tier: isParentPro ? parentProTier : undefined,
+      hearts_remaining: isParentPro ? 999 : 5,
       last_heart_reset: new Date().toISOString(),
       status: 'active',
       accountStatus: 'ACTIVE',
@@ -479,30 +531,43 @@ export async function claimProvisionedChild(
     const studentUid = studentDoc.id;
     const studentEmail = `${cleanKortexId.toLowerCase()}@student.kortex.app`;
     
+    let authUserExists = false;
     try {
       await adminAuth.getUser(studentUid);
-      throw new Error("Auth user already exists for this placeholder.");
+      authUserExists = true;
     } catch (e: any) {
       if (e.code !== 'auth/user-not-found') throw e;
     }
 
-    await adminAuth.createUser({
-      uid: studentUid,
-      email: studentEmail,
-      password: claimData.pin,
-      displayName: studentDoc.data().full_name,
-    });
+    if (authUserExists) {
+      await adminAuth.updateUser(studentUid, {
+        password: claimData.pin,
+        displayName: studentDoc.data().full_name,
+      });
+    } else {
+      await adminAuth.createUser({
+        uid: studentUid,
+        email: studentEmail,
+        password: claimData.pin,
+        displayName: studentDoc.data().full_name,
+      });
+    }
+
+    const isParentPro = Boolean(parentDoc.data()?.is_pro);
+    const parentProTier = parentDoc.data()?.pro_tier || 'pro';
 
     const batch = adminDb.batch();
     batch.update(studentDoc.ref, {
       parent_id: parentUid,
-      claim_code: FieldValue.delete(),
       parent_name: parentName,
       parent_email: parentEmail,
       emergency_contact: parentContact,
       plain_pin: claimData.pin,
       status: 'active',
       accountStatus: 'ACTIVE',
+      is_pro: isParentPro,
+      pro_tier: isParentPro ? parentProTier : null,
+      hearts_remaining: isParentPro ? 999 : (studentDoc.data().hearts_remaining ?? 5),
       deletedBy: null,
       deletedAt: null,
       updated_at: new Date().toISOString()
@@ -962,12 +1027,37 @@ export async function updateIndividualUser(idToken: string, uidToUpdate: string,
     // Update the target user in Firestore
     await adminDb.collection('users').doc(uidToUpdate).update(safeData);
 
+    // If is_pro was updated on a parent, cascade to all linked children
+    if (safeData.is_pro !== undefined) {
+      try {
+        const childrenSnap = await adminDb.collection('users')
+          .where('role', '==', 'student')
+          .where('parent_id', '==', uidToUpdate)
+          .get();
+
+        if (!childrenSnap.empty) {
+          const proBatch = adminDb.batch();
+          childrenSnap.docs.forEach(docSnap => {
+            proBatch.update(docSnap.ref, {
+              is_pro: Boolean(safeData.is_pro),
+              pro_tier: safeData.is_pro ? (safeData.pro_tier || 'pro') : null,
+              hearts_remaining: safeData.is_pro ? 999 : 5,
+              updated_at: new Date().toISOString()
+            });
+          });
+          await proBatch.commit();
+        }
+      } catch (childErr) {
+        console.warn("Failed to cascade is_pro to children:", childErr);
+      }
+    }
+
     // Sync auth credentials safely if provided
     try {
       const authUpdates: any = {};
       if (safeData.email) authUpdates.email = String(safeData.email).trim().toLowerCase();
       if (safeData.full_name) authUpdates.displayName = String(safeData.full_name).trim();
-      if (safeData.plain_pin && String(safeData.plain_pin).length >= 6) {
+      if (safeData.plain_pin) {
         authUpdates.password = String(safeData.plain_pin);
       }
       if (Object.keys(authUpdates).length > 0) {
@@ -1134,6 +1224,26 @@ export async function logStudentActivity(
       achievements: achievements,
       updated_at: new Date().toISOString()
     });
+
+    // 2b. Atomic Daily Activity in IST (Asia/Kolkata)
+    const istDateString = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+
+    const dailyActivityRef = studentRef.collection('daily_activity').doc(istDateString);
+    const secondsSpent = (activityData.timeSpentSeconds && activityData.timeSpentSeconds > 0) ? activityData.timeSpentSeconds : 60;
+    const starsEarned = (activityData.score && activityData.score >= 80) ? 3 : (activityData.score && activityData.score >= 50) ? 2 : 1;
+
+    batch.set(dailyActivityRef, {
+      date: istDateString,
+      active_seconds: FieldValue.increment(secondsSpent),
+      lessons_completed: FieldValue.increment(1),
+      stars_earned: FieldValue.increment(starsEarned),
+      last_updated: FieldValue.serverTimestamp()
+    }, { merge: true });
 
     // 3. Update Progress Document
     const progressRef = studentRef.collection('progress').doc(activityData.subjectId || 'general');
@@ -1439,21 +1549,39 @@ export async function bulkProvisionStudents(
       .where('org_ids', 'array-contains', orgId)
       .get();
       
-    // Count how many match the exact grade and section
+    // Count how many match the exact grade and section, and track combo seats
     let currentCount = 0;
+    const comboEnrollmentCounts: Record<string, number> = {};
+
     existingStudentsSnap.docs.forEach(doc => {
        const data = doc.data();
        const link = data.org_links?.[orgId];
        if (link && link.grade === grade && link.section === section) {
          currentCount++;
        }
+       if (link && Array.isArray(link.assigned_combos)) {
+         link.assigned_combos.forEach((cid: string) => {
+           comboEnrollmentCounts[cid] = (comboEnrollmentCounts[cid] || 0) + 1;
+         });
+       }
     });
 
     if (currentCount + students.length > 40) {
       return { 
         success: false, 
-        error: `Upload rejected. Grade ${grade} - ${section} currently has ${currentCount} students. Adding ${students.length} would exceed the strict 40-student limit.` 
+        error: `Upload rejected. Grade ${grade} - Section ${section} currently has ${currentCount} students. Adding ${students.length} would exceed the 40-student classroom limit.` 
       };
+    }
+
+    // Check each assigned combo does not exceed 40 seats
+    for (const cid of safeAssignedCombos) {
+      const currentAssigned = comboEnrollmentCounts[cid] || 0;
+      if (currentAssigned + students.length > 40) {
+        return {
+          success: false,
+          error: `Upload rejected. Combination "${cid}" already has ${currentAssigned}/40 seats allocated. Adding ${students.length} students would exceed the 40-seat limit.`
+        };
+      }
     }
 
     // Generate all IDs at once to prevent transaction collision
@@ -1504,6 +1632,13 @@ export async function bulkProvisionStudents(
     });
 
     await batch.commit();
+
+    // Sync organization seat and headcount counters
+    await adminDb.collection('users').doc(orgId).update({
+      active_students_count: FieldValue.increment(students.length),
+      consumed_seats_count: FieldValue.increment(students.length * safeAssignedCombos.length),
+      updated_at: new Date().toISOString()
+    }).catch(err => console.warn("Failed to increment org counters:", err));
 
     return { success: true, message: `Successfully provisioned ${students.length} students.` };
   } catch (error: any) {
@@ -1727,4 +1862,274 @@ export async function registerCourseInterest(
     return { success: false, error: error.message };
   }
 }
+
+export async function lookupStudentByClaimCode(code: string) {
+  try {
+    const cleanCode = (code || '').trim().toUpperCase();
+    if (!cleanCode || cleanCode.length < 4) {
+      return { success: false, error: "Please enter a valid Claim Code." };
+    }
+
+    const snap = await adminDb.collection('users')
+      .where('role', '==', 'student')
+      .where('claim_code', '==', cleanCode)
+      .limit(1)
+      .get();
+
+    if (snap.empty) {
+      return { success: false, error: "Invalid Claim Code. Please check with your school teacher or administrator." };
+    }
+
+    const studentDoc = snap.docs[0];
+    const data = studentDoc.data();
+
+    // Resolve organization name
+    let orgName = 'School / Organization';
+    const orgId = (data.org_ids && data.org_ids.length > 0) 
+      ? data.org_ids[0] 
+      : (data.org_links ? Object.keys(data.org_links)[0] : null);
+
+    if (orgId) {
+      try {
+        const orgDoc = await adminDb.collection('users').doc(orgId).get();
+        if (orgDoc.exists) {
+          orgName = orgDoc.data()?.organization_name || orgDoc.data()?.full_name || orgName;
+        }
+      } catch (e) {
+        console.warn("Could not fetch org name:", e);
+      }
+    }
+
+    return {
+      success: true,
+      student: {
+        uid: studentDoc.id,
+        fullName: data.full_name || 'Student',
+        grade: data.grade || 'Unassigned',
+        section: data.section || (data.org_links && orgId ? data.org_links[orgId]?.section : '') || '',
+        kortexId: data.kortex_id || '',
+        claimCode: data.claim_code,
+        orgName,
+        parentConsentVerified: Boolean(data.parent_consent_verified),
+        parentName: data.parent_name || '',
+        emergencyContact: data.emergency_contact || ''
+      }
+    };
+  } catch (error: any) {
+    console.error("Error looking up claim code:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function activateStudentWithConsent(params: {
+  claimCode: string;
+  parentName?: string;
+  emergencyContact?: string;
+  pin?: string;
+}) {
+  try {
+    const cleanCode = (params.claimCode || '').trim().toUpperCase();
+    if (!cleanCode) return { success: false, error: "Claim code is required." };
+
+    const snap = await adminDb.collection('users')
+      .where('role', '==', 'student')
+      .where('claim_code', '==', cleanCode)
+      .limit(1)
+      .get();
+
+    if (snap.empty) {
+      return { success: false, error: "Student not found with this claim code." };
+    }
+
+    const studentDoc = snap.docs[0];
+    const studentData = studentDoc.data();
+    const studentUid = studentDoc.id;
+
+    // Check if returning student (already verified)
+    const isAlreadyVerified = Boolean(studentData.parent_consent_verified);
+    const finalParentName = params.parentName?.trim() || studentData.parent_name || '';
+    const finalEmergencyContact = params.emergencyContact?.trim() || studentData.emergency_contact || '';
+    const cleanPin = params.pin?.trim();
+
+    if (!isAlreadyVerified) {
+      if (!finalParentName) {
+        return { success: false, error: "Parent or Guardian name is required to activate." };
+      }
+      const cleanPhone = finalEmergencyContact.replace(/\D/g, '');
+      if (cleanPhone.length < 10) {
+        return { success: false, error: "A valid 10-digit parent mobile number is required to activate." };
+      }
+      if (!cleanPin || cleanPin.length !== 6 || !/^\d{6}$/.test(cleanPin)) {
+        return { success: false, error: "A 6-digit numeric login PIN is required." };
+      }
+    }
+
+    // Generate single-device session token
+    const sessionToken = crypto.randomUUID();
+
+    const updates: any = {
+      status: 'active',
+      accountStatus: 'ACTIVE',
+      parent_consent_verified: true,
+      parent_consent_at: studentData.parent_consent_at || new Date().toISOString(),
+      session_token: sessionToken,
+      session_updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (finalParentName) updates.parent_name = finalParentName;
+    if (finalEmergencyContact) updates.emergency_contact = finalEmergencyContact;
+    if (cleanPin && cleanPin.length === 6) updates.plain_pin = cleanPin;
+
+    // Approve all organization links so school cards and combos display in Student Dashboard
+    if (studentData.org_ids && Array.isArray(studentData.org_ids)) {
+      studentData.org_ids.forEach((orgId: string) => {
+        updates[`org_links.${orgId}.status`] = 'approved';
+      });
+
+      // Increment active_students_count on initial consent verification
+      if (!isAlreadyVerified) {
+        for (const orgId of studentData.org_ids) {
+          adminDb.collection('users').doc(orgId).update({
+            active_students_count: FieldValue.increment(1),
+            updated_at: new Date().toISOString()
+          }).catch(err => console.warn("Failed to increment org active_students_count:", err));
+        }
+      }
+    }
+
+    // Crucial: preserve pending state so a parent can later claim via full parent portal
+    if (!studentData.parent_id) {
+      updates.parent_id = 'PENDING';
+    }
+
+    await studentDoc.ref.update(updates);
+
+    // Ensure Firebase Auth account exists for this student
+    const studentEmail = `${(studentData.kortex_id || studentUid).toLowerCase()}@student.kortex.app`;
+    try {
+      await adminAuth.getUser(studentUid);
+      if (cleanPin && cleanPin.length === 6) {
+        await adminAuth.updateUser(studentUid, {
+          password: cleanPin,
+          displayName: studentData.full_name || 'Student'
+        });
+      }
+    } catch (e: any) {
+      if (e.code === 'auth/user-not-found') {
+        const createPayload: any = {
+          uid: studentUid,
+          email: studentEmail,
+          displayName: studentData.full_name || 'Student',
+          password: cleanPin || studentData.plain_pin || '123456'
+        };
+        await adminAuth.createUser(createPayload);
+      }
+    }
+
+    // Create Firebase Custom Token for silent student login
+    const customToken = await adminAuth.createCustomToken(studentUid, {
+      role: 'student',
+      claim_code: cleanCode
+    });
+
+    return {
+      success: true,
+      customToken,
+      sessionToken,
+      studentUid,
+      studentName: studentData.full_name || 'Student'
+    };
+  } catch (error: any) {
+    console.error("Error activating student with consent:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getStudentDailyActivity(idToken: string, studentUid: string, days = 7) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const callerUid = decodedToken.uid;
+
+    const studentDoc = await adminDb.collection('users').doc(studentUid).get();
+    if (!studentDoc.exists) throw new Error("Student not found.");
+    const studentData = studentDoc.data()!;
+
+    // Caller must be linked parent, the student themselves, or admin/krew
+    const callerDoc = await adminDb.collection('users').doc(callerUid).get();
+    const callerData = callerDoc.data() || {};
+    const callerRoles: string[] = callerData.roles || (callerData.role ? [callerData.role] : []);
+
+    const isParent = studentData.parent_id === callerUid || (callerData.children_ids || []).includes(studentUid);
+    const isSelf = callerUid === studentUid;
+    const isStaff = callerRoles.includes('admin') || callerRoles.includes('krew');
+
+    if (!isParent && !isSelf && !isStaff) {
+      throw new Error("Unauthorized access to student activity.");
+    }
+
+    const today = new Date();
+    const dayFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const weekdayFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'short'
+    });
+
+    // Generate past N days in IST
+    const dateList: { dateStr: string; dayName: string }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+      const dateStr = dayFormatter.format(d);
+      const dayName = weekdayFormatter.format(d);
+      dateList.push({ dateStr, dayName });
+    }
+
+    const activityColl = adminDb.collection('users').doc(studentUid).collection('daily_activity');
+    const docSnaps = await Promise.all(
+      dateList.map(({ dateStr }) => activityColl.doc(dateStr).get())
+    );
+
+    const history = dateList.map(({ dateStr, dayName }, idx) => {
+      const snap = docSnaps[idx];
+      const data = snap.exists ? snap.data() : null;
+      const activeSeconds = data?.active_seconds || 0;
+      const activeMinutes = Math.round((activeSeconds / 60) * 10) / 10;
+      const lessonsCompleted = data?.lessons_completed || 0;
+      const starsEarned = data?.stars_earned || 0;
+
+      return {
+        date: dateStr,
+        dayName,
+        active_seconds: activeSeconds,
+        active_minutes: activeMinutes,
+        lessons_completed: lessonsCompleted,
+        stars_earned: starsEarned
+      };
+    });
+
+    const totalSeconds = history.reduce((acc, curr) => acc + curr.active_seconds, 0);
+    const totalMinutes = Math.round((totalSeconds / 60) * 10) / 10;
+    const totalLessons = history.reduce((acc, curr) => acc + curr.lessons_completed, 0);
+    const totalStars = history.reduce((acc, curr) => acc + curr.stars_earned, 0);
+
+    return {
+      success: true,
+      history,
+      totals: {
+        totalMinutes,
+        totalLessons,
+        totalStars
+      }
+    };
+  } catch (error: any) {
+    console.error("Error fetching student daily activity:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 
