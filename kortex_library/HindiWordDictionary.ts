@@ -218,7 +218,7 @@ export const HINDI_WORDS: any = {
 
   // 8. ओ की मात्रा (o)
   'मोर': { english: 'Peacock', emoji: '🦚', file: 'Peacock' },
-  'तोता': { english: 'Parrot', emoji: '🦜', file: 'parrot' },
+  'तोता': { english: 'Parrot', emoji: '🦜', file: 'Parrot' },
   'घोड़ा': { english: 'Horse', emoji: '🐎', file: 'Horse' },
   'खरगोश': { english: 'Rabbit', emoji: '🐇', file: 'Rabbit' },
   'टोपी': { english: 'Hat', emoji: '🧢', file: 'hat' },
@@ -310,7 +310,8 @@ export const getWordData = (word: string) => {
   if (!data) return null;
 
   const wordCategory = word.length === word.replace(/[ािीुूेैोौंः]/g, '').length ? 'amatrik' : 'matrik';
-  const audioExtension = wordCategory === 'amatrik' ? '.m4a' : '.mp3';
+  const hasIndependentVowel = /[अआइईउऊऋएऐओऔ]/.test(word);
+  const audioExtension = (wordCategory === 'amatrik' && !hasIndependentVowel) ? '.m4a' : '.mp3';
 
   return {
     word: word,
@@ -321,7 +322,7 @@ export const getWordData = (word: string) => {
     
     // Auto-generates paths: Images and Audio use the 'file' property (Dynamic extension)
     audioUrl: `/assets/hindi/words/audio/${data.file}${audioExtension}`,
-    imageUrl: `/assets/hindi/words/images/${data.file}.png`
+    imageUrl: `/assets/hindi/words/images/${data.file}.webp`
   };
 };
 
