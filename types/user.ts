@@ -182,6 +182,7 @@ export interface QuoteInquiry {
   phone?: string;
   org_type: 'school' | 'coaching' | 'ngo' | 'other';
   estimated_students: number;
+  selected_innovations?: string[];
   message?: string;
   status: 'new' | 'contacted' | 'quoted' | 'account_created' | 'archived';
   created_at: string;

@@ -133,7 +133,7 @@ export default function AddChildModal({
   };
 
   const isFreeQuotaExceeded = !isPro && childrenCount >= 1;
-  const isProQuotaExceeded = isPro && childrenCount >= 5;
+  const isProQuotaExceeded = isPro && childrenCount >= 3;
 
   return (
     <ModalPortal>
@@ -161,7 +161,7 @@ export default function AddChildModal({
                   {isFreeQuotaExceeded 
                     ? 'Free accounts include 1 child profile.'
                     : isProQuotaExceeded
-                    ? 'Maximum 5 children reached on Pro.'
+                    ? 'Maximum 3 children reached on Pro.'
                     : mode === 'new' 
                     ? 'Create a Kortex ID for your child to start learning.' 
                     : 'Link an existing ID provided by your organization.'}
@@ -208,14 +208,14 @@ export default function AddChildModal({
                   Upgrade to Kortex Pro
                 </h4>
                 <p className="text-xs font-semibold text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
-                  Free accounts include 1 child profile. Upgrade to <strong className="text-indigo-600">Kortex Pro</strong> to add up to 5 children with unlimited hearts, weekly screen time analytics, and homework tracking!
+                  Free accounts include 1 child profile. Upgrade to <strong className="text-indigo-600">Kortex Pro</strong> to add up to 3 children with unlimited hearts, weekly screen time analytics, and homework tracking!
                 </p>
               </div>
 
               <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 border border-indigo-100 text-left space-y-2 text-xs font-bold text-slate-700">
                 <div className="flex items-center gap-2 text-indigo-700">
                   <Sparkles size={16} className="text-indigo-500 shrink-0" />
-                  <span>Add up to 5 children under one parent account</span>
+                  <span>Add up to 3 children under one parent account</span>
                 </div>
                 <div className="flex items-center gap-2 text-indigo-700">
                   <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
@@ -256,10 +256,10 @@ export default function AddChildModal({
               </div>
               <div>
                 <h4 className="text-xl font-black text-slate-800">
-                  Pro Limit Reached (5/5 Children)
+                  Pro Limit Reached (3/3 Children)
                 </h4>
                 <p className="text-xs font-semibold text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
-                  You have reached the maximum of 5 children on your Kortex Pro plan. If your family requires additional seats, please contact our support team.
+                  You have reached the maximum of 3 children on your Kortex Pro plan. If your family requires additional seats, please contact our support team.
                 </p>
               </div>
               <button

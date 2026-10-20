@@ -27,7 +27,8 @@ if (!projectId || !clientEmail || !privateKey) {
   throw new Error("FATAL: Firebase Admin environment variables are missing! Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.");
 }
 
-let app;
+let app: any;
+let isNewApp = false;
 if (getApps().length === 0) {
   try {
     app = initializeApp({
@@ -37,6 +38,7 @@ if (getApps().length === 0) {
         privateKey,
       }),
     });
+    isNewApp = true;
   } catch (error: any) {
     console.error("🚨 FIREBASE ADMIN INIT ERROR:", error);
     throw new Error(`FATAL: Failed to initialize Firebase Admin SDK. Reason: ${error.message}`);
@@ -46,6 +48,13 @@ if (getApps().length === 0) {
 }
 
 const adminDb = getFirestore(app);
+if (isNewApp) {
+  try {
+    adminDb.settings({ ignoreUndefinedProperties: true });
+  } catch {
+    // Ignore if settings already configured in the current process
+  }
+}
 const adminAuth = getAuth(app);
 
 export { adminDb, adminAuth };

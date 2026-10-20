@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setProfile(profileData);
             
             // Concurrency check
-            const localSessionToken = localStorage.getItem(`session_token_${firebaseUser.uid}`);
+            const localSessionToken = localStorage.getItem(`session_token_${firebaseUser.uid}`) || localStorage.getItem('kortex_session_token');
             if (profileData.session_token && localSessionToken && profileData.session_token !== localSessionToken) {
               console.warn("Session token mismatch. Logging out due to concurrent login.");
               setSessionAlert({

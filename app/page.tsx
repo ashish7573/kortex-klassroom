@@ -138,7 +138,7 @@ function MainApp() {
   const [showContactUs, setShowContactUs] = useState(false);
   const [showGlobalQuote, setShowGlobalQuote] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [authMessage, setAuthMessage] = useState("Join Kortex Klassroom to unlock all features.");
+  const [authMessage, setAuthMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertConfig, setAlertConfig] = useState(null);
   

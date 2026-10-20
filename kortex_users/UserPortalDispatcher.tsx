@@ -38,15 +38,7 @@ export default function UserPortalDispatcher({
       return;
     }
 
-    // RBAC Route Guard Interceptor
-    if (effectiveRole === 'parent') {
-      if (profile.phoneVerified === false || profile.phoneVerified === undefined || profile.onboardingStatus === 'PENDING_PHONE') {
-        router.replace('/onboarding/verify-phone');
-        return;
-      }
-    }
-    
-    // Bypass for all other roles (kortex_admin, teacher, organization, student)
+    // Direct access for all authenticated roles
     setIsClientGuarded(true);
   }, [profile, router, effectiveRole]);
 

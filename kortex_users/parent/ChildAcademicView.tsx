@@ -60,6 +60,40 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   const [dailyHistory, setDailyHistory] = useState<any[]>([]);
   const [dailyTotals, setDailyTotals] = useState<{ totalMinutes: number; totalLessons: number; totalStars: number } | null>(null);
 
+  const b2cLicenses = child.active_b2c_licenses || [];
+  const isPro = child.is_pro || false;
+
+  // Dynamically resolve real independent learning subjects (Unconditional Hook Execution)
+  const realB2cSubjects = React.useMemo(() => {
+    const list: { name: string; comboId: string; subject: string }[] = [];
+    
+    // Add purchased courses
+    b2cLicenses.forEach((comboStr: string) => {
+      const parts = comboStr.split('-');
+      const subj = parts.length > 1 ? parts[parts.length - 1].trim() : comboStr;
+      list.push({
+        name: comboStr,
+        comboId: comboStr,
+        subject: subj
+      });
+    });
+
+    // Add foundational & core tracks if not already present
+    const defaultTracks = [
+      { name: `${child.grade || 'All Grades'} - Hindi`, comboId: 'hindi', subject: 'Hindi' },
+      { name: `${child.grade || 'All Grades'} - Maths`, comboId: 'maths', subject: 'Maths' },
+      { name: `${child.grade || 'All Grades'} - English`, comboId: 'english', subject: 'English' },
+    ];
+
+    defaultTracks.forEach(track => {
+      if (!list.some(item => item.subject.toLowerCase() === track.subject.toLowerCase())) {
+        list.push(track);
+      }
+    });
+
+    return list;
+  }, [b2cLicenses, child.grade]);
+
   useEffect(() => {
     async function loadProgressAndTotals() {
       if (!child.uid) return;
@@ -129,9 +163,6 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
     );
   }
 
-  const b2cLicenses = child.active_b2c_licenses || [];
-  const isPro = child.is_pro || false;
-
   // Extract recent activities from progressData
   const recentActivities: any[] = [];
   progressData.forEach((subjProgress) => {
@@ -168,37 +199,6 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayActivities = recentActivities.filter(a => a.lastPlayedAt >= today).slice(0, 5);
-
-  // Dynamically resolve real independent learning subjects
-  const realB2cSubjects = React.useMemo(() => {
-    const list: { name: string; comboId: string; subject: string }[] = [];
-    
-    // Add purchased courses
-    b2cLicenses.forEach((comboStr: string) => {
-      const parts = comboStr.split('-');
-      const subj = parts.length > 1 ? parts[parts.length - 1].trim() : comboStr;
-      list.push({
-        name: comboStr,
-        comboId: comboStr,
-        subject: subj
-      });
-    });
-
-    // Add foundational & core tracks if not already present
-    const defaultTracks = [
-      { name: `${child.grade || 'All Grades'} - Hindi`, comboId: 'hindi', subject: 'Hindi' },
-      { name: `${child.grade || 'All Grades'} - Maths`, comboId: 'maths', subject: 'Maths' },
-      { name: `${child.grade || 'All Grades'} - English`, comboId: 'english', subject: 'English' },
-    ];
-
-    defaultTracks.forEach(track => {
-      if (!list.some(item => item.subject.toLowerCase() === track.subject.toLowerCase())) {
-        list.push(track);
-      }
-    });
-
-    return list;
-  }, [b2cLicenses, child.grade]);
 
   const independentPerformance: SubjectPerformance[] = realB2cSubjects.map((sub) => {
     const isLocked = !isPro && b2cLicenses.length > 0 && !b2cLicenses.includes(sub.comboId);

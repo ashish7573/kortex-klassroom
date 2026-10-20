@@ -6,12 +6,12 @@ import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 
 import { ParentProfile, StudentProfile } from '../../types/user';
 import { 
   Users, Plus, ShieldCheck, Heart, Building, CheckCircle2, 
-  AlertCircle, UserPlus, RefreshCw, User, Rocket, ArrowRight, ArrowUpRight, X, Check, Bell
+  AlertCircle, UserPlus, RefreshCw, User, Rocket, ArrowRight, ArrowUpRight, X, Check, Bell,
+  Mail, Phone, Info, Lock, Sparkles
 } from 'lucide-react';
 import ChildAcademicView from './ChildAcademicView';
 import AddChildModal from './AddChildModal';
 import RequireMobileModal from './RequireMobileModal';
-import CompleteLocationModal from './CompleteLocationModal';
 import { resolveTransferRequest, updateParentProfile, parentUnlinkChildFromOrg, parentDeleteChildAccount, registerCourseInterest } from '../../app/actions/student';
 import { KORTEX_COURSES, KortexCourse } from '../../kortex_landing_page/koursesData';
 import { KortexCourseCard } from '../../kortex_landing_page/components/KortexCourseCard';
@@ -28,6 +28,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
   const [children, setChildren] = useState<StudentProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedChildId, setSelectedChildId] = useState<string>('profile');
+  const [hasInitializedSelection, setHasInitializedSelection] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Kortex Kourses modal state
@@ -115,7 +116,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
     mobileNumber: initMobile,
     city: (profile as any).city || '',
     state: (profile as any).state || '',
-    country: (profile as any).country || ''
+    country: (profile as any).country || 'India'
   });
   
   const COUNTRY_CODES = [
@@ -154,7 +155,6 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
     return !!(
       p.full_name?.trim() &&
       p.email?.trim() &&
-      (p.phone || (p as any).contact_number)?.trim() &&
       (p as any).city?.trim() &&
       (p as any).state?.trim() &&
       (p as any).country?.trim()
@@ -163,26 +163,83 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
 
   const isProfileComplete = () => checkProfileComplete(profile);
 
-  const [showLocationModal, setShowLocationModal] = useState(!checkProfileComplete(initialProfile));
+  // Email verification enforcement (Parent can only add/claim children when email is verified)
+  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(() => auth.currentUser?.emailVerified ?? false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [showEmailVerifyModal, setShowEmailVerifyModal] = useState(false);
+  const [showWhyPhoneModal, setShowWhyPhoneModal] = useState(false);
 
   useEffect(() => {
-    setShowLocationModal(!checkProfileComplete(profile));
-  }, [profile.city, profile.state, profile.country, profile.full_name, profile.email, profile.phone]);
+    if (auth.currentUser) {
+      setIsEmailVerified(auth.currentUser.emailVerified);
+    }
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) {
+        setIsEmailVerified(user.emailVerified);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
-  const handleLocationCompleted = ({ city, state, country }: { city: string; state: string; country: string }) => {
-    setProfile(prev => ({
-      ...prev,
-      city,
-      state,
-      country,
-    }));
-    setProfileForm(prev => ({
-      ...prev,
-      city,
-      state,
-      country,
-    }));
-    setShowLocationModal(false);
+  const handleCheckEmailStatus = async () => {
+    if (!auth.currentUser) return;
+    setIsCheckingEmail(true);
+    try {
+      await auth.currentUser.reload();
+      const verified = auth.currentUser.emailVerified;
+      setIsEmailVerified(verified);
+      if (verified) {
+        setShowEmailVerifyModal(false);
+        alert("Email verified successfully! You can now create or claim your child's account.");
+      } else {
+        alert("Your email is not verified yet. Please check your inbox (and spam folder) for the verification link.");
+      }
+    } catch (err: any) {
+      console.error("Error checking verification:", err);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handleResendVerificationEmail = async () => {
+    if (!auth.currentUser) return;
+    setIsCheckingEmail(true);
+    try {
+      const { sendEmailVerification } = await import('firebase/auth');
+      await sendEmailVerification(auth.currentUser);
+      alert(`Verification link re-sent to ${auth.currentUser.email}. Please check your inbox.`);
+    } catch (err: any) {
+      console.error("Error resending email:", err);
+      alert(err.message || "Failed to resend verification email.");
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const isReadyForChildren = isProfileComplete() && isEmailVerified;
+
+  const handleOpenAddChild = async () => {
+    if (auth.currentUser) {
+      await auth.currentUser.reload().catch(() => {});
+      const verified = auth.currentUser.emailVerified;
+      setIsEmailVerified(verified);
+      if (!verified) {
+        setShowEmailVerifyModal(true);
+        return;
+      }
+    }
+
+    if (!isProfileComplete()) {
+      setSelectedChildId('profile');
+      alert("Please fill in your City, State, and Country in your profile below before adding a child.");
+      const locElement = document.getElementById('parent-location-section');
+      if (locElement) {
+        locElement.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
+
+    setInternalShowModal(true);
   };
 
   const [showMobileModal, setShowMobileModal] = useState(false);
@@ -295,9 +352,16 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
       data.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
       setChildren(data);
       
-      // Auto-select first child if none selected
-      if (data.length > 0 && !selectedChildId) {
-        setSelectedChildId(data[0].uid);
+      // Auto-select child on initial load only if profile is complete and children exist; otherwise default to profile
+      if (!hasInitializedSelection) {
+        if (data.length > 0 && checkProfileComplete(profile)) {
+          setSelectedChildId(data[0].uid);
+        } else {
+          setSelectedChildId('profile');
+        }
+        setHasInitializedSelection(true);
+      } else if (data.length === 0) {
+        setSelectedChildId('profile');
       }
       
       setLoading(false);
@@ -349,6 +413,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
     const isOther = profileForm.countryCode === 'other';
     const actualCountryCode = isOther ? profileForm.customCountryCode.trim() : profileForm.countryCode;
     const digitsOnly = profileForm.mobileNumber.replace(/\D/g, '');
+    if (!digitsOnly) return '';
     return `${actualCountryCode}${digitsOnly}`.replace(/\s/g, '');
   };
 
@@ -358,14 +423,20 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
   };
 
   const isPhoneVerifiedInlineBool = () => {
-    return inlineVerifiedPhone === getDerivedCurrentPhone();
+    const currentDerived = getDerivedCurrentPhone();
+    if (!currentDerived) return true;
+    return inlineVerifiedPhone === currentDerived;
   };
 
   const handleVerifyPhone = async () => {
     if (!auth.currentUser) return;
+    const fullNumber = getDerivedCurrentPhone();
+    if (!fullNumber) {
+      alert("Please enter a valid mobile number first.");
+      return;
+    }
     setOtpLoading(true);
     try {
-      const fullNumber = getDerivedCurrentPhone();
       if (!(window as any).recaptchaVerifier) {
         const { RecaptchaVerifier } = await import('firebase/auth');
         (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'parent-recaptcha', { size: 'invisible' });
@@ -382,7 +453,6 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Failed to send OTP.");
-      // Do not clear recaptchaVerifier here, let it be reused
     } finally {
       setOtpLoading(false);
     }
@@ -394,7 +464,8 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
     setOtpLoading(true);
     try {
       await confirmationResult.confirm(otp);
-      setInlineVerifiedPhone(getDerivedCurrentPhone());
+      const verified = getDerivedCurrentPhone();
+      setInlineVerifiedPhone(verified);
       setOtpMode(false);
       setOtp('');
       setConfirmationResult(null);
@@ -406,32 +477,38 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
       setOtpLoading(false);
     }
   };
+
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingProfile(true);
     try {
       const isOther = profileForm.countryCode === 'other';
       const actualCountryCode = isOther ? profileForm.customCountryCode.trim() : profileForm.countryCode;
-      
-      if (isOther && !actualCountryCode.startsWith('+')) {
-         alert("Custom country code must start with a '+' sign.");
-         setIsSavingProfile(false);
-         return;
-      }
-
-      const expectedDigits = COUNTRY_CODES.find(c => c.code === profileForm.countryCode)?.digits || 0;
       const digitsOnly = profileForm.mobileNumber.replace(/\D/g, '');
-      
-      if (!isOther && digitsOnly.length !== expectedDigits) {
-        alert(`Mobile number for ${profileForm.countryCode} must be exactly ${expectedDigits} digits.`);
-        setIsSavingProfile(false);
-        return;
-      }
-      
-      if (isOther && digitsOnly.length < 5) {
-        alert(`Please enter a valid mobile number.`);
-        setIsSavingProfile(false);
-        return;
+      let finalContact = '';
+
+      if (digitsOnly.length > 0) {
+        if (isOther && !actualCountryCode.startsWith('+')) {
+           alert("Custom country code must start with a '+' sign.");
+           setIsSavingProfile(false);
+           return;
+        }
+
+        const expectedDigits = COUNTRY_CODES.find(c => c.code === profileForm.countryCode)?.digits || 0;
+        
+        if (!isOther && digitsOnly.length !== expectedDigits) {
+          alert(`Mobile number for ${profileForm.countryCode} must be exactly ${expectedDigits} digits.`);
+          setIsSavingProfile(false);
+          return;
+        }
+        
+        if (isOther && digitsOnly.length < 5) {
+          alert(`Please enter a valid mobile number.`);
+          setIsSavingProfile(false);
+          return;
+        }
+
+        finalContact = `${actualCountryCode}${digitsOnly}`;
       }
 
       const user = auth.currentUser;
@@ -441,7 +518,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
       const payload = {
          fullName: profileForm.fullName,
          email: profileForm.email,
-         contactNumber: `${actualCountryCode}${digitsOnly}`,
+         contactNumber: finalContact,
          city: profileForm.city,
          state: profileForm.state,
          country: profileForm.country
@@ -460,17 +537,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
         country: payload.country,
       }));
 
-      alert("Profile updated successfully! All your linked children have been synced with the organizations.");
-      
-      // If the phone number changed but was NOT inline verified, they must be trapped.
-      const currentPhone = (profile.phone || (profile as any).contact_number || '').replace(/\s/g, '');
-      const newPhone = payload.contactNumber.replace(/\s/g, '');
-      if (currentPhone !== newPhone && inlineVerifiedPhone !== newPhone) {
-        window.location.href = '/';
-      } else if (currentPhone !== newPhone && inlineVerifiedPhone === newPhone) {
-        // Just refresh the page normally or update local state so the new verified phone is set in context
-        window.location.reload();
-      }
+      alert("Profile updated successfully!");
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
@@ -606,18 +673,164 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
           </p>
         </div>
         <button 
-          onClick={() => {
-            if (isProfileComplete()) {
-              setInternalShowModal(true);
-            } else {
-              setShowLocationModal(true);
-            }
-          }}
-          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+          onClick={handleOpenAddChild}
+          className={`px-6 py-2.5 font-black rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            isReadyForChildren 
+              ? 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white' 
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-300'
+          }`}
+          title={!isReadyForChildren ? "Complete your profile & verify email to add child" : "Add or Claim a Child"}
         >
-          <Plus size={18} /> Add / Claim Child
+          <Plus size={18} />
+          <span>Add / Claim Child</span>
+          {!isReadyForChildren && (
+            <span className="ml-1 text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md uppercase font-black tracking-wider">
+              Locked
+            </span>
+          )}
         </button>
       </div>
+
+      {/* ONBOARDING CHECKLIST / CELEBRATORY BANNER */}
+      {!isReadyForChildren ? (
+        <div className="bg-gradient-to-r from-amber-50/90 to-orange-50/90 border-2 border-amber-200 rounded-3xl p-5 sm:p-6 shadow-xs animate-fade-in space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-200/80 text-amber-900 text-[10px] font-black uppercase tracking-wider">
+                  Action Required • Profile Setup
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-amber-950">
+                  Complete Setup to Add Your Children
+                </h3>
+              </div>
+              <p className="text-xs font-semibold text-amber-800/90 mt-1 max-w-2xl">
+                To protect student privacy and configure their academic portal, please verify your email and complete your location details below.
+              </p>
+            </div>
+          </div>
+
+          {/* Checklist Steps */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Step 1: Email Verification */}
+            <div className={`p-4 rounded-2xl border-2 flex flex-col justify-between gap-3 transition-all ${
+              isEmailVerified 
+                ? 'bg-emerald-50/70 border-emerald-200' 
+                : 'bg-white border-amber-200 shadow-2xs'
+            }`}>
+              <div className="flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                  isEmailVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {isEmailVerified ? <CheckCircle2 size={18} /> : <Mail size={18} />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-black text-slate-800">1. Email Verification</span>
+                    {isEmailVerified ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">✓ Verified</span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Required</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                    {isEmailVerified 
+                      ? `${auth.currentUser?.email || profile.email} is verified.` 
+                      : `Verification email sent to ${auth.currentUser?.email || profile.email}`}
+                  </p>
+                </div>
+              </div>
+              {!isEmailVerified && (
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={isCheckingEmail}
+                    onClick={handleResendVerificationEmail}
+                    className="flex-1 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Resend Link
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isCheckingEmail}
+                    onClick={handleCheckEmailStatus}
+                    className="flex-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isCheckingEmail ? 'Checking...' : "I've Verified"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Step 2: Location Profile */}
+            <div className={`p-4 rounded-2xl border-2 flex flex-col justify-between gap-3 transition-all ${
+              isProfileComplete() 
+                ? 'bg-emerald-50/70 border-emerald-200' 
+                : 'bg-white border-amber-200 shadow-2xs'
+            }`}>
+              <div className="flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                  isProfileComplete() ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {isProfileComplete() ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-black text-slate-800">2. Profile Location</span>
+                    {isProfileComplete() ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">✓ Complete</span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Required</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                    {isProfileComplete() 
+                      ? `${profile.city}, ${profile.state}, ${profile.country}`
+                      : "City, State, and Country needed for local curriculum and safety."}
+                  </p>
+                </div>
+              </div>
+              {!isProfileComplete() && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedChildId('profile');
+                    const el = document.getElementById('parent-location-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="w-full px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-2xs transition-colors cursor-pointer"
+                >
+                  Complete Location Below ↓
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : children.length === 0 ? (
+        /* Profile ready, no children added yet: celebratory CTA */
+        <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-100 rounded-3xl p-6 sm:p-7 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-5 animate-fade-in">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <Sparkles size={28} />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider mb-1">
+                ✓ Profile Verified & Ready
+              </div>
+              <h3 className="text-xl font-black text-slate-900">Add Your First Child to Get Started</h3>
+              <p className="text-xs font-semibold text-slate-600 mt-0.5 max-w-xl">
+                Your parent profile is fully set up! Create a student profile with a unique Kortex ID and PIN so your child can access interactive learning tools and courses.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleOpenAddChild}
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-sm rounded-xl shadow-md transition-all shrink-0 flex items-center gap-2 cursor-pointer hover:scale-[1.02]"
+          >
+            <Plus size={18} /> Add Child Account
+          </button>
+        </div>
+      ) : null}
 
       {/* Transfer Requests Alert */}
       {pendingRequests.map(req => (
@@ -654,28 +867,6 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
 
       {loading ? (
         <div className="py-20 text-center text-slate-400 font-bold">Loading your children...</div>
-      ) : children.length === 0 ? (
-        <div className="bg-slate-50 rounded-3xl border-2 border-slate-100 border-dashed p-12 text-center">
-          <div className="w-16 h-16 bg-slate-200 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Users size={32} />
-          </div>
-          <h3 className="text-xl font-black text-slate-700 mb-2">No Children Added Yet</h3>
-          <p className="text-slate-500 font-semibold mb-6 max-w-sm mx-auto">
-            You haven&apos;t added any children to your account yet. Set up a child account to give them access to our interactive learning tools and curriculum!
-          </p>
-          <button 
-            onClick={() => {
-              if (isProfileComplete()) {
-                setInternalShowModal(true);
-              } else {
-                setShowLocationModal(true);
-              }
-            }}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
-          >
-            <Plus size={18} /> Add Your First Child
-          </button>
-        </div>
       ) : (
         <>
           {/* Multi-Child Horizontal Switcher */}
@@ -726,13 +917,32 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                 </div>
               </button>
             ))}
+
+            {/* Quick Add Child Tab in Switcher */}
+            <button
+              onClick={handleOpenAddChild}
+              className={`flex-shrink-0 flex items-center gap-2.5 px-4 py-3.5 rounded-2xl border-2 border-dashed transition-all cursor-pointer ${
+                isReadyForChildren
+                  ? 'border-indigo-300 bg-indigo-50/50 hover:bg-indigo-100/60 text-indigo-700'
+                  : 'border-slate-200 bg-slate-50 text-slate-400'
+              }`}
+              title={!isReadyForChildren ? "Complete profile & verify email first" : "Add or Claim Child"}
+            >
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                isReadyForChildren ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400'
+              }`}>
+                <Plus size={16} />
+              </div>
+              <span className="font-black text-xs">
+                {children.length === 0 ? 'Add First Child' : 'Add Child'}
+              </span>
+            </button>
           </div>
 
-          {/* Selected Child Dashboard */}
           {/* Render Profile OR Selected Child */}
-          {selectedChildId === 'profile' ? (
-             <div className="space-y-6 animate-fade-in max-w-2xl">
-               <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8">
+          {selectedChildId === 'profile' || !selectedChild ? (
+             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in items-start">
+               <div className="lg:col-span-7 xl:col-span-8 bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8">
                  <div className="flex items-center gap-4 mb-8">
                    <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center">
                      <User size={28} className="stroke-[3px]" />
@@ -753,11 +963,14 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                        ) : (
                          <button
                            type="button"
-                           onClick={() => setShowLocationModal(true)}
+                           onClick={() => {
+                             const el = document.getElementById('parent-location-section');
+                             if (el) el.scrollIntoView({ behavior: 'smooth' });
+                           }}
                            className="px-3 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-black flex items-center gap-1.5 cursor-pointer transition-colors"
                          >
                            <AlertCircle size={13} className="text-amber-600" />
-                           Location Required • Click to complete
+                           Location Required • Fill below
                          </button>
                        )}
                        {profile.is_pro && (
@@ -786,8 +999,21 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                      />
                    </div>
                    <div>
-                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
-                     <div className="flex gap-2">
+                     <div className="flex items-center justify-between mb-2">
+                       <label className="block text-xs font-black text-slate-500 uppercase tracking-wider">
+                         Email Address *
+                       </label>
+                       {isEmailVerified ? (
+                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
+                           <CheckCircle2 size={12} className="text-emerald-600" /> Verified
+                         </span>
+                       ) : (
+                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
+                           <AlertCircle size={12} className="text-amber-600" /> Pending Verification
+                         </span>
+                       )}
+                     </div>
+                     <div className="flex flex-col sm:flex-row gap-2">
                        <input 
                          type="email" required
                          value={profileForm.email}
@@ -797,6 +1023,26 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                          }}
                          className="flex-1 bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
                        />
+                       {!isEmailChanged() && !isEmailVerified && (
+                         <div className="flex gap-2 shrink-0">
+                           <button
+                             type="button"
+                             disabled={isCheckingEmail}
+                             onClick={handleResendVerificationEmail}
+                             className="px-3 py-2 sm:px-4 sm:py-3 bg-white hover:bg-amber-50 active:scale-95 text-amber-900 font-bold rounded-xl border border-amber-300 shadow-2xs text-xs shrink-0 cursor-pointer transition-all disabled:opacity-50"
+                           >
+                             Resend Link
+                           </button>
+                           <button
+                             type="button"
+                             disabled={isCheckingEmail}
+                             onClick={handleCheckEmailStatus}
+                             className="px-3 py-2 sm:px-4 sm:py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl shadow-md text-xs shrink-0 cursor-pointer transition-all disabled:opacity-50"
+                           >
+                             {isCheckingEmail ? 'Checking...' : "I've Verified"}
+                           </button>
+                         </div>
+                       )}
                        {isEmailChanged() && !isEmailVerifiedInlineBool() && (
                          <button
                            type="button"
@@ -807,56 +1053,94 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                            {emailVerifying ? '...' : emailVerificationSent ? 'Check Link Clicked' : 'Verify'}
                          </button>
                        )}
-                       {(!isEmailChanged() || isEmailVerifiedInlineBool()) && (
-                         <span className="px-4 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-xl text-xs flex items-center shrink-0">
-                           ✓ Verified
-                         </span>
-                       )}
                      </div>
-                     {emailVerificationSent && (
-                       <p className="text-xs font-semibold text-sky-600 mt-2">
-                         Verification link sent! Please click the link in your email, then click "Check Link Clicked".
+                     <p className="text-xs font-semibold text-slate-500 mt-2">
+                       {isEmailVerified 
+                         ? "Verification link will be sent to this email if updated. Email verification is required to create child accounts."
+                         : "Verification link sent to this email. You can only create child accounts once your email is verified."}
+                     </p>
+                     {emailVerificationSent && isEmailChanged() && (
+                       <p className="text-xs font-semibold text-sky-600 mt-1">
+                         Verification link sent to your updated address! Please click the link in your email, then click "Check Link Clicked".
                        </p>
                      )}
                    </div>
-                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                     <div>
-                       <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">City</label>
-                       <input 
-                         type="text"
-                         value={profileForm.city}
-                         onChange={e => setProfileForm({...profileForm, city: e.target.value})}
-                         placeholder="e.g. Mumbai"
-                         required
-                         className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
-                       />
+                   <div id="parent-location-section" className="scroll-mt-6 pt-2">
+                     <div className="flex items-center justify-between mb-2">
+                       <label className="block text-xs font-black text-slate-500 uppercase tracking-wider">
+                         Location Details (Required to add children)
+                       </label>
+                       {profileForm.city && profileForm.state && profileForm.country ? (
+                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
+                           <CheckCircle2 size={12} className="text-emerald-600" /> Complete
+                         </span>
+                       ) : (
+                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
+                           <AlertCircle size={12} className="text-amber-600" /> Incomplete
+                         </span>
+                       )}
                      </div>
-                     <div>
-                       <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">State / Province</label>
-                       <input 
-                         type="text"
-                         value={profileForm.state}
-                         onChange={e => setProfileForm({...profileForm, state: e.target.value})}
-                         placeholder="e.g. Maharashtra"
-                         required
-                         className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
-                       />
-                     </div>
-                     <div>
-                       <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Country</label>
-                       <input 
-                         type="text"
-                         value={profileForm.country}
-                         onChange={e => setProfileForm({...profileForm, country: e.target.value})}
-                         placeholder="e.g. India"
-                         required
-                         className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
-                       />
+                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                       <div>
+                         <label className="block text-[11px] font-bold text-slate-500 mb-1">City *</label>
+                         <input 
+                           type="text"
+                           value={profileForm.city}
+                           onChange={e => setProfileForm({...profileForm, city: e.target.value})}
+                           placeholder="e.g. Mumbai"
+                           required
+                           className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                         />
+                       </div>
+                       <div>
+                         <label className="block text-[11px] font-bold text-slate-500 mb-1">State / Province *</label>
+                         <input 
+                           type="text"
+                           value={profileForm.state}
+                           onChange={e => setProfileForm({...profileForm, state: e.target.value})}
+                           placeholder="e.g. Maharashtra"
+                           required
+                           className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                         />
+                       </div>
+                       <div>
+                         <label className="block text-[11px] font-bold text-slate-500 mb-1">Country *</label>
+                         <input 
+                           type="text"
+                           value={profileForm.country}
+                           onChange={e => setProfileForm({...profileForm, country: e.target.value})}
+                           placeholder="e.g. India"
+                           required
+                           className="w-full bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
+                         />
+                       </div>
                      </div>
                    </div>
                    
                    <div>
-                     <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Emergency Contact (Phone)</label>
+                     <div className="flex items-center justify-between mb-2">
+                       <div className="flex items-center gap-2">
+                         <label className="block text-xs font-black text-slate-500 uppercase tracking-wider">
+                           Emergency Contact (Phone)
+                         </label>
+                         {profile.phone ? (
+                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
+                             <Check size={12} /> Verified
+                           </span>
+                         ) : (
+                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
+                             Pending
+                           </span>
+                         )}
+                       </div>
+                       <button
+                         type="button"
+                         onClick={() => setShowWhyPhoneModal(true)}
+                         className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 underline decoration-indigo-300 underline-offset-2 cursor-pointer transition-colors"
+                       >
+                         Why Phone?
+                       </button>
+                     </div>
                      <div className="flex gap-2">
                        <select 
                          value={profileForm.countryCode}
@@ -869,7 +1153,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                        </select>
                        {profileForm.countryCode === 'other' && (
                          <input 
-                           type="text" required
+                           type="text"
                            value={profileForm.customCountryCode}
                            onChange={e => setProfileForm({...profileForm, customCountryCode: e.target.value})}
                            placeholder="+XXX"
@@ -877,23 +1161,23 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                          />
                        )}
                        <input 
-                         type="tel" required
+                         type="tel"
                          value={profileForm.mobileNumber}
                          onChange={e => setProfileForm({...profileForm, mobileNumber: e.target.value.replace(/\D/g, '')})}
-                         placeholder="Mobile Number"
+                         placeholder="Mobile Number (Optional)"
                          className="flex-1 bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none transition-colors"
                        />
-                       {isPhoneChanged() && !isPhoneVerifiedInlineBool() && (
+                       {profileForm.mobileNumber.trim().length > 0 && isPhoneChanged() && !isPhoneVerifiedInlineBool() && (
                          <button
                            type="button"
                            onClick={handleVerifyPhone}
                            disabled={otpLoading}
-                           className="px-4 py-3 bg-emerald-500 text-white font-bold rounded-xl shadow-md text-xs hover:bg-emerald-600 disabled:opacity-50 shrink-0"
+                           className="px-4 py-3 bg-emerald-500 text-white font-bold rounded-xl shadow-md text-xs hover:bg-emerald-600 active:scale-95 disabled:opacity-50 shrink-0 cursor-pointer transition-all"
                          >
                            {otpLoading ? '...' : 'Verify'}
                          </button>
                        )}
-                       {(!isPhoneChanged() || isPhoneVerifiedInlineBool()) && (
+                       {profileForm.mobileNumber.trim().length > 0 && (!isPhoneChanged() || isPhoneVerifiedInlineBool()) && (
                          <span className="px-4 py-3 bg-emerald-50 text-emerald-600 font-bold rounded-xl text-xs flex items-center shrink-0">
                            ✓ Verified
                          </span>
@@ -945,22 +1229,27 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                        </div>
                      )}
                      
-                     <p className="text-xs font-semibold text-slate-400 mt-2">This number is securely shared with organizations (eg. school) in case of emergencies.</p>
+                     <p className="text-xs font-semibold text-slate-400 mt-2">
+                       Emergency Contact is shared strictly with the school/institute where your child is enrolled. Once verified, you can also use this mobile number to log in.
+                     </p>
                    </div>
-                   <div className="pt-4 border-t-2 border-slate-100">
+                   <div className="pt-4 border-t-2 border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                      <button 
                        type="submit"
                        disabled={isSavingProfile || (isPhoneChanged() && !isPhoneVerifiedInlineBool()) || (isEmailChanged() && !isEmailVerifiedInlineBool())}
-                       className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+                       className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                      >
                        {isSavingProfile ? <RefreshCw size={18} className="animate-spin" /> : <ShieldCheck size={18} />} 
-                       {isSavingProfile ? 'Syncing securely...' : 'Save & Sync Details'}
+                       {isSavingProfile ? 'Saving profile...' : 'Save & Complete Profile'}
                      </button>
+                     <span className="text-xs text-slate-400 font-medium">
+                       * Required fields must be completed to add child accounts
+                     </span>
                    </div>
                  </form>
                </div>
 
-               <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8">
+               <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-6 sm:p-8">
                  <div className="flex items-center gap-4 mb-8">
                    <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
                      <ShieldCheck size={28} className="stroke-[3px]" />
@@ -1003,7 +1292,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                      <button 
                        type="submit"
                        disabled={isChangingPassword}
-                       className="px-8 py-3.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-white font-black rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+                       className="w-full sm:w-auto px-8 py-3.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 text-white font-black rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                      >
                        {isChangingPassword ? <RefreshCw size={18} className="animate-spin" /> : <ShieldCheck size={18} />} 
                        {isChangingPassword ? 'Updating...' : 'Change Password'}
@@ -1012,7 +1301,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                  </form>
                </div>
              </div>
-          ) : selectedChild ? (
+          ) : (
             <div className="space-y-6 animate-fade-in">
               
               {/* Profile Card */}
@@ -1202,7 +1491,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
               </div>
 
             </div>
-          ) : null}
+          )}
         </>
       )}
 
@@ -1227,17 +1516,6 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
           await handleMobileSubmit(mobile);
           setShowMobileModal(false);
         }}
-      />
-
-      <CompleteLocationModal 
-        isOpen={showLocationModal}
-        parentName={profile.full_name || ''}
-        parentEmail={profile.email || ''}
-        parentPhone={profile.phone || (profile as any).contact_number || ''}
-        initialCity={(profile as any).city || ''}
-        initialState={(profile as any).state || ''}
-        initialCountry={(profile as any).country || 'India'}
-        onCompleted={handleLocationCompleted}
       />
 
       {/* KORTEX KOURSE PREVIEW & CHILD SELECTION MODAL */}
@@ -1377,6 +1655,127 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                 </div>
               )}
 
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* WHY PHONE MODAL */}
+      {showWhyPhoneModal && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+              <button 
+                type="button"
+                onClick={() => setShowWhyPhoneModal(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Phone size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 leading-snug">Why We Ask For Your Phone</h3>
+                  <p className="text-xs text-slate-400 font-semibold">Strictly protected & optional</p>
+                </div>
+              </div>
+
+              <div className="space-y-3.5 mb-6">
+                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+                    <h4 className="text-xs font-black text-slate-800">1. Emergency Contact for Your Child</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                    In case of health alerts, safety updates, or urgent school notices, this number is shared strictly with the school or educational institution your child is enrolled with.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Rocket size={16} className="text-indigo-600 shrink-0" />
+                    <h4 className="text-xs font-black text-slate-800">2. Convenient 1-Tap Login</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                    Once verified, you can sign in anytime using your <strong>Mobile Number + 6-Digit PIN</strong> without having to type your email address every time.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Lock size={16} className="text-slate-700 shrink-0" />
+                    <h4 className="text-xs font-black text-slate-800">3. Strict Privacy Guarantee (Zero Spam)</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                    We comply fully with COPPA and the DPDP Act. We never share or sell your phone number for marketing or promotional campaigns.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowWhyPhoneModal(false)}
+                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* EMAIL VERIFICATION REQUIRED MODAL */}
+      {showEmailVerifyModal && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative text-center">
+              <button 
+                type="button"
+                onClick={() => setShowEmailVerifyModal(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border-2 border-amber-100">
+                <Mail size={32} />
+              </div>
+
+              <h3 className="text-xl font-black text-slate-900 mb-2">Verify Email to Add Children</h3>
+              <p className="text-xs text-slate-600 font-medium leading-relaxed mb-4">
+                To safeguard student data privacy and comply with COPPA / DPDP regulations, only parents with a verified email address can create or claim child profiles.
+              </p>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-6">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Verification link sent to</span>
+                <span className="text-xs font-black text-slate-800">{auth.currentUser?.email || profile.email}</span>
+              </div>
+
+              <div className="flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  disabled={isCheckingEmail}
+                  onClick={handleCheckEmailStatus}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{isCheckingEmail ? 'Checking Verification...' : "I've Verified (Check Status)"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isCheckingEmail}
+                  onClick={handleResendVerificationEmail}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Resend Verification Email
+                </button>
+              </div>
             </div>
           </div>
         </ModalPortal>

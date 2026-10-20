@@ -422,7 +422,16 @@ export async function provisionChildAccount(
     const parentEmail = parentDoc.data()?.email || "";
     const parentContact = parentDoc.data()?.phone || parentDoc.data()?.contact_number || "";
     
-    
+    const isParentPro = Boolean(parentDoc.data()?.is_pro);
+    const existingChildrenCount = (parentDoc.data()?.children_ids || []).length;
+    const maxAllowedChildren = isParentPro ? 3 : 1;
+    if (existingChildrenCount >= maxAllowedChildren) {
+      throw new Error(
+        isParentPro
+          ? "Pro accounts can create up to 3 child accounts."
+          : "Free accounts can create 1 child account. Please upgrade to Pro to add up to 3 children."
+      );
+    }
 
     const studentId = await generateGlobalStudentId();
     const studentEmail = `${studentId.toLowerCase()}@student.kortex.app`;
@@ -435,7 +444,6 @@ export async function provisionChildAccount(
     
     const studentUid = userRecord.uid;
 
-    const isParentPro = Boolean(parentDoc.data()?.is_pro);
     const parentProTier = parentDoc.data()?.pro_tier || 'pro';
 
     const newStudent: StudentProfile = {
@@ -455,7 +463,7 @@ export async function provisionChildAccount(
       teacher_ids: [],
       active_b2c_licenses: [],
       is_pro: isParentPro,
-      pro_tier: isParentPro ? parentProTier : undefined,
+      pro_tier: isParentPro ? parentProTier : null,
       hearts_remaining: isParentPro ? 999 : 5,
       last_heart_reset: new Date().toISOString(),
       status: 'active',
@@ -511,6 +519,17 @@ export async function claimProvisionedChild(
     const parentEmail = parentDoc.data()?.email || "";
     const parentContact = parentDoc.data()?.phone || parentDoc.data()?.contact_number || "";
     
+    const isParentPro = Boolean(parentDoc.data()?.is_pro);
+    const existingChildrenCount = (parentDoc.data()?.children_ids || []).length;
+    const maxAllowedChildren = isParentPro ? 3 : 1;
+    if (existingChildrenCount >= maxAllowedChildren) {
+      throw new Error(
+        isParentPro
+          ? "Pro accounts can create up to 3 child accounts."
+          : "Free accounts can create 1 child account. Please upgrade to Pro to add up to 3 children."
+      );
+    }
+
     const cleanKortexId = claimData.kortexId.toUpperCase().trim();
 
     const querySnap = await adminDb.collection('users')
@@ -553,7 +572,6 @@ export async function claimProvisionedChild(
       });
     }
 
-    const isParentPro = Boolean(parentDoc.data()?.is_pro);
     const parentProTier = parentDoc.data()?.pro_tier || 'pro';
 
     const batch = adminDb.batch();
