@@ -51,6 +51,20 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
   const timerRef = useRef<any>(null);
   const timeAudioCtxRef = useRef<AudioContext | null>(null);
 
+  // --- Real Time Spent Tracker for Screen Time ---
+  const stepStartTimeRef = useRef<number>(Date.now());
+  useEffect(() => {
+    stepStartTimeRef.current = Date.now();
+  }, [currentStep]);
+
+  const handleClose = () => {
+    const elapsedSeconds = Math.round((Date.now() - stepStartTimeRef.current) / 1000);
+    if (elapsedSeconds >= 15 && onStepComplete) {
+      onStepComplete({ step: currentStep, score: undefined, isPartial: true, timeSpentSeconds: elapsedSeconds });
+    }
+    if (onClose) onClose();
+  };
+
   const playTimeSound = (type: 'start' | 'pause' | 'alarm' | 'reset') => {
       try {
           if (!timeAudioCtxRef.current) {
@@ -153,7 +167,7 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
           <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 shadow-xl border-2 border-slate-700"><Activity size={32} className="text-slate-500" /></div>
           <h2 className="text-2xl font-black mb-2">No Content Found</h2>
           <p className="text-slate-400 mb-6 font-medium">This lesson does not contain any interactive tools yet.</p>
-          <Button onClick={onClose} className="border-0 bg-slate-800 text-white hover:bg-slate-700 shadow-none">Return to Dashboard</Button>
+          <Button onClick={handleClose} className="border-0 bg-slate-800 text-white hover:bg-slate-700 shadow-none">Return to Dashboard</Button>
        </div>
      );
   }
@@ -163,11 +177,18 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
 
 
   const handleNext = (data?: any) => {
+      const elapsedSeconds = Math.max(15, Math.round((Date.now() - stepStartTimeRef.current) / 1000));
+      stepStartTimeRef.current = Date.now();
+
       if (data && data.score !== undefined) setFinalScore(data.score);
       
-      // LOG IMMEDIATE PROGRESS!
+      // LOG IMMEDIATE PROGRESS with real elapsed duration!
       if (onStepComplete) {
-         onStepComplete({ step: currentStep, score: data?.score !== undefined ? data.score : finalScore });
+         onStepComplete({ 
+           step: currentStep, 
+           score: data?.score !== undefined ? data.score : finalScore,
+           timeSpentSeconds: elapsedSeconds
+         });
       }
 
       if (!isLoggedIn && !isMasterDemo) {
@@ -263,7 +284,7 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
                         <div className="flex flex-col gap-4">
                             <button 
                                 onClick={() => {
-                                    onClose(); 
+                                    handleClose(); 
                                     const event = new CustomEvent('open-auth-modal', { detail: 'signup' });
                                     window.dispatchEvent(event);
                                 }}
@@ -279,7 +300,7 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
                             
                             <button 
                                 onClick={() => {
-                                    onClose(); 
+                                    handleClose(); 
                                     const event = new CustomEvent('open-quote-modal');
                                     window.dispatchEvent(event);
                                 }}
@@ -289,7 +310,7 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
                             </button>
 
                             <button 
-                                onClick={onClose}
+                                onClick={handleClose}
                                 className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl text-md transition-colors mt-2"
                             >
                                 Close
@@ -542,7 +563,7 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
         
         {/* Left: Close & Title Stack */}
         <div className="flex items-center gap-2 md:gap-4 min-w-0">
-          <button onClick={onClose} className="w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-all"><X size={18} className="md:w-5 md:h-5" /></button>
+          <button onClick={handleClose} className="w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-all"><X size={18} className="md:w-5 md:h-5" /></button>
           <div className="hidden sm:flex flex-col md:flex-row md:items-center gap-0 md:gap-2 min-w-0">
              <h1 className="text-white font-extrabold text-sm md:text-base truncate max-w-[150px] lg:max-w-[300px]">{currentItem.title}</h1>
              <span className="hidden md:block w-1 h-1 bg-slate-600 rounded-full shrink-0"></span>

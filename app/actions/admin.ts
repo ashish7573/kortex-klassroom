@@ -24,6 +24,18 @@ export async function syncCurriculumTotals(idToken: string) {
        if (dbSubj === 'mathematics' || dbSubj === 'maths') dbSubj = 'maths';
        const key = `${grade}_${dbSubj}`;
        totals[key] = (totals[key] || 0) + 1;
+
+       // Universal subject totals (including FLN bridges)
+       totals[dbSubj] = (totals[dbSubj] || 0) + 1;
+       if (dbSubj === 'fln hindi') {
+         totals['hindi'] = (totals['hindi'] || 0) + 1;
+       }
+       if (dbSubj === 'fln maths') {
+         totals['maths'] = (totals['maths'] || 0) + 1;
+       }
+       if (dbSubj === 'fln english') {
+         totals['english'] = (totals['english'] || 0) + 1;
+       }
     });
     
     await adminDb.collection('metadata').doc('curriculum_totals').set(totals);

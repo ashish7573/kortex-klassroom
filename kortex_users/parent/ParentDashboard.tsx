@@ -14,6 +14,7 @@ import RequireMobileModal from './RequireMobileModal';
 import CompleteLocationModal from './CompleteLocationModal';
 import { resolveTransferRequest, updateParentProfile, parentUnlinkChildFromOrg, parentDeleteChildAccount, registerCourseInterest } from '../../app/actions/student';
 import { KORTEX_COURSES, KortexCourse } from '../../kortex_landing_page/koursesData';
+import { KortexCourseCard } from '../../kortex_landing_page/components/KortexCourseCard';
 import ModalPortal from '../../components/ModalPortal';
 
 interface ParentDashboardProps {
@@ -1139,43 +1140,18 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                   </button>
                 </div>
 
-                <div className="flex gap-4 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scroll-smooth -mx-3 px-3 sm:mx-0 sm:px-0">
+                <div className="flex gap-3.5 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scroll-smooth -mx-3 px-3 sm:mx-0 sm:px-0">
                   {KORTEX_COURSES.map(course => (
-                    <div
+                    <KortexCourseCard
                       key={course.id}
+                      course={course}
+                      size="compact"
+                      price="₹499"
+                      ctaText="Pre-Enroll"
                       onClick={() => handleOpenCourseModal(course)}
-                      className="snap-start shrink-0 w-[270px] sm:w-[290px] bg-slate-50/70 hover:bg-white border-2 border-slate-100 hover:border-indigo-300 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between mb-2.5">
-                          <span className="text-3xl p-1.5 bg-white rounded-xl shadow-2xs group-hover:scale-105 transition-transform">
-                            {course.icon}
-                          </span>
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${course.badgeColor}`}>
-                            {course.gradeGroup}
-                          </span>
-                        </div>
-
-                        <div className="text-[10px] font-black uppercase tracking-wider text-indigo-600 mb-1">
-                          {course.category}
-                        </div>
-                        <h4 className="font-black text-slate-900 text-base leading-snug group-hover:text-indigo-600 transition-colors mb-1">
-                          {course.title}
-                        </h4>
-                        <p className="text-xs text-slate-500 font-semibold line-clamp-2 mb-3">
-                          {course.tagline}
-                        </p>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between">
-                        <span className="text-xs font-black text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
-                          Explore & Select <ArrowUpRight size={14} />
-                        </span>
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md">
-                          Pre-Enroll
-                        </span>
-                      </div>
-                    </div>
+                      onEnroll={() => handleOpenCourseModal(course)}
+                      className="snap-start shrink-0 w-[245px] sm:w-[265px]"
+                    />
                   ))}
                 </div>
               </div>

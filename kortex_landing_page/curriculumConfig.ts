@@ -10,8 +10,8 @@ export const GRADES = [
 ];
 
 export const SUBJECT_CATEGORIES = {
-  CORE: ['English', 'Hindi', 'Maths', 'EVS', 'Science', 'SST'],
-  FOUNDATIONAL: ['FLN English', 'FLN Hindi', 'FLN Maths'],
+  FOUNDATIONAL: ['FLN Hindi', 'FLN Maths', 'FLN English'],
+  CORE: ['Hindi', 'English', 'Maths', 'EVS', 'Science', 'SST'],
   CO_CURRICULAR_AND_SKILLS: ['Computers and AI', 'Mental Training', 'Physical Training and Sports', 'Theatre', 'Art and Craft Forms', 'Music and Dance Forms']
 };
 
@@ -30,8 +30,8 @@ export const GRADE_CORE_MAP: Record<string, string[]> = {
 };
 
 export const SUBJECTS = [
-  ...SUBJECT_CATEGORIES.CORE,
   ...SUBJECT_CATEGORIES.FOUNDATIONAL,
+  ...SUBJECT_CATEGORIES.CORE,
   ...SUBJECT_CATEGORIES.CO_CURRICULAR_AND_SKILLS
 ];
 
@@ -137,3 +137,51 @@ export const TESTIMONIALS = [
   { name: "Rahul Verma", role: "Middle School Teacher", text: "The lesson plans and auto-generated analytics are a lifesaver. It aligns perfectly with the NCF and saves me hours of planning every single week.", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rahul&backgroundColor=b6e3f4" },
   { name: "Anita Desai", role: "School Principal", text: "A truly complete platform. The focus on both academic competencies and mental wellbeing makes this the gold standard for NEP 2020 implementation.", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anita&backgroundColor=c0aede" }
 ];
+
+export const getSubjectTotal = (subjectTotals: Record<string, number> = {}, grade: string = '', subject: string = ''): number => {
+  const g = grade.trim().toLowerCase();
+  const s = subject.trim().toLowerCase();
+  
+  if (subjectTotals[`${g}_${s}`]) return subjectTotals[`${g}_${s}`];
+  if (subjectTotals[`all grades_${s}`]) return subjectTotals[`all grades_${s}`];
+  
+  if (s === 'hindi' || s.includes('hindi')) {
+    return subjectTotals[`${g}_fln hindi`] || subjectTotals['all grades_fln hindi'] || subjectTotals['fln hindi'] || 0;
+  }
+  if (s === 'maths' || s.includes('math')) {
+    return (subjectTotals[`${g}_maths`] || 0) + (subjectTotals['all grades_fln maths'] || 0) || (subjectTotals['fln maths'] || 0);
+  }
+  if (s === 'english' || s.includes('eng')) {
+    return subjectTotals[`${g}_english`] || subjectTotals['all grades_fln english'] || 0;
+  }
+  
+  return 0;
+};
+
+export const getCompletedToolsCount = (progressData: any[] = [], grade: string = '', subject: string = ''): number => {
+  const s = subject.trim().toLowerCase();
+  const completedSet = new Set<string>();
+  
+  progressData.forEach(p => {
+    if (!p.id) return;
+    const pId = p.id.toLowerCase();
+    
+    const matchesSubject = pId.includes(s) || 
+      (s.includes('hindi') && pId.includes('hindi')) ||
+      (s.includes('math') && pId.includes('math')) ||
+      (s.includes('eng') && pId.includes('eng'));
+      
+    if (matchesSubject && p.completed_tools) {
+      Object.keys(p.completed_tools).forEach(toolId => completedSet.add(toolId));
+    }
+  });
+  
+  return completedSet.size;
+};
+
+export const getSubjectProgressSummary = (progressData: any[] = [], subjectTotals: Record<string, number> = {}, grade: string = '', subject: string = '') => {
+  const completedCount = getCompletedToolsCount(progressData, grade, subject);
+  const totalTools = getSubjectTotal(subjectTotals, grade, subject);
+  const progressPct = totalTools > 0 ? Math.min(100, Math.round((completedCount / totalTools) * 100)) : 0;
+  return { completedCount, totalTools, progressPct };
+};

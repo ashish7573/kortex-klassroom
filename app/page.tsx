@@ -793,7 +793,9 @@ useEffect(() => {
                       toolId: toolId,
                       chapterName: playingLesson.chapter,
                       subjectId: subjectId,
-                      score: data.score
+                      score: data.score,
+                      timeSpentSeconds: data.timeSpentSeconds,
+                      isPartial: data.isPartial
                     });
                   }
                 } catch (e) {

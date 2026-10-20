@@ -1165,6 +1165,7 @@ export async function logStudentActivity(
     subjectId: string;
     score?: number;
     timeSpentSeconds?: number;
+    isPartial?: boolean;
   }
 ) {
   try {
@@ -1204,8 +1205,35 @@ export async function logStudentActivity(
          streak = 1;
        }
     }
+
+    // 2. Atomic Daily Activity in IST (Asia/Kolkata)
+    const istDateString = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+
+    const dailyActivityRef = studentRef.collection('daily_activity').doc(istDateString);
+    const secondsSpent = (activityData.timeSpentSeconds && activityData.timeSpentSeconds > 0) ? activityData.timeSpentSeconds : 30;
+
+    // Handle partial session tracking (window closed without completing)
+    if (activityData.isPartial) {
+      const partialBatch = adminDb.batch();
+      partialBatch.update(studentRef, {
+        last_active_date: dateString,
+        updated_at: new Date().toISOString()
+      });
+      partialBatch.set(dailyActivityRef, {
+        date: istDateString,
+        active_seconds: FieldValue.increment(secondsSpent),
+        last_updated: FieldValue.serverTimestamp()
+      }, { merge: true });
+      await partialBatch.commit();
+      return { success: true, isPartial: true, secondsLogged: secondsSpent };
+    }
     
-    // 2. Award XP and check Badges
+    // 3. Award XP and check Badges for completed activity
     const earnedXp = 50; 
     const totalXp = (data.total_xp || 0) + earnedXp;
     
@@ -1225,16 +1253,6 @@ export async function logStudentActivity(
       updated_at: new Date().toISOString()
     });
 
-    // 2b. Atomic Daily Activity in IST (Asia/Kolkata)
-    const istDateString = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(new Date());
-
-    const dailyActivityRef = studentRef.collection('daily_activity').doc(istDateString);
-    const secondsSpent = (activityData.timeSpentSeconds && activityData.timeSpentSeconds > 0) ? activityData.timeSpentSeconds : 60;
     const starsEarned = (activityData.score && activityData.score >= 80) ? 3 : (activityData.score && activityData.score >= 50) ? 2 : 1;
 
     batch.set(dailyActivityRef, {
@@ -1654,8 +1672,12 @@ export async function getChildProgressAndTotals(idToken: string, childUid: strin
     const studentDoc = await adminDb.collection('users').doc(childUid).get();
     if (!studentDoc.exists) throw new Error("Student not found.");
     
-    const studentData = studentDoc.data();
-    if (studentData?.parent_id !== parentUid) {
+    const studentData = studentDoc.data() || {};
+    const parentDoc = await adminDb.collection('users').doc(parentUid).get();
+    const parentData = parentDoc.data() || {};
+    const isParent = studentData.parent_id === parentUid || (parentData.children_ids || []).includes(childUid);
+    
+    if (!isParent) {
       throw new Error("Unauthorized access.");
     }
     

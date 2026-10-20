@@ -17,6 +17,8 @@ import { useStudentAssignments, AssignmentStatus, MergedAssignment } from '../..
 import { generateComboId } from '../org_admin/utils/comboParsers';
 import ModalPortal from '../../components/ModalPortal';
 import { KORTEX_COURSES, KortexCourse } from '../../kortex_landing_page/koursesData';
+import { KortexCourseCard } from '../../kortex_landing_page/components/KortexCourseCard';
+import { getSubjectProgressSummary } from '../../kortex_landing_page/curriculumConfig';
 
 
 interface StudentDashboardProps {
@@ -45,6 +47,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
   const [leaderboardTool, setLeaderboardTool] = useState<{ id: string, name: string } | null>(null);
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [showBadgesModal, setShowBadgesModal] = useState(false);
 
   // Organizations & Combos
   const [orgProfiles, setOrgProfiles] = useState<Record<string, any>>({});
@@ -472,8 +475,12 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
               </div>
             </div>
 
-            {/* Badges Earned */}
-            <div className="flex items-center gap-2 bg-black/25 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
+            {/* Badges Earned (Clickable Modal) */}
+            <button 
+              type="button"
+              onClick={() => setShowBadgesModal(true)}
+              className="flex items-center gap-2 bg-black/25 hover:bg-black/35 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10 transition-all text-left cursor-pointer"
+            >
               <Trophy size={18} className="text-yellow-300 fill-yellow-300" />
               <div>
                 <div className="text-[10px] text-purple-200 font-extrabold uppercase leading-none">Badges</div>
@@ -481,7 +488,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                   {profile.achievements?.length || 0} Badges
                 </div>
               </div>
-            </div>
+            </button>
 
           </div>
 
@@ -836,18 +843,14 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                               const colorClasses = getSubjectColor(comboObj.label.toLowerCase());
 
                               const parts = comboObj.label.split('-');
-                              const cGrade = parts.length > 0 ? parts[0].trim().toLowerCase() : 'unknown_grade';
-                              const cSubj = comboObj.subject.toLowerCase();
-                              const cKey = `${cGrade}_${cSubj}`;
+                              const cGrade = parts.length > 0 ? parts[0].trim() : (profile.grade || 'All Grades');
 
-                              const subjProgress = progressData.find(p => {
-                                if (!p.id) return false;
-                                const pId = p.id.toLowerCase();
-                                return pId === cKey || pId === cSubj || pId === `all grades_${cSubj}`;
-                              });
-                              const completedCount = subjProgress?.completed_tools ? Object.keys(subjProgress.completed_tools).length : 0;
-                              const totalTools = subjectTotals[cKey] || subjectTotals[`all grades_${cSubj}`] || 0;
-                              const progressPct = totalTools > 0 ? Math.min(100, Math.round((completedCount / totalTools) * 100)) : 0;
+                              const { completedCount, totalTools, progressPct } = getSubjectProgressSummary(
+                                progressData,
+                                subjectTotals,
+                                cGrade,
+                                comboObj.subject
+                              );
 
                               return (
                                 <div
@@ -896,6 +899,70 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
         </div>
       )}
 
+      {/* 2b. INDEPENDENT LEARNING SECTION (When no school is attached) */}
+      {activeOrgs.length === 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">
+              <Sparkles className="text-purple-600" size={20} />
+              My Learning Pathway
+            </h2>
+            <span className="text-xs font-bold text-slate-400">
+              Independent Learner
+            </span>
+          </div>
+
+          <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-xs">
+            <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <BookOpen size={16} className="text-indigo-600" />
+              Foundational & Core Subjects
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[
+                { subject: 'Hindi', label: `${profile.grade || 'All Grades'} - FLN Hindi`, color: 'border-orange-200 bg-orange-50/50 text-orange-950' },
+                { subject: 'Maths', label: `${profile.grade || 'All Grades'} - FLN Maths`, color: 'border-rose-200 bg-rose-50/50 text-rose-950' },
+                { subject: 'English', label: `${profile.grade || 'All Grades'} - FLN English`, color: 'border-blue-200 bg-blue-50/50 text-blue-950' },
+              ].map((subObj, idx) => {
+                const { completedCount, totalTools, progressPct } = getSubjectProgressSummary(
+                  progressData,
+                  subjectTotals,
+                  profile.grade || 'All Grades',
+                  subObj.subject
+                );
+
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => handleActionClick(`lessons:${subObj.subject}`)}
+                    className={`border-2 rounded-2xl p-4 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between ${subObj.color}`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h5 className="text-lg font-black tracking-tight">{subObj.subject}</h5>
+                        <p className="text-[10px] font-bold opacity-75 uppercase tracking-wider">{subObj.label}</p>
+                      </div>
+                      <div className="w-9 h-9 bg-white/60 rounded-xl flex items-center justify-center backdrop-blur-xs">
+                        <BookOpen size={18} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-wider opacity-80">
+                        <span>{completedCount} / {totalTools} Tools</span>
+                        <span>{progressPct}%</span>
+                      </div>
+                      <div className="h-2 w-full bg-black/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-current rounded-full transition-all duration-700" style={{ width: `${progressPct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ---------------------------------------------------- */}
       {/* 3. KORTEX KOURSES (SPECIALIZED PROGRAMS CAROUSEL)    */}
       {/* ---------------------------------------------------- */}
@@ -927,56 +994,18 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
         </div>
 
         {/* Horizontal Sliding Program Carousel */}
-        <div className="flex gap-4 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scroll-smooth -mx-3 px-3 sm:mx-0 sm:px-0">
+        <div className="flex gap-3.5 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scroll-smooth -mx-3 px-3 sm:mx-0 sm:px-0">
           {KORTEX_COURSES.map(course => (
-            <div
+            <KortexCourseCard
               key={course.id}
+              course={course}
+              size="compact"
+              price="Included"
+              ctaText="Preview"
               onClick={() => setSelectedProgramModal(course)}
-              className="snap-start shrink-0 w-[275px] sm:w-[295px] bg-white border-2 border-slate-100 hover:border-indigo-300 rounded-3xl overflow-hidden shadow-2xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
-            >
-              {/* Visual Header Banner */}
-              <div className={`h-24 w-full bg-gradient-to-br ${course.color} p-3.5 flex flex-col justify-between relative overflow-hidden`}>
-                <div className="flex items-center justify-between relative z-10">
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-white/95 text-slate-800 backdrop-blur-xs shadow-2xs">
-                    {course.category}
-                  </span>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-black/30 text-white backdrop-blur-xs border border-white/20">
-                    {course.gradeGroup}
-                  </span>
-                </div>
-                <div className="relative z-10 flex items-center justify-between">
-                  <span className="text-3xl filter drop-shadow-md group-hover:scale-110 transition-transform">
-                    {course.icon}
-                  </span>
-                  <span className="text-[10px] font-extrabold text-white/90 bg-black/25 px-2 py-0.5 rounded-md backdrop-blur-xs">
-                    {course.estimatedWeeks} WEEKS
-                  </span>
-                </div>
-                <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white/15 rounded-full blur-sm pointer-events-none" />
-              </div>
-
-              {/* Body */}
-              <div className="p-4 flex-1 flex flex-col justify-between">
-                <div>
-                  <h3 className="font-black text-slate-900 text-base leading-snug group-hover:text-indigo-600 transition-colors mb-1">
-                    {course.title}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-semibold line-clamp-2 mb-3">
-                    {course.tagline}
-                  </p>
-                </div>
-
-                {/* Footer */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-black text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
-                    Preview Kourse <ArrowUpRight size={14} />
-                  </span>
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-md">
-                    Coming Soon
-                  </span>
-                </div>
-              </div>
-            </div>
+              onEnroll={() => setSelectedProgramModal(course)}
+              className="snap-start shrink-0 w-[245px] sm:w-[265px]"
+            />
           ))}
         </div>
       </div>
@@ -1406,6 +1435,59 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
           </div>
         </div>
       </ModalPortal>
+      )}
+
+      {/* 8. BADGES SHOWCASE MODAL */}
+      {showBadgesModal && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 flex items-center justify-between text-white shrink-0">
+                <div>
+                  <h3 className="text-xl font-black flex items-center gap-2"><Trophy size={22} className="text-yellow-200 fill-yellow-200" /> Achievement Badges</h3>
+                  <p className="text-amber-100 text-xs font-bold mt-1">Unlock badges by learning consistently and scoring high!</p>
+                </div>
+                <button onClick={() => setShowBadgesModal(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors cursor-pointer">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[65vh] bg-slate-50 space-y-3">
+                {[
+                  { id: 'first_game', title: 'First Explorer', desc: 'Completed your first smart learning module', icon: Star, color: 'text-amber-500 bg-amber-100' },
+                  { id: 'streak_3_days', title: '3-Day Fire', desc: 'Maintained a 3-day daily learning streak', icon: Flame, color: 'text-orange-500 bg-orange-100' },
+                  { id: 'streak_7_days', title: '7-Day Legend', desc: 'Mastered a 7-day uninterrupted learning habit', icon: Award, color: 'text-rose-500 bg-rose-100' },
+                  { id: 'xp_500', title: '500 XP Club', desc: 'Earned 500+ XP across interactive tools', icon: Trophy, color: 'text-yellow-600 bg-yellow-100' },
+                  { id: 'quiz_ace', title: 'Quiz Ace', desc: 'Scored 80% or higher on an interactive quiz', icon: Target, color: 'text-emerald-500 bg-emerald-100' },
+                  { id: 'bookworm', title: 'Master Reader', desc: 'Explored curriculum worksheets in The Notebook', icon: BookOpen, color: 'text-sky-500 bg-sky-100' }
+                ].map((badge) => {
+                  const isUnlocked = (profile.achievements || []).includes(badge.id);
+                  const BadgeIcon = badge.icon;
+
+                  return (
+                    <div 
+                      key={badge.id} 
+                      className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${isUnlocked ? 'bg-white border-amber-200 shadow-xs' : 'bg-slate-100/70 border-slate-200 opacity-60 grayscale'}`}
+                    >
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isUnlocked ? badge.color : 'bg-slate-200 text-slate-400'}`}>
+                        <BadgeIcon size={24} className={isUnlocked ? 'fill-current' : ''} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="font-black text-slate-800 text-sm">{badge.title}</h4>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${isUnlocked ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-500'}`}>
+                            {isUnlocked ? 'Unlocked ✨' : 'Locked'}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5 line-clamp-1">{badge.desc}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
     </div>

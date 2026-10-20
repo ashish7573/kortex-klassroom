@@ -12,6 +12,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { registerCourseInterest } from '../app/actions/student';
 import { StudentProfile } from '../types/user';
 import { Card } from './components/SharedUI';
+import { KortexCourseCard } from './components/KortexCourseCard';
 import ModalPortal from '../components/ModalPortal';
 
 interface KortexKoursesPageProps {
@@ -272,86 +273,15 @@ export default function KortexKoursesPage({
         {filteredCourses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCourses.map(course => (
-              <Card
+              <KortexCourseCard
                 key={course.id}
-                className="border-b-8 border-indigo-500 hover:border-indigo-400 cursor-pointer group transition-all p-0 flex flex-col"
-                onClick={() => handleOptForCourse(course)}
-              >
-                {/* Visual Header Banner */}
-                <div className={`relative h-44 w-full bg-gradient-to-br ${course.color} overflow-hidden flex items-center justify-center p-6 text-white`}>
-                  <div className="absolute inset-0 bg-gradient-to-b from-slate-900/30 via-transparent to-slate-900/50 pointer-events-none" />
-                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/20 rounded-full blur-xl pointer-events-none" />
-                  
-                  {/* Floating Large Icon */}
-                  <span className="text-6xl drop-shadow-md group-hover:scale-110 transition-transform duration-500 z-10">
-                    {course.icon}
-                  </span>
-
-                  {/* Top Badges */}
-                  <div className="absolute top-3.5 left-4 right-4 flex justify-between items-center z-10">
-                    <span className="bg-white/95 backdrop-blur-md text-slate-800 text-[11px] font-black uppercase px-3 py-1 rounded-full shadow-sm">
-                      {course.gradeGroup}
-                    </span>
-                    <span className="bg-slate-900/70 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
-                      <Clock size={12} /> {course.estimatedWeeks} Weeks
-                    </span>
-                  </div>
-                </div>
-
-                {/* Card Content Body */}
-                <div className="p-6 bg-white flex-1 flex flex-col group-hover:bg-slate-50/50 transition-colors">
-                  
-                  {/* Category & Age Tags */}
-                  <div className="flex flex-wrap items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500 mb-2">
-                    <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-md font-extrabold uppercase tracking-wider">
-                      {course.category}
-                    </span>
-                    <span>•</span>
-                    <span>{course.ageBand}</span>
-                  </div>
-
-                  {/* Title & Tagline */}
-                  <h3 className="text-2xl font-black text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors leading-tight">
-                    {course.title}
-                  </h3>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed mb-4 line-clamp-2">
-                    {course.tagline}
-                  </p>
-
-                  {/* Learning Highlights */}
-                  <div className="space-y-1.5 mb-4 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs font-bold text-slate-700">
-                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                      Key Outcomes:
-                    </div>
-                    {course.learningOutcomes.slice(0, 2).map((item, i) => (
-                      <div key={i} className="flex items-start gap-1.5 text-xs font-bold text-slate-700 leading-tight">
-                        <Check size={13} className="text-emerald-500 mt-0.5 shrink-0" />
-                        <span className="line-clamp-1">{item}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Footer Action Strip */}
-                  <div className="flex items-center justify-between gap-2 mt-auto pt-4 border-t border-slate-100">
-                    <span className="text-xs font-black text-indigo-600 group-hover:text-indigo-800 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                      <span>View Syllabus</span>
-                      <ChevronRight size={14} />
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOptForCourse(course);
-                      }}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-xs rounded-xl shadow-sm transition-all cursor-pointer"
-                    >
-                      {isParent ? 'Enroll Child' : isStudent ? 'Request Course' : 'Opt for Course'}
-                    </button>
-                  </div>
-
-                </div>
-              </Card>
+                course={course}
+                price="₹499"
+                rating={4.8}
+                ctaText={isParent ? 'Enroll Child' : isStudent ? 'Request Course' : 'Enroll Now'}
+                onClick={handleOptForCourse}
+                onEnroll={handleOptForCourse}
+              />
             ))}
           </div>
         ) : (

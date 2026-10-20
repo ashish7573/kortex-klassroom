@@ -5,6 +5,7 @@ import { auth, db } from '../../backend_configurations/firebase';
 import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useStudentAssignments } from '../../hooks/useStudentAssignments';
 import { getStudentAcademicDetails, getChildProgressAndTotals, getStudentDailyActivity } from '../../app/actions/student';
+import { getSubjectProgressSummary } from '../../kortex_landing_page/curriculumConfig';
 import { Building, AlertCircle, Sparkles, TrendingUp, Clock, CheckCircle2, FileText, BarChart2, Lock, X, ClipboardList, CircleDashed, Award } from 'lucide-react';
 import ModalPortal from '../../components/ModalPortal';
 
@@ -168,38 +169,50 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   today.setHours(0, 0, 0, 0);
   const todayActivities = recentActivities.filter(a => a.lastPlayedAt >= today).slice(0, 5);
 
-  // Mocked subjects that the child played in the free tier
-  const b2cSubjects = [
-    { name: "Coding Fundamentals", comboId: "grade3_coding" },
-    { name: "Mathematics", comboId: "grade3_math" },
-    { name: "Language Arts", comboId: "grade3_english" }
-  ];
-
-  const independentPerformance: SubjectPerformance[] = b2cSubjects.map((sub) => {
-    const isLocked = !isPro && !b2cLicenses.includes(sub.comboId);
+  // Dynamically resolve real independent learning subjects
+  const realB2cSubjects = React.useMemo(() => {
+    const list: { name: string; comboId: string; subject: string }[] = [];
     
-    // Find real progress
-    const parts = sub.name.split('-');
-    const cGrade = parts.length > 0 ? parts[0].trim().toLowerCase() : 'unknown_grade';
-    const cSubj = parts[parts.length - 1].trim().toLowerCase();
-    const cKey = `${cGrade}_${cSubj}`;
-    
-    const subjProgress = progressData.find(p => {
-        if (!p.id) return false;
-        return p.id.toLowerCase() === cKey || p.id.toLowerCase() === cSubj;
+    // Add purchased courses
+    b2cLicenses.forEach((comboStr: string) => {
+      const parts = comboStr.split('-');
+      const subj = parts.length > 1 ? parts[parts.length - 1].trim() : comboStr;
+      list.push({
+        name: comboStr,
+        comboId: comboStr,
+        subject: subj
+      });
     });
-    
-    let childScore = 0;
-    const completedCount = subjProgress && subjProgress.completed_tools ? Object.keys(subjProgress.completed_tools).length : 0;
-    const totalTools = subjectTotals[cKey] || 0;
-    if (totalTools > 0) {
-       childScore = Math.min(100, Math.round((completedCount / totalTools) * 100));
-    }
+
+    // Add foundational & core tracks if not already present
+    const defaultTracks = [
+      { name: `${child.grade || 'All Grades'} - Hindi`, comboId: 'hindi', subject: 'Hindi' },
+      { name: `${child.grade || 'All Grades'} - Maths`, comboId: 'maths', subject: 'Maths' },
+      { name: `${child.grade || 'All Grades'} - English`, comboId: 'english', subject: 'English' },
+    ];
+
+    defaultTracks.forEach(track => {
+      if (!list.some(item => item.subject.toLowerCase() === track.subject.toLowerCase())) {
+        list.push(track);
+      }
+    });
+
+    return list;
+  }, [b2cLicenses, child.grade]);
+
+  const independentPerformance: SubjectPerformance[] = realB2cSubjects.map((sub) => {
+    const isLocked = !isPro && b2cLicenses.length > 0 && !b2cLicenses.includes(sub.comboId);
+    const { progressPct } = getSubjectProgressSummary(
+      progressData,
+      subjectTotals,
+      child.grade || 'All Grades',
+      sub.subject
+    );
 
     return {
-      subjectName: parts[parts.length - 1].trim(),
+      subjectName: sub.subject,
       comboLabel: sub.name,
-      childScore: childScore,
+      childScore: progressPct,
       classAvg: 0,
       baseline: 60,
       isLocked
@@ -306,24 +319,17 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
         
 
         const realPerformance: SubjectPerformance[] = subjects.map((sub) => {
-          // Find real progress
-          const cKey = `${orgData.grade}_${sub.subjectName}`.toLowerCase();
-          const subjProgress = progressData.find(p => {
-             if (!p.id) return false;
-             return p.id.toLowerCase() === cKey || p.id.toLowerCase() === sub.subjectName.toLowerCase();
-          });
-          
-          let childScore = 0;
-          const completedCount = subjProgress && subjProgress.completed_tools ? Object.keys(subjProgress.completed_tools).length : 0;
-          const totalTools = subjectTotals[cKey] || 0;
-          if (totalTools > 0) {
-             childScore = Math.min(100, Math.round((completedCount / totalTools) * 100));
-          }
+          const { progressPct } = getSubjectProgressSummary(
+            progressData,
+            subjectTotals,
+            orgData.grade,
+            sub.subjectName
+          );
 
           return {
             subjectName: sub.subjectName,
             comboLabel: sub.comboString,
-            childScore: childScore,
+            childScore: progressPct,
             classAvg: 0,
             baseline: 60,
             isLocked: false

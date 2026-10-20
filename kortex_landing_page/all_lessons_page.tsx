@@ -125,6 +125,11 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
     return SUBJECTS;
   }, [studentEnrollments]);
 
+  const displayedSubjects = React.useMemo(() => {
+    if (!selectedCategory) return availableSubjects;
+    return availableSubjects.filter(s => getCategoryName(s).toLowerCase() === selectedCategory.toLowerCase());
+  }, [selectedCategory, availableSubjects]);
+
   // Reset pagination window when filters or search change
   useEffect(() => {
     setVisibleCount(20);
@@ -174,7 +179,11 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
            flatTools = flatTools.filter((t: any) => {
                const s = (t.subject || '').trim().toLowerCase();
                const queryS = selectedSubject.toLowerCase();
-               return s === queryS || (queryS === 'maths' && s === 'mathematics') || (queryS === 'mathematics' && s === 'maths');
+               const isMathMatch = (queryS === 'maths' && (s === 'mathematics' || s === 'fln maths')) ||
+                                   (queryS === 'mathematics' && (s === 'maths' || s === 'fln maths'));
+               const isHindiMatch = queryS === 'hindi' && (s === 'hindi' || s === 'fln hindi');
+               const isEnglishMatch = queryS === 'english' && (s === 'english' || s === 'fln english');
+               return s === queryS || isMathMatch || isHindiMatch || isEnglishMatch;
            });
         }
         
@@ -289,7 +298,12 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
     let matchSubject = true;
     const dbSubj = lesson.subject?.toLowerCase().trim() === 'mathematics' ? 'maths' : lesson.subject?.toLowerCase().trim();
     if (selectedSubject) {
-      matchSubject = dbSubj === selectedSubject.toLowerCase().trim();
+      const queryS = selectedSubject.toLowerCase().trim();
+      matchSubject = dbSubj === queryS ||
+                     (queryS === 'hindi' && (dbSubj === 'hindi' || dbSubj === 'fln hindi')) ||
+                     (queryS === 'english' && (dbSubj === 'english' || dbSubj === 'fln english')) ||
+                     (queryS === 'maths' && (dbSubj === 'maths' || dbSubj === 'mathematics' || dbSubj === 'fln maths')) ||
+                     (queryS === 'mathematics' && (dbSubj === 'maths' || dbSubj === 'mathematics' || dbSubj === 'fln maths'));
     } else if (studentEnrollments && studentEnrollments.subjects.length > 0) {
       matchSubject = studentEnrollments.subjects.some(ss => {
         const ssLower = ss.toLowerCase().trim();
@@ -352,7 +366,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
           <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                 <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-                <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedCategory} onChange={(e: any) => setSelectedCategory(e.target.value)}>
+                <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedCategory} onChange={(e: any) => { setSelectedCategory(e.target.value); setSelectedSubject(""); }}>
                   <option value="">All Types</option>
                   <option value="Core">Core</option>
                   <option value="Foundational">Foundational</option>
@@ -362,7 +376,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
                   <option value="">{studentEnrollments ? 'My Enrolled Grades' : 'All Grades'}</option>{availableGrades.map((g: any) => <option key={g} value={g}>{g}</option>)}
                 </select>
                 <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
-                  <option value="">{studentEnrollments ? 'My Enrolled Subjects' : 'All Subjects'}</option>{availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
+                  <option value="">{studentEnrollments ? 'My Enrolled Subjects' : 'All Subjects'}</option>{displayedSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
                 </select>
              </div>
              <div className="relative w-full md:flex-1 flex gap-2">
