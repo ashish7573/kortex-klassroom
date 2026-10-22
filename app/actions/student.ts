@@ -405,8 +405,9 @@ export async function provisionChildAccount(
   idToken: string,
   childData: {
     fullName: string;
-    grade: string;
+    grade?: string;
     pin: string;
+    selectedCourses?: string[];
   }
 ) {
   try {
@@ -422,15 +423,10 @@ export async function provisionChildAccount(
     const parentEmail = parentDoc.data()?.email || "";
     const parentContact = parentDoc.data()?.phone || parentDoc.data()?.contact_number || "";
     
-    const isParentPro = Boolean(parentDoc.data()?.is_pro);
     const existingChildrenCount = (parentDoc.data()?.children_ids || []).length;
-    const maxAllowedChildren = isParentPro ? 3 : 1;
+    const maxAllowedChildren = 3;
     if (existingChildrenCount >= maxAllowedChildren) {
-      throw new Error(
-        isParentPro
-          ? "Pro accounts can create up to 3 child accounts."
-          : "Free accounts can create 1 child account. Please upgrade to Pro to add up to 3 children."
-      );
+      throw new Error("You have reached the maximum limit of 3 children profiles.");
     }
 
     const studentId = await generateGlobalStudentId();
@@ -444,7 +440,10 @@ export async function provisionChildAccount(
     
     const studentUid = userRecord.uid;
 
-    const parentProTier = parentDoc.data()?.pro_tier || 'pro';
+    // Resolve initial active courses
+    const initialLicenses = Array.isArray(childData.selectedCourses) && childData.selectedCourses.length > 0
+      ? childData.selectedCourses
+      : ['FLN Hindi'];
 
     const newStudent: StudentProfile = {
       uid: studentUid,
@@ -453,7 +452,7 @@ export async function provisionChildAccount(
       username: studentId, 
       plain_pin: childData.pin,
       role: 'student',
-      grade: childData.grade,
+      grade: childData.grade || 'Foundational',
       parent_id: parentUid,
       parent_name: parentName,
       parent_email: parentEmail,
@@ -461,10 +460,10 @@ export async function provisionChildAccount(
       org_ids: [],
       org_links: {},
       teacher_ids: [],
-      active_b2c_licenses: [],
-      is_pro: isParentPro,
-      pro_tier: isParentPro ? parentProTier : null,
-      hearts_remaining: isParentPro ? 999 : 5,
+      active_b2c_licenses: initialLicenses,
+      is_pro: false,
+      pro_tier: null,
+      hearts_remaining: 5,
       last_heart_reset: new Date().toISOString(),
       status: 'active',
       accountStatus: 'ACTIVE',
@@ -519,15 +518,10 @@ export async function claimProvisionedChild(
     const parentEmail = parentDoc.data()?.email || "";
     const parentContact = parentDoc.data()?.phone || parentDoc.data()?.contact_number || "";
     
-    const isParentPro = Boolean(parentDoc.data()?.is_pro);
     const existingChildrenCount = (parentDoc.data()?.children_ids || []).length;
-    const maxAllowedChildren = isParentPro ? 3 : 1;
+    const maxAllowedChildren = 3;
     if (existingChildrenCount >= maxAllowedChildren) {
-      throw new Error(
-        isParentPro
-          ? "Pro accounts can create up to 3 child accounts."
-          : "Free accounts can create 1 child account. Please upgrade to Pro to add up to 3 children."
-      );
+      throw new Error("You have reached the maximum limit of 3 children profiles.");
     }
 
     const cleanKortexId = claimData.kortexId.toUpperCase().trim();
@@ -583,9 +577,9 @@ export async function claimProvisionedChild(
       plain_pin: claimData.pin,
       status: 'active',
       accountStatus: 'ACTIVE',
-      is_pro: isParentPro,
-      pro_tier: isParentPro ? parentProTier : null,
-      hearts_remaining: isParentPro ? 999 : (studentDoc.data().hearts_remaining ?? 5),
+      is_pro: false,
+      pro_tier: null,
+      hearts_remaining: studentDoc.data().hearts_remaining ?? 5,
       deletedBy: null,
       deletedAt: null,
       updated_at: new Date().toISOString()
@@ -606,6 +600,107 @@ export async function claimProvisionedChild(
     };
   } catch (error: unknown) {
     console.error("Error claiming child:", error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function parentEnrollChildInCourse(
+  idToken: string,
+  childUid: string,
+  courseId: string
+) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const parentUid = decodedToken.uid;
+
+    const parentDoc = await adminDb.collection('users').doc(parentUid).get();
+    const parentData = parentDoc.data() || {};
+    const parentRoles: string[] = parentData.roles || (parentData.role ? [parentData.role] : []);
+
+    if (!parentDoc.exists || !parentRoles.includes('parent')) {
+      throw new Error("Unauthorized: Only parents can manage course enrollments.");
+    }
+
+    const studentRef = adminDb.collection('users').doc(childUid);
+    const studentDoc = await studentRef.get();
+    if (!studentDoc.exists) {
+      throw new Error("Child account not found.");
+    }
+
+    const studentData = studentDoc.data() || {};
+    const isOwner = studentData.parent_id === parentUid || (parentData.children_ids || []).includes(childUid);
+    if (!isOwner) {
+      throw new Error("Unauthorized: Child does not belong to this parent account.");
+    }
+
+    const currentLicenses: string[] = Array.isArray(studentData.active_b2c_licenses) && studentData.active_b2c_licenses.length > 0
+      ? [...studentData.active_b2c_licenses]
+      : ['FLN Hindi', 'FLN Maths'];
+
+    if (!currentLicenses.includes(courseId)) {
+      currentLicenses.push(courseId);
+      await studentRef.update({
+        active_b2c_licenses: currentLicenses,
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    return {
+      success: true,
+      active_b2c_licenses: currentLicenses
+    };
+  } catch (error: unknown) {
+    console.error("Error enrolling child in course:", error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function parentUnenrollChildCourse(
+  idToken: string,
+  childUid: string,
+  courseId: string
+) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const parentUid = decodedToken.uid;
+
+    const parentDoc = await adminDb.collection('users').doc(parentUid).get();
+    const parentData = parentDoc.data() || {};
+    const parentRoles: string[] = parentData.roles || (parentData.role ? [parentData.role] : []);
+
+    if (!parentDoc.exists || !parentRoles.includes('parent')) {
+      throw new Error("Unauthorized: Only parents can manage course enrollments.");
+    }
+
+    const studentRef = adminDb.collection('users').doc(childUid);
+    const studentDoc = await studentRef.get();
+    if (!studentDoc.exists) {
+      throw new Error("Child account not found.");
+    }
+
+    const studentData = studentDoc.data() || {};
+    const isOwner = studentData.parent_id === parentUid || (parentData.children_ids || []).includes(childUid);
+    if (!isOwner) {
+      throw new Error("Unauthorized: Child does not belong to this parent account.");
+    }
+
+    const baseLicenses: string[] = Array.isArray(studentData.active_b2c_licenses) && studentData.active_b2c_licenses.length > 0
+      ? studentData.active_b2c_licenses
+      : ['FLN Hindi', 'FLN Maths'];
+
+    const updatedLicenses: string[] = baseLicenses.filter((c: string) => c !== courseId);
+
+    await studentRef.update({
+      active_b2c_licenses: updatedLicenses,
+      updated_at: new Date().toISOString()
+    });
+
+    return {
+      success: true,
+      active_b2c_licenses: updatedLicenses
+    };
+  } catch (error: unknown) {
+    console.error("Error unenrolling child from course:", error);
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
@@ -891,11 +986,24 @@ export async function checkAndResetDailyHearts(idToken: string, studentUid: stri
     const doc = await studentRef.get();
     if (!doc.exists) throw new Error("Student not found");
     const data = doc.data();
+    const now = new Date();
 
-    if (!data?.last_heart_reset) return { success: true }; // Legacy data handling
+    // 🔒 RESILIENT LEGACY HANDLER: If hearts_remaining or last_heart_reset is missing/corrupted, self-heal to 5
+    if (
+      !data?.last_heart_reset || 
+      isNaN(new Date(data.last_heart_reset).getTime()) || 
+      data?.hearts_remaining === undefined || 
+      data?.hearts_remaining === null
+    ) {
+      await studentRef.update({
+        hearts_remaining: 5,
+        last_heart_reset: now.toISOString(),
+        updated_at: now.toISOString()
+      });
+      return { success: true, hearts: 5, reset: true };
+    }
 
     const lastReset = new Date(data.last_heart_reset);
-    const now = new Date();
     
     // Check if 24 hours have passed or if it's a new calendar day
     const isNewDay = 
@@ -934,13 +1042,19 @@ export async function consumeHeart(idToken: string, studentUid: string) {
       const doc = await t.get(studentRef);
       if (!doc.exists) throw new Error("Student not found");
       
-      const currentHearts = doc.data()?.hearts_remaining || 0;
+      const docData = doc.data() || {};
+      let currentHearts = docData.hearts_remaining;
+      if (currentHearts === undefined || currentHearts === null) {
+        currentHearts = 5;
+      }
+
       if (currentHearts <= 0) {
         throw new Error("OUT_OF_ENERGY");
       }
       
       t.update(studentRef, {
         hearts_remaining: currentHearts - 1,
+        last_heart_reset: docData.last_heart_reset || new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
     });
@@ -1702,8 +1816,9 @@ export async function getChildProgressAndTotals(idToken: string, childUid: strin
     const progressSnap = await adminDb.collection('users').doc(childUid).collection('progress').get();
     const progressData = progressSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     
-    const totalsDoc = await adminDb.collection('metadata').doc('curriculum_totals').get();
-    const totals = totalsDoc.exists ? totalsDoc.data() : {};
+    // Auto-compute curriculum totals if document is missing or empty
+    const totalsRes = await getCurriculumTotals();
+    const totals = totalsRes.success ? totalsRes.totals : {};
     
     return {
       success: true,
@@ -1838,10 +1953,34 @@ export async function grantHeart(idToken: string, studentUid: string) {
 
 export async function getCurriculumTotals() {
   try {
-    const totalsDoc = await adminDb.collection('metadata').doc('curriculum_totals').get();
+    const totalsRef = adminDb.collection('metadata').doc('curriculum_totals');
+    const totalsDoc = await totalsRef.get();
+    let totals: Record<string, number> = totalsDoc.exists ? (totalsDoc.data() as Record<string, number>) : {};
+
+    // 🔒 Auto-compute and persist if metadata/curriculum_totals is missing or empty
+    if (!totalsDoc.exists || Object.keys(totals).length === 0) {
+      const snap = await adminDb.collection('learning_tools').get();
+      if (!snap.empty) {
+        snap.docs.forEach(doc => {
+          const tool = doc.data();
+          const grade = (tool.grade || 'unknown').trim().toLowerCase();
+          let dbSubj = (tool.subject || 'unknown').trim().toLowerCase();
+          if (dbSubj === 'mathematics' || dbSubj === 'maths') dbSubj = 'maths';
+          const key = `${grade}_${dbSubj}`;
+          totals[key] = (totals[key] || 0) + 1;
+
+          totals[dbSubj] = (totals[dbSubj] || 0) + 1;
+          if (dbSubj === 'fln hindi') totals['hindi'] = (totals['hindi'] || 0) + 1;
+          if (dbSubj === 'fln maths') totals['maths'] = (totals['maths'] || 0) + 1;
+          if (dbSubj === 'fln english') totals['english'] = (totals['english'] || 0) + 1;
+        });
+        await totalsRef.set(totals, { merge: true });
+      }
+    }
+
     return { 
       success: true, 
-      totals: totalsDoc.exists ? (totalsDoc.data() as Record<string, number>) : {} 
+      totals 
     };
   } catch (error: any) {
     console.error("Error fetching curriculum totals:", error);
@@ -2171,5 +2310,320 @@ export async function getStudentDailyActivity(idToken: string, studentUid: strin
     return { success: false, error: error.message };
   }
 }
+
+// =========================================================================
+// 🔒 LEGACY COMPATIBILITY & SELF-HEALING MIGRATION ENGINE
+// =========================================================================
+
+/**
+ * Automatically repairs and backfills legacy parent accounts and their linked children.
+ * Ensures bidirectional parent_id <-> children_ids linkage, foundational B2C course licenses,
+ * freemium stamina (hearts), and normalized grades without overwriting any existing progress.
+ */
+export async function syncAndMigrateParentAccount(idToken: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const parentUid = decodedToken.uid;
+
+    const parentRef = adminDb.collection('users').doc(parentUid);
+    const parentDoc = await parentRef.get();
+    if (!parentDoc.exists) {
+      return { success: false, error: "Parent not found" };
+    }
+
+    const parentData = parentDoc.data() || {};
+    const parentRoles: string[] = parentData.roles || (parentData.role ? [parentData.role] : []);
+    if (!parentRoles.includes('parent')) {
+      return { success: false, error: "Caller is not a parent" };
+    }
+
+    const existingChildrenIds: string[] = Array.isArray(parentData.children_ids) ? parentData.children_ids : [];
+    
+    // 1. Find all children where parent_id == parentUid
+    const childrenByParentIdSnap = await adminDb.collection('users')
+      .where('role', '==', 'student')
+      .where('parent_id', '==', parentUid)
+      .get();
+
+    const childrenMap = new Map<string, FirebaseFirestore.DocumentSnapshot>();
+    childrenByParentIdSnap.docs.forEach(doc => {
+      childrenMap.set(doc.id, doc);
+    });
+
+    // 2. Also fetch any children listed in parent's children_ids array whose parent_id was 'PENDING' or missing
+    if (existingChildrenIds.length > 0) {
+      const missingFromQuery = existingChildrenIds.filter(id => !childrenMap.has(id));
+      if (missingFromQuery.length > 0) {
+        const extraDocs = await Promise.all(
+          missingFromQuery.map(id => adminDb.collection('users').doc(id).get())
+        );
+        extraDocs.forEach(doc => {
+          if (doc.exists && doc.data()?.role === 'student') {
+            childrenMap.set(doc.id, doc);
+          }
+        });
+      }
+    }
+
+    const reconciledChildrenIds = Array.from(childrenMap.keys());
+    const batch = adminDb.batch();
+    let hasParentUpdates = false;
+    const parentUpdatePayload: Record<string, any> = {};
+
+    // Reconcile parent's children_ids array
+    const childrenIdsChanged = 
+      existingChildrenIds.length !== reconciledChildrenIds.length ||
+      reconciledChildrenIds.some(id => !existingChildrenIds.includes(id));
+
+    if (childrenIdsChanged || !Array.isArray(parentData.children_ids)) {
+      parentUpdatePayload.children_ids = reconciledChildrenIds;
+      parentUpdatePayload.updated_at = new Date().toISOString();
+      hasParentUpdates = true;
+    }
+
+    if (hasParentUpdates) {
+      batch.update(parentRef, parentUpdatePayload);
+    }
+
+    let childrenUpdatedCount = 0;
+    const nowIso = new Date().toISOString();
+
+    for (const [childUid, childDoc] of childrenMap.entries()) {
+      const data = childDoc.data() || {};
+      const childUpdates: Record<string, any> = {};
+
+      // Ensure parent_id is set to parentUid
+      if (data.parent_id !== parentUid) {
+        childUpdates.parent_id = parentUid;
+      }
+      if (!data.parent_name && parentData.full_name) {
+        childUpdates.parent_name = parentData.full_name;
+      }
+
+      // Ensure active_b2c_licenses contains at least foundational courses
+      const licenses: string[] = Array.isArray(data.active_b2c_licenses) ? data.active_b2c_licenses : [];
+      if (licenses.length === 0) {
+        childUpdates.active_b2c_licenses = ['FLN Hindi', 'FLN Maths'];
+      }
+
+      // Ensure hearts_remaining and last_heart_reset
+      if (data.hearts_remaining === undefined || data.hearts_remaining === null) {
+        childUpdates.hearts_remaining = 5;
+      }
+      if (!data.last_heart_reset || isNaN(new Date(data.last_heart_reset).getTime())) {
+        childUpdates.last_heart_reset = nowIso;
+      }
+
+      // Ensure grade is present
+      if (!data.grade || data.grade.trim() === '') {
+        childUpdates.grade = 'Foundational';
+      }
+
+      // Ensure account status is active
+      if (!data.status || data.status === 'pending') {
+        childUpdates.status = 'active';
+      }
+      if (!data.accountStatus || data.accountStatus === 'DELETED') {
+        childUpdates.accountStatus = 'ACTIVE';
+      }
+
+      if (Object.keys(childUpdates).length > 0) {
+        childUpdates.updated_at = nowIso;
+        batch.update(childDoc.ref, childUpdates);
+        childrenUpdatedCount++;
+      }
+    }
+
+    if (hasParentUpdates || childrenUpdatedCount > 0) {
+      await batch.commit();
+    }
+
+    return {
+      success: true,
+      reconciledChildrenCount: reconciledChildrenIds.length,
+      childrenUpdatedCount,
+      hasParentUpdates
+    };
+  } catch (error: any) {
+    console.error("Error syncing legacy parent account:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Self-healing migration for student logins.
+ * Ensures student has foundational B2C courses, valid hearts, and normalized grade.
+ */
+export async function syncAndMigrateStudentAccount(idToken: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const studentUid = decodedToken.uid;
+
+    const studentRef = adminDb.collection('users').doc(studentUid);
+    const studentDoc = await studentRef.get();
+    if (!studentDoc.exists) {
+      return { success: false, error: "Student not found" };
+    }
+
+    const data = studentDoc.data() || {};
+    if (data.role !== 'student') {
+      return { success: false, error: "Caller is not a student" };
+    }
+
+    const updates: Record<string, any> = {};
+    const nowIso = new Date().toISOString();
+
+    // 1. Ensure active_b2c_licenses has at least foundational courses
+    const licenses: string[] = Array.isArray(data.active_b2c_licenses) ? data.active_b2c_licenses : [];
+    if (licenses.length === 0) {
+      updates.active_b2c_licenses = ['FLN Hindi', 'FLN Maths'];
+    }
+
+    // 2. Ensure hearts_remaining and last_heart_reset
+    if (data.hearts_remaining === undefined || data.hearts_remaining === null) {
+      updates.hearts_remaining = 5;
+    }
+    if (!data.last_heart_reset || isNaN(new Date(data.last_heart_reset).getTime())) {
+      updates.last_heart_reset = nowIso;
+    }
+
+    // 3. Ensure grade
+    if (!data.grade || data.grade.trim() === '') {
+      updates.grade = 'Foundational';
+    }
+
+    // 4. Legacy progress migration: if root doc has completed_tools, migrate to progress subcollection
+    if (data.completed_tools && typeof data.completed_tools === 'object' && Object.keys(data.completed_tools).length > 0) {
+      const generalProgressRef = studentRef.collection('progress').doc('general');
+      const genDoc = await generalProgressRef.get();
+      const existing = genDoc.exists ? (genDoc.data()?.completed_tools || {}) : {};
+      await generalProgressRef.set({
+        subject_id: 'general',
+        completed_tools: { ...existing, ...data.completed_tools },
+        last_played_at: nowIso,
+        updated_at: nowIso
+      }, { merge: true });
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updates.updated_at = nowIso;
+      await studentRef.update(updates);
+      return { success: true, updated: true };
+    }
+
+    return { success: true, updated: false };
+  } catch (error: any) {
+    console.error("Error syncing legacy student account:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Admin bulk migration tool.
+ * Scans all students and parents in Firestore to backfill missing fields in safe batches.
+ */
+export async function adminBulkMigrateLegacyUsers(idToken: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const callerUid = decodedToken.uid;
+    const callerDoc = await adminDb.collection('users').doc(callerUid).get();
+    const callerRoles: string[] = callerDoc.data()?.roles || (callerDoc.data()?.role ? [callerDoc.data()?.role] : []);
+    
+    if (!callerRoles.includes('admin') && !callerRoles.includes('krew')) {
+      throw new Error("Unauthorized: Only administrators can trigger bulk migration.");
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // 1. Migrate Students
+    const studentsSnap = await adminDb.collection('users').where('role', '==', 'student').get();
+    const studentsChecked = studentsSnap.size;
+    let studentsUpdated = 0;
+
+    let batch = adminDb.batch();
+    let batchCount = 0;
+
+    for (const doc of studentsSnap.docs) {
+      const data = doc.data() || {};
+      const updates: Record<string, any> = {};
+
+      const licenses: string[] = Array.isArray(data.active_b2c_licenses) ? data.active_b2c_licenses : [];
+      if (licenses.length === 0) {
+        updates.active_b2c_licenses = ['FLN Hindi', 'FLN Maths'];
+      }
+      if (data.hearts_remaining === undefined || data.hearts_remaining === null) {
+        updates.hearts_remaining = 5;
+      }
+      if (!data.last_heart_reset || isNaN(new Date(data.last_heart_reset).getTime())) {
+        updates.last_heart_reset = nowIso;
+      }
+      if (!data.grade || data.grade.trim() === '') {
+        updates.grade = 'Foundational';
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updates.updated_at = nowIso;
+        batch.update(doc.ref, updates);
+        studentsUpdated++;
+        batchCount++;
+
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = adminDb.batch();
+          batchCount = 0;
+        }
+      }
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
+      batch = adminDb.batch();
+      batchCount = 0;
+    }
+
+    // 2. Migrate Parents
+    const parentsSnap = await adminDb.collection('users').where('role', '==', 'parent').get();
+    const parentsChecked = parentsSnap.size;
+    let parentsUpdated = 0;
+
+    for (const doc of parentsSnap.docs) {
+      const data = doc.data() || {};
+      const updates: Record<string, any> = {};
+
+      if (!Array.isArray(data.children_ids)) {
+        updates.children_ids = [];
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updates.updated_at = nowIso;
+        batch.update(doc.ref, updates);
+        parentsUpdated++;
+        batchCount++;
+
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = adminDb.batch();
+          batchCount = 0;
+        }
+      }
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+
+    return {
+      success: true,
+      studentsChecked,
+      studentsUpdated,
+      parentsChecked,
+      parentsUpdated
+    };
+  } catch (error: any) {
+    console.error("Error running admin bulk migration:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 
 

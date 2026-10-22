@@ -7,14 +7,23 @@ import { ParentProfile, StudentProfile } from '../../types/user';
 import { 
   Users, Plus, ShieldCheck, Heart, Building, CheckCircle2, 
   AlertCircle, UserPlus, RefreshCw, User, Rocket, ArrowRight, ArrowUpRight, X, Check, Bell,
-  Mail, Phone, Info, Lock, Sparkles
+  Mail, Phone, Info, Lock, Sparkles, BookOpen
 } from 'lucide-react';
 import ChildAcademicView from './ChildAcademicView';
 import AddChildModal from './AddChildModal';
 import RequireMobileModal from './RequireMobileModal';
-import { resolveTransferRequest, updateParentProfile, parentUnlinkChildFromOrg, parentDeleteChildAccount, registerCourseInterest } from '../../app/actions/student';
-import { KORTEX_COURSES, KortexCourse } from '../../kortex_landing_page/koursesData';
+import { 
+  resolveTransferRequest, updateParentProfile, parentUnlinkChildFromOrg, 
+  parentDeleteChildAccount, parentEnrollChildInCourse, parentUnenrollChildCourse,
+  getStudentDailyActivity, syncAndMigrateParentAccount
+} from '../../app/actions/student';
+import { 
+  KORTEX_CATALOG_COURSES, GRADE_CORE_MAP, CO_CURRICULAR_COURSES, 
+  CatalogCourse, FOUNDATIONAL_COURSES, isPaidCourse
+} from '../../kortex_landing_page/courseCatalogConfig';
+import { getPublicCourseCatalogOverrides } from '../../app/actions/admin';
 import { KortexCourseCard } from '../../kortex_landing_page/components/KortexCourseCard';
+import { SUBJECT_IMAGES } from '../../kortex_landing_page/curriculumConfig';
 import ModalPortal from '../../components/ModalPortal';
 
 interface ParentDashboardProps {
@@ -31,49 +40,124 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
   const [hasInitializedSelection, setHasInitializedSelection] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Kortex Kourses modal state
-  const [selectedCourseModal, setSelectedCourseModal] = useState<KortexCourse | null>(null);
+  // Kortex Kourses catalog & enrollment state
+  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, any>>({});
+  const [selectedCourseModal, setSelectedCourseModal] = useState<CatalogCourse | null>(null);
   const [modalTargetChildUid, setModalTargetChildUid] = useState<string>('');
-  const [isRegisteringCourse, setIsRegisteringCourse] = useState(false);
-  const [courseRegisteredMsg, setCourseRegisteredMsg] = useState<string | null>(null);
+  const [isEnrollingCourse, setIsEnrollingCourse] = useState(false);
+  const [enrollSuccessMsg, setEnrollSuccessMsg] = useState<string | null>(null);
+  const [catalogCategoryTab, setCatalogCategoryTab] = useState<'all' | 'Foundational' | 'Core' | 'Co-Curricular & Skills'>('all');
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false);
+  const [childTodayMinutes, setChildTodayMinutes] = useState<number>(0);
 
-  const handleOpenCourseModal = (course: KortexCourse) => {
+  useEffect(() => {
+    async function loadOverrides() {
+      try {
+        const overrides = await getPublicCourseCatalogOverrides();
+        setCatalogOverrides(overrides || {});
+      } catch (e) {
+        console.error("Failed to load catalog overrides:", e);
+      }
+    }
+    loadOverrides();
+  }, []);
+
+  const handleOpenCourseModal = (course: CatalogCourse, targetUid?: string) => {
     setSelectedCourseModal(course);
-    setCourseRegisteredMsg(null);
-    if (selectedChildId && selectedChildId !== 'profile') {
+    setEnrollSuccessMsg(null);
+    if (targetUid) {
+      setModalTargetChildUid(targetUid);
+    } else if (selectedChildId && selectedChildId !== 'profile') {
       setModalTargetChildUid(selectedChildId);
     } else if (children.length > 0) {
       setModalTargetChildUid(children[0].uid);
     }
   };
 
-  const handleConfirmCourseInterest = async () => {
-    if (!selectedCourseModal) return;
-    setIsRegisteringCourse(true);
+  const handleEnrollChild = async (course: CatalogCourse, targetUid?: string) => {
+    const targetChildUid = targetUid || modalTargetChildUid || (selectedChild ? selectedChild.uid : (children[0]?.uid));
+    if (!targetChildUid) {
+      alert("Please select a child to enroll.");
+      return;
+    }
+
+    setIsEnrollingCourse(true);
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("Please log in first");
       const idToken = await user.getIdToken();
-      const targetChild = children.find(c => c.uid === modalTargetChildUid);
+      const targetChild = children.find(c => c.uid === targetChildUid);
 
-      const res = await registerCourseInterest(idToken, {
-        programId: selectedCourseModal.id,
-        programTitle: selectedCourseModal.title,
-        targetChildUid: modalTargetChildUid,
-        targetChildName: targetChild?.full_name || 'Child'
-      });
-
+      const res = await parentEnrollChildInCourse(idToken, targetChildUid, course.title);
       if (res.success) {
-        setCourseRegisteredMsg(`🎉 Seat Reserved! Interest registered for ${targetChild?.full_name || 'your child'}. We will notify you when enrollment opens.`);
+        setChildren(prev => prev.map(c => {
+          if (c.uid === targetChildUid) {
+            return {
+              ...c,
+              active_b2c_licenses: res.active_b2c_licenses || [...(c.active_b2c_licenses || []), course.title]
+            };
+          }
+          return c;
+        }));
+        setEnrollSuccessMsg(`🎉 Successfully enrolled ${targetChild?.full_name || 'child'} in ${course.title}!`);
       } else {
-        alert("Failed to register interest: " + res.error);
+        alert("Failed to enroll: " + res.error);
       }
     } catch (e: any) {
-      alert(e.message || "Something went wrong");
+      alert(e.message || "Failed to enroll child.");
     } finally {
-      setIsRegisteringCourse(false);
+      setIsEnrollingCourse(false);
     }
   };
+
+  const handleUnenrollChild = async (courseTitle: string, targetUid: string) => {
+    const targetChild = children.find(c => c.uid === targetUid);
+    if (!confirm(`Are you sure you want to unenroll ${targetChild?.full_name || 'child'} from ${courseTitle}?`)) return;
+
+    setIsProcessing(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Please log in first");
+      const idToken = await user.getIdToken();
+
+      const res = await parentUnenrollChildCourse(idToken, targetUid, courseTitle);
+      if (res.success) {
+        setChildren(prev => prev.map(c => {
+          if (c.uid === targetUid) {
+            return {
+              ...c,
+              active_b2c_licenses: res.active_b2c_licenses || (c.active_b2c_licenses || []).filter(cTitle => cTitle !== courseTitle)
+            };
+          }
+          return c;
+        }));
+      } else {
+        alert("Failed to unenroll: " + res.error);
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to unenroll.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const catalogCoursesWithOverrides: CatalogCourse[] = React.useMemo(() => {
+    return KORTEX_CATALOG_COURSES.map(course => {
+      const override = catalogOverrides[course.id];
+      if (!override) return course;
+      return {
+        ...course,
+        status: override.status || course.status,
+        isFree: override.isFree !== undefined ? override.isFree : course.isFree,
+        price: override.price !== undefined ? override.price : course.price
+      };
+    });
+  }, [catalogOverrides]);
+
+  const displayedCatalogCourses = React.useMemo(() => {
+    if (catalogCategoryTab === 'all') return catalogCoursesWithOverrides;
+    return catalogCoursesWithOverrides.filter(c => c.masterCategory === catalogCategoryTab);
+  }, [catalogCategoryTab, catalogCoursesWithOverrides]);
 
   useEffect(() => {
     setProfile(initialProfile);
@@ -372,6 +456,58 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
 
   const selectedChild = children.find(c => c.uid === selectedChildId) || null;
 
+  // Active B2C course licenses with rock-solid baseline fallback for legacy accounts
+  const childActiveLicenses: string[] = React.useMemo(() => {
+    if (!selectedChild) return [];
+    return (selectedChild.active_b2c_licenses && selectedChild.active_b2c_licenses.length > 0)
+      ? selectedChild.active_b2c_licenses
+      : ['FLN Hindi', 'FLN Maths'];
+  }, [selectedChild]);
+
+  // Lazy Self-Healing Migration: Automatically upgrades legacy parent & children documents in background
+  useEffect(() => {
+    let isCancelled = false;
+    async function runSelfHealingMigration() {
+      try {
+        const user = auth.currentUser;
+        if (!user || !profile.uid) return;
+        const idToken = await user.getIdToken();
+        const res = await syncAndMigrateParentAccount(idToken);
+        if (!isCancelled && res.success && res.childrenUpdatedCount && res.childrenUpdatedCount > 0) {
+          console.log(`[Self-Healing] Successfully brought ${res.childrenUpdatedCount} legacy children profiles up to date.`);
+        }
+      } catch (err) {
+        console.warn("Self-healing legacy migration check:", err);
+      }
+    }
+    runSelfHealingMigration();
+    return () => { isCancelled = true; };
+  }, [profile.uid]);
+
+  useEffect(() => {
+    if (!selectedChild || selectedChildId === 'profile') {
+      setChildTodayMinutes(0);
+      return;
+    }
+    let isCancelled = false;
+    async function fetchVitals() {
+      try {
+        const user = auth.currentUser;
+        if (!user || !selectedChild) return;
+        const token = await user.getIdToken();
+        const res = await getStudentDailyActivity(token, selectedChild.uid, 7);
+        if (!isCancelled && res.success && res.history && res.history.length > 0) {
+          const today = res.history[res.history.length - 1];
+          setChildTodayMinutes(today?.active_minutes || 0);
+        }
+      } catch (e) {
+        if (!isCancelled) setChildTodayMinutes(0);
+      }
+    }
+    fetchVitals();
+    return () => { isCancelled = true; };
+  }, [selectedChild?.uid, selectedChildId]);
+
   const getDisplayGrade = (child: StudentProfile) => {
     if (child.org_ids && child.org_ids.length > 0 && child.org_links) {
       // Pick the first approved org link to show grade
@@ -569,6 +705,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
     }
   };
 
+
   const handleMobileSubmit = async (mobile: string) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Not authenticated");
@@ -620,6 +757,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
     }
   };
 
+
   const handleDeleteAccount = async (childUid: string, childName: string) => {
     if (!window.confirm(`Are you absolutely sure you want to delete ${childName}'s account? This action cannot be undone.`)) {
       return;
@@ -642,6 +780,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
     }
   };
 
+
   const pendingRequests: { child: StudentProfile, orgId: string, orgName: string, grade: string }[] = [];
   children.forEach(child => {
     if (child.org_links) {
@@ -659,7 +798,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 animate-fade-in relative">
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-fade-in relative">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b-2 border-slate-100 pb-6">
@@ -973,16 +1112,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                            Location Required • Fill below
                          </button>
                        )}
-                       {profile.is_pro && (
-                         <span className="px-3 py-1 bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-black uppercase flex items-center gap-1.5">
-                           PRO ACCOUNT
-                           {profile.subscription_end_date && (
-                             <span className="opacity-75 font-bold normal-case text-[10px]">
-                               (Renews: {new Date(profile.subscription_end_date).toLocaleDateString()})
-                             </span>
-                           )}
-                         </span>
-                       )}
+
                      </div>
                      <p className="text-sm font-semibold text-slate-500">Manage your contact details. Changes instantly sync to organizations.</p>
                    </div>
@@ -1325,16 +1455,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                            <ShieldCheck size={14} /> Independent Learner
                          </span>
                        )}
-                       {selectedChild.is_pro && (
-                         <span className="px-3 py-1 bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-black uppercase flex items-center gap-1.5">
-                           PRO ACCOUNT
-                           {selectedChild.subscription_end_date && (
-                             <span className="opacity-75 font-bold normal-case text-[10px]">
-                               (Renews: {new Date(selectedChild.subscription_end_date).toLocaleDateString()})
-                             </span>
-                           )}
-                         </span>
-                       )}
+
                      </div>
                    </div>
                 </div>
@@ -1404,18 +1525,160 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
               )}
 
 
-              <ChildAcademicView child={selectedChild} />
+              {/* CHILD VITALS BAR */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white rounded-3xl border-2 border-slate-100 p-5 shadow-xs flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center font-black text-xl shrink-0">
+                    ⏱️
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Today&apos;s Screen Time</div>
+                    <div className="text-xl font-black text-slate-800">{childTodayMinutes}m <span className="text-xs font-bold text-slate-400">(IST)</span></div>
+                  </div>
+                </div>
 
-              {/* SPECIALIZED PROGRAMS & KORTEX KOURSES CAROUSEL */}
-              <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 sm:p-7 shadow-xs space-y-4 mt-6">
+                <div className="bg-white rounded-3xl border-2 border-slate-100 p-5 shadow-xs flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-black text-xl shrink-0">
+                    💖
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Energy Status</div>
+                    <div className="text-xl font-black text-slate-800 flex items-center gap-1.5">
+                      {selectedChild.hearts_remaining ?? 5}/5
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase">
+                        Active
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl border-2 border-slate-100 p-5 shadow-xs flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xl shrink-0">
+                    📚
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Active Kourses</div>
+                    <div className="text-xl font-black text-slate-800">
+                      {childActiveLicenses.length} Enrolled
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ENROLLED KOURSES COMMAND CENTER */}
+              <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 sm:p-7 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                      <Rocket className="text-amber-500" size={22} />
-                      Specialized Programs & Kourses for {selectedChild.full_name}
+                      <BookOpen className="text-indigo-600" size={22} />
+                      Enrolled Kourses for {selectedChild.full_name}
                     </h3>
                     <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                      Cross-grade extracurriculars in Coding, Vedic Math, Space, and Logic. Select one to boost {selectedChild.full_name}&apos;s learning.
+                      Active enrolled courses. Click any course to view lessons and chapters.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById('explore-courses-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      else onExploreTier?.('kourses');
+                    }}
+                    className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-xl shadow-sm transition-all shrink-0 w-fit cursor-pointer active:scale-98"
+                  >
+                    <Plus size={16} />
+                    <span>Enroll in More Kourses</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 pt-1">
+                  {childActiveLicenses.map((courseTitle: string, idx: number) => {
+                    const isFLN = courseTitle.includes('FLN');
+                    const cleanSubj = courseTitle.split('-').pop()?.trim() || courseTitle;
+                    const lower = courseTitle.toLowerCase();
+                    const thumb = lower.includes('hindi')
+                      ? '/thumbnails/hindi-cover.webp'
+                      : lower.includes('math')
+                        ? '/thumbnails/maths-cover.webp'
+                        : (SUBJECT_IMAGES as any)[cleanSubj] || null;
+
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-slate-50 hover:bg-white border-2 border-slate-100 hover:border-indigo-200 rounded-2xl p-4 transition-all flex flex-col justify-between group shadow-2xs hover:shadow-sm"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              {thumb ? (
+                                <img
+                                  src={thumb}
+                                  alt={courseTitle}
+                                  className="w-7 h-7 rounded-lg object-cover border border-slate-200 shadow-2xs group-hover:scale-105 transition-transform"
+                                />
+                              ) : null}
+                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700">
+                                {isFLN ? 'Foundational' : 'Core Subject'}
+                              </span>
+                            </div>
+                            {isPaidCourse(courseTitle, catalogOverrides) ? (
+                              <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100 flex items-center gap-1">
+                                💖 Unlimited Stamina
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                Free Course
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 className="text-lg font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
+                            {courseTitle}
+                          </h4>
+                          <p className="text-xs font-bold text-slate-400 mt-0.5">
+                            {selectedChild.grade || 'All Grades'} • Interactive Learning
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-slate-200/60">
+                          <button
+                            type="button"
+                            onClick={() => onExploreTier?.(`lessons:${cleanSubj}`)}
+                            className="flex-1 py-2 px-3 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-indigo-600 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <span>Open Lessons</span>
+                            <ArrowRight size={13} />
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isProcessing}
+                            onClick={() => handleUnenrollChild(courseTitle, selectedChild.uid)}
+                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                            title="Unenroll from course"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <ChildAcademicView child={selectedChild} />
+
+              {/* EXPLORE KOURSES & SKILLS SECTION */}
+              <div id="explore-courses-section" className="bg-white rounded-3xl border-2 border-slate-100 p-6 sm:p-7 shadow-xs space-y-5 mt-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                      <Rocket className="text-indigo-600" size={22} />
+                      Explore Kourses &amp; Skills for {selectedChild.full_name}
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                      Foundational literacy, grade-wise core academic curricula, and co-curricular skills.
                     </p>
                   </div>
 
@@ -1424,24 +1687,46 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                     onClick={() => onExploreTier?.('kourses')}
                     className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit cursor-pointer"
                   >
-                    <span>Explore All Kourses</span>
+                    <span>Explore Full Catalog</span>
                     <ArrowRight size={14} />
                   </button>
                 </div>
 
-                <div className="flex gap-3.5 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scroll-smooth -mx-3 px-3 sm:mx-0 sm:px-0">
-                  {KORTEX_COURSES.map(course => (
-                    <KortexCourseCard
-                      key={course.id}
-                      course={course}
-                      size="compact"
-                      price="₹499"
-                      ctaText="Pre-Enroll"
-                      onClick={() => handleOpenCourseModal(course)}
-                      onEnroll={() => handleOpenCourseModal(course)}
-                      className="snap-start shrink-0 w-[245px] sm:w-[265px]"
-                    />
+                {/* Category Filter Tabs */}
+                <div className="flex flex-wrap gap-2 pt-1 border-b border-slate-100 pb-3">
+                  {(['all', 'Foundational', 'Core', 'Co-Curricular & Skills'] as const).map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCatalogCategoryTab(cat)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                        catalogCategoryTab === cat
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {cat === 'all' ? 'All Programs' : cat}
+                    </button>
                   ))}
+                </div>
+
+                {/* Courses Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 pt-1">
+                  {displayedCatalogCourses.slice(0, 9).map(course => {
+                    const isEnrolled = childActiveLicenses.includes(course.title);
+
+                    return (
+                      <KortexCourseCard
+                        key={course.id}
+                        course={course}
+                        isEnrolled={isEnrolled}
+                        price={isEnrolled ? 'Enrolled' : course.isFree ? 'Free' : course.status === 'active' ? `₹${course.price || 0}` : 'Coming Soon'}
+                        ctaText={isEnrolled ? 'View Course' : course.status === 'active' ? (course.isFree ? 'Details & Enroll' : 'Enroll Now') : 'Coming Soon'}
+                        onClick={() => handleOpenCourseModal(course)}
+                        onEnroll={() => handleOpenCourseModal(course)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
               
@@ -1518,7 +1803,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
         }}
       />
 
-      {/* KORTEX KOURSE PREVIEW & CHILD SELECTION MODAL */}
+      {/* KORTEX KOURSE PREVIEW & ENROLLMENT MODAL */}
       {selectedCourseModal && (
         <ModalPortal>
           <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
@@ -1535,15 +1820,17 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
               </button>
 
               <div className="flex items-center gap-3 mb-4 pr-6">
-                <span className="text-4xl">{selectedCourseModal.icon}</span>
+                <span className="text-4xl">{selectedCourseModal.icon || '📖'}</span>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${selectedCourseModal.badgeColor}`}>
-                      {selectedCourseModal.gradeGroup}
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700">
+                      {selectedCourseModal.masterCategory}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">
-                      {selectedCourseModal.ageBand}
-                    </span>
+                    {selectedCourseModal.grade && (
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        {selectedCourseModal.grade}
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-xl font-black text-slate-900 leading-snug">
                     {selectedCourseModal.title}
@@ -1551,31 +1838,39 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                 </div>
               </div>
 
+              {selectedCourseModal.tagline && (
+                <p className="text-xs font-bold text-indigo-600 mb-2">
+                  {selectedCourseModal.tagline}
+                </p>
+              )}
+
               <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed mb-4">
                 {selectedCourseModal.description}
               </p>
 
-              {/* Key Curriculum Highlights */}
-              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-4">
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                  Program Highlights & Outcomes
-                </h4>
-                <ul className="space-y-1.5">
-                  {selectedCourseModal.learningOutcomes.slice(0, 3).map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs font-bold text-slate-700">
-                      <Check size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* Learning Outcomes */}
+              {selectedCourseModal.learningOutcomes && selectedCourseModal.learningOutcomes.length > 0 && (
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-4">
+                  <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                    Key Outcomes &amp; Curriculum Highlights
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {selectedCourseModal.learningOutcomes.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                        <Check size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-              {/* Child Selector & Actions */}
-              {courseRegisteredMsg ? (
+              {/* Status & Enrollment Actions */}
+              {enrollSuccessMsg ? (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-2">
                   <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-black text-sm">
                     <CheckCircle2 size={18} className="text-emerald-600" />
-                    <span>{courseRegisteredMsg}</span>
+                    <span>{enrollSuccessMsg}</span>
                   </div>
                   <button
                     type="button"
@@ -1587,7 +1882,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {children.length > 0 ? (
+                  {children.length > 0 && (
                     <div>
                       <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
                         Select Child to Enroll:
@@ -1595,6 +1890,10 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {children.map(c => {
                           const isSelected = modalTargetChildUid === c.uid;
+                          const childLicenses = (c.active_b2c_licenses && c.active_b2c_licenses.length > 0)
+                            ? c.active_b2c_licenses
+                            : ['FLN Hindi', 'FLN Maths'];
+                          const childEnrolled = childLicenses.includes(selectedCourseModal.title);
                           return (
                             <div
                               key={c.uid}
@@ -1608,7 +1907,7 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                               <div>
                                 <div className="font-extrabold text-xs">{c.full_name}</div>
                                 <div className="text-[10px] font-bold text-slate-400 uppercase">
-                                  {c.grade || 'Foundational'}
+                                  {c.grade || 'Foundational'} {childEnrolled ? '• Enrolled' : ''}
                                 </div>
                               </div>
                               {isSelected && <CheckCircle2 size={16} className="text-indigo-600" />}
@@ -1617,41 +1916,66 @@ export default function ParentDashboard({ profile: initialProfile, onExploreTier
                         })}
                       </div>
                     </div>
-                  ) : (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800">
-                      Add a child account to your parent portal to enroll in this course.
-                    </div>
                   )}
 
-                  <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
-                    <button
-                      type="button"
-                      disabled={isRegisteringCourse || children.length === 0}
-                      onClick={handleConfirmCourseInterest}
-                      className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 text-white font-black text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      {isRegisteringCourse ? (
-                        <span>Reserving Seat...</span>
-                      ) : (
-                        <>
-                          <CheckCircle2 size={16} />
-                          <span>Reserve Seat for {children.find(c => c.uid === modalTargetChildUid)?.full_name || 'Child'}</span>
-                        </>
-                      )}
-                    </button>
+                  {(() => {
+                    const targetChild = children.find(c => c.uid === modalTargetChildUid) || selectedChild;
+                    const targetLicenses = targetChild ? (
+                      (targetChild.active_b2c_licenses && targetChild.active_b2c_licenses.length > 0)
+                        ? targetChild.active_b2c_licenses
+                        : ['FLN Hindi', 'FLN Maths']
+                    ) : [];
+                    const isAlreadyEnrolled = targetLicenses.includes(selectedCourseModal.title);
+                    const isLive = selectedCourseModal.status === 'active';
 
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCourseModal(null)}
-                      className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs sm:text-sm rounded-xl transition-all cursor-pointer"
-                    >
-                      Close
-                    </button>
-                  </div>
+                    if (isAlreadyEnrolled) {
+                      return (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-bold text-emerald-800">
+                          ✓ {targetChild?.full_name || 'Child'} is already enrolled in this course!
+                        </div>
+                      );
+                    }
 
-                  <p className="text-[11px] text-center text-slate-400 font-semibold">
-                    Pre-enrolling reserves priority seat allocation and early-bird notifications.
-                  </p>
+                    if (!isLive) {
+                      return (
+                        <div className="p-3 bg-slate-100 border border-slate-200 rounded-xl text-center text-xs font-bold text-slate-600">
+                          This course is coming soon. Enrollment will open once the curriculum is released!
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          disabled={isEnrollingCourse || children.length === 0}
+                          onClick={() => handleEnrollChild(selectedCourseModal, modalTargetChildUid)}
+                          className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 text-white font-black text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          {isEnrollingCourse ? (
+                            <span>Enrolling...</span>
+                          ) : (
+                            <>
+                              <CheckCircle2 size={16} />
+                              <span>
+                                {selectedCourseModal.isFree
+                                  ? `Enroll ${targetChild?.full_name || 'Child'} for Free`
+                                  : `Enroll in Course (₹${selectedCourseModal.price || 499})`}
+                              </span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCourseModal(null)}
+                          className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs sm:text-sm rounded-xl transition-all cursor-pointer"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

@@ -1,18 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Rocket, Search, Sparkles, CheckCircle2, X, ArrowRight,
   BookOpen, Star, Calendar, Users, Award, ShieldCheck,
-  Check, ChevronRight, Layers, Bell, ExternalLink, Clock
+  Check, ChevronRight, Layers, Bell, ExternalLink, Clock,
+  GraduationCap, Palette, Lightbulb, Compass, Filter
 } from 'lucide-react';
-import { KORTEX_COURSES, AGE_GROUPS, COURSE_CATEGORIES, KortexCourse } from './koursesData';
-import { auth, db } from '../backend_configurations/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { registerCourseInterest } from '../app/actions/student';
-import { StudentProfile } from '../types/user';
-import { Card } from './components/SharedUI';
+import { 
+  ALL_CATALOG_COURSES, 
+  FOUNDATIONAL_COURSES, 
+  CORE_COURSES, 
+  CO_CURRICULAR_COURSES,
+  ALL_GRADE_TABS,
+  ALL_AGE_BANDS,
+  CatalogCourse,
+  MasterCategory 
+} from './courseCatalogConfig';
 import { KortexCourseCard } from './components/KortexCourseCard';
+import { getPublicCourseCatalogOverrides } from '../app/actions/admin';
 import ModalPortal from '../components/ModalPortal';
 
 interface KortexKoursesPageProps {
@@ -21,6 +27,7 @@ interface KortexKoursesPageProps {
   onNavigateHome?: () => void;
   onNavigateToPortal?: () => void;
   onRequireAuth?: () => void;
+  onSelectCourse?: (course: CatalogCourse) => void;
 }
 
 export default function KortexKoursesPage({
@@ -28,506 +35,500 @@ export default function KortexKoursesPage({
   isLoggedIn,
   onNavigateHome,
   onNavigateToPortal,
-  onRequireAuth
+  onRequireAuth,
+  onSelectCourse
 }: KortexKoursesPageProps) {
-  const [selectedAgeBand, setSelectedAgeBand] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  // Master Category Filter ('all' | 'Foundational' | 'Core' | 'Co-Curricular & Skills')
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  // Core Academic Grade Tab (Balvatika 1..Grade 8)
+  const [selectedCoreGrade, setSelectedCoreGrade] = useState<string>('Grade 3');
+
+  // Co-Curricular Age Range Tab
+  const [selectedSkillAge, setSelectedSkillAge] = useState<string>('all');
+
+  // Search Query
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCourseForModal, setSelectedCourseForModal] = useState<KortexCourse | null>(null);
 
-  // Parent child selector state
-  const [parentChildren, setParentChildren] = useState<StudentProfile[]>([]);
-  const [selectedChildUid, setSelectedChildUid] = useState<string>('');
-  const [isSubmittingInterest, setIsSubmittingInterest] = useState(false);
-  const [interestSubmittedSuccess, setInterestSubmittedSuccess] = useState<string | null>(null);
+  // Course Overview Modal
+  const [modalCourse, setModalCourse] = useState<CatalogCourse | null>(null);
 
-  const isParent = authProfile?.role === 'parent';
-  const isStudent = authProfile?.role === 'student';
+  // Dynamic overrides from Firestore (synced from Admin changes)
+  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, any>>({});
 
-  // Load parent's children if user is a parent
+  // Fetch live overrides from Firestore on mount
   useEffect(() => {
-    async function fetchChildren() {
-      if (!isParent || !authProfile?.uid) return;
+    async function fetchOverrides() {
       try {
-        const q = query(
-          collection(db, 'users'),
-          where('role', '==', 'student'),
-          where('parent_id', '==', authProfile.uid)
-        );
-        const snap = await getDocs(q);
-        const list = snap.docs.map(d => ({ uid: d.id, ...d.data() } as StudentProfile));
-        setParentChildren(list);
-        if (list.length > 0) {
-          setSelectedChildUid(list[0].uid);
+        const res = await getPublicCourseCatalogOverrides();
+        if (res.success && res.overrides) {
+          setCatalogOverrides(res.overrides);
         }
-      } catch (err) {
-        console.error("Error fetching children for course selector:", err);
+      } catch (e) {
+        console.warn("Could not fetch course catalog overrides:", e);
       }
     }
-    fetchChildren();
-  }, [isParent, authProfile?.uid]);
+    fetchOverrides();
+  }, []);
 
-  // Filtered courses logic
-  const filteredCourses = KORTEX_COURSES.filter(course => {
-    const matchesAge = selectedAgeBand === 'all' || course.ageBand === selectedAgeBand || course.ageBand === 'All Ages';
-    const matchesCategory = selectedCategory === 'all' || course.category === selectedCategory;
-    const matchesSearch = searchQuery.trim() === '' || 
-      course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.tagline.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.learningOutcomes.some(o => o.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Hydrate catalog with real-time Firestore overrides
+  const hydratedCourses = useMemo(() => {
+    return ALL_CATALOG_COURSES.map(course => {
+      const override = catalogOverrides[course.id];
+      if (!override) return course;
+      return {
+        ...course,
+        status: override.status || course.status,
+        isFree: override.isFree !== undefined ? override.isFree : course.isFree,
+        price: override.price !== undefined ? override.price : (course.price || 0),
+        title: override.title || course.title,
+        tagline: override.tagline || course.tagline,
+        description: override.description || course.description
+      };
+    });
+  }, [catalogOverrides]);
 
-    return matchesAge && matchesCategory && matchesSearch;
-  });
-
-  const handleOptForCourse = (course: KortexCourse) => {
-    setSelectedCourseForModal(course);
-    setInterestSubmittedSuccess(null);
-  };
-
-  const handleConfirmInterest = async () => {
-    if (!isLoggedIn) {
-      if (onRequireAuth) onRequireAuth();
-      return;
-    }
-
-    if (!selectedCourseForModal) return;
-
-    setIsSubmittingInterest(true);
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("Please sign in first");
-      const idToken = await user.getIdToken();
-
-      const targetChild = parentChildren.find(c => c.uid === selectedChildUid);
-
-      const res = await registerCourseInterest(idToken, {
-        programId: selectedCourseForModal.id,
-        programTitle: selectedCourseForModal.title,
-        targetChildUid: isParent ? selectedChildUid : authProfile?.uid,
-        targetChildName: isParent ? targetChild?.full_name : authProfile?.full_name
-      });
-
-      if (res.success) {
-        const beneficiaryName = isParent 
-          ? (targetChild?.full_name || 'your child') 
-          : (authProfile?.full_name || 'you');
-        setInterestSubmittedSuccess(
-          `🎉 Seat Reserved! Interest registered for ${beneficiaryName}. We'll notify you as soon as enrollment opens!`
-        );
-      } else {
-        alert("Failed to submit interest: " + res.error);
+  // Handle course click
+  const handleCourseClick = (course: CatalogCourse) => {
+    if (course.status === 'active') {
+      if (onSelectCourse) {
+        onSelectCourse(course);
       }
-    } catch (err: any) {
-      alert(err.message || "Something went wrong.");
-    } finally {
-      setIsSubmittingInterest(false);
+    } else {
+      // Coming Soon course -> Open clean info modal
+      setModalCourse(course);
     }
   };
+
+  // Section 1: Foundational Courses
+  const foundationalCourses = useMemo(() => {
+    const list = hydratedCourses.filter(c => c.masterCategory === 'Foundational');
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase().trim();
+    return list.filter(c => 
+      c.title.toLowerCase().includes(q) || 
+      (c.tagline && c.tagline.toLowerCase().includes(q)) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    );
+  }, [hydratedCourses, searchQuery]);
+
+  // Section 2: Core Academic Courses (Filtered by Grade)
+  const coreCoursesForSelectedGrade = useMemo(() => {
+    const list = hydratedCourses.filter(c => c.masterCategory === 'Core' && c.grade === selectedCoreGrade);
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase().trim();
+    return list.filter(c => 
+      c.title.toLowerCase().includes(q) || 
+      (c.subject && c.subject.toLowerCase().includes(q)) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    );
+  }, [hydratedCourses, selectedCoreGrade, searchQuery]);
+
+  // Section 3: Co-Curricular & Skills Courses (Filtered by Age)
+  const coCurricularCoursesForSelectedAge = useMemo(() => {
+    let list = hydratedCourses.filter(c => c.masterCategory === 'Co-Curricular & Skills');
+    if (selectedSkillAge !== 'all') {
+      list = list.filter(c => c.ageBand === selectedSkillAge || c.ageBand === 'All Ages');
+    }
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase().trim();
+    return list.filter(c => 
+      c.title.toLowerCase().includes(q) || 
+      (c.subject && c.subject.toLowerCase().includes(q)) ||
+      (c.tagline && c.tagline.toLowerCase().includes(q)) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    );
+  }, [hydratedCourses, selectedSkillAge, searchQuery]);
 
   return (
-    <div className="space-y-12 animate-fade-in max-w-6xl mx-auto">
+    <div className="space-y-12 animate-fade-in max-w-7xl mx-auto px-4 sm:px-6 pb-16">
       
       {/* ---------------------------------------------------- */}
-      {/* 1. HERO HEADER CARD (Matches All Lessons style)       */}
+      {/* 1. HERO HEADER                                       */}
       {/* ---------------------------------------------------- */}
-      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-[3rem] p-10 md:p-16 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between border-t-8 border-indigo-500">
-        
-        {/* Glow Effects */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500 opacity-15 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500 opacity-15 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 pointer-events-none" />
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-[3rem] p-8 md:p-14 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between border-t-8 border-indigo-500">
+        {/* Glow Accents */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 text-center md:text-left mb-10 md:mb-0">
-          <div className="inline-flex items-center gap-2 bg-indigo-500/20 backdrop-blur-md px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-6 border border-indigo-500/30 shadow-sm text-indigo-400">
-            <Sparkles size={16} /> Specialized Enrichment Programs
+        <div className="relative z-10 text-center md:text-left mb-8 md:mb-0 max-w-2xl">
+          <div className="inline-flex items-center gap-2 bg-indigo-500/20 backdrop-blur-md px-4 py-1.5 rounded-full font-bold text-xs uppercase tracking-wider mb-4 border border-indigo-500/30 text-indigo-300">
+            <Sparkles size={14} className="text-amber-400" /> Complete Curriculum Catalog
           </div>
-          <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight drop-shadow-sm">
-            Specialized.<br />Future-Ready.<br /><span className="text-indigo-400">Kourses.</span>
+          <h1 className="text-3xl md:text-5xl font-black mb-3 leading-tight tracking-tight">
+            Kortex <span className="text-indigo-400">Kourses</span>
           </h1>
-          <p className="text-lg text-slate-300 font-medium max-w-xl drop-shadow-sm leading-relaxed mb-6">
-            Beyond traditional grade-level textbooks. Explore project-based enrichment pathways from Vedic mental math to robotics, coding, astronomy, and Olympiad problem-solving.
+          <p className="text-sm md:text-base text-slate-300 font-medium leading-relaxed mb-6">
+            From foundational Hindi and Math literacy to grade-aligned academic mastery and 21st-century enrichment. Explore interactive courses built for curiosity and retention.
           </p>
 
-          {/* Quick Stats Badges inside Hero */}
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-            <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 text-center">
-              <span className="text-xl font-black text-amber-300 mr-2">8+</span>
-              <span className="text-xs font-extrabold text-slate-300 uppercase">Programs</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 text-center">
-              <span className="text-xl font-black text-emerald-300 mr-2">100%</span>
-              <span className="text-xs font-extrabold text-slate-300 uppercase">Project-Based</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 text-center">
-              <span className="text-xl font-black text-sky-300 mr-2">K - 8</span>
-              <span className="text-xs font-extrabold text-slate-300 uppercase">All Age Bands</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Floating 3D-effect icon badge box */}
-        <div className="relative z-10 hidden md:block mr-8">
-          <div className="relative w-56 h-56">
-            <div className="absolute inset-0 bg-white/5 rounded-[2.5rem] backdrop-blur-md border-4 border-white/10 flex items-center justify-center shadow-2xl transform -rotate-3 hover:rotate-3 transition-transform duration-500 z-10">
-              <Rocket size={90} className="text-indigo-400 drop-shadow-md" />
-            </div>
-            <div className="absolute -top-6 -right-6 bg-slate-800 rounded-2xl p-4 shadow-xl border-2 border-slate-700 transform rotate-12 animate-bounce z-20" style={{ animationDuration: '3.5s' }}>
-              <Sparkles size={28} className="text-amber-400" />
-            </div>
-            <div className="absolute -bottom-4 -left-6 bg-slate-800 rounded-2xl p-4 shadow-xl border-2 border-slate-700 transform -rotate-6 animate-bounce z-20" style={{ animationDuration: '4.2s' }}>
-              <Award size={28} className="text-emerald-400" />
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* ---------------------------------------------------- */}
-      {/* 2. UNIFIED FILTER TOOLBAR (Matches All Lessons)       */}
-      {/* ---------------------------------------------------- */}
-      <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-          
-          {/* Age Group Filter Dropdown */}
-          <select 
-            className="flex-1 md:w-48 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-indigo-500 transition-colors"
-            value={selectedAgeBand}
-            onChange={(e) => setSelectedAgeBand(e.target.value)}
-          >
-            <option value="all">All Age Groups</option>
-            {AGE_GROUPS.filter(a => a.id !== 'all').map(ag => (
-              <option key={ag.id} value={ag.id}>
-                {ag.label} ({ag.range.split('(')[1]?.replace(')', '') || ag.range})
-              </option>
-            ))}
-          </select>
-
-          {/* Category Filter Dropdown */}
-          <select 
-            className="flex-1 md:w-56 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-indigo-500 transition-colors"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-          >
-            <option value="all">All Categories</option>
-            {COURSE_CATEGORIES.filter(c => c.id !== 'all').map(cat => (
-              <option key={cat.id} value={cat.id}>
-                {cat.icon} {cat.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Search Input & Clear */}
-        <div className="relative w-full md:flex-1 flex gap-2">
-          <div className="relative flex-1">
-            <input 
-              type="text" 
-              placeholder="Search by topic, e.g. 'coding', 'vedic math', 'robotics'..." 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-3 pl-4 pr-10 font-bold text-slate-700 outline-none focus:border-indigo-500 transition-colors"
-            />
-            <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
-          </div>
-          {(selectedAgeBand !== 'all' || selectedCategory !== 'all' || searchQuery) && (
-            <button 
-              onClick={() => {
-                setSelectedAgeBand('all');
-                setSelectedCategory('all');
-                setSearchQuery('');
-              }} 
-              className="px-4 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold rounded-xl transition-colors shrink-0 flex items-center gap-2 cursor-pointer"
+          {/* Category Quick Badges */}
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
+            <button
+              onClick={() => setActiveCategory('all')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeCategory === 'all'
+                  ? 'bg-white text-slate-900 shadow-md'
+                  : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10'
+              }`}
             >
-              <X size={16} /> Clear
+              All Programs
             </button>
-          )}
+            <button
+              onClick={() => setActiveCategory('Foundational')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeCategory === 'Foundational'
+                  ? 'bg-amber-500 text-white shadow-md'
+                  : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10'
+              }`}
+            >
+              📖 Foundational (FLN)
+            </button>
+            <button
+              onClick={() => setActiveCategory('Core')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeCategory === 'Core'
+                  ? 'bg-indigo-500 text-white shadow-md'
+                  : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10'
+              }`}
+            >
+              🎓 Core Academic (Grades 1-8)
+            </button>
+            <button
+              onClick={() => setActiveCategory('Co-Curricular & Skills')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                activeCategory === 'Co-Curricular & Skills'
+                  ? 'bg-purple-500 text-white shadow-md'
+                  : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10'
+              }`}
+            >
+              🚀 Co-Curricular &amp; Skills
+            </button>
+          </div>
+        </div>
+
+        {/* Floating 3D Badge Box */}
+        <div className="relative z-10 hidden lg:block mr-4">
+          <div className="w-48 h-48 rounded-[2.5rem] bg-white/5 backdrop-blur-md border-4 border-white/10 flex items-center justify-center shadow-2xl transform -rotate-3 hover:rotate-3 transition-transform duration-500">
+            <Rocket size={80} className="text-indigo-400 drop-shadow-md" />
+          </div>
         </div>
       </div>
 
       {/* ---------------------------------------------------- */}
-      {/* 3. COURSES GRID SECTION                               */}
+      {/* 2. SEARCH BAR                                        */}
       {/* ---------------------------------------------------- */}
-      <div className="pb-12">
-        
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-extrabold text-slate-800 flex items-center gap-2">
-            <span>All Kourses</span>
-            <span className="text-sm font-bold text-slate-400 font-mono">({filteredCourses.length} Programs)</span>
-          </h2>
-          {(selectedAgeBand !== 'all' || selectedCategory !== 'all' || searchQuery) && (
-            <button
-              onClick={() => {
-                setSelectedAgeBand('all');
-                setSelectedCategory('all');
-                setSearchQuery('');
-              }}
-              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
-            >
-              Reset Filters
-            </button>
-          )}
-        </div>
-
-        {filteredCourses.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCourses.map(course => (
-              <KortexCourseCard
-                key={course.id}
-                course={course}
-                price="₹499"
-                rating={4.8}
-                ctaText={isParent ? 'Enroll Child' : isStudent ? 'Request Course' : 'Enroll Now'}
-                onClick={handleOptForCourse}
-                onEnroll={handleOptForCourse}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="col-span-full py-16 text-center bg-white rounded-3xl border-2 border-slate-100 shadow-sm">
-            <div className="w-16 h-16 bg-indigo-50 text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Search size={28} />
-            </div>
-            <h3 className="text-xl font-bold text-slate-800 mb-1">No Kourses Found</h3>
-            <p className="text-sm text-slate-400 font-semibold mb-4">
-              We couldn&apos;t find any programs matching your selected age group or keywords.
-            </p>
-            <button
-              onClick={() => {
-                setSelectedAgeBand('all');
-                setSelectedCategory('all');
-                setSearchQuery('');
-              }}
-              className="px-5 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-sm hover:bg-indigo-700 transition-colors cursor-pointer"
-            >
-              Clear All Filters
-            </button>
-          </div>
+      <div className="bg-white p-3.5 rounded-2xl border-2 border-slate-100 shadow-xs flex items-center gap-3">
+        <Search className="text-slate-400 ml-2" size={20} />
+        <input 
+          type="text" 
+          placeholder="Search courses by topic, subject, or grade (e.g. 'Hindi', 'Maths', 'Grade 3', 'Robotics')..." 
+          value={searchQuery} 
+          onChange={(e) => setSearchQuery(e.target.value)} 
+          className="flex-1 bg-transparent font-bold text-sm text-slate-800 placeholder-slate-400 outline-none"
+        />
+        {searchQuery && (
+          <button 
+            onClick={() => setSearchQuery('')}
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
         )}
-
       </div>
 
       {/* ---------------------------------------------------- */}
-      {/* 4. COURSE SYLLABUS & ENROLLMENT MODAL                */}
+      {/* 3. CATEGORY 1: FOUNDATIONAL COURSES                  */}
       {/* ---------------------------------------------------- */}
-      {selectedCourseForModal && (
-        <ModalPortal>
-          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-[2rem] max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto flex flex-col">
-            
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={() => setSelectedCourseForModal(null)}
-              className="absolute top-5 right-5 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-              title="Close"
-            >
-              <X size={20} />
-            </button>
-
-            {/* Course Header */}
-            <div className="flex items-start gap-4 mb-4 pr-8">
-              <span className="text-5xl">{selectedCourseForModal.icon}</span>
-              <div>
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${selectedCourseForModal.badgeColor}`}>
-                    {selectedCourseForModal.gradeGroup}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">
-                    {selectedCourseForModal.ageBand}
-                  </span>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md">
-                    {selectedCourseForModal.category}
-                  </span>
-                </div>
-                <h3 className="text-2xl font-black text-slate-900 leading-tight">
-                  {selectedCourseForModal.title}
-                </h3>
-                <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                  {selectedCourseForModal.tagline}
-                </p>
+      {(activeCategory === 'all' || activeCategory === 'Foundational') && (
+        <section className="space-y-5 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-slate-100 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 font-black text-sm flex items-center justify-center">
+                  📖
+                </span>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                  1. Foundational Courses (FLN)
+                </h2>
               </div>
-            </div>
-
-            {/* Overview */}
-            <p className="text-sm font-medium text-slate-600 leading-relaxed mb-6">
-              {selectedCourseForModal.description}
-            </p>
-
-            {/* Quick Meta Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100 mb-6 text-xs font-bold text-slate-700">
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-black block">Estimated Duration</span>
-                <span>{selectedCourseForModal.estimatedWeeks} Weeks</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-black block">Learning Format</span>
-                <span className="truncate block">{selectedCourseForModal.format.split('•')[0]}</span>
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <span className="text-[10px] text-slate-400 uppercase font-black block">Prerequisites</span>
-                <span className="truncate block">{selectedCourseForModal.prerequisites}</span>
-              </div>
-            </div>
-
-            {/* Detailed Module Syllabus */}
-            <div className="space-y-3 mb-6">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <BookOpen size={16} className="text-indigo-600" /> Complete Module Syllabus
-              </h4>
-
-              <div className="space-y-2.5">
-                {selectedCourseForModal.modules.map(mod => (
-                  <div key={mod.number} className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                        {mod.number}
-                      </span>
-                      <h5 className="font-extrabold text-sm text-slate-800">{mod.title}</h5>
-                    </div>
-                    <p className="text-xs text-slate-500 font-semibold mb-2 ml-8">
-                      {mod.description}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 ml-8">
-                      {mod.topics.map((t, ti) => (
-                        <span key={ti} className="text-[11px] font-bold bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md">
-                          • {t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Capstone Project Showcase */}
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 mb-6">
-              <div className="flex items-center gap-2 mb-1 text-amber-900 font-black text-xs uppercase tracking-wider">
-                <Award size={16} className="text-amber-600" /> Final Capstone Project
-              </div>
-              <h5 className="font-extrabold text-sm text-amber-950 mb-1">
-                {selectedCourseForModal.capstoneProject.title}
-              </h5>
-              <p className="text-xs font-semibold text-amber-800 leading-relaxed">
-                {selectedCourseForModal.capstoneProject.description}
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-1">
+                Universal early literacy and numeracy based on NIPUN Bharat guidelines. 100% Free for all students.
               </p>
             </div>
+            <span className="text-xs font-black px-3 py-1 bg-amber-50 text-amber-800 rounded-full border border-amber-200 self-start sm:self-auto">
+              3 Courses • 2 Active
+            </span>
+          </div>
 
-            {/* -------------------------------------------------- */}
-            {/* ROLE-AWARE ACTION SECTION                          */}
-            {/* -------------------------------------------------- */}
-            <div className="mt-auto pt-4 border-t border-slate-100">
+          {foundationalCourses.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+              {foundationalCourses.map(course => (
+                <KortexCourseCard
+                  key={course.id}
+                  course={course}
+                  price={course.isFree ? 'Free' : `₹${course.price || 0}`}
+                  ctaText={course.status === 'active' ? 'Start Learning' : 'Coming Soon'}
+                  onClick={() => handleCourseClick(course)}
+                  onEnroll={() => handleCourseClick(course)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-bold">
+              No foundational courses match &quot;{searchQuery}&quot;
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 4. CATEGORY 2: CORE ACADEMIC COURSES                 */}
+      {/* ---------------------------------------------------- */}
+      {(activeCategory === 'all' || activeCategory === 'Core') && (
+        <section className="space-y-6 animate-fade-in pt-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-slate-100 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 font-black text-sm flex items-center justify-center">
+                  🎓
+                </span>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                  2. Core Academic Curriculum
+                </h2>
+              </div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-1">
+                Standard board-aligned subjects organized by class. Select your child&apos;s grade to view subjects.
+              </p>
+            </div>
+            <span className="text-xs font-black px-3 py-1 bg-indigo-50 text-indigo-800 rounded-full border border-indigo-200 self-start sm:self-auto">
+              Balvatika 1 to Grade 8
+            </span>
+          </div>
+
+          {/* Grade Selector Tabs Bar */}
+          <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {ALL_GRADE_TABS.map(tab => {
+              const isSelected = selectedCoreGrade === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedCoreGrade(tab.id)}
+                  className={`px-4 py-2.5 rounded-xl font-black text-xs whitespace-nowrap transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-md scale-102'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Grade Subjects Grid */}
+          <div>
+            <div className="flex items-center justify-between mb-3 text-xs font-black uppercase tracking-wider text-slate-400">
+              <span>Subjects for {selectedCoreGrade}</span>
+              <span>{coreCoursesForSelectedGrade.length} Subjects Available</span>
+            </div>
+
+            {coreCoursesForSelectedGrade.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+                {coreCoursesForSelectedGrade.map(course => (
+                  <KortexCourseCard
+                    key={course.id}
+                    course={course}
+                    price={course.status === 'active' ? (course.isFree ? 'Free' : `₹${course.price}`) : 'Coming Soon'}
+                    ctaText={course.status === 'active' ? 'Explore Course' : 'Coming Soon'}
+                    onClick={() => handleCourseClick(course)}
+                    onEnroll={() => handleCourseClick(course)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-bold">
+                No subjects found for {selectedCoreGrade} matching &quot;{searchQuery}&quot;
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 5. CATEGORY 3: CO-CURRICULAR & SKILLS COURSES        */}
+      {/* ---------------------------------------------------- */}
+      {(activeCategory === 'all' || activeCategory === 'Co-Curricular & Skills') && (
+        <section className="space-y-6 animate-fade-in pt-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-slate-100 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 font-black text-sm flex items-center justify-center">
+                  🚀
+                </span>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                  3. Co-Curricular &amp; Skill Programs
+                </h2>
+              </div>
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-1">
+                Computers &amp; AI, mental training, sports, arts, Vedic math, robotics, and Olympiad logic.
+              </p>
+            </div>
+            <span className="text-xs font-black px-3 py-1 bg-purple-50 text-purple-800 rounded-full border border-purple-200 self-start sm:self-auto">
+              Future-Ready Enrichment
+            </span>
+          </div>
+
+          {/* Age Group Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400 px-2 flex items-center gap-1">
+              <Filter size={13} /> Filter Age:
+            </span>
+            {ALL_AGE_BANDS.map(band => {
+              const isSelected = selectedSkillAge === band.id;
+              return (
+                <button
+                  key={band.id}
+                  type="button"
+                  onClick={() => setSelectedSkillAge(band.id)}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  {band.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Skills Grid */}
+          {coCurricularCoursesForSelectedAge.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+              {coCurricularCoursesForSelectedAge.map(course => (
+                <KortexCourseCard
+                  key={course.id}
+                  course={course}
+                  price={course.status === 'active' ? (course.isFree ? 'Free' : `₹${course.price}`) : 'Coming Soon'}
+                  ctaText={course.status === 'active' ? 'Explore Course' : 'Coming Soon'}
+                  onClick={() => handleCourseClick(course)}
+                  onEnroll={() => handleCourseClick(course)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-bold">
+              No skill programs found matching &quot;{searchQuery}&quot;
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 6. COURSE OVERVIEW MODAL (COMING SOON / OVERVIEW)    */}
+      {/* ---------------------------------------------------- */}
+      {modalCourse && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-100 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto space-y-6">
               
-              {interestSubmittedSuccess ? (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-2">
-                  <div className="flex items-center justify-center gap-2 text-emerald-800 font-black text-sm">
-                    <CheckCircle2 size={20} className="text-emerald-600" />
-                    <span>{interestSubmittedSuccess}</span>
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setModalCourse(null)}
+                className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+
+              {/* Modal Header */}
+              <div className="flex items-start gap-4 pr-6">
+                <span className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-3xl shrink-0">
+                  {modalCourse.icon || '📚'}
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                      {modalCourse.masterCategory}
+                    </span>
+                    {modalCourse.grade && (
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">
+                        {modalCourse.grade}
+                      </span>
+                    )}
+                    {modalCourse.ageBand && (
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        • {modalCourse.ageBand}
+                      </span>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCourseForModal(null);
-                      setInterestSubmittedSuccess(null);
-                    }}
-                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-                  >
-                    Done
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  
-                  {/* If user is parent and has children */}
-                  {isParent && (
-                    <div>
-                      {parentChildren.length > 0 ? (
-                        <div className="space-y-2">
-                          <label className="block text-xs font-black uppercase tracking-wider text-slate-500">
-                            Select Child to Enroll:
-                          </label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {parentChildren.map(c => {
-                              const isSelected = selectedChildUid === c.uid;
-                              return (
-                                <div
-                                  key={c.uid}
-                                  onClick={() => setSelectedChildUid(c.uid)}
-                                  className={`p-3 rounded-xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                                    isSelected 
-                                      ? 'bg-indigo-50 border-indigo-600 text-indigo-900 shadow-xs' 
-                                      : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
-                                  }`}
-                                >
-                                  <div>
-                                    <div className="font-extrabold text-sm">{c.full_name}</div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase">
-                                      {c.grade || 'Foundational'}
-                                    </div>
-                                  </div>
-                                  {isSelected && <CheckCircle2 size={18} className="text-indigo-600" />}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800">
-                          Please add a child account to your parent portal to enroll in this course.
-                        </div>
-                      )}
-                    </div>
+                  <h3 className="text-2xl font-black text-slate-900 leading-tight">
+                    {modalCourse.title}
+                  </h3>
+                  {modalCourse.tagline && (
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                      {modalCourse.tagline}
+                    </p>
                   )}
+                </div>
+              </div>
 
-                  {/* CTA Buttons */}
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      type="button"
-                      disabled={isSubmittingInterest}
-                      onClick={handleConfirmInterest}
-                      className="flex-1 py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 text-white font-black text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      {isSubmittingInterest ? (
-                        <span>Submitting...</span>
-                      ) : isParent ? (
-                        <>
-                          <CheckCircle2 size={18} />
-                          <span>Reserve Seat for {parentChildren.find(c => c.uid === selectedChildUid)?.full_name || 'Child'}</span>
-                        </>
-                      ) : isStudent ? (
-                        <>
-                          <Bell size={18} />
-                          <span>Notify My Parent / Request Access</span>
-                        </>
-                      ) : (
-                        <>
-                          <Rocket size={18} />
-                          <span>Register Interest / Join Waitlist</span>
-                        </>
-                      )}
-                    </button>
+              {/* Description */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                  Course Overview
+                </h4>
+                <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                  {modalCourse.description}
+                </p>
+              </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCourseForModal(null)}
-                      className="py-3.5 px-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-sm rounded-xl transition-all cursor-pointer"
-                    >
-                      Close
-                    </button>
-                  </div>
-
-                  <p className="text-[11px] text-center text-slate-400 font-semibold">
-                    Enrollment opens soon. Registering now guarantees early-access invitations and priority batches.
-                  </p>
-
+              {/* Learning Outcomes */}
+              {modalCourse.learningOutcomes && modalCourse.learningOutcomes.length > 0 && (
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Award size={14} className="text-amber-500" /> Key Learning Objectives
+                  </h4>
+                  <ul className="space-y-2">
+                    {modalCourse.learningOutcomes.map((outcome, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-xs font-semibold text-slate-700">
+                        <Check size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                        <span>{outcome}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
-            </div>
+              {/* Coming Soon Notice */}
+              {modalCourse.status === 'coming_soon' && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3">
+                  <Clock className="text-amber-600 shrink-0" size={24} />
+                  <div>
+                    <h5 className="font-black text-amber-900 text-sm">Curriculum In Active Development</h5>
+                    <p className="text-xs font-semibold text-amber-700 mt-0.5">
+                      This curriculum is currently being built with interactive digital sandboxes and milestone quizzes. It will be released soon!
+                    </p>
+                  </div>
+                </div>
+              )}
 
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setModalCourse(null)}
+                  className="w-full py-3 px-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-sm rounded-xl transition-all cursor-pointer text-center"
+                >
+                  Close Overview
+                </button>
+              </div>
+
+            </div>
           </div>
-        </div>
         </ModalPortal>
       )}
 

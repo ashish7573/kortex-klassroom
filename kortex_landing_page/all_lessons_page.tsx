@@ -20,8 +20,9 @@ import {
 // Module-level cache to keep parsed curriculum in memory across view transitions
 const lessonsMemoryCache = new Map<string, any[]>();
 
-const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, defaultSubject, authProfile, role, isPro }: any) => {
-  const showProgress = role === 'teacher' || (role === 'student' && isPro);
+const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, defaultSubject, authProfile, role, isPro, onBackToCourses }: any) => {
+  // 🎯 PROGRESS PERMISSIONS: Teachers, Pro users, and all logged-in students can track progress
+  const showProgress = role === 'teacher' || role === 'student' || Boolean(isPro);
   const getCategoryName = (subj: string) => {
     if (SUBJECT_CATEGORIES.CORE.includes(subj)) return 'Core';
     if (SUBJECT_CATEGORIES.FOUNDATIONAL.includes(subj)) return 'Foundational';
@@ -32,6 +33,12 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
   const [selectedSubject, setSelectedSubject] = useState(defaultSubject || "");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Keep selected class & subject in sync when props change
+  useEffect(() => {
+    if (defaultClass !== undefined) setSelectedClass(defaultClass || "");
+    if (defaultSubject !== undefined) setSelectedSubject(defaultSubject || "");
+  }, [defaultClass, defaultSubject]);
   const [allLessons, setAllLessons] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(20); // ⚡ Performance: 20 items initial load
@@ -145,6 +152,38 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
     });
     return () => unsubscribe();
   }, [authProfile]);
+
+  // Robust Tool Completion Resolver: Matches subject docs first, then searches globally (backward compatible)
+  const findToolRecord = React.useCallback((toolId: string, grade?: string, subject?: string) => {
+    if (!studentProgress || studentProgress.length === 0 || !toolId) return null;
+    const cleanId = toolId.replace(/\./g, '_');
+
+    // 1. Check matching grade/subject documents first
+    if (grade && subject) {
+      const cKey = `${grade}_${subject}`.toLowerCase();
+      const sLower = subject.toLowerCase();
+      const matchedDoc = studentProgress.find(p => {
+        const pId = p.id?.toLowerCase() || '';
+        return pId === cKey || pId === sLower ||
+          (sLower.includes('hindi') && pId.includes('hindi')) ||
+          (sLower.includes('math') && pId.includes('math')) ||
+          (sLower.includes('eng') && pId.includes('eng'));
+      });
+      if (matchedDoc?.completed_tools?.[cleanId] || matchedDoc?.completed_tools?.[toolId]) {
+        return matchedDoc.completed_tools[cleanId] || matchedDoc.completed_tools[toolId];
+      }
+    }
+
+    // 2. Global fallback across any progress doc (tool IDs are unique)
+    for (const p of studentProgress) {
+      if (p.completed_tools) {
+        if (p.completed_tools[cleanId]) return p.completed_tools[cleanId];
+        if (p.completed_tools[toolId]) return p.completed_tools[toolId];
+      }
+    }
+
+    return null;
+  }, [studentProgress]);
 
 
   useEffect(() => {
@@ -321,38 +360,49 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
   });
 
   return (
-    <div className="space-y-12 animate-fade-in max-w-6xl mx-auto">
+    <div className="space-y-12 animate-fade-in max-w-7xl mx-auto px-4 sm:px-6">
       {!activeLesson ? (
         <>
-          <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-[3rem] p-10 md:p-16 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between border-t-8 border-sky-500">
-            
-            <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500 opacity-10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500 opacity-10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
-            
-            <div className="relative z-10 text-center md:text-left mb-10 md:mb-0">
-              <div className="inline-flex items-center gap-2 bg-sky-500/20 backdrop-blur-md px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider mb-6 border border-sky-500/30 shadow-sm text-sky-400">
-                <BookOpen size={16} /> Kortex Master Curriculum
-              </div>
-              <h1 className="text-4xl md:text-6xl font-black mb-4 leading-tight drop-shadow-sm">
-                Systematic.<br/>Structured.<br/><span className="text-sky-400">Simple.</span>
+          {/* Breadcrumb Navigation: Back to Kortex Kourses */}
+          {onBackToCourses && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={onBackToCourses}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 hover:border-indigo-400 text-indigo-600 hover:bg-indigo-50 font-black text-xs rounded-2xl shadow-xs transition-all cursor-pointer group"
+              >
+                <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+                <span>Back to Kortex Kourses</span>
+              </button>
+            </div>
+          )}
+
+          {/* Active Course Title & Chapter Search */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
+                {selectedSubject ? `${selectedClass ? `${selectedClass} • ` : ''}${selectedSubject}` : 'Course Lessons'}
               </h1>
-              <p className="text-lg text-slate-300 font-medium max-w-xl drop-shadow-sm leading-relaxed">
-                We believe true mastery doesn't happen by playing random games. It happens through carefully sequenced, NCF-aligned learning pathways. Select your grade and subject below to explore our structured curriculum.
+              <p className="text-xs sm:text-sm font-bold text-slate-400 mt-1">
+                {filteredLessons.length} {filteredLessons.length === 1 ? 'Chapter' : 'Chapters'} available
               </p>
             </div>
-
-            <div className="relative z-10 hidden md:block mr-8">
-               <div className="relative w-56 h-56">
-                  <div className="absolute inset-0 bg-white/5 rounded-[2.5rem] backdrop-blur-md border-4 border-white/10 flex items-center justify-center shadow-2xl transform -rotate-3 hover:rotate-3 transition-transform duration-500 z-10">
-                     <Layers size={90} className="text-sky-400 drop-shadow-md" />
-                  </div>
-                  <div className="absolute -top-6 -right-6 bg-slate-800 rounded-2xl p-4 shadow-xl border-2 border-slate-700 transform rotate-12 animate-bounce z-20" style={{animationDuration: '3.5s'}}>
-                     <Gamepad2 size={28} className="text-lime-400" />
-                  </div>
-                  <div className="absolute -bottom-4 -left-6 bg-slate-800 rounded-2xl p-4 shadow-xl border-2 border-slate-700 transform -rotate-6 animate-bounce z-20" style={{animationDuration: '4.2s'}}>
-                     <Video size={28} className="text-pink-400" />
-                  </div>
-               </div>
+            
+            <div className="relative w-full sm:w-72">
+              <input 
+                type="text" 
+                placeholder="Search chapters or books..." 
+                value={searchQuery} 
+                onChange={(e: any) => setSearchQuery(e.target.value)} 
+                className="w-full bg-slate-50 border-2 border-slate-200 focus:border-sky-500 rounded-2xl py-2.5 pl-4 pr-10 font-bold text-xs text-slate-700 outline-none transition-colors"
+              />
+              {searchQuery ? (
+                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
+                  <X size={16} />
+                </button>
+              ) : (
+                <Search className="absolute right-3.5 top-3 text-slate-400" size={16} />
+              )}
             </div>
           </div>
 
@@ -363,40 +413,14 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
              </div>
           )}
 
-          <div className="bg-white p-4 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <span className="font-bold text-slate-500 text-sm uppercase px-2 hidden sm:block">Filter:</span>
-                <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedCategory} onChange={(e: any) => { setSelectedCategory(e.target.value); setSelectedSubject(""); }}>
-                  <option value="">All Types</option>
-                  <option value="Core">Core</option>
-                  <option value="Foundational">Foundational</option>
-                  <option value="Co-Curricular & Skills">Co-Curricular</option>
-                </select>
-                <select className="flex-1 md:w-40 bg-slate-50 border-2 rounded-xl px-3 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedClass} onChange={(e: any) => setSelectedClass(e.target.value)}>
-                  <option value="">{studentEnrollments ? 'My Enrolled Grades' : 'All Grades'}</option>{availableGrades.map((g: any) => <option key={g} value={g}>{g}</option>)}
-                </select>
-                <select className="flex-1 md:w-48 bg-slate-50 border-2 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-sky-500" value={selectedSubject} onChange={(e: any) => setSelectedSubject(e.target.value)}>
-                  <option value="">{studentEnrollments ? 'My Enrolled Subjects' : 'All Subjects'}</option>{displayedSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
-                </select>
-             </div>
-             <div className="relative w-full md:flex-1 flex gap-2">
-                <div className="relative flex-1">
-                  <input type="text" placeholder="Search chapters or books..." value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-2 rounded-xl py-3 pl-4 pr-10 font-bold outline-none focus:border-sky-500" />
-                  <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
-                </div>
-                {(selectedCategory || selectedClass || selectedSubject || searchQuery) && <button onClick={() => {setSelectedCategory(""); setSelectedClass(""); setSelectedSubject(""); setSearchQuery("");}} className="px-4 bg-slate-100 font-bold rounded-xl flex items-center gap-2 hover:bg-slate-200"><X size={16} /> Clear</button>}
-             </div>
-          </div>
-
           <div className="pb-12">
-            <h2 className="text-2xl font-extrabold text-slate-800 mb-6">All Lessons</h2>
             {isLoading ? (<div className="py-20 text-center font-bold text-sky-500 animate-pulse">Loading Lessons...</div>) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
                 {filteredLessons.length > 0 ? (
                   <>
                     {filteredLessons.slice(0, visibleCount).map((lesson: any, idx: any) => (
-                      <Card key={idx} className={`border-b-8 ${lesson.color} cursor-pointer group transition-all p-0 flex flex-col hover:border-sky-300`} onClick={() => setActiveLesson(lesson)}>
-                        <div className="relative h-48 w-full bg-slate-200 overflow-hidden">
+                      <Card key={idx} className={`border-b-8 ${lesson.color} cursor-pointer group transition-all p-0 flex flex-col hover:border-sky-300 rounded-3xl overflow-hidden shadow-xs hover:shadow-md hover:-translate-y-1`} onClick={() => setActiveLesson(lesson)}>
+                        <div className="relative h-36 sm:h-40 w-full bg-slate-200 overflow-hidden">
                            <img 
                              src={lesson.image || getSubjectFallbackImage(lesson.subject)} 
                              alt={lesson.chapter} 
@@ -406,35 +430,35 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                            />
                            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/20 to-transparent pointer-events-none"></div>
-                           <div className="absolute top-4 left-4 right-4 flex justify-between items-start gap-2 pointer-events-none">
-                              <span className="bg-white/90 text-slate-800 text-xs font-bold uppercase px-3 py-1.5 rounded-full shadow-sm max-w-[65%] truncate">{lesson.book}</span>
-                              <div className="bg-slate-900/60 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm shrink-0"><Layers size={14} /> {lesson.items} Items</div>
+                           <div className="absolute top-3 left-3 pointer-events-none">
+                              <span className="bg-white/95 text-slate-800 text-[10px] sm:text-xs font-bold uppercase px-2.5 py-1 rounded-full shadow-sm max-w-[85%] truncate">{lesson.book}</span>
                            </div>
                         </div>
-                        <div className="p-6 bg-white flex-1 flex flex-col group-hover:bg-slate-50 transition-colors">
+                        <div className="p-3.5 sm:p-4 bg-white flex-1 flex flex-col group-hover:bg-slate-50 transition-colors">
                            
-                           <h3 className="text-2xl font-black text-slate-800 mb-2 group-hover:text-sky-600 leading-tight">{lesson.chapter}</h3>
-                           <div className="flex flex-wrap items-center gap-2 text-[10px] sm:text-xs font-bold text-slate-500 mb-4">
-        <span className="bg-slate-100 px-2 py-1 rounded-md text-slate-600">{lesson.grade}</span>
-        {getCategoryName(lesson.subject) && <><span>•</span><span className="text-slate-400">{getCategoryName(lesson.subject)}</span></>}
-        <span>•</span><span>{lesson.subject}</span>
-      </div>
+                           <h3 className="text-sm sm:text-base font-black text-slate-800 mb-1.5 group-hover:text-sky-600 leading-snug line-clamp-2 min-h-[2.5rem] sm:min-h-[2.75rem]">{lesson.chapter}</h3>
+                           <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-xs font-bold text-slate-500 mb-3">
+                             <span className="bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">{lesson.grade}</span>
+                             {getCategoryName(lesson.subject) && <><span>•</span><span className="text-slate-400">{getCategoryName(lesson.subject)}</span></>}
+                             <span>•</span><span>{lesson.subject}</span>
+                           </div>
                            {(() => {
-                               const cKey = `${lesson.grade}_${lesson.subject}`.toLowerCase();
-                               const subjProg = studentProgress.find(p => p.id?.toLowerCase() === cKey || p.id?.toLowerCase() === lesson.subject?.toLowerCase());
-                               const compObj = subjProg?.completed_tools || {};
                                let totalTools = 0;
                                let completedTools = 0;
                                if (lesson.subTopics) {
                                    lesson.subTopics.forEach((st: any) => {
                                       if (st.tools) {
                                           totalTools += st.tools.length;
-                                          st.tools.forEach((t: any) => { if (compObj[t.id]) completedTools++; });
+                                          st.tools.forEach((t: any) => { 
+                                            if (findToolRecord(t.id, lesson.grade, lesson.subject)) completedTools++; 
+                                          });
                                       }
                                    });
                                } else if (lesson.flow) {
                                    totalTools += lesson.flow.length;
-                                   lesson.flow.forEach((t: any) => { if (compObj[t.id]) completedTools++; });
+                                   lesson.flow.forEach((t: any) => { 
+                                     if (findToolRecord(t.id, lesson.grade, lesson.subject)) completedTools++; 
+                                   });
                                }
                                const pct = totalTools > 0 ? Math.round((completedTools / totalTools) * 100) : 0;
                                
@@ -451,12 +475,36 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
                                ) : null;
                            })()}
 
-                           <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-600 mt-auto pt-4 border-t border-slate-100">
-                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-purple-300 transition-colors"><Lightbulb size={14} className="text-purple-500"/> Concepts</span>
-                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-pink-300 transition-colors"><Video size={14} className="text-pink-500"/> Videos</span>
-                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-lime-300 transition-colors"><Gamepad2 size={14} className="text-lime-500"/> Games</span>
-                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-orange-300 transition-colors"><Target size={14} className="text-orange-500"/> Quizzes</span>
-                              <span className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-md shadow-sm hover:border-sky-300 transition-colors"><FileText size={14} className="text-sky-500"/> Docs</span>
+                           <div className="mt-auto pt-2.5 border-t border-slate-100 space-y-1.5">
+                              {/* Row 1: First 3 Tiers */}
+                              <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-slate-500">
+                                 <span className="inline-flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs hover:border-purple-300 transition-colors">
+                                   <Lightbulb size={11} className="text-purple-500 shrink-0"/> <span>Concepts</span>
+                                 </span>
+                                 <span className="inline-flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs hover:border-pink-300 transition-colors">
+                                   <Video size={11} className="text-pink-500 shrink-0"/> <span>Videos</span>
+                                 </span>
+                                 <span className="inline-flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs hover:border-lime-300 transition-colors">
+                                   <Gamepad2 size={11} className="text-lime-500 shrink-0"/> <span>Games</span>
+                                 </span>
+                              </div>
+
+                              {/* Row 2: Remaining 2 Tiers + Items Count on Extreme Right */}
+                              <div className="flex items-center justify-between gap-1 text-[9px] sm:text-[10px] font-bold text-slate-500">
+                                 <div className="flex items-center gap-1">
+                                    <span className="inline-flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs hover:border-orange-300 transition-colors">
+                                      <Target size={11} className="text-orange-500 shrink-0"/> <span>Quizzes</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs hover:border-sky-300 transition-colors">
+                                      <FileText size={11} className="text-sky-500 shrink-0"/> <span>Docs</span>
+                                    </span>
+                                 </div>
+
+                                 <div className="shrink-0 flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100/90 px-1.5 py-0.5 rounded-md shadow-2xs">
+                                    <Layers size={11} className="text-indigo-600 shrink-0" />
+                                    <span>{lesson.items} Tools</span>
+                                 </div>
+                              </div>
                            </div>
                         </div>
                       </Card>
@@ -504,11 +552,8 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
                               <div className="flex items-center gap-3 shrink-0 mt-4 md:mt-0 md:pl-4 self-end md:self-auto">
                                  
                                  {(() => {
-                                     const cKey = `${activeLesson.grade}_${activeLesson.subject}`.toLowerCase();
-                                     const subjProg = studentProgress.find(p => p.id?.toLowerCase() === cKey || p.id?.toLowerCase() === activeLesson.subject?.toLowerCase());
-                                     const compObj = subjProg?.completed_tools || {};
                                      const tot = subTopic.tools?.length || 0;
-                                     const comp = subTopic.tools?.filter((t: any) => compObj[t.id])?.length || 0;
+                                     const comp = subTopic.tools?.filter((t: any) => findToolRecord(t.id, activeLesson.grade, activeLesson.subject))?.length || 0;
                                      if (tot === 0) return <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm hidden sm:block">0 Tools</span>;
                                      if (!showProgress) return <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm hidden sm:block">{tot} Tools</span>;
                                      if (comp === tot) return <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 shadow-sm flex items-center gap-1"><CheckCircle2 size={12}/> Completed</span>;
@@ -575,9 +620,7 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
                                              <div className="flex items-center gap-2">
                                                 <h4 className="text-lg font-extrabold text-slate-800">{item.title}</h4>
                                                 {(() => {
-                                                    const cKey = `${activeLesson.grade}_${activeLesson.subject}`.toLowerCase();
-                                                    const subjProg = studentProgress.find(p => p.id?.toLowerCase() === cKey || p.id?.toLowerCase() === activeLesson.subject?.toLowerCase());
-                                                    const toolRecord = subjProg?.completed_tools?.[item.id];
+                                                    const toolRecord = findToolRecord(item.id, activeLesson.grade, activeLesson.subject);
                                                     if (toolRecord && showProgress) {
                                                         return <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={12}/> {toolRecord.best_score !== undefined ? `Score: ${toolRecord.best_score}` : 'Done'}</span>;
                                                     }
@@ -590,7 +633,14 @@ const LessonsView = ({ isLoggedIn, requireAuth, onStartLesson, defaultClass, def
                                        <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
                                           <Button variant="secondary" className="flex-1 md:flex-none py-2 px-6 text-sm font-bold border-2 shadow-none hover:border-sky-500 hover:text-sky-600" onClick={() => {
                                              const isolatedPlaylist = [...subTopic.tools].sort((a: any, b: any) => (a.orderIndex || 0) - (b.orderIndex || 0));
-                                             onStartLesson({ chapter: activeLesson.chapter, book: activeLesson.book, subtopic: subTopic.title, flow: isolatedPlaylist }, index);
+                                             onStartLesson({ 
+                                               chapter: activeLesson.chapter, 
+                                               book: activeLesson.book, 
+                                               grade: activeLesson.grade,
+                                               subject: activeLesson.subject,
+                                               subtopic: subTopic.title, 
+                                               flow: isolatedPlaylist 
+                                             }, index);
                                           }}>{item.isPremium && !isLoggedIn ? <Lock size={14}/> : 'Start Tool'}</Button>
                                        </div>
                                     </div>

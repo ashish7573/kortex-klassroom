@@ -2,23 +2,26 @@
 import React, { useState, useEffect } from 'react';
 import { StudentProfile } from '../../types/user';
 import { auth } from '../../backend_configurations/firebase';
-import { checkAndResetDailyHearts, grantHeart, getStudentOrgProfiles, markAssignmentAsDone, getCurriculumTotals } from '../../app/actions/student';
+import { checkAndResetDailyHearts, grantHeart, getStudentOrgProfiles, markAssignmentAsDone, getCurriculumTotals, syncAndMigrateStudentAccount } from '../../app/actions/student';
 import PlaceholderAd from '../../kortex_landing_page/components/PlaceholderAd';
 import { 
   Sparkles, Trophy, Flame, Play, BookOpen, Lightbulb, Gamepad2, 
   Target, Heart, BatteryCharging, X, Star, Award, Book, 
   ClipboardList, CheckCircle2, CircleDashed, Calendar, ExternalLink,
   Building2, ChevronDown, ChevronUp, Bell, ArrowRight,
-  Check, Rocket, ArrowUpRight
+  Check, Rocket, ArrowUpRight, Video
 } from 'lucide-react';
 import { collection, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../backend_configurations/firebase';
 import { useStudentAssignments, AssignmentStatus, MergedAssignment } from '../../hooks/useStudentAssignments';
 import { generateComboId } from '../org_admin/utils/comboParsers';
 import ModalPortal from '../../components/ModalPortal';
-import { KORTEX_COURSES, KortexCourse } from '../../kortex_landing_page/koursesData';
+import { 
+  ALL_CATALOG_COURSES, CatalogCourse, isPaidCourse 
+} from '../../kortex_landing_page/courseCatalogConfig';
+import { getPublicCourseCatalogOverrides } from '../../app/actions/admin';
 import { KortexCourseCard } from '../../kortex_landing_page/components/KortexCourseCard';
-import { getSubjectProgressSummary } from '../../kortex_landing_page/curriculumConfig';
+import { getSubjectProgressSummary, SUBJECT_IMAGES } from '../../kortex_landing_page/curriculumConfig';
 
 
 interface StudentDashboardProps {
@@ -64,38 +67,95 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
   // Accordion state for graded assignments grouped by subject
   const [expandedGradedSubjects, setExpandedGradedSubjects] = useState<Record<string, boolean>>({});
 
-  // Course Preview Modal (Kortex Kourses)
-  const [selectedProgramModal, setSelectedProgramModal] = useState<KortexCourse | null>(null);
-  const [notifiedProgramIds, setNotifiedProgramIds] = useState<Record<string, boolean>>({});
+  // Course Catalog & Overrides
+  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, any>>({});
+  const [selectedCatalogCourse, setSelectedCatalogCourse] = useState<CatalogCourse | null>(null);
+  const [catalogCategoryTab, setCatalogCategoryTab] = useState<'all' | 'Foundational' | 'Core' | 'Co-Curricular & Skills'>('all');
 
-  const isPro = profile.is_pro || (profile.org_ids && profile.org_ids.length > 0) || false;
-  const proStatusText = profile.is_pro ? 'Parent Pro' : (profile.org_ids && profile.org_ids.length > 0 ? 'Organisation Pro' : null);
+  const isSchoolStudent = Boolean(profile.org_ids && profile.org_ids.length > 0);
+  const enrolledCourseTitles: string[] = React.useMemo(() => {
+    return profile.active_b2c_licenses && profile.active_b2c_licenses.length > 0
+      ? profile.active_b2c_licenses
+      : ['FLN Hindi', 'FLN Maths'];
+  }, [profile.active_b2c_licenses]);
 
-  // Sync Daily Energy
+  // Load Catalog Overrides from Firestore
   useEffect(() => {
-    async function initHearts() {
+    async function loadCatalogOverrides() {
+      try {
+        const res = await getPublicCourseCatalogOverrides();
+        if (res.success && res.overrides) {
+          setCatalogOverrides(res.overrides);
+        }
+      } catch (e) {
+        console.error("Failed to load catalog overrides:", e);
+      }
+    }
+    loadCatalogOverrides();
+  }, []);
+
+  const catalogCoursesWithOverrides: CatalogCourse[] = React.useMemo(() => {
+    return ALL_CATALOG_COURSES.map(course => {
+      const override = catalogOverrides[course.id];
+      if (!override) return course;
+      return {
+        ...course,
+        status: override.status || course.status,
+        isFree: override.isFree !== undefined ? override.isFree : course.isFree,
+        price: override.price !== undefined ? override.price : course.price
+      };
+    });
+  }, [catalogOverrides]);
+
+  const displayedCatalogCourses = React.useMemo(() => {
+    if (catalogCategoryTab === 'all') return catalogCoursesWithOverrides;
+    return catalogCoursesWithOverrides.filter(c => c.masterCategory === catalogCategoryTab);
+  }, [catalogCoursesWithOverrides, catalogCategoryTab]);
+
+  const getCourseLessonsTarget = (courseTitle: string): string => {
+    const isFLN = courseTitle.includes('FLN');
+    if (isFLN) {
+      const cleanSubj = courseTitle.split('-').pop()?.trim() || courseTitle;
+      return `lessons:${cleanSubj}`;
+    }
+    if (courseTitle.includes(' - ')) {
+      return `lessons:${courseTitle}`;
+    }
+    const cleanSubj = courseTitle.split('-').pop()?.trim() || courseTitle;
+    const grade = profile.grade && profile.grade !== 'Unassigned' ? profile.grade : '';
+    return grade ? `lessons:${grade} - ${cleanSubj}` : `lessons:${cleanSubj}`;
+  };
+
+  // Sync Daily Energy & Run Self-Healing Migration for Legacy Student Accounts
+  useEffect(() => {
+    async function initHeartsAndSelfHeal() {
       try {
         const user = auth.currentUser;
         if (!user) return;
         const token = await user.getIdToken(true);
+        
+        // 1. Check and reset daily hearts (auto-recovers missing stamina)
         const result = await checkAndResetDailyHearts(token, profile.uid);
         if (result.success && result.hearts !== undefined) {
           setHearts(result.hearts);
         }
+
+        // 2. Self-heal legacy student document (courses, grade baseline)
+        await syncAndMigrateStudentAccount(token);
       } catch (e) {
-        console.error("Failed to sync hearts:", e);
+        console.error("Failed to sync hearts or run student migration:", e);
       } finally {
         setIsResetting(false);
       }
     }
-    initHearts();
+    initHeartsAndSelfHeal();
   }, [profile.uid]);
 
   // Load Organization Profiles & Assigned Combos
   useEffect(() => {
     async function loadOrgs() {
       if (!profile.org_ids || profile.org_ids.length === 0) {
-        const b2c: DisplayCombo[] = (profile.active_b2c_licenses || []).map(comboStr => ({
+        const b2c: DisplayCombo[] = enrolledCourseTitles.map(comboStr => ({
           id: comboStr,
           label: comboStr,
           subject: comboStr.split('-').pop()?.trim().toUpperCase() || 'SUBJECT',
@@ -174,7 +234,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
       }
 
       // Add B2C licenses
-      (profile.active_b2c_licenses || []).forEach(comboStr => {
+      enrolledCourseTitles.forEach(comboStr => {
         if (!displayCombos.some(c => c.id === comboStr)) {
           displayCombos.push({
             id: comboStr,
@@ -248,7 +308,8 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
   };
 
   const handleActionClick = (tierId: string) => {
-    if (!isPro && hearts <= 0) {
+    // Browsing the courses catalog or viewing lessons list never consumes energy
+    if (tierId !== 'kourses' && tierId !== 'lessons' && !tierId.startsWith('lessons:') && !isSchoolStudent && hearts <= 0) {
       setShowEnergyModal(true);
       return;
     }
@@ -411,7 +472,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
   })();
 
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 sm:space-y-8 animate-fade-in relative">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 sm:space-y-8 animate-fade-in relative">
       
       {/* ---------------------------------------------------- */}
       {/* 1. COMPACT MOBILE-FIRST GAMIFIED HERO BANNER         */}
@@ -439,16 +500,14 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
             {/* Stamina / Hearts */}
             <button 
               type="button"
-              onClick={() => {
-                if (!isPro && hearts < 5) setShowEnergyModal(true);
-              }}
-              className="flex items-center gap-2 bg-black/25 hover:bg-black/35 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10 transition-all text-left"
+              onClick={() => setShowEnergyModal(true)}
+              className="flex items-center gap-2 bg-black/25 hover:bg-black/35 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10 transition-all text-left cursor-pointer"
             >
-              <Heart size={18} className={isPro ? "text-yellow-300 fill-yellow-300" : "text-rose-400 fill-rose-400"} />
+              <Heart size={18} className={isSchoolStudent ? "text-yellow-300 fill-yellow-300" : "text-rose-400 fill-rose-400"} />
               <div>
-                <div className="text-[10px] text-purple-200 font-extrabold uppercase leading-none">Energy</div>
+                <div className="text-[10px] text-purple-200 font-extrabold uppercase leading-none">Stamina</div>
                 <div className="font-black text-sm text-white leading-tight mt-0.5">
-                  {proStatusText ? 'Unlimited' : `${hearts}/5`}
+                  {isSchoolStudent ? 'School Pro' : `${hearts}/5`}
                 </div>
               </div>
             </button>
@@ -837,7 +896,7 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
                         </h4>
 
                         {orgCombos.length > 0 ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                             {orgCombos.map((comboObj, idx) => {
                               const subjectName = comboObj.subject;
                               const colorClasses = getSubjectColor(comboObj.label.toLowerCase());
@@ -899,196 +958,313 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
         </div>
       )}
 
-      {/* 2b. INDEPENDENT LEARNING SECTION (When no school is attached) */}
-      {activeOrgs.length === 0 && (
+      {/* 2a. ADDITIONAL ENROLLED KOURSES (For School Students with Parent-Enrolled Courses) */}
+      {activeOrgs.length > 0 && enrolledCourseTitles.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">
-              <Sparkles className="text-purple-600" size={20} />
-              My Learning Pathway
+              <Sparkles className="text-indigo-600" size={20} />
+              My Additional Enrolled Kourses
             </h2>
             <span className="text-xs font-bold text-slate-400">
-              Independent Learner
+              Parent Enrolled
             </span>
           </div>
 
-          <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-xs">
-            <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <BookOpen size={16} className="text-indigo-600" />
-              Foundational & Core Subjects
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {[
-                { subject: 'Hindi', label: `${profile.grade || 'All Grades'} - FLN Hindi`, color: 'border-orange-200 bg-orange-50/50 text-orange-950' },
-                { subject: 'Maths', label: `${profile.grade || 'All Grades'} - FLN Maths`, color: 'border-rose-200 bg-rose-50/50 text-rose-950' },
-                { subject: 'English', label: `${profile.grade || 'All Grades'} - FLN English`, color: 'border-blue-200 bg-blue-50/50 text-blue-950' },
-              ].map((subObj, idx) => {
-                const { completedCount, totalTools, progressPct } = getSubjectProgressSummary(
-                  progressData,
-                  subjectTotals,
-                  profile.grade || 'All Grades',
-                  subObj.subject
-                );
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+            {enrolledCourseTitles.map((courseTitle: string, idx: number) => {
+              const isFLN = courseTitle.includes('FLN');
+              const cleanSubj = courseTitle.split('-').pop()?.trim() || courseTitle;
+              const lower = courseTitle.toLowerCase();
+              const enrolledThumb = lower.includes('hindi')
+                ? '/thumbnails/hindi-cover.webp'
+                : lower.includes('math')
+                  ? '/thumbnails/maths-cover.webp'
+                  : (SUBJECT_IMAGES as any)[cleanSubj] || null;
+              const { completedCount, totalTools, progressPct } = getSubjectProgressSummary(
+                progressData,
+                subjectTotals,
+                profile.grade || 'All Grades',
+                cleanSubj
+              );
 
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => handleActionClick(`lessons:${subObj.subject}`)}
-                    className={`border-2 rounded-2xl p-4 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between ${subObj.color}`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h5 className="text-lg font-black tracking-tight">{subObj.subject}</h5>
-                        <p className="text-[10px] font-bold opacity-75 uppercase tracking-wider">{subObj.label}</p>
+              return (
+                <div
+                  key={idx}
+                  className="bg-white border-2 border-slate-100 hover:border-indigo-200 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {enrolledThumb ? (
+                          <img 
+                            src={enrolledThumb} 
+                            alt={courseTitle} 
+                            className="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs group-hover:scale-105 transition-transform" 
+                          />
+                        ) : null}
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
+                          {isFLN ? 'Foundational' : 'Specialized'}
+                        </span>
                       </div>
-                      <div className="w-9 h-9 bg-white/60 rounded-xl flex items-center justify-center backdrop-blur-xs">
-                        <BookOpen size={18} />
-                      </div>
+                      {isPaidCourse(courseTitle, catalogOverrides) ? (
+                        <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100 flex items-center gap-1">
+                          💖 Unlimited Stamina
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                          Free Course
+                        </span>
+                      )}
                     </div>
 
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-wider opacity-80">
-                        <span>{completedCount} / {totalTools} Tools</span>
-                        <span>{progressPct}%</span>
-                      </div>
-                      <div className="h-2 w-full bg-black/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-current rounded-full transition-all duration-700" style={{ width: `${progressPct}%` }} />
-                      </div>
+                    <h4 className="text-lg font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
+                      {courseTitle}
+                    </h4>
+                    <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                      {profile.grade || 'All Grades'} • Interactive Learning
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 mt-4 pt-3 border-t border-slate-100">
+                    <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      <span>{completedCount} / {totalTools} Tools</span>
+                      <span>{progressPct}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-600 rounded-full transition-all duration-700" style={{ width: `${progressPct}%` }} />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onExploreTier?.(getCourseLessonsTarget(courseTitle))}
+                      className="w-full mt-2 py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Open Lessons</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 2b. INDEPENDENT LEARNING: MY ENROLLED KOURSES */}
+      {activeOrgs.length === 0 && (
+        <div id="enrolled-courses-section" className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">
+                <Sparkles className="text-purple-600" size={20} />
+                My Enrolled Kourses
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                Active learning programs. Master lessons, earn XP and level up!
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('explore-kourses-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                else onExploreTier?.('kourses');
+              }}
+              className="flex items-center gap-1.5 text-xs font-black text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit cursor-pointer"
+            >
+              <span>+ Explore More Kourses</span>
+              <ArrowRight size={13} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {enrolledCourseTitles.map((courseTitle: string, idx: number) => {
+              const isFLN = courseTitle.includes('FLN');
+              let subject = 'Hindi';
+              let badgeColor = 'bg-orange-50 text-orange-700 border-orange-200';
+              let iconEmoji = '📖';
+
+              const lower = courseTitle.toLowerCase();
+              if (lower.includes('math')) {
+                subject = 'Maths';
+                badgeColor = 'bg-rose-50 text-rose-700 border-rose-200';
+                iconEmoji = '🔢';
+              } else if (lower.includes('eng')) {
+                subject = 'English';
+                badgeColor = 'bg-blue-50 text-blue-700 border-blue-200';
+                iconEmoji = '🔤';
+              } else if (lower.includes('evs') || lower.includes('sci')) {
+                subject = 'Science';
+                badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                iconEmoji = '🔬';
+              } else if (lower.includes('soc') || lower.includes('sst')) {
+                subject = 'Social Studies';
+                badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+                iconEmoji = '🌍';
+              } else if (lower.includes('ai') || lower.includes('comp')) {
+                subject = 'Computers & AI';
+                badgeColor = 'bg-purple-50 text-purple-700 border-purple-200';
+                iconEmoji = '💻';
+              }
+
+              const { completedCount, totalTools, progressPct } = getSubjectProgressSummary(
+                progressData,
+                subjectTotals,
+                profile.grade || 'All Grades',
+                subject
+              );
+
+              const enrolledThumb = lower.includes('hindi')
+                ? '/thumbnails/hindi-cover.webp'
+                : lower.includes('math')
+                  ? '/thumbnails/maths-cover.webp'
+                  : (SUBJECT_IMAGES as any)[subject] || null;
+
+              return (
+                <div
+                  key={idx}
+                  className="bg-white border-2 border-slate-100 hover:border-indigo-300 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      {enrolledThumb ? (
+                        <img 
+                          src={enrolledThumb} 
+                          alt={courseTitle} 
+                          className="w-10 h-10 rounded-xl object-cover border border-slate-200/80 shadow-2xs group-hover:scale-105 transition-transform" 
+                        />
+                      ) : (
+                        <span className="text-2xl">{iconEmoji}</span>
+                      )}
+                      {isPaidCourse(courseTitle, catalogOverrides) ? (
+                        <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100 flex items-center gap-1">
+                          💖 Unlimited Stamina
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                          Free Course
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mb-2">
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${badgeColor}`}>
+                        {isFLN ? 'Foundational' : 'Core Curriculum'}
+                      </span>
+                      <h4 className="text-lg font-black text-slate-800 group-hover:text-indigo-600 transition-colors mt-1.5">
+                        {courseTitle}
+                      </h4>
+                      <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                        {profile.grade || 'All Grades'} • Interactive Learning
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  <div className="space-y-2.5 mt-4 pt-3 border-t border-slate-100">
+                    <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      <span>{completedCount} / {totalTools} Tools</span>
+                      <span>{progressPct}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-600 rounded-full transition-all duration-700" style={{ width: `${progressPct}%` }} />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onExploreTier?.(getCourseLessonsTarget(courseTitle))}
+                      className="w-full mt-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                    >
+                      <Play size={14} fill="currentColor" />
+                      <span>Open Lessons</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* 3. KORTEX KOURSES (SPECIALIZED PROGRAMS CAROUSEL)    */}
-      {/* ---------------------------------------------------- */}
-      <div className="bg-white/80 backdrop-blur-xs border border-slate-200/90 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 border border-amber-200/70 rounded-full text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1">
-              <Sparkles size={12} className="text-amber-500" />
-              <span>Specialized Skill Tracks</span>
-            </div>
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
-              <Rocket className="text-indigo-600" size={20} />
-              Kortex Kourses
-            </h2>
-            <p className="text-xs font-semibold text-slate-500 mt-0.5">
-              Cross-grade mastery in Coding, Robotics, Vedic Math, Space & Olympiad logic
-            </p>
-          </div>
-
-          {/* Explore All Button */}
-          <button
-            type="button"
-            onClick={() => onExploreTier?.('kourses')}
-            className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit cursor-pointer shadow-2xs"
-          >
-            <span>Explore All Kourses</span>
-            <ArrowRight size={14} />
-          </button>
-        </div>
-
-        {/* Horizontal Sliding Program Carousel */}
-        <div className="flex gap-3.5 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scroll-smooth -mx-3 px-3 sm:mx-0 sm:px-0">
-          {KORTEX_COURSES.map(course => (
-            <KortexCourseCard
-              key={course.id}
-              course={course}
-              size="compact"
-              price="Included"
-              ctaText="Preview"
-              onClick={() => setSelectedProgramModal(course)}
-              onEnroll={() => setSelectedProgramModal(course)}
-              className="snap-start shrink-0 w-[245px] sm:w-[265px]"
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ---------------------------------------------------- */}
-      {/* 4. GLOBAL EXPLORATION HUB (4 CLASSIC BUTTONS)        */}
+      {/* 3. GLOBAL EXPLORATION HUB (4 CLASSIC BUTTONS)        */}
       {/* ---------------------------------------------------- */}
       <div className={isResetting ? "opacity-50 pointer-events-none" : ""}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">
             <Play className="text-rose-500" size={20} />
-            Jump Into Learning & Games
+            Jump Into Learning &amp; Games
           </h2>
           <span className="text-xs font-bold text-slate-400">Interactive Arena</span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           
-          {/* Card 1: All Lessons */}
+          {/* Card 1: Kortex Theatre */}
           <div 
-            onClick={() => handleActionClick('lessons')}
+            onClick={() => handleActionClick('theatre')}
             className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all cursor-pointer group ${
-              !isPro && hearts <= 0 
+              !isSchoolStudent && hearts <= 0 
                 ? 'bg-slate-50 border-slate-200 opacity-70 grayscale' 
-                : 'bg-sky-50 hover:bg-sky-100 border-sky-200 hover:-translate-y-1 hover:shadow-md text-sky-900'
+                : 'bg-pink-50 hover:bg-pink-100 border-pink-200 hover:-translate-y-1 hover:shadow-md text-pink-900'
             }`}
           >
             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center mb-3 transition-transform ${
-              !isPro && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-sky-500 text-white group-hover:scale-105'
+              !isSchoolStudent && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-pink-500 text-white group-hover:scale-105'
             }`}>
-              <BookOpen size={22} />
+              <Video size={22} />
             </div>
-            <h3 className="font-black text-base sm:text-lg mb-0.5 leading-tight">All Lessons</h3>
-            <p className="text-[11px] sm:text-xs font-semibold opacity-75">Browse full curriculum catalog</p>
+            <h3 className="font-black text-base sm:text-lg mb-0.5 leading-tight">Kortex Theatre</h3>
+            <p className="text-[11px] sm:text-xs font-semibold opacity-75">Visual stories &amp; animated lessons</p>
           </div>
 
           {/* Card 2: Sandbox */}
           <div 
             onClick={() => handleActionClick('conceptualiser')}
             className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all cursor-pointer group ${
-              !isPro && hearts <= 0 
+              !isSchoolStudent && hearts <= 0 
                 ? 'bg-slate-50 border-slate-200 opacity-70 grayscale' 
                 : 'bg-purple-50 hover:bg-purple-100 border-purple-200 hover:-translate-y-1 hover:shadow-md text-purple-900'
             }`}
           >
             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center mb-3 transition-transform ${
-              !isPro && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-purple-500 text-white group-hover:scale-105'
+              !isSchoolStudent && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-purple-500 text-white group-hover:scale-105'
             }`}>
               <Lightbulb size={22} />
             </div>
             <h3 className="font-black text-base sm:text-lg mb-0.5 leading-tight">Interactive Sandbox</h3>
-            <p className="text-[11px] sm:text-xs font-semibold opacity-75">Virtual models & math machines</p>
+            <p className="text-[11px] sm:text-xs font-semibold opacity-75">Virtual models &amp; math machines</p>
           </div>
 
           {/* Card 3: The Dojo */}
           <div 
             onClick={() => handleActionClick('dojo')}
             className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all cursor-pointer group ${
-              !isPro && hearts <= 0 
+              !isSchoolStudent && hearts <= 0 
                 ? 'bg-slate-50 border-slate-200 opacity-70 grayscale' 
                 : 'bg-orange-50 hover:bg-orange-100 border-orange-200 hover:-translate-y-1 hover:shadow-md text-orange-900'
             }`}
           >
             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center mb-3 transition-transform ${
-              !isPro && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-orange-500 text-white group-hover:scale-105'
+              !isSchoolStudent && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-orange-500 text-white group-hover:scale-105'
             }`}>
               <Target size={22} />
             </div>
             <h3 className="font-black text-base sm:text-lg mb-0.5 leading-tight">The Dojo</h3>
-            <p className="text-[11px] sm:text-xs font-semibold opacity-75">Speed quiz sprints & skill tests</p>
+            <p className="text-[11px] sm:text-xs font-semibold opacity-75">Speed quiz sprints &amp; skill tests</p>
           </div>
 
           {/* Card 4: Arcade */}
           <div 
             onClick={() => handleActionClick('arcade')}
             className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 transition-all cursor-pointer group ${
-              !isPro && hearts <= 0 
+              !isSchoolStudent && hearts <= 0 
                 ? 'bg-slate-50 border-slate-200 opacity-70 grayscale' 
                 : 'bg-lime-50 hover:bg-lime-100 border-lime-200 hover:-translate-y-1 hover:shadow-md text-lime-900'
             }`}
           >
             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center mb-3 transition-transform ${
-              !isPro && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-lime-500 text-white group-hover:scale-105'
+              !isSchoolStudent && hearts <= 0 ? 'bg-slate-300 text-slate-500' : 'bg-lime-500 text-white group-hover:scale-105'
             }`}>
               <Gamepad2 size={22} />
             </div>
@@ -1096,6 +1272,73 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
             <p className="text-[11px] sm:text-xs font-semibold opacity-75">Gamified learning mini-challenges</p>
           </div>
 
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* 4. KORTEX KOURSES & SKILLS EXPLORER                  */}
+      {/* ---------------------------------------------------- */}
+      <div id="explore-kourses-section" className="bg-white rounded-3xl border-2 border-slate-100 p-5 sm:p-7 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 border border-amber-200/70 rounded-full text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1">
+              <Sparkles size={12} className="text-amber-500" />
+              <span>Specialized Tracks &amp; Curricula</span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+              <Rocket className="text-indigo-600" size={20} />
+              Explore Kourses &amp; Skills
+            </h2>
+            <p className="text-xs font-semibold text-slate-500 mt-0.5">
+              Foundational literacy, grade-wise curricula, coding, robotics, and creative arts
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onExploreTier?.('kourses')}
+            className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit cursor-pointer shadow-2xs"
+          >
+            <span>Explore Full Catalog</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+
+        {/* Category Tabs */}
+        <div className="flex flex-wrap gap-2 pt-1 border-b border-slate-100 pb-3">
+          {(['all', 'Foundational', 'Core', 'Co-Curricular & Skills'] as const).map(cat => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCatalogCategoryTab(cat)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                catalogCategoryTab === cat
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+              }`}
+            >
+              {cat === 'all' ? 'All Programs' : cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Courses Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 pt-1">
+          {displayedCatalogCourses.slice(0, 9).map(course => {
+            const isEnrolled = enrolledCourseTitles.includes(course.title);
+
+            return (
+              <KortexCourseCard
+                key={course.id}
+                course={course}
+                isEnrolled={isEnrolled}
+                price={isEnrolled ? 'Enrolled' : course.isFree ? 'Free' : course.status === 'active' ? `₹${course.price || 0}` : 'Coming Soon'}
+                ctaText={isEnrolled ? 'Open Lessons' : course.status === 'active' ? (course.isFree ? 'Start Course' : 'Preview') : 'Coming Soon'}
+                onClick={() => setSelectedCatalogCourse(course)}
+                onEnroll={() => setSelectedCatalogCourse(course)}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -1256,14 +1499,14 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
       </ModalPortal>
       )}
 
-      {/* COURSE PREVIEW & COMING SOON MODAL */}
-      {selectedProgramModal && (
+      {/* COURSE PREVIEW & DETAILS MODAL */}
+      {selectedCatalogCourse && (
       <ModalPortal>
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-[2rem] max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto">
             <button 
               type="button"
-              onClick={() => setSelectedProgramModal(null)}
+              onClick={() => setSelectedCatalogCourse(null)}
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
               title="Close"
             >
@@ -1271,113 +1514,155 @@ export default function StudentDashboard({ profile, onExploreTier }: StudentDash
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-4xl p-2 bg-slate-50 rounded-2xl border border-slate-100 shadow-2xs">
-                {selectedProgramModal.icon}
+              <span className="text-4xl p-2.5 bg-slate-50 rounded-2xl border border-slate-100 shadow-2xs">
+                {selectedCatalogCourse.icon || '📖'}
               </span>
               <div>
-                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${selectedProgramModal.badgeColor}`}>
-                  {selectedProgramModal.gradeGroup}
+                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  {selectedCatalogCourse.grade || selectedCatalogCourse.ageBand || selectedCatalogCourse.masterCategory}
                 </span>
                 <h3 className="text-xl font-black text-slate-900 leading-snug mt-1">
-                  {selectedProgramModal.title}
+                  {selectedCatalogCourse.title}
                 </h3>
               </div>
             </div>
 
             <p className="text-sm text-slate-600 font-medium leading-relaxed mb-4">
-              {selectedProgramModal.description}
+              {selectedCatalogCourse.description}
             </p>
 
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-4">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-2.5">
-                Key Learning Outcomes
-              </h4>
-              <ul className="space-y-2">
-                {selectedProgramModal.learningOutcomes.map((t, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs font-bold text-slate-700">
-                    <Check size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                    <span>{t}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {selectedProgramModal.capstoneProject && (
-              <div className="bg-amber-50/70 border border-amber-200/70 rounded-2xl p-3.5 mb-5">
-                <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-1 flex items-center gap-1.5">
-                  <Trophy size={13} className="text-amber-600" />
-                  <span>Capstone Project: {selectedProgramModal.capstoneProject.title}</span>
-                </div>
-                <p className="text-xs font-semibold text-amber-900/80 leading-relaxed">
-                  {selectedProgramModal.capstoneProject.description}
-                </p>
+            {selectedCatalogCourse.learningOutcomes && selectedCatalogCourse.learningOutcomes.length > 0 && (
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-2.5">
+                  What You Will Learn
+                </h4>
+                <ul className="space-y-2">
+                  {selectedCatalogCourse.learningOutcomes.map((outcome, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                      <Check size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                      <span>{outcome}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
-            {notifiedProgramIds[selectedProgramModal.id] ? (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-1">
-                <div className="flex items-center justify-center gap-1.5 text-emerald-700 font-black text-sm">
-                  <CheckCircle2 size={18} /> Request Sent!
-                </div>
-                <p className="text-xs text-emerald-600 font-semibold">
-                  We have registered your interest. Your parent will be notified once this course is ready!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
+            <div className="pt-2 border-t border-slate-100 space-y-2.5">
+              {enrolledCourseTitles.includes(selectedCatalogCourse.title) ? (
                 <button
                   type="button"
                   onClick={() => {
-                    const id = selectedProgramModal.id;
-                    setNotifiedProgramIds(prev => ({ ...prev, [id]: true }));
+                    const target = getCourseLessonsTarget(selectedCatalogCourse.title);
+                    setSelectedCatalogCourse(null);
+                    onExploreTier?.(target);
                   }}
                   className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                 >
-                  <Bell size={16} /> Notify My Parent / Request Access
+                  <Play size={16} fill="currentColor" />
+                  <span>Open Course Lessons{isPaidCourse(selectedCatalogCourse.title, catalogOverrides) ? ' (Unlimited Stamina)' : ''}</span>
                 </button>
-                <p className="text-[11px] text-center text-slate-400 font-semibold">
-                  This specialized course is launching soon on Kortex Klassroom.
-                </p>
-              </div>
-            )}
+              ) : selectedCatalogCourse.status === 'active' && selectedCatalogCourse.isFree ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = getCourseLessonsTarget(selectedCatalogCourse.title);
+                    setSelectedCatalogCourse(null);
+                    onExploreTier?.(target);
+                  }}
+                  className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Sparkles size={16} />
+                  <span>Start Free Course Now</span>
+                </button>
+              ) : selectedCatalogCourse.status === 'coming_soon' ? (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-1">
+                  <div className="font-black text-sm text-slate-700">🚀 Launching Soon</div>
+                  <p className="text-xs text-slate-500 font-semibold">
+                    This course is in active development. Ask your parent to look out for updates!
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl text-center space-y-1">
+                  <div className="font-black text-sm text-indigo-900">Ask Your Parent to Enroll</div>
+                  <p className="text-xs text-indigo-700 font-medium">
+                    Your parents can enroll you in this course anytime from their Parent Dashboard.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setSelectedCatalogCourse(null)}
+                className="w-full py-2.5 text-slate-400 hover:text-slate-600 font-bold text-xs cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
           </div>
         </div>
       </ModalPortal>
       )}
 
-      {/* OUT OF ENERGY MODAL */}
+      {/* OUT OF ENERGY & STAMINA INFO MODAL */}
       {showEnergyModal && (
       <ModalPortal>
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center px-4 animate-fade-in">
           <div className="bg-white rounded-[2rem] max-w-md w-full shadow-2xl overflow-hidden animate-fade-in-up">
-            <div className="bg-slate-50 border-b border-slate-100 p-8 text-center relative overflow-hidden">
+            <div className="bg-slate-50 border-b border-slate-100 p-7 text-center relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4">
-                <button onClick={() => setShowEnergyModal(false)} className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 shadow-sm">
+                <button 
+                  onClick={() => setShowEnergyModal(false)} 
+                  className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 shadow-sm cursor-pointer"
+                >
                   <X size={18} />
                 </button>
               </div>
-              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-sm">
-                <BatteryCharging size={36} className="text-slate-400" />
+              <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-3 border-4 border-white shadow-sm">
+                <Heart size={32} className="fill-current" />
               </div>
-              <h2 className="text-2xl font-black text-slate-800 mb-2">Out of Energy!</h2>
-              <p className="text-slate-500 font-bold">You've practiced a lot today! You need time to recharge your brain.</p>
-            </div>
-            <div className="p-8 text-center space-y-4">
-              <p className="text-sm font-semibold text-slate-600">
-                Come back tomorrow for more Free Energy, or ask your parents to unlock <span className="font-black text-sky-600">Unlimited Play</span>!
+              <h2 className="text-2xl font-black text-slate-800 mb-1">
+                {hearts <= 0 ? "Out of Energy!" : "Daily Stamina"}
+              </h2>
+              <p className="text-slate-500 text-xs font-bold max-w-xs mx-auto">
+                {hearts <= 0 
+                  ? "You've used all your daily hearts for extra games and challenges!" 
+                  : `You currently have ${hearts}/5 daily hearts for Sandbox, Dojo, and Arcade.`}
               </p>
+            </div>
+            <div className="p-6 sm:p-7 text-center space-y-3.5">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-left flex items-start gap-2.5">
+                <Sparkles size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-xs font-bold text-emerald-800 leading-relaxed">
+                  <strong>Energy System:</strong> Free courses use your daily hearts (5/5 hearts daily). Paid courses include <strong>Unlimited Stamina (💖)</strong>!
+                </p>
+              </div>
+
+              {hearts < 5 && (
+                <button 
+                  onClick={() => setShowHeartAd(true)}
+                  className="w-full py-3.5 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Heart size={18} className="fill-white" />
+                  <span>Watch ad for +1 Heart</span>
+                </button>
+              )}
+
               <button 
-                onClick={() => setShowHeartAd(true)}
-                className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 mb-3 flex items-center justify-center gap-2 cursor-pointer"
+                onClick={() => {
+                  setShowEnergyModal(false);
+                  const el = document.getElementById('enrolled-courses-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black rounded-xl transition-all cursor-pointer text-xs"
               >
-                <Heart size={20} className="fill-white" />
-                Watch ad for 1 Heart
+                Go to My Enrolled Kourses
               </button>
+
               <button 
                 onClick={() => setShowEnergyModal(false)}
-                className="w-full py-4 bg-sky-500 hover:bg-sky-600 text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
+                className="w-full py-2.5 text-slate-400 hover:text-slate-600 font-bold text-xs cursor-pointer"
               >
-                Okay, I'll take a break!
+                Close
               </button>
             </div>
           </div>

@@ -6,8 +6,7 @@ import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore
 import { useStudentAssignments } from '../../hooks/useStudentAssignments';
 import { getStudentAcademicDetails, getChildProgressAndTotals, getStudentDailyActivity } from '../../app/actions/student';
 import { getSubjectProgressSummary } from '../../kortex_landing_page/curriculumConfig';
-import { Building, AlertCircle, Sparkles, TrendingUp, Clock, CheckCircle2, FileText, BarChart2, Lock, X, ClipboardList, CircleDashed, Award } from 'lucide-react';
-import ModalPortal from '../../components/ModalPortal';
+import { Building, AlertCircle, Sparkles, TrendingUp, Clock, CheckCircle2, FileText, BarChart2, ClipboardList, CircleDashed, Award } from 'lucide-react';
 
 interface ChildAcademicViewProps {
   child: StudentProfile;
@@ -50,7 +49,6 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   const [orgAcademics, setOrgAcademics] = useState<OrgAcademicData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showUpsellModal, setShowUpsellModal] = useState(false);
   type AssignmentStatus = 'pending' | 'submitted' | 'graded';
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentStatus>('pending');
   const { assignments, loading: loadingAssignments } = useStudentAssignments(child.uid);
@@ -60,14 +58,15 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   const [dailyHistory, setDailyHistory] = useState<any[]>([]);
   const [dailyTotals, setDailyTotals] = useState<{ totalMinutes: number; totalLessons: number; totalStars: number } | null>(null);
 
-  const b2cLicenses = child.active_b2c_licenses || [];
-  const isPro = child.is_pro || false;
+  const b2cLicenses = (child.active_b2c_licenses && child.active_b2c_licenses.length > 0)
+    ? child.active_b2c_licenses
+    : ['FLN Hindi', 'FLN Maths'];
 
-  // Dynamically resolve real independent learning subjects (Unconditional Hook Execution)
+  // Dynamically resolve real independent learning subjects (enrolled courses only)
   const realB2cSubjects = React.useMemo(() => {
     const list: { name: string; comboId: string; subject: string }[] = [];
     
-    // Add purchased courses
+    // Add child's enrolled courses
     b2cLicenses.forEach((comboStr: string) => {
       const parts = comboStr.split('-');
       const subj = parts.length > 1 ? parts[parts.length - 1].trim() : comboStr;
@@ -78,21 +77,8 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
       });
     });
 
-    // Add foundational & core tracks if not already present
-    const defaultTracks = [
-      { name: `${child.grade || 'All Grades'} - Hindi`, comboId: 'hindi', subject: 'Hindi' },
-      { name: `${child.grade || 'All Grades'} - Maths`, comboId: 'maths', subject: 'Maths' },
-      { name: `${child.grade || 'All Grades'} - English`, comboId: 'english', subject: 'English' },
-    ];
-
-    defaultTracks.forEach(track => {
-      if (!list.some(item => item.subject.toLowerCase() === track.subject.toLowerCase())) {
-        list.push(track);
-      }
-    });
-
     return list;
-  }, [b2cLicenses, child.grade]);
+  }, [b2cLicenses]);
 
   useEffect(() => {
     async function loadProgressAndTotals() {
@@ -201,7 +187,6 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
   const todayActivities = recentActivities.filter(a => a.lastPlayedAt >= today).slice(0, 5);
 
   const independentPerformance: SubjectPerformance[] = realB2cSubjects.map((sub) => {
-    const isLocked = !isPro && b2cLicenses.length > 0 && !b2cLicenses.includes(sub.comboId);
     const { progressPct } = getSubjectProgressSummary(
       progressData,
       subjectTotals,
@@ -215,7 +200,7 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
       childScore: progressPct,
       classAvg: 0,
       baseline: 60,
-      isLocked
+      isLocked: false
     };
   });
 
@@ -355,14 +340,13 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
               title="Academic Performance" 
               icon={<BarChart2 size={24} className="text-emerald-600" />} 
               performanceData={realPerformance}
-              onUnlockClick={() => setShowUpsellModal(true)}
             />
 
           </div>
         );
       })}
 
-      {/* Independent Learning & Free Tier Block */}
+      {/* Independent Learning Block */}
       <div className="space-y-6 mt-12 pt-12 border-t-4 border-slate-100 border-dashed">
          <div className="flex items-center gap-3 px-2">
             <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center shrink-0">
@@ -370,7 +354,7 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-800">Independent Learning</h2>
-              <div className="text-sm font-bold text-slate-500">Free Tier & Kortex Pro</div>
+              <div className="text-sm font-bold text-slate-500">Enrolled Courses & Progress</div>
             </div>
           </div>
 
@@ -380,7 +364,7 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
                       <Clock className="text-sky-500" size={24} /> Screen Time (Past 7 Days • IST)
                    </h3>
-                   {dailyTotals && isPro && (
+                   {dailyTotals && (
                      <div className="flex items-center gap-3 text-xs font-black">
                        <span className="px-3 py-1.5 bg-sky-50 text-sky-700 rounded-xl border border-sky-100">
                          ⏱️ {dailyTotals.totalMinutes} mins total
@@ -392,7 +376,7 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
                    )}
                  </div>
 
-                 <div className={!isPro ? "blur-sm opacity-50 select-none grayscale" : ""}>
+                 <div>
                     <div className="flex items-end gap-3 sm:gap-6 h-36 mb-4 px-2">
                        {dailyHistory.length > 0 ? (
                          dailyHistory.map((day, idx) => {
@@ -433,24 +417,6 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
                       Calculated automatically in Indian Standard Time (Asia/Kolkata)
                     </div>
                  </div>
-
-                 {!isPro && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/40 backdrop-blur-[2px]">
-                       <div className="bg-slate-900/90 backdrop-blur-md text-white px-6 py-5 rounded-2xl flex flex-col items-center shadow-xl text-center max-w-sm mx-4">
-                          <Lock size={28} className="text-amber-400 mb-2" />
-                          <h4 className="font-black text-lg mb-1">Screen Time Analytics</h4>
-                          <p className="text-xs font-medium text-slate-300 mb-4 leading-relaxed">
-                            Upgrade to Kortex Pro to unlock minute-by-minute screen time, activity histories, and weekly academic reporting.
-                          </p>
-                          <button 
-                            onClick={() => setShowUpsellModal(true)}
-                            className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-sm rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-                          >
-                            Unlock Kortex Pro
-                          </button>
-                       </div>
-                    </div>
-                 )}
               </div>
 
               {/* Today's Learning Activity */}
@@ -474,78 +440,20 @@ export default function ChildAcademicView({ child }: ChildAcademicViewProps) {
                    </div>
                  )}
                  
-                 {!isPro && (
-                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-2xl border border-indigo-100 text-center flex flex-col items-center">
-                       <h4 className="text-lg font-black text-indigo-900 mb-2">Track your child&apos;s progress</h4>
-                       <p className="text-sm font-semibold text-indigo-700 mb-4 max-w-md">Unlock Kortex Pro to get detailed analytics and track daily learning progress.</p>
-                       <button 
-                         onClick={() => setShowUpsellModal(true)}
-                         className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-                       >
-                         Unlock Kortex Pro
-                       </button>
-                    </div>
-                 )}
               </div>
 
           <PerformanceBlock 
             title="Independent Progress" 
             icon={<TrendingUp size={24} className="text-purple-600" />} 
             performanceData={independentPerformance}
-            onUnlockClick={() => setShowUpsellModal(true)}
           />
       </div>
-
-      {/* The Upsell Modal */}
-      {showUpsellModal && (
-        <ModalPortal>
-          <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center px-4 animate-fade-in">
-            <div className="bg-white rounded-[2rem] max-w-lg w-full shadow-2xl overflow-hidden animate-fade-in-up">
-              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-8 text-center relative overflow-hidden">
-                 <div className="absolute top-0 right-0 p-4">
-                   <button onClick={() => setShowUpsellModal(false)} className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/40 shadow-sm transition-colors"><X size={18} /></button>
-                 </div>
-                 <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white/30 shadow-sm backdrop-blur-md">
-                   <Sparkles size={36} className="text-white" />
-                 </div>
-                 <h2 className="text-3xl font-black text-white mb-2 tracking-tight">Unlock Kortex Pro</h2>
-                 <p className="text-indigo-100 font-bold text-lg">Give {child.full_name} the ultimate learning advantage.</p>
-              </div>
-              <div className="p-8 space-y-6">
-                 <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                       <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
-                       <p className="font-bold text-slate-700">Unlimited Daily Energy (Hearts)</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                       <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
-                       <p className="font-bold text-slate-700">Access the entire curriculum library</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                       <CheckCircle2 size={24} className="text-emerald-500 shrink-0" />
-                       <p className="font-bold text-slate-700">Unlock detailed performance analytics</p>
-                    </div>
-                 </div>
-                 <button 
-                   onClick={() => {
-                     alert("Coming soon!");
-                     setShowUpsellModal(false);
-                   }}
-                   className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-black rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 text-lg"
-                 >
-                   Upgrade Now for ₹199/mo
-                 </button>
-              </div>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
     </div>
   );
 }
 
-// Reusable Performance Block Component to handle the Paywall Blur
-function PerformanceBlock({ title, icon, performanceData, onUnlockClick }: any) {
+// Reusable Performance Block Component
+function PerformanceBlock({ title, icon, performanceData }: { title: string; icon: React.ReactNode; performanceData: SubjectPerformance[] }) {
   return (
     <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm overflow-hidden flex flex-col">
       <div className="p-6 sm:p-8 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -586,15 +494,12 @@ function PerformanceBlock({ title, icon, performanceData, onUnlockClick }: any) 
                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{perf.comboLabel}</p>
                 </div>
                 <div className="font-bold text-emerald-600 text-lg sm:mt-1">
-                   {perf.isLocked ? "--" : `${perf.childScore}%`}
+                   {perf.childScore}%
                 </div>
               </div>
 
-              {/* Bullet Graph (Locked or Unlocked) */}
-              <div 
-                className={`flex-1 w-full relative transition-all ${perf.isLocked ? 'blur-sm cursor-pointer grayscale opacity-50 select-none' : ''}`}
-                onClick={() => perf.isLocked && onUnlockClick()}
-              >
+              {/* Bullet Graph */}
+              <div className="flex-1 w-full relative transition-all">
                 <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-2 px-1">
                   <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
                 </div>
@@ -602,37 +507,28 @@ function PerformanceBlock({ title, icon, performanceData, onUnlockClick }: any) 
                 <div className="relative w-full h-4 bg-slate-100 rounded-full overflow-hidden">
                   <div 
                     className="absolute top-0 left-0 h-full bg-emerald-500 rounded-full transition-all duration-1000"
-                    style={{ width: `${perf.isLocked ? 0 : perf.childScore}%` }}
+                    style={{ width: `${perf.childScore}%` }}
                   />
-                  <div 
-                    className="absolute top-0 h-full w-1.5 bg-sky-400 z-10 rounded-full shadow-sm"
-                    style={{ left: `calc(${perf.isLocked ? 0 : perf.classAvg}% - 3px)` }}
-                  />
+                  {perf.classAvg > 0 && (
+                    <div 
+                      className="absolute top-0 h-full w-1.5 bg-sky-400 z-10 rounded-full shadow-sm"
+                      style={{ left: `calc(${perf.classAvg}% - 3px)` }}
+                    />
+                  )}
                 </div>
                 
                 <div className="mt-3 text-xs font-semibold text-slate-500">
-                  {perf.isLocked ? (
-                     <span className="text-slate-400 font-bold">Unlock to view detailed benchmarks.</span>
-                  ) : perf.childScore >= perf.classAvg ? (
-                    <span><span className="text-emerald-600 font-bold">Ahead of class</span> by {perf.childScore - perf.classAvg}%. </span>
+                  {perf.classAvg > 0 ? (
+                    perf.childScore >= perf.classAvg ? (
+                      <span><span className="text-emerald-600 font-bold">Ahead of class</span> by {perf.childScore - perf.classAvg}%. </span>
+                    ) : (
+                      <span><span className="text-amber-600 font-bold">Behind class</span> by {perf.classAvg - perf.childScore}%. </span>
+                    )
                   ) : (
-                    <span><span className="text-amber-600 font-bold">Behind class</span> by {perf.classAvg - perf.childScore}%. </span>
+                    <span><span className="text-emerald-600 font-bold">{perf.childScore}%</span> completed in this course.</span>
                   )}
                 </div>
               </div>
-
-              {/* Paywall Overlay */}
-              {perf.isLocked && (
-                <div 
-                  className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer"
-                  onClick={onUnlockClick}
-                >
-                  <div className="bg-slate-900/90 backdrop-blur-md text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl hover:scale-105 transition-transform">
-                     <Lock size={16} className="text-amber-400" />
-                     <span className="font-bold text-sm">Unlock Insights</span>
-                  </div>
-                </div>
-              )}
             </div>
           ))
         )}

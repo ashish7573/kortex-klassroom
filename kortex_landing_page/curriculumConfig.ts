@@ -138,24 +138,63 @@ export const TESTIMONIALS = [
   { name: "Anita Desai", role: "School Principal", text: "A truly complete platform. The focus on both academic competencies and mental wellbeing makes this the gold standard for NEP 2020 implementation.", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anita&backgroundColor=c0aede" }
 ];
 
+// Fallback curriculum totals used when metadata is uninitialized or loading
+const DEFAULT_SUBJECT_TOTALS: Record<string, number> = {
+  'fln hindi': 28,
+  'hindi': 28,
+  'fln maths': 32,
+  'maths': 32,
+  'mathematics': 32,
+  'fln english': 20,
+  'english': 20,
+  'science': 25,
+  'social studies': 25,
+  'evs': 25,
+  'computers and ai': 15,
+  'computers & ai': 15,
+  'default': 25
+};
+
 export const getSubjectTotal = (subjectTotals: Record<string, number> = {}, grade: string = '', subject: string = ''): number => {
   const g = grade.trim().toLowerCase();
   const s = subject.trim().toLowerCase();
   
   if (subjectTotals[`${g}_${s}`]) return subjectTotals[`${g}_${s}`];
   if (subjectTotals[`all grades_${s}`]) return subjectTotals[`all grades_${s}`];
+  if (subjectTotals[s]) return subjectTotals[s];
   
   if (s === 'hindi' || s.includes('hindi')) {
-    return subjectTotals[`${g}_fln hindi`] || subjectTotals['all grades_fln hindi'] || subjectTotals['fln hindi'] || 0;
+    const count = subjectTotals[`${g}_fln hindi`] || subjectTotals['all grades_fln hindi'] || subjectTotals['fln hindi'] || subjectTotals['hindi'];
+    if (count) return count;
+    return DEFAULT_SUBJECT_TOTALS['fln hindi'];
   }
   if (s === 'maths' || s.includes('math')) {
-    return (subjectTotals[`${g}_maths`] || 0) + (subjectTotals['all grades_fln maths'] || 0) || (subjectTotals['fln maths'] || 0);
+    const count = (subjectTotals[`${g}_maths`] || 0) + (subjectTotals['all grades_fln maths'] || 0) || (subjectTotals['fln maths'] || 0) || subjectTotals['maths'];
+    if (count) return count;
+    return DEFAULT_SUBJECT_TOTALS['fln maths'];
   }
   if (s === 'english' || s.includes('eng')) {
-    return subjectTotals[`${g}_english`] || subjectTotals['all grades_fln english'] || 0;
+    const count = subjectTotals[`${g}_english`] || subjectTotals['all grades_fln english'] || subjectTotals['english'];
+    if (count) return count;
+    return DEFAULT_SUBJECT_TOTALS['fln english'];
+  }
+  if (s.includes('comp') || s.includes('ai')) {
+    const count = subjectTotals[`${g}_computers and ai`] || subjectTotals['computers and ai'] || subjectTotals['computers & ai'];
+    if (count) return count;
+    return DEFAULT_SUBJECT_TOTALS['computers and ai'];
+  }
+  if (s.includes('sci') || s.includes('evs')) {
+    const count = subjectTotals[`${g}_science`] || subjectTotals['science'] || subjectTotals['evs'];
+    if (count) return count;
+    return DEFAULT_SUBJECT_TOTALS['science'];
+  }
+  if (s.includes('soc') || s.includes('sst')) {
+    const count = subjectTotals[`${g}_social studies`] || subjectTotals['social studies'] || subjectTotals['sst'];
+    if (count) return count;
+    return DEFAULT_SUBJECT_TOTALS['social studies'];
   }
   
-  return 0;
+  return DEFAULT_SUBJECT_TOTALS[s] || DEFAULT_SUBJECT_TOTALS['default'];
 };
 
 export const getCompletedToolsCount = (progressData: any[] = [], grade: string = '', subject: string = ''): number => {
@@ -166,13 +205,31 @@ export const getCompletedToolsCount = (progressData: any[] = [], grade: string =
     if (!p.id) return;
     const pId = p.id.toLowerCase();
     
-    const matchesSubject = pId.includes(s) || 
+    const matchesSubject = 
+      pId.includes(s) || 
       (s.includes('hindi') && pId.includes('hindi')) ||
       (s.includes('math') && pId.includes('math')) ||
-      (s.includes('eng') && pId.includes('eng'));
+      (s.includes('eng') && pId.includes('eng')) ||
+      ((s.includes('comp') || s.includes('ai')) && (pId.includes('comp') || pId.includes('ai'))) ||
+      ((s.includes('sci') || s.includes('evs')) && (pId.includes('sci') || pId.includes('evs'))) ||
+      ((s.includes('soc') || s.includes('sst')) && (pId.includes('soc') || pId.includes('sst')));
       
     if (matchesSubject && p.completed_tools) {
       Object.keys(p.completed_tools).forEach(toolId => completedSet.add(toolId));
+    }
+
+    // Self-healing bridge: rescue legacy tools trapped under 'general' or 'unknown_grade_unknown_subject'
+    if (!matchesSubject && (pId === 'general' || pId.includes('unknown')) && p.completed_tools) {
+      Object.entries(p.completed_tools).forEach(([toolId, toolData]: [string, any]) => {
+        const chap = (toolData?.chapter_name || '').toLowerCase();
+        if (
+          (s.includes('hindi') && (chap.includes('hindi') || chap.includes('akshar') || chap.includes('varnamala') || chap.includes('matra'))) ||
+          (s.includes('math') && (chap.includes('math') || chap.includes('number') || chap.includes('counting') || chap.includes('shape'))) ||
+          (s.includes('eng') && (chap.includes('english') || chap.includes('phonics') || chap.includes('sight')))
+        ) {
+          completedSet.add(toolId);
+        }
+      });
     }
   });
   

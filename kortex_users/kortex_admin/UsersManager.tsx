@@ -12,11 +12,13 @@ import ProvisionOrgModal from './ProvisionOrgModal';
 import EditOrgModal from './EditOrgModal';
 import EditIndividualModal from './EditIndividualModal';
 import { softDeleteUser, restoreUser } from '../../app/actions/userManagement';
+import { adminBulkMigrateLegacyUsers } from '../../app/actions/student';
 
 export default function UsersManager() {
   const [activeTab, setActiveTab] = useState<'organizations' | 'individuals'>('individuals');
   const [showList, setShowList] = useState(false);
   const [showProvisionModal, setShowProvisionModal] = useState(false);
+  const [isSyncingLegacy, setIsSyncingLegacy] = useState(false);
   const [editingOrg, setEditingOrg] = useState<OrgAdminProfile | null>(null);
   const [editingIndividual, setEditingIndividual] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -275,6 +277,27 @@ export default function UsersManager() {
     }
   };
 
+  const handleSyncLegacyUsers = async () => {
+    if (!confirm("This will scan all legacy students and parents in Firestore and backfill missing course licenses (FLN Hindi & FLN Maths), hearts/stamina, and normalized grades. Existing progress is preserved. Proceed?")) {
+      return;
+    }
+    setIsSyncingLegacy(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Please log in first");
+      const res = await adminBulkMigrateLegacyUsers(idToken);
+      if (res.success) {
+        alert(`🎉 Legacy sync complete!\n\n• Students Checked: ${res.studentsChecked}\n• Students Upgraded: ${res.studentsUpdated}\n• Parents Checked: ${res.parentsChecked}\n• Parents Upgraded: ${res.parentsUpdated}`);
+      } else {
+        alert("Sync failed: " + res.error);
+      }
+    } catch (e: any) {
+      alert("Error during legacy migration: " + e.message);
+    } finally {
+      setIsSyncingLegacy(false);
+    }
+  };
+
   const getSortableEmail = (ind: any) => {
     if (ind.role === 'student') {
       if (ind.parent_id && ind.parent_id !== 'PENDING') {
@@ -481,14 +504,27 @@ export default function UsersManager() {
           <p className="text-sm font-semibold text-slate-400">Manage B2B SaaS accounts, seats, and individuals</p>
         </div>
 
-        {activeTab === 'organizations' && (
+        <div className="flex items-center gap-3">
           <button 
-            onClick={() => setShowProvisionModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-md transition-all active:scale-95 shrink-0"
+            type="button"
+            onClick={handleSyncLegacyUsers}
+            disabled={isSyncingLegacy}
+            title="Batch-reconcile and backfill legacy students and parents with Kortex Kourses foundational licenses and hearts"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-sm transition-all active:scale-95 shrink-0 text-sm disabled:opacity-50 cursor-pointer"
           >
-            <UserPlus size={18} /> Add Organization
+            <RotateCcw size={16} className={isSyncingLegacy ? 'animate-spin' : ''} />
+            <span>{isSyncingLegacy ? 'Syncing...' : 'Sync Legacy Users'}</span>
           </button>
-        )}
+
+          {activeTab === 'organizations' && (
+            <button 
+              onClick={() => setShowProvisionModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-md transition-all active:scale-95 shrink-0"
+            >
+              <UserPlus size={18} /> Add Organization
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search & Filter Console */}

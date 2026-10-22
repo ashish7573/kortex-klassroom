@@ -337,7 +337,7 @@ const LandingView = ({ onTryDemo, onNavigateToTier, onNavigateToLessons, onOpenF
 
         <div className="mt-16 text-center relative z-10 flex justify-center">
            <Button variant="primary" onClick={onNavigateToLessons} className="text-lg px-10 py-5 w-full sm:w-auto shadow-[0_0_40px_rgba(14,165,233,0.3)] hover:shadow-[0_0_60px_rgba(14,165,233,0.5)]">
-              Explore All Lessons <ArrowRight size={20} className="ml-2 inline" />
+              Explore Kortex Kourses <ArrowRight size={20} className="ml-2 inline" />
            </Button>
         </div>
         

@@ -5,7 +5,7 @@ import {
   Play, Pause, RotateCcw, Pen, Eraser, Share2, CheckCircle, 
   ChevronLeft, ChevronRight, Timer, Star, Activity, FileText, Instagram,
   Globe, Lightbulb, PlayCircle, Target, BookOpen, Gamepad2, X,
-  Highlighter, Undo2, Trash2, Sliders
+  Highlighter, Undo2, Trash2, Sliders, Maximize2, Minimize2
 } from 'lucide-react';
 import ConceptualiserRegistry from '../kortex_learning_tools/conceptualiser/00_ConceptualiserRegistry';
 import GameRegistry from '../kortex_learning_tools/games/00_GameRegistry';
@@ -57,7 +57,33 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
     stepStartTimeRef.current = Date.now();
   }, [currentStep]);
 
+  // --- FULLSCREEN CONTROLLER ---
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    try {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    } catch (e) {
+      console.warn("Fullscreen toggle error", e);
+    }
+  };
+
   const handleClose = () => {
+    if (typeof document !== 'undefined' && document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
     const elapsedSeconds = Math.round((Date.now() - stepStartTimeRef.current) / 1000);
     if (elapsedSeconds >= 15 && onStepComplete) {
       onStepComplete({ step: currentStep, score: undefined, isPartial: true, timeSpentSeconds: elapsedSeconds });
@@ -69,20 +95,26 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
       try {
           if (!timeAudioCtxRef.current) {
               const WinAudioContext = window.AudioContext || (window as any).webkitAudioContext;
-              timeAudioCtxRef.current = new WinAudioContext();
+              if (WinAudioContext) {
+                  timeAudioCtxRef.current = new WinAudioContext();
+              }
           }
           const ctx = timeAudioCtxRef.current;
-          if (ctx.state === 'suspended') ctx.resume();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain); gain.connect(ctx.destination);
-          
-          if (type === 'start') { osc.type = 'sine'; osc.frequency.setValueAtTime(600, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1); }
-          else if (type === 'pause') { osc.type = 'sine'; osc.frequency.setValueAtTime(400, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1); }
-          else if (type === 'reset') { osc.type = 'triangle'; osc.frequency.setValueAtTime(200, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.2); }
-          else if (type === 'alarm') { 
-              osc.type = 'square'; osc.frequency.setValueAtTime(800, ctx.currentTime); osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.2); osc.frequency.setValueAtTime(800, ctx.currentTime + 0.4);
-              gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.6); 
+          if (ctx) {
+              if (ctx.state === 'suspended') {
+                  ctx.resume().catch(() => {});
+              }
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain); gain.connect(ctx.destination);
+              
+              if (type === 'start') { osc.type = 'sine'; osc.frequency.setValueAtTime(600, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1); }
+              else if (type === 'pause') { osc.type = 'sine'; osc.frequency.setValueAtTime(400, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1); }
+              else if (type === 'reset') { osc.type = 'triangle'; osc.frequency.setValueAtTime(200, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.2); }
+              else if (type === 'alarm') { 
+                  osc.type = 'square'; osc.frequency.setValueAtTime(800, ctx.currentTime); osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.2); osc.frequency.setValueAtTime(800, ctx.currentTime + 0.4);
+                  gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.6); 
+              }
           }
       } catch(e) {}
   };
@@ -323,7 +355,7 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
     }
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-fade-in font-sans px-4">
+        <div className="fixed inset-0 h-full h-[100dvh] w-screen z-[100] bg-slate-950 flex flex-col items-center justify-center animate-fade-in font-sans px-4 overflow-hidden">
             <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 text-center shadow-2xl relative overflow-hidden">
                 <div className="absolute -top-20 -left-20 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -556,7 +588,7 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col animate-fade-in font-sans">
+    <div className="fixed inset-0 h-full h-[100dvh] w-screen z-[100] bg-slate-950 flex flex-col animate-fade-in font-sans overflow-hidden select-none">
       
       {/* DIET HEADER */}
       <div className="bg-slate-900 border-b border-slate-800 px-3 py-2 md:px-4 md:py-2.5 flex items-center justify-between shrink-0 shadow-sm relative z-10">
@@ -603,7 +635,20 @@ const LessonPlayer = ({ lesson, initialStep, isLoggedIn, isPro, onClose, onFinis
                {copied ? <CheckCircle size={14} className="text-emerald-400" /> : <Share2 size={14} />}
                <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
             </button>
-            <div className="bg-slate-800 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold text-[10px] md:text-xs flex items-center gap-1.5 border border-slate-700">{currentItem.type?.toUpperCase()}</div>
+            {/* Fullscreen Toggle Button */}
+            <button 
+              type="button"
+              onClick={toggleFullscreen} 
+              className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-md border ${
+                isFullscreen 
+                  ? 'bg-emerald-500 text-white border-emerald-400' 
+                  : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
+              }`}
+              title={isFullscreen ? "Exit Fullscreen (Esc)" : "Enter Fullscreen"}
+              aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            >
+              {isFullscreen ? <Minimize2 size={14} className="md:w-4 md:h-4" /> : <Maximize2 size={14} className="md:w-4 md:h-4" />}
+            </button>
         </div>
       </div>
 

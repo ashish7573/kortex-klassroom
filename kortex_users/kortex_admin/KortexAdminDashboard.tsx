@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../backend_configurations/firebase';
 import { AdminProfile } from '../../types/user';
-import { ShieldAlert, Database, FileText, CheckCircle2, UserCheck, Inbox, Users, MessageSquare } from 'lucide-react';
+import { ShieldAlert, Database, FileText, CheckCircle2, UserCheck, Inbox, Users, MessageSquare, BookOpen } from 'lucide-react';
 import UsersManager from './UsersManager';
 import SystemConfig from './SystemConfig';
 import ContentApprovals from './ContentApprovals';
@@ -77,7 +77,7 @@ export default function KortexAdminDashboard({ profile }: KortexAdminDashboardPr
               : 'bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          <CheckCircle2 size={18} /> Content Approvals
+          <BookOpen size={18} /> Courses &amp; Content Manager
         </button>
 
         <button

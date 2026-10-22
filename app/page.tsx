@@ -40,6 +40,8 @@ import LandingView from '../kortex_landing_page/LandingPage';
 import LessonsView from '../kortex_landing_page/all_lessons_page';
 import TierLibraryView from '../kortex_landing_page/TierLibraryView';
 import KortexKoursesPage from '../kortex_landing_page/KortexKoursesPage';
+import { resolveToolLocally } from '../kortex_learning_tools/staticToolsCatalog';
+import { isPaidCourse } from '../kortex_landing_page/courseCatalogConfig';
 
 // ============================================================================
 // LAZY-LOADED COMPONENTS (Loaded on-demand for maximum page performance)
@@ -47,10 +49,16 @@ import KortexKoursesPage from '../kortex_landing_page/KortexKoursesPage';
 const LessonPlayer = dynamic(() => import('../kortex_landing_page/LessonPlayer'), {
   ssr: false,
   loading: () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-md">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-white font-extrabold text-sm tracking-wider uppercase">Launching Interactive Lesson...</p>
+    <div className="fixed inset-0 h-full h-[100dvh] w-screen z-[100] bg-slate-950 flex flex-col items-center justify-center font-sans">
+      <div className="flex flex-col items-center gap-4 text-center animate-fade-in">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-sky-400 border-t-transparent rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xl">⚡</span>
+          </div>
+        </div>
+        <p className="text-white font-black text-sm tracking-widest uppercase">Launching Interactive Game...</p>
+        <span className="text-xs font-bold text-slate-500">Kortex Klassroom Arena</span>
       </div>
     </div>
   )
@@ -86,7 +94,14 @@ function MainApp() {
   const sharedToolId = searchParams ? searchParams.get('tool') : null;
   const urlView = searchParams ? searchParams.get('view') : null; 
 
-  const [currentView, _setCurrentView] = useState<string>(urlView || 'home');
+  // Instant Synchronous Resolution for Shared Tools (0ms latency, zero Firebase delay)
+  const initialStaticLesson = React.useMemo(() => {
+    return sharedToolId ? resolveToolLocally(sharedToolId) : null;
+  }, [sharedToolId]);
+
+  const [currentView, _setCurrentView] = useState<string>(
+    sharedToolId ? 'direct-tool' : (urlView || 'home')
+  );
 
   useEffect(() => {
     if (urlView) {
@@ -160,7 +175,7 @@ function MainApp() {
       // Auto-redirect to dashboard if they land on the homepage and are already logged in
       if (!hasAutoRedirected.current) {
          hasAutoRedirected.current = true;
-         if (currentView === 'home' && (!urlView || urlView === 'home')) {
+         if (!sharedToolId && currentView === 'home' && (!urlView || urlView === 'home')) {
             _setCurrentView('portal');
          }
       }
@@ -171,7 +186,7 @@ function MainApp() {
       setUserName('');
       setUserEmail('');
     }
-  }, [authProfile, authUser, authIsPro]);
+  }, [authProfile, authUser, authIsPro, sharedToolId]);
 
   useEffect(() => {
     if (sessionAlert) {
@@ -179,7 +194,32 @@ function MainApp() {
     }
   }, [sessionAlert]);
 
-  const [playingLesson, _setPlayingLesson] = useState<any>(null);
+  const [playingLesson, _setPlayingLesson] = useState<any>(initialStaticLesson);
+  const isDirectToolMode = Boolean(sharedToolId && (playingLesson || currentView === 'direct-tool'));
+
+  const handleCloseLesson = () => {
+    _setPlayingLesson(null);
+
+    // If opened via direct link (e.g. ?tool=... from Instagram/shared link)
+    if (isDirectToolMode) {
+      const fallbackView = authIsLoggedIn ? 'portal' : 'home';
+      _setCurrentView(fallbackView);
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ type: 'view', view: fallbackView }, '', fallbackView === 'home' ? '/' : `/?view=${fallbackView}`);
+      }
+      return;
+    }
+
+    // Normal in-app lesson launch:
+    // If a lesson history entry was pushed, pop it back cleanly so browser history stays in sync.
+    // The underlying view (e.g. Subtopics page in LessonsView) remains mounted and intact.
+    if (typeof window !== 'undefined') {
+      if (window.history.state?.type === 'lesson') {
+        window.history.back();
+      }
+    }
+  };
+
   const setPlayingLesson = (lesson: any) => {
      if (typeof window !== 'undefined' && lesson) {
          window.history.pushState({ type: 'lesson', view: currentView }, '', '');
@@ -260,52 +300,89 @@ function MainApp() {
 
   // Auth state & profile synchronization are managed centrally by useAuth() above.
 
-  // Automatically open shared links
+  // Automatically open shared links (Instant 0ms launch for static tools, non-blocking fallback for dynamic CMS tools)
   useEffect(() => {
-    if (authLoading) return; // Wait for auth state to resolve
+    // 1. If tool was already resolved, track guest quota non-blockingly
+    if (sharedToolId) {
+      if (!authIsLoggedIn && typeof window !== 'undefined') {
+        const today = new Date().toISOString().split('T')[0];
+        const guestKey = `kortex_guest_plays_${today}`;
+        const plays = parseInt(localStorage.getItem(guestKey) || '0');
+        if (plays >= 3) {
+          setAlertConfig({
+             title: "Free Demos Exhausted",
+             message: "You've used all your free guest passes for the day! Create a free account to continue playing or check back tomorrow!",
+             type: "warning",
+             actionLabel: "Sign Up for Free",
+             onAction: () => {
+                setAlertConfig(null);
+                setAuthMode('signup');
+                setShowAuthModal(true);
+             }
+          } as any);
+        } else {
+          localStorage.setItem(guestKey, (plays + 1).toString());
+        }
+      }
+    }
 
+    // 2. If sharedToolId is present but not yet playing (e.g. custom CMS tool not in static dictionary)
     if (sharedToolId && !playingLesson) {
-      // Limit is now enforced centrally by ensureEnergy inside fetchSharedTool
-
+      let isMounted = true;
       const fetchSharedTool = async () => {
         try {
-          const docRef = doc(db, 'learning_tools', sharedToolId);
-          const docSnap = await getDoc(docRef);
-          let itemData = null;
+          const timeoutPromise = new Promise<null>((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout")), 3000)
+          );
 
-          if (docSnap.exists()) {
-            itemData = { id: docSnap.id, ...docSnap.data() };
-          } else {
+          const fetchPromise = (async () => {
+            const docRef = doc(db, 'learning_tools', sharedToolId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              return { id: docSnap.id, ...docSnap.data() };
+            }
             const q = query(collection(db, 'learning_tools'), where('subtopicId', '==', sharedToolId));
             const snap = await getDocs(q);
             if (!snap.empty) {
-              itemData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+              return { id: snap.docs[0].id, ...snap.docs[0].data() };
             }
-          }
+            return null;
+          })();
+
+          const itemData: any = await Promise.race([fetchPromise, timeoutPromise]);
+          if (!isMounted) return;
 
           if (itemData) {
-            // Check central energy/guest limits
-            const toolSubject = itemData.subject || 'unknown';
-            const toolGrade = itemData.grade;
             const playableLesson = {
               chapter: itemData.chapter_name || itemData.chapter || itemData.title || 'Interactive Module',
               book: itemData.book || 'Kortex Klassroom',
               flow: [itemData]
             };
-            const hasEnergy = await ensureEnergy(toolSubject, toolGrade, () => {
-                setPlayingLesson(playableLesson);
-                setPlayingStep(0);
-            });
-            if (!hasEnergy) return;
-            
             setPlayingLesson(playableLesson);
             setPlayingStep(0);
+          } else {
+            // Fallback to local heuristic resolver
+            const fallback = resolveToolLocally(sharedToolId);
+            if (fallback) {
+              setPlayingLesson(fallback);
+              setPlayingStep(0);
+            }
           }
-        } catch (error) { console.error("Error fetching shared tool:", error); }
+        } catch (error) {
+          console.warn("Could not fetch remote tool, falling back to local resolver:", error);
+          if (isMounted) {
+            const fallback = resolveToolLocally(sharedToolId);
+            if (fallback) {
+              setPlayingLesson(fallback);
+              setPlayingStep(0);
+            }
+          }
+        }
       };
       fetchSharedTool();
+      return () => { isMounted = false; };
     }
-  }, [sharedToolId, authLoading, authIsLoggedIn, playingLesson]);
+  }, [sharedToolId, authIsLoggedIn, playingLesson]);
 
   // Vercel-Safe Back Button Listener
   useEffect(() => {
@@ -323,8 +400,15 @@ function MainApp() {
         if (state.view) _setCurrentView(state.view);
         if (state.role !== undefined) _setRole(state.role);
       } else {
-        _setCurrentView('home');
-        _setRole(null);
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewFromUrl = urlParams.get('view');
+        if (viewFromUrl) {
+          _setCurrentView(viewFromUrl);
+        } else if (authIsLoggedIn) {
+          _setCurrentView('portal');
+        } else {
+          _setCurrentView('home');
+        }
       }
     };
 
@@ -537,11 +621,15 @@ useEffect(() => {
             return true;
         }
 
-        // 2. Check B2C licenses if toolSubject is provided
+        // 2. Check if student owns a PAID B2C course covering this subject
+        // (Free courses use the daily hearts system per policy)
         if (toolSubject && profileAny.active_b2c_licenses && profileAny.active_b2c_licenses.length > 0) {
             const matchStr = toolSubject.toLowerCase();
-            const ownsSubject = profileAny.active_b2c_licenses.some((c: string) => c.toLowerCase().includes(matchStr));
-            if (ownsSubject) return true;
+            const ownsPaidSubject = profileAny.active_b2c_licenses.some((c: string) => {
+                const matchesSubject = c.toLowerCase().includes(matchStr);
+                return matchesSubject && isPaidCourse(c);
+            });
+            if (ownsPaidSubject) return true;
         }
 
         try {
@@ -605,6 +693,29 @@ useEffect(() => {
   };
 
   const renderContent = () => {
+    // ⚡ Direct Tool Launch Mode: Prevent rendering background homepage
+    if (isDirectToolMode) {
+      if (!playingLesson) {
+        return (
+          <div className="fixed inset-0 h-full h-[100dvh] w-screen z-[100] bg-slate-950 flex flex-col items-center justify-center font-sans px-4">
+            <div className="flex flex-col items-center gap-5 text-center animate-fade-in">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-sky-400 border-t-transparent rounded-full animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xl">⚡</span>
+                </div>
+              </div>
+              <div>
+                <h2 className="text-white font-black text-xl tracking-wide uppercase">Launching Interactive Game...</h2>
+                <p className="text-slate-400 font-medium text-xs mt-1">Preparing your learning arena</p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      return null;
+    }
+
     if (currentView === 'kourses') {
       return (
         <KortexKoursesPage 
@@ -613,6 +724,15 @@ useEffect(() => {
           onNavigateHome={() => setCurrentView('home')} 
           onNavigateToPortal={() => setCurrentView('portal')} 
           onRequireAuth={() => { setAuthMode('signin'); setShowAuthModal(true); }} 
+          onSelectCourse={(course) => {
+            const subj = course.subject || course.title;
+            const grade = course.grade || '';
+            if (grade && grade !== 'Foundational' && grade !== 'Universal' && !grade.toLowerCase().includes('all')) {
+              setCurrentView(`lessons:${grade} - ${subj}`);
+            } else {
+              setCurrentView(`lessons:${subj}`);
+            }
+          }}
         />
       );
     }
@@ -636,7 +756,19 @@ useEffect(() => {
                  }
              }
         }
-        return <LessonsView isLoggedIn={isLoggedIn} requireAuth={(fn: any) => fn()} onStartLesson={handleStartLesson} authProfile={authProfile} role={role} isPro={isPro} defaultClass={defaultClass} defaultSubject={defaultSubject} />;
+        return (
+          <LessonsView 
+            isLoggedIn={isLoggedIn} 
+            requireAuth={(fn: any) => fn()} 
+            onStartLesson={handleStartLesson} 
+            authProfile={authProfile} 
+            role={role} 
+            isPro={isPro} 
+            defaultClass={defaultClass} 
+            defaultSubject={defaultSubject}
+            onBackToCourses={() => setCurrentView('kourses')}
+          />
+        );
     }
     
     const activeTierObj = FIVE_TIERS?.find(t => t.id === currentView);
@@ -705,7 +837,7 @@ useEffect(() => {
     return <LandingView 
       onTryDemo={handleStartDemo} 
       onNavigateToTier={(tierId: any) => setCurrentView(tierId)} 
-      onNavigateToLessons={() => setCurrentView('lessons')} 
+      onNavigateToLessons={() => setCurrentView('kourses')} 
       onNavigateToSubject={(subject: string) => {
         setCurrentView(`lessons:${subject}`);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -719,8 +851,8 @@ useEffect(() => {
       {showGlobalQuote && <QuoteInquiryModal onClose={() => setShowGlobalQuote(false)} />}
       {showContactUs && <ContactUsModal onClose={() => setShowContactUs(false)} user={authProfile} />}
       
-      {/* Contact Us FAB (Hidden when learning tool is active or printing) */}
-      {!playingLesson && (
+      {/* Contact Us FAB (Hidden when learning tool is active, in direct tool mode, or printing) */}
+      {!playingLesson && !isDirectToolMode && (
         <button
           onClick={() => setShowContactUs(true)}
           className="fixed bottom-6 right-6 z-40 bg-sky-500 text-white p-4 rounded-full shadow-lg hover:bg-sky-600 transition-all transform hover:scale-105 flex items-center justify-center group print:hidden"
@@ -774,7 +906,7 @@ useEffect(() => {
       {playingLesson && (
         <LessonPlayer 
           lesson={playingLesson} initialStep={playingStep} isPro={isPro} isLoggedIn={isLoggedIn} 
-          onClose={() => setPlayingLesson(null)} 
+          onClose={handleCloseLesson} 
           onStepComplete={async (data: any = {}) => {
              // Log immediate progress for the specific tool!
              if (authProfile && authProfile.role === 'student') {
@@ -785,13 +917,15 @@ useEffect(() => {
                     
                     const tool = playingLesson.flow?.[data.step] || playingLesson;
                     const toolId = tool.id || tool.title || 'unknown_tool';
-                    const gradeStr = tool.grade ? tool.grade.trim() : 'unknown_grade';
-                    const subjStr = tool.subject ? tool.subject.trim() : 'unknown_subject';
-                    const subjectId = `${gradeStr}_${subjStr}`;
+                    
+                    // Resilient Grade & Subject Resolution (Guarantees no 'unknown_grade_unknown_subject' records)
+                    const rawGrade = (tool.grade || playingLesson.grade || (authProfile as any)?.grade || 'Foundational').trim();
+                    const rawSubj = (tool.subject || playingLesson.subject || 'General').trim();
+                    const subjectId = `${rawGrade}_${rawSubj}`;
                     
                     await logStudentActivity(token, {
                       toolId: toolId,
-                      chapterName: playingLesson.chapter,
+                      chapterName: playingLesson.chapter || tool.chapter_name || 'Chapter',
                       subjectId: subjectId,
                       score: data.score,
                       timeSpentSeconds: data.timeSpentSeconds,
@@ -806,12 +940,13 @@ useEffect(() => {
           onFinish={async (data: any = {}) => {
              // 🎯 TRACKING: Playlist Completed!
              trackEvent('lesson_completed', { chapter: playingLesson.chapter });
-             setPlayingLesson(null);
+             handleCloseLesson();
           }} 
         />
       )}
       
-      <nav className="bg-white border-b-4 border-sky-500 sticky top-0 z-40 shadow-sm print:hidden">
+      {!isDirectToolMode && (
+        <nav className="bg-white border-b-4 border-sky-500 sticky top-0 z-40 shadow-sm print:hidden">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
           {/* LEFT: Logo */}
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentView(isLoggedIn ? 'portal' : 'home'); setStage(null); if (!isLoggedIn) setRole(null); }}>
@@ -822,11 +957,10 @@ useEffect(() => {
           {/* RIGHT SIDE CONTAINER: Nav Links & Profile (Aligned Right) */}
           <div className="flex items-center gap-4 xl:gap-8 ml-auto">
             
-            {/* 6 Nav Links (Hidden on mobile) */}
+            {/* Nav Links (Hidden on mobile) */}
             {displayRole !== 'parent' && (
               <div className="hidden lg:flex items-center gap-4 xl:gap-8 font-extrabold text-slate-500 text-xs text-center leading-tight">
-                 <button onClick={() => setCurrentView('lessons')} className={`py-2 px-1 transition-colors hover:text-sky-500 ${currentView === 'lessons' ? 'text-sky-500 border-b-2 border-sky-500' : ''}`}>All<br/>Lessons</button>
-                 <button onClick={() => setCurrentView('kourses')} className={`py-2 px-1 transition-colors hover:text-indigo-600 ${currentView === 'kourses' ? 'text-indigo-600 border-b-2 border-indigo-600' : ''}`}>Kortex<br/>Kourses</button>
+                 <button onClick={() => setCurrentView('kourses')} className={`py-2 px-1 transition-colors hover:text-indigo-600 ${currentView === 'kourses' || currentView.startsWith('lessons') ? 'text-indigo-600 border-b-2 border-indigo-600' : ''}`}>Kortex<br/>Kourses</button>
                  <button onClick={() => setCurrentView('conceptualiser')} className={`py-2 px-1 transition-colors hover:text-purple-500 ${currentView === 'conceptualiser' ? 'text-purple-500 border-b-2 border-purple-500' : ''}`}>Interactive<br/>Sandbox</button>
                  <button onClick={() => setCurrentView('theatre')} className={`py-2 px-1 transition-colors hover:text-pink-500 ${currentView === 'theatre' ? 'text-pink-500 border-b-2 border-pink-500' : ''}`}>Kortex<br/>Theatre</button>
                  <button onClick={() => setCurrentView('dojo')} className={`py-2 px-1 transition-colors hover:text-orange-500 ${currentView === 'dojo' ? 'text-orange-500 border-b-2 border-orange-500' : ''}`}>The<br/>Dojo</button>
@@ -896,8 +1030,7 @@ useEffect(() => {
            <div className="lg:hidden bg-white border-t border-slate-100 p-4 space-y-2 absolute w-full shadow-xl font-bold text-slate-700">
               {displayRole !== 'parent' && (
                 <>
-                  <button onClick={() => { setCurrentView('lessons'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'lessons' ? 'text-sky-500 bg-sky-50' : 'hover:bg-slate-50'}`}>All Lessons</button>
-                  <button onClick={() => { setCurrentView('kourses'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'kourses' ? 'text-indigo-600 bg-indigo-50' : 'hover:bg-slate-50'}`}>Kortex Kourses</button>
+                  <button onClick={() => { setCurrentView('kourses'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'kourses' || currentView.startsWith('lessons') ? 'text-indigo-600 bg-indigo-50 font-black' : 'hover:bg-slate-50'}`}>Kortex Kourses</button>
                   <button onClick={() => { setCurrentView('conceptualiser'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'conceptualiser' ? 'text-purple-500 bg-purple-50' : 'hover:bg-slate-50'}`}>Interactive Sandbox</button>
                   <button onClick={() => { setCurrentView('theatre'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'theatre' ? 'text-pink-500 bg-pink-50' : 'hover:bg-slate-50'}`}>Kortex Theatre</button>
                   <button onClick={() => { setCurrentView('dojo'); setMobileMenuOpen(false); }} className={`block w-full text-left p-3 rounded-lg ${currentView === 'dojo' ? 'text-orange-500 bg-orange-50' : 'hover:bg-slate-50'}`}>The Dojo</button>
@@ -965,17 +1098,18 @@ useEffect(() => {
            </div>
         )}
       </nav>
+      )}
 
         {/* THE HEADLESS CMS EDITOR PANEL */}
        {role === 'krew' && currentView !== 'home' && <KrewEditorPanel />}
 
 
-      <main className={`${currentView === 'home' && !role ? '' : 'py-8 px-4'} w-full overflow-hidden`}>
+      <main className={isDirectToolMode ? "w-full h-full" : `${currentView === 'home' && !role ? '' : 'py-8 px-4'} w-full overflow-hidden`}>
         {renderContent()}
       </main>
 
       {/* GLOBAL PUBLIC FOOTER */}
-      {currentView !== 'portal' && (
+      {!isDirectToolMode && currentView !== 'portal' && (
         <Footer variant="full" />
       )}
       
