@@ -1761,6 +1761,7 @@ export async function bulkProvisionStudents(
         emergency_contact: student.parentPhone || student.parentEmail || '',
         parent_id: 'PENDING',
         claim_code: claimCode,
+        plain_pin: null,
         org_ids: [orgId],
         org_links: {
           [orgId]: {
@@ -2090,6 +2091,7 @@ export async function lookupStudentByClaimCode(code: string) {
         claimCode: data.claim_code,
         orgName,
         parentConsentVerified: Boolean(data.parent_consent_verified),
+        hasPin: Boolean(data.plain_pin),
         parentName: data.parent_name || '',
         emergencyContact: data.emergency_contact || ''
       }
@@ -2221,6 +2223,115 @@ export async function activateStudentWithConsent(params: {
     };
   } catch (error: any) {
     console.error("Error activating student with consent:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function verifyStudentPinAndLogin(params: { claimCode: string; pin: string }) {
+  try {
+    const cleanCode = (params.claimCode || '').trim().toUpperCase();
+    const cleanPin = (params.pin || '').trim().replace(/\D/g, '');
+
+    if (!cleanCode) return { success: false, error: "Student claim code is required." };
+    if (cleanPin.length !== 6) return { success: false, error: "Please enter your 6-digit PIN." };
+
+    const snap = await adminDb.collection('users')
+      .where('role', '==', 'student')
+      .where('claim_code', '==', cleanCode)
+      .limit(1)
+      .get();
+
+    if (snap.empty) {
+      return { success: false, error: "Student not found with this code." };
+    }
+
+    const studentDoc = snap.docs[0];
+    const studentData = studentDoc.data();
+    const studentUid = studentDoc.id;
+
+    if (!studentData.plain_pin) {
+      return { success: false, error: "No PIN has been created yet for this account. Please complete initial setup." };
+    }
+
+    if (studentData.plain_pin !== cleanPin) {
+      return { success: false, error: "Incorrect 6-digit PIN. Please ask your class teacher or school administrator at school if you forgot your PIN." };
+    }
+
+    // Generate single-device session token
+    const sessionToken = crypto.randomUUID();
+
+    await studentDoc.ref.update({
+      session_token: sessionToken,
+      session_updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
+    const customToken = await adminAuth.createCustomToken(studentUid, {
+      role: 'student',
+      claim_code: cleanCode
+    });
+
+    return {
+      success: true,
+      customToken,
+      sessionToken,
+      studentUid,
+      studentName: studentData.full_name || 'Student'
+    };
+  } catch (error: any) {
+    console.error("Error verifying student PIN:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function resetStudentPinByOrgAdmin(idToken: string, studentUid: string, newPin: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const orgId = decodedToken.uid;
+
+    const callerDoc = await adminDb.collection('users').doc(orgId).get();
+    if (!callerDoc.exists || callerDoc.data()?.role !== 'org_admin') {
+      throw new Error("Unauthorized: Only School Administrators can reset student PINs.");
+    }
+
+    const cleanPin = (newPin || '').trim().replace(/\D/g, '');
+    if (cleanPin.length !== 6) {
+      throw new Error("PIN must be exactly 6 digits.");
+    }
+
+    const studentRef = adminDb.collection('users').doc(studentUid);
+    const studentDoc = await studentRef.get();
+    if (!studentDoc.exists) throw new Error("Student not found.");
+
+    const studentData = studentDoc.data()!;
+    if (!studentData.org_ids?.includes(orgId)) {
+      throw new Error("Unauthorized: Student does not belong to your school.");
+    }
+
+    // Update Firestore
+    await studentRef.update({
+      plain_pin: cleanPin,
+      updated_at: new Date().toISOString()
+    });
+
+    // Update Firebase Auth password
+    try {
+      await adminAuth.updateUser(studentUid, { password: cleanPin });
+    } catch (e: any) {
+      if (e.code === 'auth/user-not-found') {
+        const studentEmail = `${(studentData.kortex_id || studentUid).toLowerCase()}@student.kortex.app`;
+        await adminAuth.createUser({
+          uid: studentUid,
+          email: studentEmail,
+          displayName: studentData.full_name || 'Student',
+          password: cleanPin
+        });
+      }
+    }
+
+    return { success: true, newPin: cleanPin };
+  } catch (error: any) {
+    console.error("Error resetting student PIN by Org Admin:", error);
     return { success: false, error: error.message };
   }
 }

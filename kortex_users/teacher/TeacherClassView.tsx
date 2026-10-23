@@ -2,8 +2,8 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { TeacherProfile, TeacherComboData, ClassStudentData } from '../../types/user';
-import { getClassroomRoster } from '../../app/actions/teacher';
-import { ArrowLeft, BarChart3, Users, BookOpen, AlertCircle, PlusCircle, PlayCircle } from 'lucide-react';
+import { getClassroomRoster, resetStudentPinByTeacher } from '../../app/actions/teacher';
+import { ArrowLeft, BarChart3, Users, BookOpen, AlertCircle, PlusCircle, PlayCircle, Eye, EyeOff, KeyRound, Check, X, Share2, Sparkles } from 'lucide-react';
 import { auth } from '../../backend_configurations/firebase';
 import { fetchTeacherAssignments } from '../../app/actions/teacher_assignments';
 import AssignmentBuilderModal from './AssignmentBuilderModal';
@@ -27,6 +27,48 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [gradingAssignment, setGradingAssignment] = useState<any>(null);
+
+  // In-School PIN Lookup & Reset states
+  const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
+  const [resettingStudent, setResettingStudent] = useState<ClassStudentData | null>(null);
+  const [newStudentPin, setNewStudentPin] = useState('');
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetMsg, setResetMsg] = useState('');
+
+  const togglePinReveal = (uid: string) => {
+    setRevealedPins(prev => ({ ...prev, [uid]: !prev[uid] }));
+  };
+
+  const handleTeacherResetPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resettingStudent) return;
+    const clean = newStudentPin.trim().replace(/\D/g, '');
+    if (clean.length !== 6) {
+      alert("PIN must be exactly 6 digits.");
+      return;
+    }
+    setResetSubmitting(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+      const token = await user.getIdToken();
+      const res = await resetStudentPinByTeacher(token, resettingStudent.uid, clean);
+      if (!res.success) throw new Error(res.error || "Failed to reset PIN");
+
+      // Update in local state
+      setRoster(prev => prev.map(s => s.uid === resettingStudent.uid ? { ...s, pin: clean, plainPin: clean } : s));
+      setResetMsg(`PIN successfully updated to ${clean}!`);
+      setTimeout(() => {
+        setResettingStudent(null);
+        setResetMsg('');
+        setNewStudentPin('');
+      }, 1500);
+    } catch (err: any) {
+      alert(err.message || "Failed to reset PIN");
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
 
 
   useEffect(() => {
@@ -159,6 +201,7 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Roll No</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Student Name</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">ID</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">PIN</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Curriculum Completed</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Action</th>
                      </tr>
@@ -183,7 +226,26 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
                               </div>
                            </td>
                            <td className="px-6 py-4">
-                              <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">{student.kortexId || 'N/A'}</span>
+                              <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md font-mono">{student.kortexId || 'N/A'}</span>
+                           </td>
+                           <td className="px-6 py-4">
+                              {(student.pin || (student as any).plainPin) ? (
+                                 <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md w-fit">
+                                   <span>{revealedPins[student.uid] ? (student.pin || (student as any).plainPin) : '••••••'}</span>
+                                   <button
+                                     type="button"
+                                     onClick={() => togglePinReveal(student.uid)}
+                                     className="text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                                     title={revealedPins[student.uid] ? "Hide PIN" : "Reveal PIN to student"}
+                                   >
+                                     {revealedPins[student.uid] ? <EyeOff size={13} /> : <Eye size={13} />}
+                                   </button>
+                                 </div>
+                              ) : (
+                                 <span className="text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-md">
+                                   Not Activated
+                                 </span>
+                              )}
                            </td>
                            <td className="px-6 py-4">
                               <div className="flex items-center gap-2">
@@ -192,9 +254,19 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
                               </div>
                            </td>
                            <td className="px-6 py-4 text-right">
-                              <button className="text-xs font-bold text-sky-500 hover:text-sky-700 bg-sky-50 px-3 py-1.5 rounded-lg transition-colors">
-                                 View Report
-                              </button>
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => { setResettingStudent(student); setNewStudentPin(''); setResetMsg(''); }}
+                                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                                  title="Reset Student PIN"
+                                >
+                                  <KeyRound size={12} /> Reset PIN
+                                </button>
+                                <button className="text-xs font-bold text-sky-500 hover:text-sky-700 bg-sky-50 px-3 py-1.5 rounded-lg transition-colors">
+                                   View Report
+                                </button>
+                              </div>
                            </td>
                         </tr>
                      ))}
@@ -261,6 +333,117 @@ export default function TeacherClassView({ profile, combo, onBack, onExploreTier
              // Could refresh assignments list here
           }}
         />
+      )}
+
+      {/* Teacher Student PIN Reset Modal */}
+      {resettingStudent && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full border-2 border-slate-100 shadow-2xl overflow-hidden animate-scale-up">
+            <div className="bg-gradient-to-r from-indigo-600 to-sky-600 px-6 py-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <KeyRound size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg leading-tight">Reset Student PIN</h3>
+                  <p className="text-xs text-sky-100 font-semibold">{resettingStudent.fullName}</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setResettingStudent(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleTeacherResetPin} className="p-6 space-y-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-bold">Student ID:</span>
+                  <span className="font-mono font-black text-slate-800">{resettingStudent.kortexId || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-bold">Roll No:</span>
+                  <span className="font-bold text-slate-800">{resettingStudent.rollNo || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200/60">
+                  <span className="text-slate-400 font-bold">Current PIN:</span>
+                  <span className="font-mono font-black text-indigo-600 text-sm">
+                    {resettingStudent.pin || (resettingStudent as any).plainPin || 'Not set yet'}
+                  </span>
+                </div>
+              </div>
+
+              {resetMsg ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-3">
+                  <div className="flex items-center justify-center gap-2 text-emerald-800 font-black text-sm">
+                    <Check size={18} className="text-emerald-600" />
+                    <span>{resetMsg}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = `Namaste! Login details for ${resettingStudent.fullName} have been updated.\nStudent ID: ${resettingStudent.kortexId}\nNew PIN: ${newStudentPin || (resettingStudent.pin || (resettingStudent as any).plainPin)}\nLogin at: https://kortexklassroom.com`;
+                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                    }}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Share2 size={14} /> Send New PIN to Parent via WhatsApp
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                      New 6-Digit PIN <span className="text-rose-500 font-black">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        maxLength={6}
+                        pattern="[0-9]*"
+                        inputMode="numeric"
+                        required
+                        value={newStudentPin}
+                        onChange={(e) => setNewStudentPin(e.target.value.replace(/\D/g, ''))}
+                        placeholder="e.g. 123456"
+                        className="w-full py-3.5 px-4 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:border-indigo-600 focus:bg-white focus:outline-none font-black text-2xl tracking-widest text-center transition-all text-slate-800"
+                      />
+                    </div>
+                    <div className="flex justify-end mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setNewStudentPin('123456')}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Sparkles size={12} /> Set Default (123456)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setResettingStudent(null)}
+                      className="w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm rounded-xl transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={resetSubmitting || newStudentPin.length !== 6}
+                      className="w-1/2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-black text-sm rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {resetSubmitting ? "Saving..." : "Update PIN"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

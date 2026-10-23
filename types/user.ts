@@ -208,6 +208,8 @@ export interface ClassStudentData {
   name?: string;
   fullName?: string;
   pin?: string;
+  plainPin?: string;
+  claimCode?: string;
   kortexId?: string;
   rollNo?: string;
   avatar?: string;

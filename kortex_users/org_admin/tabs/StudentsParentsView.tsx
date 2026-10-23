@@ -3,11 +3,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot, or, and } from 'firebase/firestore';
 import { db, auth } from '../../../backend_configurations/firebase';
 import { OrgAdminProfile, StudentProfile } from '../../../types/user';
-import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen, Download, Search, Filter, ChevronUp, ChevronDown, ArrowUpDown, Eye, EyeOff, Share2 } from 'lucide-react';
+import { Users, UserPlus, Link, AlertCircle, CheckCircle2, MoreVertical, RefreshCw, Phone, Pencil, Trash2, Import, BookOpen, Download, Search, Filter, ChevronUp, ChevronDown, ArrowUpDown, Eye, EyeOff, Share2, KeyRound, Sparkles, Check, X } from 'lucide-react';
 import { GRADES, SECTIONS, SUBJECT_CATEGORIES, GRADE_CORE_MAP } from '../../../kortex_landing_page/curriculumConfig';
 import { generateComboId } from '../utils/comboParsers';
 import { computeOrgSeatMetrics } from '../utils/seatLedger';
-import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess, bulkProvisionStudents, syncOrgStudents } from '../../../app/actions/student';
+import { provisionStudentPlaceholder, requestStudentImport, updateStudentDetails, revokeStudentAccess, bulkProvisionStudents, syncOrgStudents, resetStudentPinByOrgAdmin } from '../../../app/actions/student';
 import ModalPortal from '../../../components/ModalPortal';
 
 interface StudentsParentsViewProps {
@@ -26,6 +26,47 @@ export default function StudentsParentsView({ profile, initialStudents, initialL
   const [showRevokeModal, setShowRevokeModal] = useState(false);
   const [showSubjectsModal, setShowSubjectsModal] = useState(false);
   
+  // Org Admin PIN Management
+  const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
+  const [resettingStudent, setResettingStudent] = useState<StudentProfile | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [pinResetSubmitting, setPinResetSubmitting] = useState(false);
+  const [pinResetSuccess, setPinResetSuccess] = useState('');
+
+  const togglePinReveal = (uid: string) => {
+    setRevealedPins(prev => ({ ...prev, [uid]: !prev[uid] }));
+  };
+
+  const handleResetPinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resettingStudent) return;
+    const clean = newPin.trim().replace(/\D/g, '');
+    if (clean.length !== 6) {
+      alert("PIN must be exactly 6 digits.");
+      return;
+    }
+    setPinResetSubmitting(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+      const token = await user.getIdToken();
+      const res = await resetStudentPinByOrgAdmin(token, resettingStudent.uid, clean);
+      if (!res.success) throw new Error(res.error || "Failed to reset PIN");
+
+      setStudents(prev => prev.map(s => s.uid === resettingStudent.uid ? { ...s, plain_pin: clean } : s));
+      setPinResetSuccess(`PIN successfully updated to ${clean}!`);
+      setTimeout(() => {
+        setResettingStudent(null);
+        setPinResetSuccess('');
+        setNewPin('');
+      }, 1500);
+    } catch (err: any) {
+      alert(err.message || "Failed to reset PIN");
+    } finally {
+      setPinResetSubmitting(false);
+    }
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Search & On-Demand Filters
@@ -815,6 +856,22 @@ export default function StudentsParentsView({ profile, initialStudents, initialL
                         <div className="font-bold text-indigo-600 font-mono text-xs bg-indigo-50 px-2 py-1 rounded-md inline-block">
                           {student.kortex_id || 'PENDING'}
                         </div>
+                        {student.plain_pin ? (
+                          <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-slate-600 mt-1.5 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200/60 w-fit">
+                            <span className="text-[9px] text-slate-400 font-black uppercase">PIN:</span>
+                            <span>{revealedPins[student.uid] ? student.plain_pin : '••••••'}</span>
+                            <button
+                              type="button"
+                              onClick={() => togglePinReveal(student.uid)}
+                              className="text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                              title={revealedPins[student.uid] ? "Hide PIN" : "Reveal PIN"}
+                            >
+                              {revealedPins[student.uid] ? <EyeOff size={11} /> : <Eye size={11} />}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-amber-500 font-bold mt-1">Pending PIN</div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-bold text-slate-800 flex items-center gap-2">
@@ -891,6 +948,14 @@ export default function StudentsParentsView({ profile, initialStudents, initialL
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => { setResettingStudent(student); setNewPin(''); setPinResetSuccess(''); }}
+                            title="Reset Student PIN"
+                            className="p-2 text-sky-500 hover:bg-sky-50 hover:text-sky-700 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <KeyRound size={16} />
+                          </button>
                           <button 
                             onClick={() => openEdit(student)}
                             className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
@@ -1275,6 +1340,120 @@ export default function StudentsParentsView({ profile, initialStudents, initialL
            </div>
         </div>
       </ModalPortal>
+      )}
+
+      {/* Org Admin Reset Student PIN Modal */}
+      {resettingStudent && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full border-2 border-slate-100 shadow-2xl overflow-hidden animate-scale-up">
+              <div className="bg-gradient-to-r from-sky-600 to-indigo-600 px-6 py-5 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <KeyRound size={22} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg leading-tight">Reset Student PIN</h3>
+                    <p className="text-xs text-sky-100 font-semibold">{resettingStudent.full_name}</p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setResettingStudent(null)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <form onSubmit={handleResetPinSubmit} className="p-6 space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-bold">Student ID:</span>
+                    <span className="font-mono font-black text-slate-800">{resettingStudent.kortex_id || 'PENDING'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-bold">Class & Section:</span>
+                    <span className="font-bold text-slate-800">{resettingStudent.grade} {resettingStudent.section ? `• Sec ${resettingStudent.section}` : ''}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-200/60">
+                    <span className="text-slate-400 font-bold">Current PIN:</span>
+                    <span className="font-mono font-black text-indigo-600 text-sm">
+                      {resettingStudent.plain_pin || 'Not set yet'}
+                    </span>
+                  </div>
+                </div>
+
+                {pinResetSuccess ? (
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-3">
+                    <div className="flex items-center justify-center gap-2 text-emerald-800 font-black text-sm">
+                      <Check size={18} className="text-emerald-600" />
+                      <span>{pinResetSuccess}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                        const text = `Namaste! Login PIN for ${resettingStudent.full_name} has been updated by the school administration.\nStudent ID: ${resettingStudent.kortex_id}\nNew PIN: ${newPin || resettingStudent.plain_pin}\nLogin at: ${origin}`;
+                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                      }}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Share2 size={14} /> Send New PIN to Parent via WhatsApp
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                        New 6-Digit PIN <span className="text-rose-500 font-black">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="password"
+                          maxLength={6}
+                          pattern="[0-9]*"
+                          inputMode="numeric"
+                          required
+                          value={newPin}
+                          onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                          placeholder="e.g. 123456"
+                          className="w-full py-3.5 px-4 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:border-sky-500 focus:bg-white focus:outline-none font-black text-2xl tracking-widest text-center transition-all text-slate-800"
+                        />
+                      </div>
+                      <div className="flex justify-end mt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setNewPin('123456')}
+                          className="text-[11px] font-bold text-sky-600 hover:text-sky-800 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles size={12} /> Set Default (123456)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setResettingStudent(null)}
+                        className="w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm rounded-xl transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={pinResetSubmitting || newPin.length !== 6}
+                        className="w-1/2 py-3 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white font-black text-sm rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        {pinResetSubmitting ? "Saving..." : "Update PIN"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </form>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
     </div>

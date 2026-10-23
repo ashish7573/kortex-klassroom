@@ -5,8 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { auth } from '../../backend_configurations/firebase';
 import { signInWithCustomToken } from 'firebase/auth';
-import { lookupStudentByClaimCode, activateStudentWithConsent } from '../actions/student';
-import { CheckCircle2, School, GraduationCap, ArrowRight, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
+import { lookupStudentByClaimCode, activateStudentWithConsent, verifyStudentPinAndLogin } from '../actions/student';
+import { CheckCircle2, School, GraduationCap, ArrowRight, ShieldCheck, Sparkles, AlertCircle, KeyRound, HelpCircle, X } from 'lucide-react';
 
 function StartPageContent() {
   const searchParams = useSearchParams();
@@ -17,13 +17,26 @@ function StartPageContent() {
   const [studentData, setStudentData] = useState<any | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Consent Form fields
+  // Consent Form fields (First-Time)
   const [parentName, setParentName] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
   const [pin, setPin] = useState('');
   const [consentChecked, setConsentChecked] = useState(false);
+
+  // Returning PIN verification
+  const [loginPin, setLoginPin] = useState('');
+  const [showForgotHelp, setShowForgotHelp] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [loginStep, setLoginStep] = useState<string | null>(null);
+
+  // Persistent Device Session Check
+  useEffect(() => {
+    if (studentData && auth.currentUser && auth.currentUser.uid === studentData.uid) {
+      // User is already logged in as this student on this device -> 0-friction direct launch!
+      window.location.href = '/?view=portal';
+    }
+  }, [studentData]);
 
   // Auto-verify if code exists in URL
   useEffect(() => {
@@ -120,6 +133,44 @@ function StartPageContent() {
     } catch (err: any) {
       console.error("Activation error:", err);
       setErrorMsg(err.message || "Something went wrong while starting learning. Please try again.");
+      setSubmitting(false);
+      setLoginStep(null);
+    }
+  };
+
+  const handlePinLogin = async () => {
+    if (!studentData) return;
+    const clean = loginPin.trim().replace(/\D/g, '');
+    if (clean.length !== 6) {
+      setErrorMsg("Please enter your 6-digit PIN. (कृपया अपना 6-अंकों का पिन दर्ज करें)");
+      return;
+    }
+    setErrorMsg('');
+    setSubmitting(true);
+    setLoginStep("Verifying PIN... (पिन सत्यापित किया जा रहा है)");
+
+    try {
+      const result = await verifyStudentPinAndLogin({
+        claimCode: studentData.claimCode,
+        pin: clean,
+      });
+
+      if (!result.success || !result.customToken || !result.sessionToken) {
+        throw new Error(result.error || "Incorrect PIN. (गलत पिन)");
+      }
+
+      setLoginStep("Starting learning session... (सत्र शुरू किया जा रहा है)");
+
+      localStorage.setItem(`session_token_${result.studentUid}`, result.sessionToken);
+      localStorage.setItem('kortex_session_token', result.sessionToken);
+
+      await signInWithCustomToken(auth, result.customToken);
+
+      setLoginStep("Redirecting to your student dashboard... (डैशबोर्ड पर ले जा रहे हैं)");
+      window.location.href = '/?view=portal';
+    } catch (err: any) {
+      console.error("PIN login error:", err);
+      setErrorMsg(err.message || "Failed to log in with PIN. Please try again or ask your teacher.");
       setSubmitting(false);
       setLoginStep(null);
     }
@@ -262,28 +313,44 @@ function StartPageContent() {
                 </div>
               </div>
 
-              {/* RETURNING USER VIEW: 1-Tap Re-Login */}
-              {studentData.parentConsentVerified ? (
-                <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-5 space-y-4">
-                  <div className="flex items-center gap-2 text-emerald-800 font-black text-sm">
-                    <CheckCircle2 size={20} className="text-emerald-600" />
-                    <span>Parent Consent Already Verified • सहमति सत्यापित है</span>
+              {/* RETURNING USER VIEW: 6-Digit PIN Login */}
+              {studentData.parentConsentVerified && studentData.hasPin ? (
+                <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center gap-2 text-sky-900 font-black text-sm">
+                    <KeyRound size={20} className="text-sky-600" />
+                    <span>Enter 6-Digit PIN • पिन दर्ज करें</span>
                   </div>
-                  <p className="text-xs text-emerald-700 font-semibold leading-relaxed">
-                    Welcome back, <strong className="font-black">{studentData.fullName}</strong>! 
-                    Your account is active and linked. Tap below to launch your lessons.
+                  <p className="text-xs text-slate-600 font-semibold leading-relaxed">
+                    Welcome back, <strong className="font-black text-slate-800">{studentData.fullName}</strong>! 
+                    Enter your 6-digit PIN to continue learning.
                   </p>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
+                      Student 6-Digit PIN <span className="text-rose-500 font-black">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      maxLength={6}
+                      pattern="[0-9]*"
+                      inputMode="numeric"
+                      value={loginPin}
+                      onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••••"
+                      className="w-full py-3.5 px-4 bg-white border-2 border-slate-200 rounded-xl focus:border-sky-500 focus:outline-none font-black text-2xl tracking-widest text-center transition-all text-slate-800"
+                    />
+                  </div>
                   
                   <button
                     type="button"
-                    onClick={handleActivate}
-                    disabled={submitting}
-                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-lg rounded-2xl shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                    onClick={handlePinLogin}
+                    disabled={submitting || loginPin.length !== 6}
+                    className="w-full py-4 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-lg shadow-sky-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
                   >
                     {submitting ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>{loginStep || "Logging In..."}</span>
+                        <span>{loginStep || "Verifying..."}</span>
                       </>
                     ) : (
                       <>
@@ -291,6 +358,41 @@ function StartPageContent() {
                       </>
                     )}
                   </button>
+
+                  <div className="text-center pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotHelp(prev => !prev)}
+                      className="text-xs font-bold text-slate-400 hover:text-sky-600 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <HelpCircle size={14} />
+                      <span>Forgot your PIN? (पिन भूल गए?)</span>
+                    </button>
+                  </div>
+
+                  {showForgotHelp && (
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-left animate-fade-in space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                          <GraduationCap size={16} className="text-amber-600" />
+                          How to reset your Student PIN
+                        </span>
+                        <button 
+                          type="button"
+                          onClick={() => setShowForgotHelp(false)}
+                          className="text-amber-500 hover:text-amber-700"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <p className="text-xs text-amber-800 leading-relaxed font-semibold">
+                        Student PINs cannot be reset online. If you forgot your 6-digit PIN, please <strong>ask your class teacher or school administrator directly at school</strong>. They can look up your PIN or reset it for you on the school roster.
+                      </p>
+                      <p className="text-[11px] text-amber-700 leading-relaxed">
+                        (यदि आप अपना पिन भूल गए हैं, तो कृपया स्कूल में अपने कक्षा अध्यापक या स्कूल कार्यालय से संपर्क करें। वे आपके पिन को देख या रीसेट कर सकते हैं।)
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* FIRST-TIME USER VIEW: Consent & Parent Info */

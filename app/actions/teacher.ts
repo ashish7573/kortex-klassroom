@@ -435,6 +435,9 @@ export async function getClassroomRoster(idToken: string, orgId: string, comboId
           uid: sDoc.id,
           fullName: sData.full_name || 'Unknown Student',
           kortexId: sData.kortex_id || '',
+          pin: sData.plain_pin || null,
+          plainPin: sData.plain_pin || null,
+          claimCode: sData.claim_code || null,
           rollNo: sData.roll_no || sData.org_links?.[orgId]?.roll_no || '',
           avatar: sData.avatar || '',
           completedToolsCount: completedCount,
@@ -597,6 +600,59 @@ export async function updateStudentMasteryLevel(
     return { success: true, updatedCompletedTools: completedTools };
   } catch (error: any) {
     console.error("Error updating student mastery level:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function resetStudentPinByTeacher(idToken: string, studentUid: string, newPin: string) {
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const teacherUid = decodedToken.uid;
+
+    const teacherDoc = await adminDb.collection('users').doc(teacherUid).get();
+    if (!teacherDoc.exists) throw new Error("Teacher not found.");
+    const teacherData = teacherDoc.data()!;
+    const teacherRoles: string[] = teacherData.roles || (teacherData.role ? [teacherData.role] : []);
+    if (!teacherRoles.includes('teacher')) throw new Error("Unauthorized: Only Teachers can perform this action.");
+
+    const cleanPin = (newPin || '').trim().replace(/\D/g, '');
+    if (cleanPin.length !== 6) throw new Error("PIN must be exactly 6 digits.");
+
+    const studentRef = adminDb.collection('users').doc(studentUid);
+    const studentDoc = await studentRef.get();
+    if (!studentDoc.exists) throw new Error("Student not found.");
+    const studentData = studentDoc.data()!;
+
+    // Security Guard: Check org alignment
+    const teacherOrgId = teacherData.org_id || (teacherData.org_ids ? teacherData.org_ids[0] : null);
+    if (!studentData.org_ids?.includes(teacherOrgId)) {
+      throw new Error("Unauthorized: Student does not belong to your organization.");
+    }
+
+    // Update Firestore
+    await studentRef.update({
+      plain_pin: cleanPin,
+      updated_at: new Date().toISOString()
+    });
+
+    // Update Firebase Auth password
+    try {
+      await adminAuth.updateUser(studentUid, { password: cleanPin });
+    } catch (e: any) {
+      if (e.code === 'auth/user-not-found') {
+        const studentEmail = `${(studentData.kortex_id || studentUid).toLowerCase()}@student.kortex.app`;
+        await adminAuth.createUser({
+          uid: studentUid,
+          email: studentEmail,
+          displayName: studentData.full_name || 'Student',
+          password: cleanPin
+        });
+      }
+    }
+
+    return { success: true, newPin: cleanPin };
+  } catch (error: any) {
+    console.error("Error resetting student PIN by Teacher:", error);
     return { success: false, error: error.message };
   }
 }

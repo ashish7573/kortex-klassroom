@@ -58,44 +58,20 @@ export async function resolveLoginEmail(identifier: string) {
 
 export async function requestPinResetForIdentifier(identifier: string) {
   try {
-    const raw = (identifier || '').trim();
+    const raw = (identifier || '').trim().toLowerCase();
     if (!raw) {
-      return { success: false, error: "Please enter your email or mobile number." };
+      return { success: false, error: "Please enter your registered email address." };
     }
 
-    let targetEmail = '';
-    let isPhoneLookup = false;
-
-    if (raw.includes('@')) {
-      targetEmail = raw.toLowerCase();
-    } else {
-      const digitsOnly = raw.replace(/\D/g, '');
-      if (digitsOnly.length >= 7) {
-        isPhoneLookup = true;
-        const last10 = digitsOnly.slice(-10);
-        const queries = [
-          adminDb.collection('users').where('phone', '==', last10).limit(1).get(),
-          adminDb.collection('users').where('phone', '==', `+91${last10}`).limit(1).get(),
-          adminDb.collection('users').where('phone', '==', `+91 ${last10}`).limit(1).get(),
-          adminDb.collection('users').where('phone', '==', `+${digitsOnly}`).limit(1).get(),
-        ];
-        const results = await Promise.all(queries);
-        for (const snap of results) {
-          if (!snap.empty) {
-            targetEmail = (snap.docs[0].data()?.email || '').toLowerCase();
-            break;
-          }
-        }
-        if (!targetEmail) {
-          return {
-            success: false,
-            error: "No account found registered with this mobile number. Please enter your email address."
-          };
-        }
-      } else {
-        return { success: false, error: "Invalid email or mobile number." };
-      }
+    // Guard: School Student accounts with synthetic emails or Student IDs cannot reset by email
+    if (raw.endsWith('@student.kortex.app') || raw.startsWith('stu_') || raw.startsWith('stu-') || !raw.includes('@')) {
+      return { 
+        success: false, 
+        error: "Student PINs cannot be reset by email. Please ask your class teacher or school administrator directly at school to view or reset your PIN." 
+      };
     }
+
+    const targetEmail = raw;
 
     // Mask the email for user feedback: e.g. "p***a@gmail.com"
     const [userPart, domainPart] = targetEmail.split('@');
@@ -111,7 +87,7 @@ export async function requestPinResetForIdentifier(identifier: string) {
       success: true, 
       targetEmail, 
       maskedEmail,
-      isPhoneLookup 
+      isPhoneLookup: false 
     };
   } catch (error: any) {
     console.error("Error in requestPinResetForIdentifier:", error);

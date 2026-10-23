@@ -303,7 +303,7 @@ export default function UnifiedAuthModal({
   };
 
   // --------------------------------------------------------------------------
-  // HANDLER: Password / PIN Reset (Supports Email or Mobile Number)
+  // HANDLER: Password Reset (Email-Only)
   // --------------------------------------------------------------------------
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,20 +311,21 @@ export default function UnifiedAuthModal({
     setErrorMsg('');
 
     try {
-      if (!resetIdentifier.trim()) {
-        throw new Error("Please enter your email address or mobile number.");
+      const cleanInput = resetIdentifier.trim().toLowerCase();
+      if (!cleanInput) {
+        throw new Error("Please enter your registered email address.");
       }
 
-      const res = await requestPinResetForIdentifier(resetIdentifier);
+      if (!cleanInput.includes('@') || cleanInput.endsWith('@student.kortex.app') || cleanInput.startsWith('stu_') || cleanInput.startsWith('stu-')) {
+        throw new Error("Student PINs cannot be reset by email. Please ask your class teacher or school administrator directly at school to view or reset your PIN.");
+      }
+
+      const res = await requestPinResetForIdentifier(cleanInput);
       if (!res.success) {
         throw new Error(res.error || "Failed to send reset link.");
       }
 
-      setResetSuccessMsg(
-        res.isPhoneLookup
-          ? `A PIN reset link has been dispatched to the email registered with this mobile number: ${res.maskedEmail}. Please check your inbox.`
-          : `A PIN reset link has been dispatched to ${res.targetEmail}. Please check your inbox.`
-      );
+      setResetSuccessMsg(`A password reset link has been dispatched to ${res.targetEmail}. Please check your inbox.`);
       setResetSent(true);
     } catch (err: any /* eslint-disable-line @typescript-eslint/no-explicit-any */) {
       setErrorMsg(err.message || "Failed to send password reset email.");
@@ -914,16 +915,16 @@ export default function UnifiedAuthModal({
               </div>
             )}
 
-            {/* ----------------- TAB 3: FORGOT PASSWORD / PIN ----------------- */}
+            {/* ----------------- TAB 3: FORGOT PASSWORD ----------------- */}
             {mode === 'forgot' && (
               <div>
                 <div className="text-center mb-5">
                   <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-2">
                     <KeyRound size={24} />
                   </div>
-                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Reset PIN or Password</h2>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Reset Password</h2>
                   <p className="text-xs text-slate-400 font-semibold mt-1">
-                    Enter your registered email address or mobile number
+                    Enter your registered email address to receive a reset link
                   </p>
                 </div>
 
@@ -946,18 +947,26 @@ export default function UnifiedAuthModal({
                   <form onSubmit={handlePasswordReset} className="space-y-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-                        Email or Mobile Number <span className="text-rose-500 font-black">*</span>
+                        Registered Email Address <span className="text-rose-500 font-black">*</span>
                       </label>
                       <input
-                        type="text"
+                        type="email"
                         required
                         value={resetIdentifier}
                         onChange={(e) => setResetIdentifier(e.target.value)}
-                        placeholder="e.g. parent@email.com or 9876543210"
+                        placeholder="e.g. parent@email.com or teacher@school.edu"
                         className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-indigo-600 focus:bg-white text-sm transition-colors"
                       />
                       <p className="text-[11px] text-slate-400 font-medium mt-1">
-                        If you enter a registered mobile number, the reset link will be sent to the email associated with your account.
+                        We will send a secure password reset link to this email address.
+                      </p>
+                    </div>
+
+                    {/* School Student In-School Advisory */}
+                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-left flex items-start gap-2.5">
+                      <GraduationCap className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                      <p className="text-[11px] font-bold text-amber-800 leading-relaxed">
+                        <strong>School Students:</strong> If you forgot your 6-digit PIN, please ask your class teacher or school administrator directly at school to view or reset your PIN.
                       </p>
                     </div>
 
